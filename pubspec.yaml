@@ -1,0 +1,67 @@
+name: luli_for_reddit
+description: "A Material 3 Expressive Reddit client built with Flutter."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  path_provider: ^2.1.5
+
+  # State management
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+
+  # Networking
+  dio: ^5.7.0
+
+  # Models / serialization
+  freezed_annotation: ^2.4.4
+  json_annotation: ^4.9.0
+
+  # Auth + secure storage
+  flutter_web_auth_2: ^5.0.3
+  flutter_secure_storage: ^9.2.2
+  crypto: ^3.0.5
+
+  # Navigation
+  go_router: ^14.6.2
+
+  # UI / media
+  cached_network_image: ^3.4.1
+  photo_view: ^0.15.0
+  video_player: ^2.9.2
+  chewie: ^1.8.5
+  flutter_markdown: ^0.7.4+3
+  url_launcher: ^6.3.1
+  image_picker: ^1.1.2
+  video_thumbnail: ^0.5.3
+  share_plus: ^10.1.4
+  app_links: ^6.3.2
+  dynamic_color: ^1.7.0
+  shimmer: ^3.0.0
+
+  # Utils
+  intl: ^0.20.1
+  shared_preferences: ^2.3.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^5.0.0
+  build_runner: ^2.4.13
+  freezed: ^2.5.7
+  json_serializable: ^6.9.0
+  riverpod_generator: ^2.6.3
+
+flutter:
+  uses-material-design: true
