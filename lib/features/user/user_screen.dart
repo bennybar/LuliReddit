@@ -14,6 +14,7 @@ import '../../models/reddit_user.dart';
 import '../auth/auth_controller.dart';
 import '../feed/paged_list.dart';
 import '../feed/post_card.dart';
+import '../post/post_actions.dart';
 
 final userAboutProvider =
     FutureProvider.autoDispose.family<RedditUser, String>((ref, name) {
@@ -56,6 +57,12 @@ class UserScreen extends ConsumerWidget {
               onPressed: () =>
                   shareUrl(context, 'https://reddit.com/user/$username'),
             ),
+            if (!isSelf)
+              IconButton(
+                tooltip: 'Block user',
+                icon: const Icon(Icons.block_flipped),
+                onPressed: () => confirmBlockUser(context, ref, username),
+              ),
           ],
         ),
         body: Column(

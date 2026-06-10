@@ -17,6 +17,31 @@ anywhere but Reddit.
 - Three feed layouts, swipe-to-vote, NSFW blur, AMOLED and dynamic-color themes
 - Offline cache, rate-limit awareness, and an in-app updater
 
+## How the "For You" feed works
+
+Reddit doesn't give third-party apps access to its own recommendation engine, so
+Luli builds one on your device. Nothing about your interests ever leaves the
+phone.
+
+1. **Candidates.** Luli pulls a pool of posts from the sources that actually
+   matter to you: your subscription frontpage, fresh posts from your favourite
+   subreddits, the communities you engage with most, what's rising in your
+   subscriptions, and a small slice of r/popular for discovery.
+2. **On-device learning.** As you use the app it quietly learns which subreddits
+   you care about — upvoting, saving, and opening posts nudge that community's
+   score up (saving counts most, a passing glance least). This lives only in
+   local storage.
+3. **Ranking.** Each candidate is scored by *community weight* (favourites ≫
+   subscribed ≫ discovery, boosted by what you've learned) combined with the
+   post's velocity (score per hour), recency, and upvote ratio. Already-seen
+   posts are demoted.
+4. **Diversity.** No single subreddit can dominate — posts are capped per
+   community, and discovery picks are sprinkled in at roughly 1 in 6 so the feed
+   stays mostly *your* communities without becoming repetitive.
+5. **Explainable & tunable.** Every post shows why it's there ("★ Favourite",
+   "Because you engage with r/…", "Trending"), and a long-press lets you ask for
+   more or less of a community, or mute it entirely.
+
 ## Install
 
 Download the APK from the

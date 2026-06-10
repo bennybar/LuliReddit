@@ -62,6 +62,8 @@
 		<!-- image_picker: choosing an image/video for posts -->
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>Luli needs access to your photos so you can attach images and videos to posts.</string>
+		<key>NSPhotoLibraryAddUsageDescription</key>
+		<string>Luli saves photos and videos you download to your photo library.</string>
 		<key>NSCameraUsageDescription</key>
 		<string>Luli can use the camera to capture photos for posts.</string>
 		<key>NSMicrophoneUsageDescription</key>

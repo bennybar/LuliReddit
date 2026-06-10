@@ -241,6 +241,11 @@ class SettingsList extends ConsumerWidget {
                 '› Open by default.'),
           ),
           _RateLimitTile(),
+          ListTile(
+            leading: const Icon(Icons.gavel_rounded),
+            title: const Text('Content & conduct policy'),
+            onTap: () => context.push('/policy'),
+          ),
           const Divider(),
           _section(context, 'Account'),
           ListTile(

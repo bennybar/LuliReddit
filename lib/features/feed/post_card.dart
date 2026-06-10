@@ -92,7 +92,9 @@ class _PostCardState extends ConsumerState<PostCard> {
         openGalleryViewer(context, p.gallery, title: p.title);
       case PostType.video:
         final src = p.hlsUrl ?? p.fallbackVideoUrl ?? resolveVideoUrl(p.url);
-        openVideoViewer(context, src, title: p.title);
+        openVideoViewer(context, src,
+            title: p.title,
+            downloadUrl: p.fallbackVideoUrl ?? resolveVideoUrl(p.url));
       case PostType.link:
         launchUrl(Uri.parse(p.url), mode: LaunchMode.externalApplication);
       case PostType.self:

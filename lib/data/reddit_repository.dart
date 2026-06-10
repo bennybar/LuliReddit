@@ -658,6 +658,11 @@ class RedditRepository {
         data: {'thing_id': fullname, 'reason': reason});
   }
 
+  /// Blocks a user (you stop seeing their posts/comments/messages).
+  Future<void> blockUser(String username) async {
+    await _client.post('/api/block_user', data: {'name': username});
+  }
+
   Future<String> submitCrosspost({
     required String subreddit,
     required String title,

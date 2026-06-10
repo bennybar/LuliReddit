@@ -2,9 +2,12 @@ import 'dart:io' show Platform;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:chewie/chewie.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:gal/gal.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -57,8 +60,10 @@ void openGalleryViewer(BuildContext context, List<GalleryImage> images,
       _GalleryViewer(images: images, title: title, initialIndex: initialIndex)));
 }
 
-void openVideoViewer(BuildContext context, String url, {String? title}) {
-  Navigator.of(context).push(_overlayRoute(_VideoViewer(url: url, title: title)));
+void openVideoViewer(BuildContext context, String url,
+    {String? title, String? downloadUrl}) {
+  Navigator.of(context).push(_overlayRoute(
+      _VideoViewer(url: url, title: title, downloadUrl: downloadUrl)));
 }
 
 /// Normalizes common host quirks to a directly-playable video URL
@@ -68,12 +73,46 @@ String resolveVideoUrl(String url) {
   return url;
 }
 
-/// Floating translucent controls (close + open-in-browser) over a top scrim.
+/// Downloads a media file to the device gallery/Photos.
+Future<void> saveMediaToGallery(BuildContext context, String url,
+    {required bool isVideo}) async {
+  final messenger = ScaffoldMessenger.of(context);
+  messenger.showSnackBar(const SnackBar(
+      content: Text('Saving…'), duration: Duration(milliseconds: 900)));
+  try {
+    final dir = await getTemporaryDirectory();
+    final clean = url.split('?').first;
+    var ext = clean.contains('.') ? clean.split('.').last.toLowerCase() : '';
+    if (ext.isEmpty || ext.length > 4) ext = isVideo ? 'mp4' : 'jpg';
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final path = '${dir.path}/luli_$ts.$ext';
+    await Dio().download(url, path);
+    if (isVideo) {
+      await Gal.putVideo(path, album: 'Luli');
+    } else {
+      await Gal.putImage(path, album: 'Luli');
+    }
+    messenger.showSnackBar(
+        const SnackBar(content: Text('Saved to your gallery')));
+  } catch (e) {
+    messenger.showSnackBar(SnackBar(
+        content: Text('Could not save: ${'$e'.replaceFirst('Exception: ', '')}')));
+  }
+}
+
+/// Floating translucent controls (close + download + share + open) over a scrim.
 class _ViewerControls extends StatelessWidget {
-  const _ViewerControls({this.title, this.sourceUrl, this.center});
+  const _ViewerControls(
+      {this.title,
+      this.sourceUrl,
+      this.center,
+      this.downloadUrl,
+      this.downloadIsVideo = false});
   final String? title;
   final String? sourceUrl;
   final String? center;
+  final String? downloadUrl;
+  final bool downloadIsVideo;
 
   @override
   Widget build(BuildContext context) {
@@ -109,6 +148,16 @@ class _ViewerControls extends StatelessWidget {
                       fontWeight: FontWeight.w600),
                 ),
               ),
+              if (downloadUrl != null) ...[
+                _RoundBtn(
+                  icon: Platform.isIOS
+                      ? CupertinoIcons.cloud_download
+                      : Icons.download_rounded,
+                  onTap: () => saveMediaToGallery(context, downloadUrl!,
+                      isVideo: downloadIsVideo),
+                ),
+                const SizedBox(width: 4),
+              ],
               if (sourceUrl != null) ...[
                 _RoundBtn(
                   icon: Platform.isIOS
@@ -241,8 +290,10 @@ class _ImageViewerState extends State<_ImageViewer> with _ImmersiveDismiss {
           AnimatedOpacity(
             opacity: showControls && drag.abs() < 8 ? 1 : 0,
             duration: const Duration(milliseconds: 150),
-            child:
-                _ViewerControls(title: widget.title, sourceUrl: widget.url),
+            child: _ViewerControls(
+                title: widget.title,
+                sourceUrl: widget.url,
+                downloadUrl: widget.url),
           ),
           const _EdgeBack(),
         ],
@@ -313,6 +364,7 @@ class _GalleryViewerState extends State<_GalleryViewer> with _ImmersiveDismiss {
               title: widget.title,
               center: '${_index + 1} / ${widget.images.length}',
               sourceUrl: widget.images[_index].url,
+              downloadUrl: widget.images[_index].url,
             ),
           ),
           const _EdgeBack(),
@@ -323,9 +375,10 @@ class _GalleryViewerState extends State<_GalleryViewer> with _ImmersiveDismiss {
 }
 
 class _VideoViewer extends StatefulWidget {
-  const _VideoViewer({required this.url, this.title});
+  const _VideoViewer({required this.url, this.title, this.downloadUrl});
   final String url;
   final String? title;
+  final String? downloadUrl; // direct mp4 for saving (HLS can't be saved)
 
   @override
   State<_VideoViewer> createState() => _VideoViewerState();
@@ -385,7 +438,15 @@ class _VideoViewerState extends State<_VideoViewer> {
                     ? const CircularProgressIndicator(color: Colors.white)
                     : Chewie(controller: _chewie!),
           ),
-          _ViewerControls(title: widget.title, sourceUrl: widget.url),
+          _ViewerControls(
+            title: widget.title,
+            sourceUrl: widget.url,
+            downloadUrl: (widget.downloadUrl != null &&
+                    !widget.downloadUrl!.contains('.m3u8'))
+                ? widget.downloadUrl
+                : null,
+            downloadIsVideo: true,
+          ),
           const _EdgeBack(),
         ],
       ),

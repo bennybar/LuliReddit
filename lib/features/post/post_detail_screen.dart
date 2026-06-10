@@ -275,7 +275,8 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
       case PostType.video:
         openVideoViewer(
             context, p.hlsUrl ?? p.fallbackVideoUrl ?? resolveVideoUrl(p.url),
-            title: p.title);
+            title: p.title,
+            downloadUrl: p.fallbackVideoUrl ?? resolveVideoUrl(p.url));
       case PostType.link:
         launchUrl(Uri.parse(p.url), mode: LaunchMode.externalApplication);
       case PostType.self:
@@ -739,6 +740,8 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
                 widget.onEdit();
               case 'delete':
                 widget.onDelete();
+              case 'block':
+                confirmBlockUser(context, ref, widget.comment.author);
             }
           },
           itemBuilder: (_) => [
@@ -748,6 +751,9 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
               const PopupMenuItem(value: 'edit', child: Text('Edit')),
               const PopupMenuItem(value: 'delete', child: Text('Delete')),
             ],
+            if (!widget.isOwn && widget.comment.author != '[deleted]')
+              PopupMenuItem(
+                  value: 'block', child: Text('Block u/${widget.comment.author}')),
           ],
         ),
       ],

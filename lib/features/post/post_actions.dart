@@ -49,6 +49,14 @@ void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post) {
             },
           ),
           ListTile(
+            leading: const Icon(Icons.block_flipped),
+            title: Text('Block u/${post.author}'),
+            onTap: () {
+              Navigator.pop(ctx);
+              confirmBlockUser(context, ref, post.author);
+            },
+          ),
+          ListTile(
             leading: const Icon(Icons.repeat_rounded),
             title: const Text('Crosspost'),
             onTap: () {
@@ -234,6 +242,37 @@ void _showCrosspostDialog(BuildContext context, WidgetRef ref, Post post) {
       ],
     ),
   );
+}
+
+/// Confirms and blocks a user. Reusable from posts, comments, and profiles.
+Future<void> confirmBlockUser(
+    BuildContext context, WidgetRef ref, String username) async {
+  if (username.isEmpty || username == '[deleted]') return;
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text('Block u/$username?'),
+      content: const Text(
+          "You won't see their posts, comments, or messages anymore. You can "
+          'unblock them later in Reddit settings.'),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel')),
+        FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Block')),
+      ],
+    ),
+  );
+  if (ok != true || !context.mounted) return;
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    await ref.read(redditRepositoryProvider).blockUser(username);
+    _snack(messenger, 'Blocked u/$username');
+  } catch (e) {
+    _snack(messenger, 'Could not block: $e');
+  }
 }
 
 void _snack(ScaffoldMessengerState messenger, String msg) {

@@ -6,6 +6,7 @@ import 'features/auth/auth_controller.dart';
 import 'features/auth/login_screen.dart';
 import 'features/compose/compose_post_screen.dart';
 import 'features/history/history_screen.dart';
+import 'features/legal/policy_screen.dart';
 import 'features/home/home_shell.dart';
 import 'features/inbox/compose_message_screen.dart';
 import 'features/inbox/message_thread_screen.dart';
@@ -40,6 +41,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
       GoRoute(path: '/', builder: (_, __) => const HomeShell()),
       GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
+      GoRoute(path: '/policy', builder: (_, __) => const PolicyScreen()),
       GoRoute(path: '/history', builder: (_, __) => const HistoryScreen()),
       GoRoute(
         path: '/search',
