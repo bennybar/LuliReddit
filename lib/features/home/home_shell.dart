@@ -309,21 +309,12 @@ class _FloatingNavState extends State<_FloatingNav>
                       curve: Curves.easeOut,
                       decoration: BoxDecoration(
                         // Accent-tinted selection pill so it matches the theme.
+                        // No shadow — it read as an odd grey aura on iOS.
                         color: cs.primary.withValues(alpha: dark ? 0.30 : 0.16),
                         borderRadius: BorderRadius.circular(999),
                         border: Border.all(
                             color: cs.primary.withValues(alpha: dark ? 0.35 : 0.22),
                             width: 0.5),
-                        boxShadow: dragging
-                            ? [
-                                BoxShadow(
-                                  color: Colors.black
-                                      .withValues(alpha: dark ? 0.45 : 0.28),
-                                  blurRadius: 18,
-                                  offset: const Offset(0, 7),
-                                ),
-                              ]
-                            : const [],
                       ),
                     ),
                     ),

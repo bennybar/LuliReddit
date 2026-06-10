@@ -23,13 +23,19 @@ class UpdateChecker {
       final data = res.data as Map<String, dynamic>;
       final tag = (data['tag_name'] as String? ?? '').replaceFirst('v', '').trim();
       if (tag.isEmpty || !_isNewer(tag, RedditConstants.appVersion)) return null;
+      // Pick the LARGEST .apk — that's the universal build (installs on any
+      // device). Releases also carry smaller per-ABI split APKs for F-Droid.
       final assets = (data['assets'] as List?) ?? const [];
       String? apk;
+      int bestSize = -1;
       for (final a in assets) {
-        final name = (a as Map)['name'] as String? ?? '';
-        if (name.toLowerCase().endsWith('.apk')) {
-          apk = a['browser_download_url'] as String?;
-          break;
+        final m = a as Map;
+        final name = (m['name'] as String? ?? '').toLowerCase();
+        if (!name.endsWith('.apk')) continue;
+        final size = (m['size'] as num?)?.toInt() ?? 0;
+        if (size > bestSize) {
+          bestSize = size;
+          apk = m['browser_download_url'] as String?;
         }
       }
       return UpdateInfo(
