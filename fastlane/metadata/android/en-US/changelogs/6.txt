@@ -1,0 +1,8 @@
+- Media downloads now show downloaded / total size and can be cancelled
+- Fixed videos failing to save from v.redd.it
+- Block users (from posts, comments, and profiles)
+- In-app Content & conduct policy
+- Branded splash screen and dark-mode app icon
+- Solid, always-legible bottom navigation bar
+- Faster loading and mid-resolution feed thumbnails
+- "Mark as read" and optional auto-hide for read items in the For You feed
