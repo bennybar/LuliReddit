@@ -187,9 +187,11 @@ class _FloatingNavState extends State<_FloatingNav>
             borderRadius: radius,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.22),
-                blurRadius: 24,
-                offset: const Offset(0, 8),
+                // Subtler on iOS — the heavy shadow read as an odd aura.
+                color: Colors.black
+                    .withValues(alpha: useLiquidGlass ? 0.10 : 0.22),
+                blurRadius: useLiquidGlass ? 14 : 24,
+                offset: Offset(0, useLiquidGlass ? 4 : 8),
               ),
             ],
           ),
@@ -344,9 +346,12 @@ class _FloatingNavState extends State<_FloatingNav>
     if (unread > 0) {
       icon = Badge(label: Text(unread > 99 ? '99+' : '$unread'), child: icon);
     }
-    return InkWell(
+    // GestureDetector, NOT InkWell: the Material ripple painted a big circular
+    // ink "aura" over the glass bar on tap — alien on iOS, where tab bars give
+    // no ripple feedback (the sliding pill is the feedback).
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: () => widget.onSelected(i),
-      borderRadius: BorderRadius.circular(999),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
