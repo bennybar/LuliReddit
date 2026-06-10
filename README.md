@@ -17,6 +17,16 @@ anywhere but Reddit.
 - Three feed layouts, swipe-to-vote, NSFW blur, AMOLED and dynamic-color themes
 - Offline cache, rate-limit awareness, and an in-app updater
 
+## Screenshots
+
+<p>
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="200" alt="For You feed">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="200" alt="Post">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="200" alt="Comments">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="200" alt="Explore">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="200" alt="Settings">
+</p>
+
 ## How the "For You" feed works
 
 Reddit doesn't give third-party apps access to its own recommendation engine, so
