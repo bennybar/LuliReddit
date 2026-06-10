@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/analytics.dart';
 import '../../core/format.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
@@ -72,6 +73,7 @@ class _PostCardState extends ConsumerState<PostCard> {
   }
 
   void _openDetail() {
+    Analytics.track('post_opened');
     if (ref.read(settingsControllerProvider).trackHistory) {
       ref.read(historyControllerProvider.notifier).markViewed(widget.post);
       ref.read(interestStoreProvider.notifier).bump(widget.post.subreddit, 0.5);

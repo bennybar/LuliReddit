@@ -1,8 +1,9 @@
 # Luli for Reddit
 
 A fast, modern Reddit client for Android, built with Flutter and a Material 3
-Expressive design. You bring your own Reddit API credentials; nothing is sent
-anywhere but Reddit.
+Expressive design. You bring your own Reddit API credentials. The app talks
+directly to Reddit; the only other data it sends is anonymous usage analytics
+(app launches, version, OS — no personal data or ad IDs).
 
 ## Features
 

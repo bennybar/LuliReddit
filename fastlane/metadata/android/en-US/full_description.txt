@@ -1,6 +1,7 @@
 Luli is an independent, open-source Reddit client with a clean Material 3
-Expressive design. You bring your own Reddit API credentials, so nothing is
-tracked and nothing is sent anywhere but Reddit.
+Expressive design. You bring your own Reddit API credentials. The app talks
+directly to Reddit; the only other data it sends is anonymous usage analytics
+(app launches, version, and OS - no personal data and no advertising IDs).
 
 Features:
 

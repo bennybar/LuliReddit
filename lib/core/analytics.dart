@@ -9,7 +9,7 @@ import 'package:aptabase_flutter/aptabase_flutter.dart';
 class Analytics {
   /// Paste your Aptabase App Key here, e.g. "A-EU-1234567890".
   /// Leave empty to keep analytics fully disabled.
-  static const String _appKey = '';
+  static const String _appKey = 'A-US-2578531885';
 
   static bool get enabled => _appKey.isNotEmpty;
 

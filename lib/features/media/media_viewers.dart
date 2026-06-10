@@ -73,12 +73,22 @@ String resolveVideoUrl(String url) {
   return url;
 }
 
-/// Downloads a media file to the device gallery/Photos.
+/// Downloads a media file to the device gallery/Photos, with a cancellable
+/// progress dialog showing downloaded / total size.
 Future<void> saveMediaToGallery(BuildContext context, String url,
     {required bool isVideo}) async {
   final messenger = ScaffoldMessenger.of(context);
-  messenger.showSnackBar(const SnackBar(
-      content: Text('Saving…'), duration: Duration(milliseconds: 900)));
+  final nav = Navigator.of(context, rootNavigator: true);
+  final cancel = CancelToken();
+  final progress = ValueNotifier<(int, int)>((0, 0)); // (received, total)
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    useRootNavigator: true,
+    builder: (_) => _SavingDialog(
+        progress: progress,
+        onCancel: () => cancel.cancel('cancelled')),
+  );
   try {
     final dir = await getTemporaryDirectory();
     final clean = url.split('?').first;
@@ -86,17 +96,82 @@ Future<void> saveMediaToGallery(BuildContext context, String url,
     if (ext.isEmpty || ext.length > 4) ext = isVideo ? 'mp4' : 'jpg';
     final ts = DateTime.now().millisecondsSinceEpoch;
     final path = '${dir.path}/luli_$ts.$ext';
-    await Dio().download(url, path);
+    // Reddit's CDN (v.redd.it) closes the connection mid-stream for requests
+    // without a real User-Agent, so set one and allow a generous timeout.
+    await Dio().download(
+      url,
+      path,
+      cancelToken: cancel,
+      options: Options(
+        headers: const {
+          'User-Agent':
+              'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 '
+                  '(KHTML, like Gecko) Chrome/124.0 Safari/537.36'
+        },
+        receiveTimeout: const Duration(seconds: 90),
+      ),
+      onReceiveProgress: (got, total) => progress.value = (got, total),
+    );
     if (isVideo) {
       await Gal.putVideo(path, album: 'Luli');
     } else {
       await Gal.putImage(path, album: 'Luli');
     }
+    nav.pop();
     messenger.showSnackBar(
         const SnackBar(content: Text('Saved to your gallery')));
+  } on DioException catch (e) {
+    nav.pop();
+    if (CancelToken.isCancel(e)) {
+      messenger.showSnackBar(
+          const SnackBar(content: Text('Download cancelled')));
+    } else {
+      messenger.showSnackBar(const SnackBar(content: Text('Could not save')));
+    }
   } catch (e) {
+    nav.pop();
     messenger.showSnackBar(SnackBar(
         content: Text('Could not save: ${'$e'.replaceFirst('Exception: ', '')}')));
+  }
+}
+
+class _SavingDialog extends StatelessWidget {
+  const _SavingDialog({required this.progress, required this.onCancel});
+  final ValueNotifier<(int, int)> progress;
+  final VoidCallback onCancel;
+
+  static String _mb(int bytes) => (bytes / 1048576).toStringAsFixed(1);
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      content: ValueListenableBuilder<(int, int)>(
+        valueListenable: progress,
+        builder: (_, v, __) {
+          final received = v.$1, total = v.$2;
+          final frac = total > 0 ? received / total : null;
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 26,
+                height: 26,
+                child: CircularProgressIndicator(value: frac, strokeWidth: 3),
+              ),
+              const SizedBox(width: 18),
+              Flexible(
+                child: Text(total > 0
+                    ? 'Saving… ${_mb(received)} / ${_mb(total)} MB'
+                    : 'Saving…'),
+              ),
+            ],
+          );
+        },
+      ),
+      actions: [
+        TextButton(onPressed: onCancel, child: const Text('Cancel')),
+      ],
+    );
   }
 }
 

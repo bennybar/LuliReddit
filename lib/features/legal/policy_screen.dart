@@ -68,8 +68,10 @@ class PolicyScreen extends StatelessWidget {
               'content in your jurisdiction.'),
           h('Your data'),
           p('Luli stores your API credentials, tokens, history, and settings only '
-              'on this device. It has no servers and sends nothing anywhere except '
-              'directly to Reddit. To remove your data, use "Clear all data" in '
+              'on this device, and talks directly to Reddit. The only other data '
+              'it sends is anonymous usage analytics (Aptabase): app launches, '
+              'app version, and OS — no account info, no ad identifiers, nothing '
+              'that identifies you. To remove your data, use "Clear all data" in '
               'settings; to delete your Reddit account, visit Reddit\'s settings.'),
           h('No warranty'),
           p('Luli is provided "as is", without warranty of any kind. You use it at '
