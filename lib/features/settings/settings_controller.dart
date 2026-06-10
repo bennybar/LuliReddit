@@ -44,6 +44,7 @@ class Settings {
     required this.midResThumbnails,
     required this.subsCacheEnabled,
     required this.subsCacheMinutes,
+    required this.textScale,
   });
 
   final ThemeMode themeMode;
@@ -62,6 +63,7 @@ class Settings {
   final bool midResThumbnails; // load smaller preview images in feeds
   final bool subsCacheEnabled; // cache subscription list in memory
   final int subsCacheMinutes; // how long to keep the subs cache
+  final double textScale; // global text size multiplier (0.8–1.4)
 
   Settings copyWith({
     ThemeMode? themeMode,
@@ -80,6 +82,7 @@ class Settings {
     bool? midResThumbnails,
     bool? subsCacheEnabled,
     int? subsCacheMinutes,
+    double? textScale,
   }) =>
       Settings(
         themeMode: themeMode ?? this.themeMode,
@@ -98,6 +101,7 @@ class Settings {
         midResThumbnails: midResThumbnails ?? this.midResThumbnails,
         subsCacheEnabled: subsCacheEnabled ?? this.subsCacheEnabled,
         subsCacheMinutes: subsCacheMinutes ?? this.subsCacheMinutes,
+        textScale: textScale ?? this.textScale,
       );
 }
 
@@ -127,6 +131,7 @@ class SettingsController extends Notifier<Settings> {
       midResThumbnails: p.getBool('midResThumbnails') ?? true,
       subsCacheEnabled: p.getBool('subsCacheEnabled') ?? true,
       subsCacheMinutes: p.getInt('subsCacheMinutes') ?? 10,
+      textScale: p.getDouble('textScale') ?? 1.0,
     );
   }
 
@@ -208,6 +213,11 @@ class SettingsController extends Notifier<Settings> {
   void setSubsCacheMinutes(int v) {
     _prefs.setInt('subsCacheMinutes', v);
     state = state.copyWith(subsCacheMinutes: v);
+  }
+
+  void setTextScale(double v) {
+    _prefs.setDouble('textScale', v);
+    state = state.copyWith(textScale: v);
   }
 }
 

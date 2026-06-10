@@ -117,6 +117,37 @@ class SettingsList extends ConsumerWidget {
               ),
             ),
           ),
+          ListTile(
+            leading: const Icon(Icons.format_size_rounded),
+            title: const Text('Font size'),
+            subtitle: Text('${(s.textScale * 100).round()}% of normal'),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Row(
+              children: [
+                const Text('A', style: TextStyle(fontSize: 13)),
+                Expanded(
+                  child: Slider(
+                    value: s.textScale,
+                    min: 0.8,
+                    max: 1.4,
+                    divisions: 12,
+                    label: '${(s.textScale * 100).round()}%',
+                    onChanged: ctrl.setTextScale,
+                  ),
+                ),
+                const Text('A', style: TextStyle(fontSize: 22)),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Text(
+              'The quick brown fox jumps over the lazy dog.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
           const Divider(),
           _section(context, 'Feed'),
           ListTile(

@@ -129,9 +129,8 @@ class PostDetailScreen extends ConsumerWidget {
           return RefreshIndicator(
             onRefresh: notifier.refresh,
             child: ListView.builder(
-              padding: const EdgeInsets.only(bottom: 32),
-              itemCount: 1 + flat.length +
-                  (flat.isEmpty ? 1 : 0),
+              padding: const EdgeInsets.only(top: 6, bottom: 32),
+              itemCount: 1 + (flat.isEmpty ? 1 : flat.length),
               itemBuilder: (context, index) {
                 if (index == 0) return _PostHeader(post: thread.post);
                 if (flat.isEmpty) {
@@ -142,6 +141,7 @@ class PostDetailScreen extends ConsumerWidget {
                 }
                 final c = flat[index - 1];
                 return _CommentTile(
+                  key: ValueKey(c.fullname),
                   comment: c,
                   isOwn: c.author == username,
                   opAuthor: thread.post.author,
@@ -179,6 +179,15 @@ class PostDetailScreen extends ConsumerWidget {
     );
   }
 }
+
+/// Depth-edge colors (rotate by nesting level).
+const _railColors = [
+  Color(0xFF9F8BE8),
+  Color(0xFF62B5AA),
+  Color(0xFFE0A55C),
+  Color(0xFFD88FB4),
+  Color(0xFF7E9BE0),
+];
 
 List<Comment> _flatten(List<Comment> nodes, Set<String> collapsed) {
   final out = <Comment>[];
@@ -471,6 +480,7 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
 
 class _CommentTile extends ConsumerStatefulWidget {
   const _CommentTile({
+    super.key,
     required this.comment,
     required this.isOwn,
     required this.opAuthor,
@@ -499,15 +509,6 @@ class _CommentTile extends ConsumerStatefulWidget {
 }
 
 class _CommentTileState extends ConsumerState<_CommentTile> {
-  static const _indent = 12.0;
-  static const _threadColors = [
-    Color(0xFF5B6BF5),
-    Color(0xFF00897B),
-    Color(0xFFEF6C00),
-    Color(0xFFAD1457),
-    Color(0xFF6A1B9A),
-  ];
-
   late bool? _likes = widget.comment.likes;
   late int _score = widget.comment.score;
   late bool _saved = widget.comment.saved;
@@ -549,10 +550,13 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
   Widget build(BuildContext context) {
     final comment = widget.comment;
     final cs = Theme.of(context).colorScheme;
+    final depth = comment.depth;
+    final indent = depth.clamp(0, 6) * 12.0;
 
+    // "Load more replies" node — a light indented row, not a card.
     if (comment.isMore) {
       return Padding(
-        padding: EdgeInsets.fromLTRB(16 + comment.depth * _indent, 4, 16, 8),
+        padding: EdgeInsets.fromLTRB(10 + indent, 0, 10, 8),
         child: Align(
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
@@ -562,7 +566,8 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.add_circle_outline_rounded, size: 18),
+                : Icon(Icons.add_circle_outline_rounded,
+                    size: 18, color: cs.primary),
             label: Text(comment.moreChildren.isEmpty
                 ? 'Continue thread →'
                 : '${comment.moreCount} more replies'),
@@ -571,28 +576,42 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
       );
     }
 
-    final threadColor =
-        _threadColors[(comment.depth - 1).clamp(0, _threadColors.length - 1)];
+    final isMod = comment.distinguished == 'moderator';
+    final nameColor =
+        isMod ? Colors.green : (widget.isOwn ? cs.primary : cs.onSurface);
+    final edge = _railColors[(depth - 1).clamp(0, _railColors.length - 1)];
 
     return SwipeActions(
       enabled: ref.watch(settingsControllerProvider).swipeActions,
       onRight: () => _vote(1),
       onLeft: () => _vote(-1),
       child: Container(
-      decoration: BoxDecoration(
-        border: Border(
-          left: comment.depth > 0
-              ? BorderSide(color: threadColor.withValues(alpha: 0.6), width: 2)
-              : BorderSide.none,
+        margin: EdgeInsets.fromLTRB(10 + indent, 0, 10, 8),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 5,
+                offset: const Offset(0, 1)),
+          ],
         ),
-      ),
-      margin: EdgeInsets.only(left: comment.depth > 0 ? comment.depth * _indent : 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Long-press collapses the whole subtree; tap re-expands a collapsed
-          // comment (so a tap can't accidentally collapse an open thread).
-          InkWell(
+        clipBehavior: Clip.antiAlias,
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Colored depth edge (only on replies).
+              if (depth > 0)
+                Container(width: 4, color: edge.withValues(alpha: 0.9)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Long-press collapses the whole subtree; tap re-expands a
+                    // collapsed comment (so a tap can't accidentally collapse).
+                    InkWell(
             onTap: widget.collapsed ? widget.onToggle : null,
             onLongPress: () {
               HapticFeedback.selectionClick();
@@ -602,15 +621,16 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
               child: Row(
                 children: [
+                  _AuthorDot(name: comment.author, size: 20),
+                  const SizedBox(width: 8),
                   Flexible(
                     child: Text(
                       'u/${comment.author}',
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: comment.distinguished == 'moderator'
-                            ? Colors.green
-                            : (widget.isOwn ? cs.primary : cs.onSurface),
+                        color: nameColor,
                       ),
                     ),
                   ),
@@ -633,7 +653,7 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
                   const SizedBox(width: 8),
                   Text('· ${timeAgo(comment.created)}',
                       style:
-                          TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                          TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
                   const Spacer(),
                   if (widget.collapsed)
                     Icon(Icons.unfold_more_rounded,
@@ -649,7 +669,10 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
                 data: comment.body,
                 selectable: true,
                 styleSheet: MarkdownStyleSheet(
-                  p: Theme.of(context).textTheme.bodyMedium,
+                  p: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(fontSize: 15, height: 1.45),
                 ),
                 onTapLink: (_, href, __) {
                   if (href != null) {
@@ -662,7 +685,7 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
             _actions(cs),
           ] else
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+              padding: const EdgeInsets.fromLTRB(40, 0, 12, 8),
               child: Text(
                 comment.body.replaceAll('\n', ' '),
                 maxLines: 1,
@@ -673,8 +696,12 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
                     fontStyle: FontStyle.italic),
               ),
             ),
-        ],
-      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -781,6 +808,47 @@ class _CommentActionBtn extends StatelessWidget {
       ),
       icon: Icon(icon, size: 16),
       label: Text(label, style: const TextStyle(fontSize: 12.5)),
+    );
+  }
+}
+
+/// Small colored avatar with the author's initial (color derived from name).
+class _AuthorDot extends StatelessWidget {
+  const _AuthorDot({required this.name, this.size = 20});
+  final String name;
+  final double size;
+
+  static const _palette = [
+    Color(0xFF7C5CE0),
+    Color(0xFF4FA89B),
+    Color(0xFFC77E4A),
+    Color(0xFFC46A96),
+    Color(0xFF5B82CE),
+    Color(0xFF5FA85A),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final clean = name.replaceFirst('u/', '');
+    final deleted = clean.isEmpty || clean.startsWith('[');
+    var h = 0;
+    for (final r in clean.codeUnits) {
+      h = (h * 31 + r) & 0x7fffffff;
+    }
+    final color =
+        deleted ? Theme.of(context).colorScheme.outline : _palette[h % _palette.length];
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      child: Text(
+        deleted ? '?' : clean[0].toUpperCase(),
+        style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+            fontSize: size * 0.5),
+      ),
     );
   }
 }

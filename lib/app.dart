@@ -64,6 +64,15 @@ class _LuliAppState extends ConsumerState<LuliApp> {
             amoled: settings.amoled,
           ),
           themeMode: settings.themeMode,
+          // Global font-size control (scales all text in the app).
+          builder: (context, child) {
+            final mq = MediaQuery.of(context);
+            return MediaQuery(
+              data: mq.copyWith(
+                  textScaler: TextScaler.linear(settings.textScale)),
+              child: child!,
+            );
+          },
           localizationsDelegates: const [
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
