@@ -179,33 +179,45 @@ class _FloatingNavState extends State<_FloatingNav>
   @override
   Widget build(BuildContext context) {
     const radius = BorderRadius.all(Radius.circular(40));
+    // iOS: sit low like Telegram/Apple Music — ignore the home-indicator safe
+    // area and keep just a small gap, letting the indicator overlap the bar.
+    if (useLiquidGlass) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(18, 0, 18, 20),
+        child: _bar(context, radius),
+      );
+    }
     return SafeArea(
       top: false,
       child: Padding(
-        padding: EdgeInsets.fromLTRB(18, 0, 18, useLiquidGlass ? 0 : 16),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: radius,
-            boxShadow: [
-              BoxShadow(
-                // Subtler on iOS — the heavy shadow read as an odd aura.
-                color: Colors.black
-                    .withValues(alpha: useLiquidGlass ? 0.10 : 0.22),
-                blurRadius: useLiquidGlass ? 14 : 24,
-                offset: Offset(0, useLiquidGlass ? 4 : 8),
-              ),
-            ],
+        padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
+        child: _bar(context, radius),
+      ),
+    );
+  }
+
+  Widget _bar(BuildContext context, BorderRadius radius) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: radius,
+        boxShadow: [
+          BoxShadow(
+            // Subtler on iOS — the heavy shadow read as an odd aura.
+            color:
+                Colors.black.withValues(alpha: useLiquidGlass ? 0.10 : 0.22),
+            blurRadius: useLiquidGlass ? 14 : 24,
+            offset: Offset(0, useLiquidGlass ? 4 : 8),
           ),
-          child: GlassSurface(
-            borderRadius: radius,
-            // Nav sits over scrolling content (incl. dark images). Telegram's
-            // tab bar is fully solid — match that so labels are always legible.
-            tintOpacity: 1.0,
-            child: SizedBox(
-              height: 70,
-              child: useLiquidGlass ? _glass(context) : _material(context),
-            ),
-          ),
+        ],
+      ),
+      child: GlassSurface(
+        borderRadius: radius,
+        // Nav sits over scrolling content (incl. dark images). Telegram's
+        // tab bar is fully solid — match that so labels are always legible.
+        tintOpacity: 1.0,
+        child: SizedBox(
+          height: 70,
+          child: useLiquidGlass ? _glass(context) : _material(context),
         ),
       ),
     );
