@@ -1,0 +1,22 @@
+Luli is an independent, open-source Reddit client with a clean Material 3
+Expressive design. You bring your own Reddit API credentials, so nothing is
+tracked and nothing is sent anywhere but Reddit.
+
+Features:
+
+* Browse the frontpage, subreddits, multireddits, and users
+* A personalized "For You" feed built entirely on your device, with explainable
+  "why you're seeing this" labels and per-post tuning
+* Vote, comment, reply, and submit text, link, image, gallery, and video posts;
+  edit and delete your own
+* Inbox and private messages
+* Saved, upvoted, and locally-stored history
+* Download photos and videos to your gallery
+* Report content and block users
+* Moderation actions on subreddits you moderate
+* Three feed layouts, swipe-to-vote, NSFW blur (off by default), AMOLED and
+  dynamic-color themes
+* Offline cache and in-app updates
+
+Luli is not affiliated with Reddit, Inc. You need a free Reddit account and your
+own API credentials (installed-app type, redirect luli://oauth) to sign in.
