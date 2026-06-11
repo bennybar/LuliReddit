@@ -499,28 +499,48 @@ class _DisplayMenu extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final current = ref.watch(settingsControllerProvider).postDisplay;
-    return PopupMenuButton<PostDisplay>(
+    final s = ref.watch(settingsControllerProvider);
+    final ctrl = ref.read(settingsControllerProvider.notifier);
+    return PopupMenuButton<String>(
       icon: const Icon(Icons.more_vert_rounded),
       tooltip: 'Display',
-      onSelected: (d) =>
-          ref.read(settingsControllerProvider.notifier).setPostDisplay(d),
+      onSelected: (v) {
+        if (v == 'autoplay') {
+          ctrl.setAutoplayMedia(!s.autoplayMedia);
+        } else {
+          ctrl.setPostDisplay(
+              PostDisplay.values.firstWhere((d) => d.name == v));
+        }
+      },
       itemBuilder: (_) => [
         for (final d in PostDisplay.values)
           PopupMenuItem(
-            value: d,
+            value: d.name,
             child: Row(
               children: [
                 Icon(d.icon, size: 20),
                 const SizedBox(width: 12),
                 Text(d.label),
-                if (d == current) ...[
+                if (d == s.postDisplay) ...[
                   const Spacer(),
                   const Icon(Icons.check_rounded, size: 18),
                 ],
               ],
             ),
           ),
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          value: 'autoplay',
+          child: Row(
+            children: [
+              const Icon(Icons.play_circle_outline_rounded, size: 20),
+              const SizedBox(width: 12),
+              const Text('Autoplay media'),
+              const Spacer(),
+              if (s.autoplayMedia) const Icon(Icons.check_rounded, size: 18),
+            ],
+          ),
+        ),
       ],
     );
   }
