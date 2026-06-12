@@ -1,0 +1,3 @@
+- New: "Sign in via website" login for people who can no longer create a Reddit
+  API key (optional, off by default; clearly warned — it's unofficial and Reddit
+  may restrict accounts using it). The API-key method is still the default.

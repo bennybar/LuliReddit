@@ -298,6 +298,17 @@ class SettingsList extends ConsumerWidget {
           const Divider(),
           _section(context, 'Account'),
           ListTile(
+            leading: Icon(ref.watch(authModeProvider).valueOrNull == 'web'
+                ? Icons.public_rounded
+                : Icons.api_rounded),
+            title: const Text('Login method'),
+            subtitle: Text(ref.watch(authModeProvider).valueOrNull == 'web'
+                ? 'Website session (no API key) — unofficial'
+                : 'Reddit API key (recommended)'),
+            onTap: () => _showLoginMethodInfo(
+                context, ref.read(authModeProvider).valueOrNull == 'web'),
+          ),
+          ListTile(
             leading: const Icon(Icons.vpn_key_rounded),
             title: const Text('Reddit API credentials'),
             subtitle: const Text('Re-enter your Client ID / Redirect URI'),
@@ -465,6 +476,34 @@ class SettingsList extends ConsumerWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showLoginMethodInfo(BuildContext context, bool isWeb) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Login method'),
+        content: Text(
+          isWeb
+              ? 'You\'re signed in with a website session (no API key).\n\n'
+                  'This isn\'t Reddit\'s official API. It can stop working if '
+                  'Reddit changes their site, and Reddit may consider it against '
+                  'their usage policy and restrict or ban accounts that use it. '
+                  'Use at your own risk.\n\n'
+                  'To switch to the official API key method, log out and choose '
+                  '"Connect Reddit account" on the login screen.'
+              : 'You\'re signed in with Reddit\'s official API using your own '
+                  'API key — the recommended, supported method.\n\n'
+                  'If you can no longer create an API key, you can log out and '
+                  'choose "Sign in via website" on the login screen, but that '
+                  'unofficial method carries account risk.',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+        ],
       ),
     );
   }

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/providers.dart';
 import '../auth/auth_controller.dart';
+import '../auth/web_login_screen.dart';
 import '../explore/explore_screen.dart';
 import '../feed/feed_controller.dart';
 import '../inbox/inbox_controller.dart';
@@ -258,8 +259,19 @@ class AccountTab extends ConsumerWidget {
 
   Future<void> _addAccount(BuildContext context, WidgetRef ref) async {
     final messenger = ScaffoldMessenger.of(context);
+    final isWeb = ref.read(authModeProvider).valueOrNull == 'web';
     try {
-      await ref.read(authControllerProvider.notifier).addAccount();
+      if (isWeb) {
+        // Match the current method: website-session add (fresh cookies).
+        final cookie = await Navigator.of(context).push<String>(
+          MaterialPageRoute(
+              builder: (_) => const WebLoginScreen(clearFirst: true)),
+        );
+        if (cookie == null || cookie.isEmpty) return;
+        await ref.read(authControllerProvider.notifier).loginWithWebSession(cookie);
+      } else {
+        await ref.read(authControllerProvider.notifier).addAccount();
+      }
       _resetAccountData(ref);
     } catch (e) {
       messenger.showSnackBar(SnackBar(

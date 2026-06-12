@@ -7,12 +7,15 @@ import 'network/rate_limit.dart';
 import 'network/reddit_client.dart';
 
 final redditClientProvider = Provider<RedditClient>((ref) {
-  return RedditClient(
+  final client = RedditClient(
     ref.watch(secureStoreProvider),
     ref.watch(authRepositoryProvider),
     onRateLimit: (rl) => ref.read(rateLimitProvider.notifier).state = rl,
     cacheEnabled: () => ref.read(settingsControllerProvider).offlineCache,
   );
+  // Re-read auth mode (OAuth vs website session) on any login / account switch.
+  ref.listen(authControllerProvider, (_, __) => client.invalidateAuthConfig());
+  return client;
 });
 
 final redditRepositoryProvider = Provider<RedditRepository>((ref) {

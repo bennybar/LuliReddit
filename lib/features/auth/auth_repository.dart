@@ -187,6 +187,44 @@ class AuthRepository {
     return username ?? 'redditor';
   }
 
+  /// Website-session login (no API key). The UI captures reddit.com cookies via
+  /// a WebView; here we verify them by fetching the logged-in user's info (which
+  /// also yields the `modhash` used for write actions) and persist the session.
+  Future<({String username, String? modhash})> completeWebLogin(
+      String cookie) async {
+    Response res;
+    try {
+      res = await _dio.get(
+        '${RedditConstants.webApiBase}/api/me.json',
+        options: Options(
+          headers: {
+            'cookie': cookie,
+            'User-Agent': RedditConstants.webUserAgent,
+          },
+          validateStatus: (_) => true,
+        ),
+      );
+    } on DioException catch (e) {
+      throw AuthException('Could not reach Reddit: ${e.message}');
+    }
+    dynamic body = res.data;
+    if (body is String) {
+      try {
+        body = jsonDecode(body);
+      } catch (_) {}
+    }
+    final data = body is Map ? body['data'] : null;
+    final username = data is Map ? data['name'] as String? : null;
+    final modhash = data is Map ? data['modhash'] as String? : null;
+    if (username == null || username.isEmpty) {
+      throw AuthException(
+          'Reddit login didn\'t complete. Please finish signing in and try again.');
+    }
+    await _store.saveWebSession(
+        username: username, cookie: cookie, modhash: modhash);
+    return (username: username, modhash: modhash);
+  }
+
   Future<String?> _fetchUsername(String accessToken) async {
     try {
       final res = await _dio.get(

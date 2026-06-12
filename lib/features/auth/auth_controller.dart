@@ -15,6 +15,12 @@ final accountsProvider = FutureProvider.autoDispose<List<String>>((ref) async {
   return ref.read(secureStoreProvider).accounts;
 });
 
+/// Current auth method: 'oauth' (API key) or 'web' (website session).
+final authModeProvider = FutureProvider.autoDispose<String>((ref) async {
+  ref.watch(authControllerProvider);
+  return ref.read(secureStoreProvider).authMode;
+});
+
 /// The signed-in session. `null` means no user → show the login screen.
 class AuthSession {
   const AuthSession({required this.username});
@@ -27,10 +33,22 @@ class AuthController extends AsyncNotifier<AuthSession?> {
 
   @override
   Future<AuthSession?> build() async {
+    final username = await _store.username;
+    if (username == null) return null;
+    final mode = await _store.authMode;
+    if (mode == 'web') {
+      final cookie = await _store.webCookie;
+      if (cookie == null) return null;
+      final accounts = await _store.accounts;
+      if (!accounts.contains(username)) {
+        await _store.upsertWebAccount(username, cookie, await _store.webModhash);
+      }
+      return AuthSession(username: username);
+    }
+    // OAuth (default).
     final token = await _store.accessToken;
     final refresh = await _store.refreshToken;
-    final username = await _store.username;
-    if ((token == null && refresh == null) || username == null) return null;
+    if (token == null && refresh == null) return null;
     // Migrate pre-multi-account installs: ensure the current user is in the map.
     if (refresh != null) {
       final accounts = await _store.accounts;
@@ -39,6 +57,13 @@ class AuthController extends AsyncNotifier<AuthSession?> {
       }
     }
     return AuthSession(username: username);
+  }
+
+  /// Website-session login (no API key). [cookie] is captured by the WebView.
+  Future<void> loginWithWebSession(String cookie) async {
+    final r = await _repo.completeWebLogin(cookie);
+    await _store.upsertWebAccount(r.username, cookie, r.modhash);
+    state = AsyncData(AuthSession(username: r.username));
   }
 
   /// Runs the full interactive login (first account or an additional one) using

@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/reddit_constants.dart';
 import 'auth_controller.dart';
 import 'auth_repository.dart';
+import 'web_login_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -235,10 +236,69 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   : const Icon(Icons.login_rounded),
               label: Text(_busy ? 'Working…' : 'Connect Reddit account'),
             ),
+            const SizedBox(height: 20),
+            const Row(children: [
+              Expanded(child: Divider()),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 10),
+                child: Text('or'),
+              ),
+              Expanded(child: Divider()),
+            ]),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: _busy ? null : _webLogin,
+              icon: const Icon(Icons.public_rounded),
+              label: const Text("Can't get an API key? Sign in via website"),
+            ),
           ],
         ),
       ),
     );
+  }
+
+  /// Website-session login (no API key). Shows the risks first, then opens a
+  /// Reddit login WebView and stores the session.
+  Future<void> _webLogin() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sign in without an API key'),
+        content: const Text(
+          'This signs you in through the Reddit website instead of the API, so '
+          'you don\'t need to create an API key.\n\n'
+          'Important: this is not Reddit\'s official API path. It may stop '
+          'working at any time if Reddit changes their site, and Reddit could '
+          'consider it against their usage policy and restrict or ban accounts '
+          'that use it. Use it at your own risk.\n\n'
+          'The recommended method is still the API key above.',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Continue')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final cookie = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const WebLoginScreen()),
+    );
+    if (cookie == null || cookie.isEmpty || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(authControllerProvider.notifier).loginWithWebSession(cookie);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('$e'.replaceFirst('Exception: ', ''))));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 }
 

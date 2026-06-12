@@ -25,16 +25,27 @@ class RedditClient {
     ));
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
-        final token = await _validToken();
-        options.headers['Authorization'] = 'bearer $token';
-        options.headers['User-Agent'] =
-            RedditConstants.userAgent(await _store.username);
-        options.queryParameters['raw_json'] = 1;
+        if (_webMode) {
+          // Website-session mode: act like a logged-in browser.
+          options.headers['User-Agent'] = RedditConstants.webUserAgent;
+          if (_webCookie != null) options.headers['cookie'] = _webCookie;
+          options.queryParameters['raw_json'] = 1;
+          if (options.method.toUpperCase() != 'GET' && _webModhash != null) {
+            options.headers['X-Modhash'] = _webModhash;
+          }
+        } else {
+          final token = await _validToken();
+          options.headers['Authorization'] = 'bearer $token';
+          options.headers['User-Agent'] =
+              RedditConstants.userAgent(await _store.username);
+          options.queryParameters['raw_json'] = 1;
+        }
         handler.next(options);
       },
       onResponse: (response, handler) async {
         _captureRateLimit(response.headers);
-        if (response.statusCode == 401 &&
+        if (!_webMode &&
+            response.statusCode == 401 &&
             response.requestOptions.extra['retried'] != true) {
           final newToken = await _auth.refresh();
           if (newToken != null) {
@@ -58,6 +69,33 @@ class RedditClient {
   final void Function(RateLimit)? onRateLimit;
   final bool Function()? cacheEnabled;
   final ResponseCache _cache = ResponseCache();
+
+  // Auth-mode config, lazily loaded from the store and refreshed on login/switch.
+  bool _webMode = false;
+  String? _webCookie;
+  String? _webModhash;
+  bool _configured = false;
+
+  /// Force a re-read of the auth mode on the next request (call after login or
+  /// account switch).
+  void invalidateAuthConfig() => _configured = false;
+
+  Future<void> _ensureConfig() async {
+    if (_configured) return;
+    _webMode = (await _store.authMode) == 'web';
+    _webCookie = _webMode ? await _store.webCookie : null;
+    _webModhash = _webMode ? await _store.webModhash : null;
+    _configured = true;
+  }
+
+  /// Builds the request URL for the current mode. Web mode talks to
+  /// www.reddit.com and appends `.json` to listing GETs.
+  String _reqUrl(String path, {required bool isGet}) {
+    if (!_webMode) return path; // relative to the oauth base URL
+    final base = RedditConstants.webApiBase;
+    if (isGet && !path.contains('/api/')) return '$base$path.json';
+    return '$base$path';
+  }
 
   void _captureRateLimit(Headers headers) {
     final rem = headers.value('x-ratelimit-remaining');
@@ -87,11 +125,13 @@ class RedditClient {
       '$path?${(query ?? {}).entries.map((e) => '${e.key}=${e.value}').join('&')}';
 
   Future<Response<T>> get<T>(String path, {Map<String, dynamic>? query}) async {
+    await _ensureConfig();
+    final url = _reqUrl(path, isGet: true);
     try {
       // Fetch as dynamic so Dio never does the failing internal `as T` cast;
       // we decode + re-type ourselves (Reddit occasionally returns a JSON body
       // with a content-type Dio doesn't auto-decode).
-      final res = await _dio.get<dynamic>(path, queryParameters: query);
+      final res = await _dio.get<dynamic>(url, queryParameters: query);
       final data = _coerce(res.data);
       if (_cacheOn && res.statusCode == 200 && data != null) {
         _cache.write(_cacheKey(path, query), data);
@@ -157,7 +197,8 @@ class RedditClient {
   Future<void> clearCache() => _cache.clear();
 
   Future<Response<T>> post<T>(String path, {Map<String, dynamic>? data}) async {
-    final res = await _dio.post<dynamic>(path,
+    await _ensureConfig();
+    final res = await _dio.post<dynamic>(_reqUrl(path, isGet: false),
         data: data,
         options: Options(contentType: Headers.formUrlEncodedContentType));
     return _retype<T>(res, _coerce(res.data));
@@ -165,14 +206,21 @@ class RedditClient {
 
   /// POST with a JSON body (used by submit_gallery_post and multireddit APIs).
   Future<Response<T>> postJson<T>(String path, {Object? data}) async {
-    final res = await _dio.post<dynamic>(path,
+    await _ensureConfig();
+    final res = await _dio.post<dynamic>(_reqUrl(path, isGet: false),
         data: data, options: Options(contentType: Headers.jsonContentType));
     return _retype<T>(res, _coerce(res.data));
   }
 
-  Future<Response<T>> put<T>(String path, {Object? data}) => _dio.put<T>(path,
-      data: data, options: Options(contentType: Headers.jsonContentType));
+  Future<Response<T>> put<T>(String path, {Object? data}) async {
+    await _ensureConfig();
+    return _dio.put<T>(_reqUrl(path, isGet: false),
+        data: data, options: Options(contentType: Headers.jsonContentType));
+  }
 
-  Future<Response<T>> delete<T>(String path, {Map<String, dynamic>? query}) =>
-      _dio.delete<T>(path, queryParameters: query);
+  Future<Response<T>> delete<T>(String path,
+      {Map<String, dynamic>? query}) async {
+    await _ensureConfig();
+    return _dio.delete<T>(_reqUrl(path, isGet: false), queryParameters: query);
+  }
 }

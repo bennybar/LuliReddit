@@ -72,13 +72,23 @@ install it. The app checks GitHub for newer releases and can update itself.
 
 ## First run
 
-The app ships with no API keys — you provide your own:
+**Recommended — official API (bring your own key):**
 
 1. Go to <https://www.reddit.com/prefs/apps> and create an app of type
    **installed app**.
 2. Set the redirect URI to exactly `luli://oauth`.
 3. Copy the client ID (shown under the app name) into the login screen and
    connect.
+
+**Fallback — sign in via website (no API key):** Reddit has begun restricting
+who can create API keys. If you can't, the login screen offers *"Sign in via
+website"*, which logs you in through reddit.com directly (no key needed).
+
+> ⚠️ This fallback is **not** Reddit's official API. It may stop working if
+> Reddit changes their site, and Reddit could treat it as against their usage
+> policy and restrict or ban accounts that use it. It's off by default and gated
+> behind an explicit warning — use it at your own risk. The API-key method above
+> is always preferred. (See `docs/hydra-fallback.md`.)
 
 ## Build from source
 

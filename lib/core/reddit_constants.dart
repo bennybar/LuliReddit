@@ -7,7 +7,7 @@ class RedditConstants {
   RedditConstants._();
 
   /// App version (keep in sync with pubspec) + GitHub repo for in-app updates.
-  static const String appVersion = '1.0.12';
+  static const String appVersion = '1.0.13';
   static const String githubRepo = 'bennybar/LuliReddit';
 
   // Hosts
@@ -16,6 +16,15 @@ class RedditConstants {
   static const String accessTokenUrl =
       'https://www.reddit.com/api/v1/access_token';
   static const String oauthApiBase = 'https://oauth.reddit.com';
+
+  // "Website session" fallback (no API key): we talk to the normal site, the
+  // way a logged-in browser does. See docs/hydra-fallback.md.
+  static const String webApiBase = 'https://www.reddit.com';
+  static const String webLoginUrl = 'https://www.reddit.com/login';
+  // A browser-like UA for the website-session mode.
+  static const String webUserAgent =
+      'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) '
+      'Chrome/124.0.0.0 Mobile Safari/537.36';
 
   // Our dedicated redirect URI. Distinct from Infinity's `infinity://localhost`.
   // The user must register this exact value at https://www.reddit.com/prefs/apps
@@ -51,6 +60,6 @@ class RedditConstants {
   /// User-Agent. Reddit requires a unique, descriptive UA per its API rules.
   static String userAgent(String? username) {
     final who = (username == null || username.isEmpty) ? 'anonymous' : username;
-    return 'android:com.bennybar.luli_for_reddit:1.0.12 (by /u/$who)';
+    return 'android:com.bennybar.luli_for_reddit:1.0.13 (by /u/$who)';
   }
 }
