@@ -8,7 +8,7 @@ import '../../features/auth/auth_repository.dart';
 import 'rate_limit.dart';
 import 'response_cache.dart';
 
-/// Authenticated dio client for oauth.reddit.com. Attaches the bearer token,
+/// Authenticated dio client for oautreddit.com. Attaches the bearer token,
 /// a compliant User-Agent and `raw_json=1`, transparently refreshes the access
 /// token once on a 401, surfaces rate-limit headers, and (optionally) serves a
 /// disk cache fallback when offline.
