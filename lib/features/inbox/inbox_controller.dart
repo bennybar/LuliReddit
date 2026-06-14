@@ -76,6 +76,34 @@ class InboxController extends FamilyAsyncNotifier<InboxState, String> {
     } catch (_) {/* keep optimistic state */}
   }
 
+  /// Optimistically marks one item unread locally and on the server.
+  Future<void> markUnread(String fullname) async {
+    final current = state.valueOrNull;
+    if (current != null) {
+      state = AsyncData(current.copyWith(items: [
+        for (final i in current.items)
+          i.fullname == fullname ? i.copyWith(isNew: true) : i,
+      ]));
+    }
+    try {
+      await ref.read(redditRepositoryProvider).markUnread(fullname);
+      ref.invalidate(unreadCountProvider);
+    } catch (_) {/* keep optimistic state */}
+  }
+
+  /// Deletes a private message (t4_). Optimistically removes it from the list.
+  Future<void> deleteMessage(String fullname) async {
+    final current = state.valueOrNull;
+    if (current != null) {
+      state = AsyncData(current.copyWith(
+          items: [for (final i in current.items) if (i.fullname != fullname) i]));
+    }
+    try {
+      await ref.read(redditRepositoryProvider).deleteMessage(fullname);
+      ref.invalidate(unreadCountProvider);
+    } catch (_) {/* keep optimistic removal */}
+  }
+
   Future<void> markAllRead() async {
     final current = state.valueOrNull;
     if (current != null) {

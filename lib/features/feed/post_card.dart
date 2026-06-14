@@ -9,6 +9,7 @@ import '../../core/analytics.dart';
 import '../../core/format.dart';
 import '../../core/providers.dart';
 import 'inline_video.dart';
+import 'post_overrides.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/post.dart';
 import '../history/history_store.dart';
@@ -29,24 +30,18 @@ class PostCard extends ConsumerStatefulWidget {
 }
 
 class _PostCardState extends ConsumerState<PostCard> {
-  late bool? _likes = widget.post.likes;
-  late int _score = widget.post.score;
-  late bool _saved = widget.post.saved;
+  // Vote / score / saved / comment-count live in the shared post-overrides
+  // store (keyed by post id) so the card stays in sync with the post-detail
+  // screen and survives scrolling.
+  PostOverride get _ov =>
+      ref.read(postOverridesProvider.notifier).effective(widget.post);
 
   Future<void> _vote(int dir) async {
-    // dir applied relative to current state; tapping the active arrow clears.
-    final current = _likes == true
-        ? 1
-        : _likes == false
-            ? -1
-            : 0;
+    final overrides = ref.read(postOverridesProvider.notifier);
+    final current = _ov.likes == true ? 1 : (_ov.likes == false ? -1 : 0);
     final target = current == dir ? 0 : dir;
-    setState(() {
-      _score += target - current;
-      _likes = target == 1 ? true : (target == -1 ? false : null);
-    });
+    overrides.setVote(widget.post, target);
     // Learn: upvoting a community raises its affinity; downvoting lowers it.
-    // Title keywords learn too (the on-device content model).
     if (target == 1) {
       ref.read(interestStoreProvider.notifier).bump(widget.post.subreddit, 2);
       ref.read(keywordStoreProvider.notifier).bumpTitle(widget.post.title, 1);
@@ -57,17 +52,14 @@ class _PostCardState extends ConsumerState<PostCard> {
     try {
       await ref.read(redditRepositoryProvider).vote(widget.post.fullname, target);
     } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _score -= target - current;
-        _likes = current == 1 ? true : (current == -1 ? false : null);
-      });
+      overrides.setVote(widget.post, current); // revert
     }
   }
 
   Future<void> _toggleSave() async {
-    final next = !_saved;
-    setState(() => _saved = next);
+    final overrides = ref.read(postOverridesProvider.notifier);
+    final next = !_ov.saved;
+    overrides.setSaved(widget.post, next);
     ref.read(interestStoreProvider.notifier).bump(widget.post.subreddit, next ? 3 : -3);
     if (next) {
       ref.read(keywordStoreProvider.notifier).bumpTitle(widget.post.title, 1.5);
@@ -75,7 +67,7 @@ class _PostCardState extends ConsumerState<PostCard> {
     try {
       await ref.read(redditRepositoryProvider).setSaved(widget.post.fullname, next);
     } catch (_) {
-      if (mounted) setState(() => _saved = !next);
+      overrides.setSaved(widget.post, !next);
     }
   }
 
@@ -741,28 +733,35 @@ class _PostCardState extends ConsumerState<PostCard> {
   }
 
   Widget _actions(ColorScheme cs) {
+    // Live values from the shared overrides store (kept in sync with the detail).
+    final ov = ref.watch(
+        postOverridesProvider.select((m) => m[widget.post.id]));
+    final likes = ov != null ? ov.likes : widget.post.likes;
+    final score = ov?.score ?? widget.post.score;
+    final saved = ov?.saved ?? widget.post.saved;
+    final numComments = ov?.numComments ?? widget.post.numComments;
     return Row(
       children: [
         _VotePill(
-          score: _score,
-          likes: _likes,
+          score: score,
+          likes: likes,
           onUp: () => _vote(1),
           onDown: () => _vote(-1),
         ),
         const SizedBox(width: 8),
         _ActionChip(
           icon: Icons.mode_comment_outlined,
-          label: compactNumber(widget.post.numComments),
+          label: compactNumber(numComments),
           onTap: _openDetail,
         ),
         const Spacer(),
         _ReadToggle(post: widget.post),
         IconButton(
           onPressed: _toggleSave,
-          icon: Icon(_saved
+          icon: Icon(saved
               ? Icons.bookmark_rounded
               : Icons.bookmark_border_rounded),
-          color: _saved ? cs.primary : null,
+          color: saved ? cs.primary : null,
         ),
         IconButton(
           onPressed: () => showPostActionsSheet(context, ref, widget.post),

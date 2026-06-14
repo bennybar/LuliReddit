@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/route_observer.dart';
 import 'features/auth/auth_controller.dart';
 import 'features/auth/login_screen.dart';
 import 'features/compose/compose_post_screen.dart';
@@ -28,6 +29,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/',
     refreshListenable: refresh,
+    observers: [appRouteObserver],
     redirect: (context, state) {
       final auth = ref.read(authControllerProvider);
       if (auth.isLoading) return null;

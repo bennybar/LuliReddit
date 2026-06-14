@@ -690,6 +690,16 @@ class RedditRepository {
     await _client.post('/api/read_all_messages');
   }
 
+  Future<void> markUnread(String fullname) async {
+    await _client.post('/api/unread_message', data: {'id': fullname});
+  }
+
+  /// Deletes a private message from the inbox (t4_ only; you can't delete
+  /// comment replies).
+  Future<void> deleteMessage(String fullname) async {
+    await _client.post('/api/del_msg', data: {'id': fullname});
+  }
+
   /// Replies to a message or inbox comment (thing_id = t4_/t1_ fullname).
   Future<void> sendReply(String parentFullname, String text) async {
     final res = await _client.post<Map<String, dynamic>>('/api/comment',

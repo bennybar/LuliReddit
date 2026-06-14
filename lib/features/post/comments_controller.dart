@@ -42,7 +42,7 @@ const commentSortLabels = {
   'qa': 'Q&A',
 };
 
-class CommentsController extends FamilyAsyncNotifier<PostThread, String> {
+class CommentsController extends AutoDisposeFamilyAsyncNotifier<PostThread, String> {
   String _subreddit = '';
   String _postId = '';
   String? _focusCommentId; // set when viewing a single comment thread
@@ -192,5 +192,5 @@ class CommentsController extends FamilyAsyncNotifier<PostThread, String> {
 }
 
 final commentsControllerProvider =
-    AsyncNotifierProviderFamily<CommentsController, PostThread, String>(
+    AsyncNotifierProvider.autoDispose.family<CommentsController, PostThread, String>(
         CommentsController.new);

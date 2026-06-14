@@ -49,6 +49,7 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
   PostSort? _sort;
   TopTime _time = TopTime.day;
   bool _initialized = false;
+  DateTime _lastLoaded = DateTime.fromMillisecondsSinceEpoch(0);
 
   /// A multireddit feed key looks like `m::username::multiname`.
   ({String username, String name})? get _multi {
@@ -110,6 +111,7 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
     } catch (_) {
       listing = await _fetch();
     }
+    _lastLoaded = DateTime.now();
     return FeedState(
       posts: listing.items,
       sort: _sort!,
@@ -140,6 +142,16 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
 
   Future<void> refresh() async {
     state = await AsyncValue.guard(() => build(arg));
+  }
+
+  /// Silently reloads the feed only if the data is older than [maxAge] — used
+  /// when returning to the feed after viewing a post, so fresh posts appear
+  /// without a jarring spinner or losing the user's place on a quick in/out.
+  Future<void> refreshIfStale(
+      [Duration maxAge = const Duration(minutes: 5)]) async {
+    if (state.isLoading) return;
+    if (DateTime.now().difference(_lastLoaded) < maxAge) return;
+    await refresh();
   }
 
   Future<void> loadMore() async {

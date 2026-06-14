@@ -15,6 +15,7 @@ import '../../core/theme/app_theme.dart';
 import '../../models/comment.dart';
 import '../../models/post.dart';
 import '../auth/auth_controller.dart';
+import '../feed/post_overrides.dart';
 import '../feed/swipe_actions.dart';
 import '../media/gallery_carousel.dart';
 import '../media/media_viewers.dart';
@@ -108,6 +109,9 @@ class PostDetailScreen extends ConsumerWidget {
                     parentFullname: thread.post.fullname, parentDepth: -1);
                 if (reply != null) {
                   notifier.insertReply(thread.post.fullname, reply);
+                  ref
+                      .read(postOverridesProvider.notifier)
+                      .bumpComments(thread.post, 1);
                   // Commenting is the strongest engagement signal we have.
                   ref
                       .read(interestStoreProvider.notifier)
@@ -169,6 +173,9 @@ class PostDetailScreen extends ConsumerWidget {
                         replyingTo: c.author);
                     if (reply != null) {
                       notifier.insertReply(c.fullname, reply);
+                      ref
+                          .read(postOverridesProvider.notifier)
+                          .bumpComments(thread.post, 1);
                       ref
                           .read(interestStoreProvider.notifier)
                           .bump(thread.post.subreddit, 2.5);
@@ -304,26 +311,33 @@ class _PostHeader extends ConsumerStatefulWidget {
 }
 
 class _PostHeaderState extends ConsumerState<_PostHeader> {
-  late bool? _likes = widget.post.likes;
-  late int _score = widget.post.score;
-  late bool _saved = widget.post.saved;
+  @override
+  void initState() {
+    super.initState();
+    // Seed the shared overrides from this fresh fetch (esp. the comment count)
+    // so the feed card reflects it when you go back.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(postOverridesProvider.notifier).syncFromServer(widget.post);
+      }
+    });
+  }
 
   Future<void> _vote(int dir) async {
-    final current = _likes == true ? 1 : (_likes == false ? -1 : 0);
+    final overrides = ref.read(postOverridesProvider.notifier);
+    final cur = overrides.effective(widget.post);
+    final current = cur.likes == true ? 1 : (cur.likes == false ? -1 : 0);
     final target = current == dir ? 0 : dir;
-    setState(() {
-      _score += target - current;
-      _likes = target == 1 ? true : (target == -1 ? false : null);
-    });
+    overrides.setVote(widget.post, target);
+    if (target == 1) {
+      ref.read(interestStoreProvider.notifier).bump(widget.post.subreddit, 2);
+    } else if (target == -1) {
+      ref.read(interestStoreProvider.notifier).bump(widget.post.subreddit, -1.5);
+    }
     try {
       await ref.read(redditRepositoryProvider).vote(widget.post.fullname, target);
     } catch (_) {
-      if (mounted) {
-        setState(() {
-          _score -= target - current;
-          _likes = current == 1 ? true : (current == -1 ? false : null);
-        });
-      }
+      overrides.setVote(widget.post, current);
     }
   }
 
@@ -428,38 +442,48 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
               },
             ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              _VotePill(
-                  score: _score,
-                  likes: _likes,
-                  onUp: () => _vote(1),
-                  onDown: () => _vote(-1)),
-              const SizedBox(width: 8),
-              Chip(
-                avatar: const Icon(Icons.mode_comment_outlined, size: 18),
-                label: Text(compactNumber(p.numComments)),
-              ),
-              const Spacer(),
-              IconButton(
-                onPressed: () async {
-                  final next = !_saved;
-                  setState(() => _saved = next);
-                  try {
-                    await ref
-                        .read(redditRepositoryProvider)
-                        .setSaved(p.fullname, next);
-                  } catch (_) {
-                    if (mounted) setState(() => _saved = !next);
-                  }
-                },
-                color: _saved ? cs.primary : null,
-                icon: Icon(_saved
-                    ? Icons.bookmark_rounded
-                    : Icons.bookmark_border_rounded),
-              ),
-            ],
-          ),
+          Builder(builder: (context) {
+            final ov =
+                ref.watch(postOverridesProvider.select((m) => m[p.id]));
+            final likes = ov != null ? ov.likes : p.likes;
+            final score = ov?.score ?? p.score;
+            final saved = ov?.saved ?? p.saved;
+            final numComments = ov?.numComments ?? p.numComments;
+            return Row(
+              children: [
+                _VotePill(
+                    score: score,
+                    likes: likes,
+                    onUp: () => _vote(1),
+                    onDown: () => _vote(-1)),
+                const SizedBox(width: 8),
+                Chip(
+                  avatar: const Icon(Icons.mode_comment_outlined, size: 18),
+                  label: Text(compactNumber(numComments)),
+                ),
+                const Spacer(),
+                IconButton(
+                  onPressed: () async {
+                    final overrides =
+                        ref.read(postOverridesProvider.notifier);
+                    final next = !overrides.effective(p).saved;
+                    overrides.setSaved(p, next);
+                    try {
+                      await ref
+                          .read(redditRepositoryProvider)
+                          .setSaved(p.fullname, next);
+                    } catch (_) {
+                      overrides.setSaved(p, !next);
+                    }
+                  },
+                  color: saved ? cs.primary : null,
+                  icon: Icon(saved
+                      ? Icons.bookmark_rounded
+                      : Icons.bookmark_border_rounded),
+                ),
+              ],
+            );
+          }),
           const Divider(height: 24),
         ],
       ),

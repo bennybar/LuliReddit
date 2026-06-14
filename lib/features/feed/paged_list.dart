@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/route_observer.dart';
 import '../../models/listing.dart';
 
 /// Generic infinite-scroll list backed by a `fetch(after)` callback.
@@ -21,13 +22,14 @@ class PagedList<T> extends StatefulWidget {
   State<PagedList<T>> createState() => _PagedListState<T>();
 }
 
-class _PagedListState<T> extends State<PagedList<T>> {
+class _PagedListState<T> extends State<PagedList<T>> with RouteAware {
   final _scroll = ScrollController();
   final _items = <T>[];
   String? _after;
   bool _loading = true;
   bool _loadingMore = false;
   Object? _error;
+  DateTime _lastLoaded = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
   void initState() {
@@ -41,16 +43,37 @@ class _PagedListState<T> extends State<PagedList<T>> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) appRouteObserver.subscribe(this, route);
+  }
+
+  /// Returning to this list after a pushed route is popped: silently refresh if
+  /// the data has gone stale (no full-screen spinner, keeps the user's place).
+  @override
+  void didPopNext() {
+    if (!_loading &&
+        DateTime.now().difference(_lastLoaded) >
+            const Duration(minutes: 5)) {
+      _load(silent: true);
+    }
+  }
+
+  @override
   void dispose() {
+    appRouteObserver.unsubscribe(this);
     _scroll.dispose();
     super.dispose();
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final listing = await widget.fetch(null);
       if (!mounted) return;
@@ -60,9 +83,11 @@ class _PagedListState<T> extends State<PagedList<T>> {
           ..addAll(listing.items);
         _after = listing.after;
         _loading = false;
+        _lastLoaded = DateTime.now();
       });
     } catch (e) {
-      if (mounted) {
+      // A silent (stale) refresh failing shouldn't blow away the list.
+      if (mounted && !silent) {
         setState(() {
           _error = e;
           _loading = false;

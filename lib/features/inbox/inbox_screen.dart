@@ -117,13 +117,83 @@ class _InboxListState extends ConsumerState<_InboxList>
                         child: Center(child: CircularProgressIndicator()))
                     : const SizedBox.shrink();
               }
-              return _InboxCard(
-                item: state.items[i],
-                onTap: () => _open(context, ref, state.items[i]),
+              final item = state.items[i];
+              return Dismissible(
+                key: ValueKey(item.fullname),
+                // Messages: swipe right = read/unread, swipe left = delete.
+                // Comment replies/mentions: read/unread only (can't be deleted).
+                direction: item.isMessage
+                    ? DismissDirection.horizontal
+                    : DismissDirection.startToEnd,
+                background: _swipeBg(context, read: true, isNew: item.isNew),
+                secondaryBackground: _swipeBg(context, read: false),
+                confirmDismiss: (dir) async {
+                  if (dir == DismissDirection.startToEnd) {
+                    item.isNew
+                        ? notifier.markRead(item.fullname)
+                        : notifier.markUnread(item.fullname);
+                    return false; // keep the row; we just toggled state
+                  }
+                  notifier.deleteMessage(item.fullname);
+                  return true; // remove the row
+                },
+                child: _InboxCard(
+                  item: item,
+                  onTap: () => _open(context, ref, item),
+                ),
               );
             },
           );
         },
+      ),
+    );
+  }
+
+  /// [read]=true → the read/unread (right-swipe) background; else the delete
+  /// (left-swipe) background.
+  Widget _swipeBg(BuildContext context, {required bool read, bool isNew = false}) {
+    if (read) {
+      return Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        alignment: Alignment.centerLeft,
+        decoration: BoxDecoration(
+          color: const Color(0xFF2E7D32),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+                isNew
+                    ? Icons.mark_email_read_outlined
+                    : Icons.mark_email_unread_outlined,
+                color: Colors.white),
+            const SizedBox(width: 8),
+            Text(isNew ? 'Mark read' : 'Mark unread',
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.w600)),
+          ],
+        ),
+      );
+    }
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      alignment: Alignment.centerRight,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.error,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('Delete',
+              style:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+          SizedBox(width: 8),
+          Icon(Icons.delete_outline_rounded, color: Colors.white),
+        ],
       ),
     );
   }

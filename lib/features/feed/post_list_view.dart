@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/route_observer.dart';
 import '../../core/widgets/error_view.dart';
 import '../../data/reddit_repository.dart';
 import '../history/history_store.dart';
@@ -25,7 +26,7 @@ class PostListView extends ConsumerStatefulWidget {
   ConsumerState<PostListView> createState() => _PostListViewState();
 }
 
-class _PostListViewState extends ConsumerState<PostListView> {
+class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
   final _scroll = ScrollController();
 
   @override
@@ -40,7 +41,22 @@ class _PostListViewState extends ConsumerState<PostListView> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) appRouteObserver.subscribe(this, route);
+  }
+
+  /// Returning to the feed after a pushed route (e.g. a post) is popped:
+  /// pull in fresh posts if the feed has gone stale.
+  @override
+  void didPopNext() {
+    ref.read(feedControllerProvider(widget.feedKey).notifier).refreshIfStale();
+  }
+
+  @override
   void dispose() {
+    appRouteObserver.unsubscribe(this);
     _scroll.dispose();
     super.dispose();
   }
