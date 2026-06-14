@@ -1,0 +1,2 @@
+- The app is now called "Ilay for Reddit". Only the name changed — your login,
+  settings, history and updates carry over untouched.

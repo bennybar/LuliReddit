@@ -159,7 +159,7 @@ Future<List<_UnreadItem>?> _fetchUnread(SecureStore store) async {
         : (subject.isNotEmpty ? subject : 'Message from u/$author');
     final snippet = rawBody.length > 140
         ? '${rawBody.substring(0, 140)}…'
-        : (rawBody.isEmpty ? 'Open Luli to read' : rawBody);
+        : (rawBody.isEmpty ? 'Open Ilay to read' : rawBody);
     out.add(_UnreadItem(fullname, title, snippet));
   }
   return out;

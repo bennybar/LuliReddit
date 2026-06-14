@@ -308,10 +308,10 @@ class SettingsList extends ConsumerWidget {
           ),
           const ListTile(
             leading: Icon(Icons.link_rounded),
-            title: Text('Open reddit links in Luli'),
+            title: Text('Open reddit links in Ilay'),
             subtitle: Text(
                 'Already supported via the Android "open with" chooser. To make '
-                'Luli the verified default, enable it under system app settings '
+                'Ilay the verified default, enable it under system app settings '
                 '› Open by default.'),
           ),
           _RateLimitTile(),

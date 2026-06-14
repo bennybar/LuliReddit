@@ -5,7 +5,7 @@
 		<key>CFBundleDevelopmentRegion</key>
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
 		<key>CFBundleDisplayName</key>
-		<string>Luli for Reddit</string>
+		<string>Ilay for Reddit</string>
 		<key>CFBundleExecutable</key>
 		<string>$(EXECUTABLE_NAME)</string>
 		<key>CFBundleIdentifier</key>
@@ -61,13 +61,13 @@
 		</array>
 		<!-- image_picker: choosing an image/video for posts -->
 		<key>NSPhotoLibraryUsageDescription</key>
-		<string>Luli needs access to your photos so you can attach images and videos to posts.</string>
+		<string>Ilay needs access to your photos so you can attach images and videos to posts.</string>
 		<key>NSPhotoLibraryAddUsageDescription</key>
-		<string>Luli saves photos and videos you download to your photo library.</string>
+		<string>Ilay saves photos and videos you download to your photo library.</string>
 		<key>NSCameraUsageDescription</key>
-		<string>Luli can use the camera to capture photos for posts.</string>
+		<string>Ilay can use the camera to capture photos for posts.</string>
 		<key>NSMicrophoneUsageDescription</key>
-		<string>Luli can use the microphone when recording video for posts.</string>
+		<string>Ilay can use the microphone when recording video for posts.</string>
 		<key>UIStatusBarHidden</key>
 		<false/>
 		<!-- Background inbox polling for notifications (best-effort; iOS decides

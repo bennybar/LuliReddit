@@ -152,14 +152,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   size: 38, color: cs.onPrimaryContainer),
             ),
             const SizedBox(height: 20),
-            Text('Luli for Reddit',
+            Text('Ilay for Reddit',
                 style: Theme.of(context)
                     .textTheme
                     .headlineMedium
                     ?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 8),
             Text(
-              'Connect your own Reddit API app to sign in. Luli ships without '
+              'Connect your own Reddit API app to sign in. Ilay ships without '
               'any keys baked in — you provide them once, stored securely on '
               'this device.',
               style: Theme.of(context)

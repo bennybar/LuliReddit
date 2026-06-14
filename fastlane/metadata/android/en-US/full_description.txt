@@ -1,4 +1,4 @@
-Luli is an independent, open-source Reddit client with a clean Material 3
+Ilay is an independent, open-source Reddit client with a clean Material 3
 Expressive design. You bring your own Reddit API credentials. The app talks
 directly to Reddit; the only other data it sends is anonymous usage analytics
 (app launches, version, and OS - no personal data and no advertising IDs).
@@ -19,5 +19,5 @@ Features:
   dynamic-color themes
 * Offline cache and in-app updates
 
-Luli is not affiliated with Reddit, Inc. You need a free Reddit account and your
+Ilay is not affiliated with Reddit, Inc. You need a free Reddit account and your
 own API credentials (installed-app type, redirect luli://oauth) to sign in.

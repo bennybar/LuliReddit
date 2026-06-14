@@ -27,11 +27,11 @@ class PolicyScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
-          p('Luli is an independent, third-party client for Reddit. It is not '
+          p('Ilay is an independent, third-party client for Reddit. It is not '
               'made by, endorsed by, or affiliated with Reddit, Inc. All content '
               'is hosted by Reddit and provided through your own Reddit account.'),
           h('No tolerance for objectionable content'),
-          p('By using Luli you agree not to use it to post, share, or promote '
+          p('By using Ilay you agree not to use it to post, share, or promote '
               'content that is illegal, abusive, harassing, hateful, sexually '
               'exploitative, or otherwise objectionable. There is zero tolerance '
               'for objectionable content or abusive users.'),
@@ -67,14 +67,14 @@ class PolicyScreen extends StatelessWidget {
               'By enabling it you confirm you are of legal age to view such '
               'content in your jurisdiction.'),
           h('Your data'),
-          p('Luli stores your API credentials, tokens, history, and settings only '
+          p('Ilay stores your API credentials, tokens, history, and settings only '
               'on this device, and talks directly to Reddit. The only other data '
               'it sends is anonymous usage analytics (Aptabase): app launches, '
               'app version, and OS — no account info, no ad identifiers, nothing '
               'that identifies you. To remove your data, use "Clear all data" in '
               'settings; to delete your Reddit account, visit Reddit\'s settings.'),
           h('No warranty'),
-          p('Luli is provided "as is", without warranty of any kind. You use it at '
+          p('Ilay is provided "as is", without warranty of any kind. You use it at '
               'your own risk.'),
         ],
       ),

@@ -52,7 +52,7 @@ class _LuliAppState extends ConsumerState<LuliApp> {
       builder: (lightDynamic, darkDynamic) {
         final useDynamic = settings.useDynamicColor;
         return MaterialApp.router(
-          title: 'Luli for Reddit',
+          title: 'Ilay for Reddit',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.light(
             useDynamic ? lightDynamic?.harmonized() : null,

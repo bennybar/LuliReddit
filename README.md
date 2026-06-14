@@ -1,4 +1,4 @@
-# Luli for Reddit
+# Ilay for Reddit
 
 A fast, modern Reddit client for Android, built with Flutter and a Material 3
 Expressive design. You bring your own Reddit API credentials. The app talks
@@ -33,10 +33,10 @@ directly to Reddit; the only other data it sends is anonymous usage analytics
 ## How the "For You" feed works
 
 Reddit doesn't give third-party apps access to its own recommendation engine, so
-Luli builds one on your device. Nothing about your interests ever leaves the
+Ilay builds one on your device. Nothing about your interests ever leaves the
 phone.
 
-1. **Candidates.** Luli pulls a pool of posts from the sources that actually
+1. **Candidates.** Ilay pulls a pool of posts from the sources that actually
    matter to you: your subscription frontpage, fresh posts from your favourite
    subreddits, the communities you engage with most, what's rising in your
    subscriptions, and a small slice of r/popular for discovery. The feed is
