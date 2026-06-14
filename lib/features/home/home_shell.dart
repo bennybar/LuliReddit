@@ -16,7 +16,6 @@ import '../inbox/inbox_controller.dart';
 import '../inbox/inbox_screen.dart';
 import '../notifications/inbox_poller.dart';
 import '../notifications/notification_service.dart';
-import '../search/floating_search.dart';
 import '../settings/settings_controller.dart';
 import '../updates/update_checker.dart';
 import 'account_tab.dart';
@@ -129,8 +128,6 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final unread = ref.watch(unreadCountProvider).valueOrNull ?? 0;
-    final compact = ref.watch(settingsControllerProvider
-        .select((s) => s.topBarMode == TopBarMode.compact));
     return Scaffold(
       // Pop variant: content flows under the detached floating nav.
       extendBody: true,
@@ -156,8 +153,6 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         child: _FloatingNav(
           selectedIndex: _index,
           unread: unread,
-          showCompose: compact,
-          onNewPost: () => context.push('/submit'),
           onSelected: (i) {
             // Re-tapping the active Posts tab scrolls it to top (or refreshes).
             if (i == _index) {
@@ -185,16 +180,10 @@ class _FloatingNav extends StatefulWidget {
     required this.selectedIndex,
     required this.unread,
     required this.onSelected,
-    this.showCompose = false,
-    this.onNewPost,
   });
   final int selectedIndex;
   final int unread;
   final ValueChanged<int> onSelected;
-
-  /// Compact mode: insert a "New post" action between Explore and Inbox.
-  final bool showCompose;
-  final VoidCallback? onNewPost;
 
   @override
   State<_FloatingNav> createState() => _FloatingNavState();
@@ -220,7 +209,7 @@ class _FloatingNavState extends State<_FloatingNav>
   @override
   void initState() {
     super.initState();
-    _from = _to = _slotForTab(widget.selectedIndex).toDouble();
+    _from = _to = widget.selectedIndex.toDouble();
     _c = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 200));
   }
@@ -228,35 +217,19 @@ class _FloatingNavState extends State<_FloatingNav>
   @override
   void didUpdateWidget(_FloatingNav old) {
     super.didUpdateWidget(old);
-    if (old.showCompose != widget.showCompose) {
-      // Layout changed (compose slot added/removed) — re-seat without animating.
-      _from = _to = _slotForTab(widget.selectedIndex).toDouble();
-      return;
-    }
     if (_fromDrag) {
       _fromDrag = false; // drag already ran its own snap animation
       return;
     }
     if (old.selectedIndex != widget.selectedIndex) {
       _from = _displayed; // smooth interrupt mid-flight
-      _to = _slotForTab(widget.selectedIndex).toDouble();
+      _to = widget.selectedIndex.toDouble();
       _c.forward(from: 0);
     }
   }
 
   double get _displayed =>
       lerpDouble(_from, _to, Curves.easeOutCubic.transform(_c.value))!;
-
-  // --- Slot mapping ---------------------------------------------------------
-  // The 4 tabs occupy "slots". In compact mode a non-tab "Post" action is
-  // inserted at slot 2, so tab indices (0..3) and visual slots diverge.
-  int get _slotCount => widget.showCompose ? 5 : 4;
-  bool _isComposeSlot(int s) => widget.showCompose && s == 2;
-  int _slotForTab(int tab) => widget.showCompose ? const [0, 1, 3, 4][tab] : tab;
-  int? _tabForSlot(int s) =>
-      widget.showCompose ? const {0: 0, 1: 1, 2: null, 3: 2, 4: 3}[s] : s;
-  List<int> get _tabSlots =>
-      widget.showCompose ? const [0, 1, 3, 4] : const [0, 1, 2, 3];
 
   @override
   void dispose() {
@@ -311,56 +284,22 @@ class _FloatingNavState extends State<_FloatingNav>
     );
   }
 
-  // Android: standard Material pills (+ optional compose action).
-  Widget _material(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Row(
-      children: [
-        for (var s = 0; s < _slotCount; s++)
-          Expanded(
-            child: _isComposeSlot(s)
-                ? _composeItem(context, cs)
-                : _NavItem(
-                    iconOff: _items[_tabForSlot(s)!].$1,
-                    iconOn: _items[_tabForSlot(s)!].$2,
-                    label: _items[_tabForSlot(s)!].$3,
-                    selected: widget.selectedIndex == _tabForSlot(s),
-                    badge: _tabForSlot(s) == 2 ? widget.unread : 0,
-                    onTap: () => widget.onSelected(_tabForSlot(s)!),
-                  ),
-          ),
-      ],
-    );
-  }
-
-  /// The accent "New post" action shown in the bottom nav in compact mode.
-  Widget _composeItem(BuildContext context, ColorScheme cs) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: widget.onNewPost,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+  // Android: standard Material pills.
+  Widget _material(BuildContext context) => Row(
         children: [
-          Container(
-            width: 42,
-            height: 28,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: cs.primary,
-              borderRadius: BorderRadius.circular(999),
+          for (var i = 0; i < _items.length; i++)
+            Expanded(
+              child: _NavItem(
+                iconOff: _items[i].$1,
+                iconOn: _items[i].$2,
+                label: _items[i].$3,
+                selected: widget.selectedIndex == i,
+                badge: i == 2 ? widget.unread : 0,
+                onTap: () => widget.onSelected(i),
+              ),
             ),
-            child: Icon(Icons.edit_square, size: 18, color: cs.onPrimary),
-          ),
-          const SizedBox(height: 3),
-          Text('Post',
-              style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: cs.onSurfaceVariant)),
         ],
-      ),
-    );
-  }
+      );
 
   // iOS: a single sliding/stretching glass capsule behind the items.
   Widget _glass(BuildContext context) {
@@ -369,30 +308,26 @@ class _FloatingNavState extends State<_FloatingNav>
     return LayoutBuilder(
       builder: (context, bc) {
         final w = bc.maxWidth;
-        final n = _slotCount;
+        final n = _items.length;
         final iw = w / n;
         final capBase = iw - 14;
 
-        // Finger x → fractional slot (capsule centre follows the thumb).
+        // Finger x → fractional tab index (capsule centre follows the thumb).
         double idxFromX(double x) =>
             ((x - iw / 2) / iw).clamp(0.0, (n - 1).toDouble());
 
         void onDown(double x) => setState(() => _drag = idxFromX(x));
         void onMove(double x) => setState(() => _drag = idxFromX(x));
         void onUp() {
-          var slot =
-              (_drag ?? _displayed).round().clamp(0, n - 1);
-          // Never rest on the compose action; snap to the nearest real tab.
-          if (_isComposeSlot(slot)) {
-            slot = _tabSlots.reduce(
-                (a, b) => (a - slot).abs() <= (b - slot).abs() ? a : b);
-          }
-          _from = _drag ?? _displayed;
-          _to = slot.toDouble();
+          final idx = (_drag ?? widget.selectedIndex.toDouble())
+              .round()
+              .clamp(0, n - 1);
+          _from = _drag ?? idx.toDouble();
+          _to = idx.toDouble();
           _drag = null;
           _fromDrag = true;
           _c.forward(from: 0);
-          widget.onSelected(_tabForSlot(slot)!);
+          widget.onSelected(idx);
         }
 
         return GestureDetector(
@@ -425,10 +360,9 @@ class _FloatingNavState extends State<_FloatingNav>
                 width = (rightEdge - leftEdge).clamp(capBase, w);
               }
               left = left.clamp(4.0, w - 4 - width);
-              final activeSlot = (_drag != null
-                      ? _drag!.round()
-                      : _slotForTab(widget.selectedIndex))
-                  .clamp(0, n - 1);
+              final active =
+                  (_drag != null ? _drag!.round() : widget.selectedIndex)
+                      .clamp(0, n - 1);
               final dragging = _drag != null;
               return Stack(
                 children: [
@@ -463,13 +397,8 @@ class _FloatingNavState extends State<_FloatingNav>
                   ),
                   Row(
                     children: [
-                      for (var s = 0; s < n; s++)
-                        Expanded(
-                          child: _isComposeSlot(s)
-                              ? _composeItem(context, cs)
-                              : _glassTabItem(
-                                  context, _tabForSlot(s)!, cs, s, activeSlot),
-                        ),
+                      for (var i = 0; i < n; i++)
+                        Expanded(child: _glassItem(context, i, cs, active)),
                     ],
                   ),
                 ],
@@ -481,13 +410,13 @@ class _FloatingNavState extends State<_FloatingNav>
     );
   }
 
-  Widget _glassTabItem(BuildContext context, int tab, ColorScheme cs, int slot,
-      int activeSlot) {
-    final selected = activeSlot == slot;
+  Widget _glassItem(
+      BuildContext context, int i, ColorScheme cs, int activeIndex) {
+    final selected = activeIndex == i;
     final color = selected ? cs.primary : cs.onSurfaceVariant;
-    Widget icon = Icon(selected ? _items[tab].$2 : _items[tab].$1,
-        size: 24, color: color);
-    final unread = tab == 2 ? widget.unread : 0;
+    Widget icon =
+        Icon(selected ? _items[i].$2 : _items[i].$1, size: 24, color: color);
+    final unread = i == 2 ? widget.unread : 0;
     if (unread > 0) {
       icon = Badge(label: Text(unread > 99 ? '99+' : '$unread'), child: icon);
     }
@@ -496,13 +425,13 @@ class _FloatingNavState extends State<_FloatingNav>
     // no ripple feedback (the sliding pill is the feedback).
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => widget.onSelected(tab),
+      onTap: () => widget.onSelected(i),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           icon,
           const SizedBox(height: 3),
-          Text(_items[tab].$3,
+          Text(_items[i].$3,
               style: TextStyle(
                   fontSize: 11, fontWeight: FontWeight.w600, color: color)),
         ],
@@ -673,12 +602,16 @@ class _FrontpageTab extends ConsumerWidget {
         ref.watch(authControllerProvider).valueOrNull?.username ?? '';
     final settings = ref.watch(settingsControllerProvider);
     final forYou = settings.forYouFeed;
-    final compact = settings.topBarMode == TopBarMode.compact;
+    final mode = settings.topBarMode;
+    final expandable = mode == TopBarMode.expandable;
+    final hasTrailing = expandable;
+    // Full mode pins the action row; Expandable floats it in on demand.
+    final showActionRow = mode == TopBarMode.full;
     return Column(
       children: [
         // Full mode: Google-app style search bar with avatar — collapses on
-        // scroll. Compact mode hides it (actions move to the bottom nav).
-        if (!compact)
+        // scroll. Compact mode hides it; Expandable shows it on demand.
+        if (showActionRow)
           AnimatedSize(
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOut,
@@ -747,7 +680,8 @@ class _FrontpageTab extends ConsumerWidget {
           child: PostListView(
             feedKey: '',
             header: Padding(
-              padding: EdgeInsets.fromLTRB(16, compact ? 10 : 8, compact ? 4 : 16, 0),
+              padding: EdgeInsets.fromLTRB(
+                  16, hasTrailing ? 10 : 8, hasTrailing ? 4 : 16, 0),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -769,15 +703,14 @@ class _FrontpageTab extends ConsumerWidget {
                     ),
                   ] else
                     const Spacer(),
-                  // Compact mode keeps search (floating) + the display menu up top.
-                  if (compact) ...[
+                  // Expandable mode: one button that floats the toolbar in.
+                  if (expandable)
                     IconButton(
-                      tooltip: 'Search',
-                      icon: const Icon(Icons.search_rounded),
-                      onPressed: () => showFloatingSearch(context),
+                      tooltip: 'Toolbar',
+                      icon: const Icon(Icons.more_horiz_rounded),
+                      onPressed: () =>
+                          _showFloatingToolbar(context, ref, username),
                     ),
-                    const _DisplayMenu(),
-                  ],
                 ],
               ),
             ),
@@ -786,6 +719,111 @@ class _FrontpageTab extends ConsumerWidget {
       ],
     );
   }
+}
+
+/// Expandable top-bar mode: floats the full toolbar (search, new post, display,
+/// profile) in from the top as a dismissible overlay — it never displaces the
+/// feed.
+Future<void> _showFloatingToolbar(
+    BuildContext context, WidgetRef ref, String username) {
+  final router = GoRouter.of(context);
+  final cs = Theme.of(context).colorScheme;
+  return showGeneralDialog(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: 'Toolbar',
+    barrierColor: Colors.black.withValues(alpha: 0.30),
+    transitionDuration: const Duration(milliseconds: 200),
+    pageBuilder: (ctx, _, __) {
+      void close() => Navigator.of(ctx).pop();
+      return SafeArea(
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            child: GlassSurface(
+              borderRadius: BorderRadius.circular(28),
+              tintOpacity: 1.0,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(24),
+                        onTap: () {
+                          close();
+                          router.push('/search');
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 12),
+                          child: Row(
+                            children: [
+                              Icon(Icons.search_rounded,
+                                  color: cs.onSurfaceVariant),
+                              const SizedBox(width: 12),
+                              Text('Search Reddit',
+                                  style:
+                                      TextStyle(color: cs.onSurfaceVariant)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    IconButton.filled(
+                      tooltip: 'New post',
+                      icon: const Icon(Icons.edit_square, size: 22),
+                      style: IconButton.styleFrom(
+                        backgroundColor: cs.primary,
+                        foregroundColor: cs.onPrimary,
+                      ),
+                      onPressed: () {
+                        close();
+                        router.push('/submit');
+                      },
+                    ),
+                    const _DisplayMenu(),
+                    const SizedBox(width: 4),
+                    GestureDetector(
+                      onTap: () {
+                        close();
+                        router.push('/u/$username');
+                      },
+                      child: CircleAvatar(
+                        radius: 20,
+                        backgroundColor: cs.primaryContainer,
+                        child: Text(
+                          username.isNotEmpty
+                              ? username[0].toUpperCase()
+                              : '?',
+                          style: TextStyle(
+                              color: cs.onPrimaryContainer,
+                              fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+    transitionBuilder: (ctx, anim, _, child) {
+      final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
+      return FadeTransition(
+        opacity: curved,
+        child: SlideTransition(
+          position: Tween(begin: const Offset(0, -0.06), end: Offset.zero)
+              .animate(curved),
+          child: child,
+        ),
+      );
+    },
+  );
 }
 
 /// Shows live Reddit API rate-limit usage in place of the search bar

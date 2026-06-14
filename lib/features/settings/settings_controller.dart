@@ -11,18 +11,18 @@ final sharedPrefsProvider = Provider<SharedPreferences>(
 );
 
 /// Where the Posts-screen actions (search, new post, profile) live.
-enum TopBarMode { full, compact }
+enum TopBarMode { full, expandable }
 
 extension TopBarModeLabel on TopBarMode {
   String get label => switch (this) {
         TopBarMode.full => 'Full top bar',
-        TopBarMode.compact => 'Compact',
+        TopBarMode.expandable => 'Expandable',
       };
   String get description => switch (this) {
         TopBarMode.full =>
           'Search, new post and profile across the top (current)',
-        TopBarMode.compact =>
-          'Just a title up top; new post moves into the bottom bar',
+        TopBarMode.expandable =>
+          'Just a title with one button that floats the full top bar in on demand',
       };
 }
 
@@ -167,7 +167,12 @@ class SettingsController extends Notifier<Settings> {
       autoplayMedia: p.getBool('autoplayMedia') ?? true,
       showApiUsage: p.getBool('showApiUsage') ?? false,
       notifyInbox: p.getBool('notifyInbox') ?? false,
-      topBarMode: TopBarMode.values[p.getInt('topBarMode') ?? 0],
+      // Default to Expandable. Old installs may have stored the removed
+      // "compact" (1) or the old expandable index (2); clamp maps both safely.
+      topBarMode: p.getInt('topBarMode') == null
+          ? TopBarMode.expandable
+          : TopBarMode.values[
+              p.getInt('topBarMode')!.clamp(0, TopBarMode.values.length - 1)],
     );
   }
 
