@@ -11,8 +11,9 @@ import '../../models/subreddit.dart';
 import '../feed/post_card.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
-  const SearchScreen({super.key, this.initialSubreddit});
+  const SearchScreen({super.key, this.initialSubreddit, this.initialQuery});
   final String? initialSubreddit;
+  final String? initialQuery;
 
   @override
   ConsumerState<SearchScreen> createState() => _SearchScreenState();
@@ -50,6 +51,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void initState() {
     super.initState();
     _recent = ref.read(sharedPrefsProvider).getStringList(_recentKey) ?? [];
+    final q = widget.initialQuery?.trim() ?? '';
+    if (q.isNotEmpty) {
+      _controller.text = q;
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _search(q));
+    }
   }
 
   void _saveRecent(String q) {
@@ -121,7 +128,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           titleSpacing: 8,
           title: TextField(
             controller: _controller,
-            autofocus: true,
+            autofocus: (widget.initialQuery?.trim().isEmpty ?? true),
             textInputAction: TextInputAction.search,
             onSubmitted: _search,
             onChanged: (_) => setState(() {}),

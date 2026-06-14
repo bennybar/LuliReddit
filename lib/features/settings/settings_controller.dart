@@ -10,6 +10,22 @@ final sharedPrefsProvider = Provider<SharedPreferences>(
   (ref) => throw UnimplementedError('sharedPrefsProvider not initialized'),
 );
 
+/// Where the Posts-screen actions (search, new post, profile) live.
+enum TopBarMode { full, compact }
+
+extension TopBarModeLabel on TopBarMode {
+  String get label => switch (this) {
+        TopBarMode.full => 'Full top bar',
+        TopBarMode.compact => 'Compact',
+      };
+  String get description => switch (this) {
+        TopBarMode.full =>
+          'Search, new post and profile across the top (current)',
+        TopBarMode.compact =>
+          'Just a title up top; new post moves into the bottom bar',
+      };
+}
+
 /// How posts are laid out in feeds.
 enum PostDisplay { large, card, mini }
 
@@ -48,6 +64,7 @@ class Settings {
     required this.autoplayMedia,
     required this.showApiUsage,
     required this.notifyInbox,
+    required this.topBarMode,
   });
 
   final ThemeMode themeMode;
@@ -70,6 +87,7 @@ class Settings {
   final bool autoplayMedia; // autoplay videos/GIFs in feeds
   final bool showApiUsage; // show API usage instead of search on Posts screen
   final bool notifyInbox; // background-poll the inbox + local notifications
+  final TopBarMode topBarMode; // Posts-screen action layout
 
   Settings copyWith({
     ThemeMode? themeMode,
@@ -92,6 +110,7 @@ class Settings {
     bool? autoplayMedia,
     bool? showApiUsage,
     bool? notifyInbox,
+    TopBarMode? topBarMode,
   }) =>
       Settings(
         themeMode: themeMode ?? this.themeMode,
@@ -114,6 +133,7 @@ class Settings {
         autoplayMedia: autoplayMedia ?? this.autoplayMedia,
         showApiUsage: showApiUsage ?? this.showApiUsage,
         notifyInbox: notifyInbox ?? this.notifyInbox,
+        topBarMode: topBarMode ?? this.topBarMode,
       );
 }
 
@@ -147,6 +167,7 @@ class SettingsController extends Notifier<Settings> {
       autoplayMedia: p.getBool('autoplayMedia') ?? true,
       showApiUsage: p.getBool('showApiUsage') ?? false,
       notifyInbox: p.getBool('notifyInbox') ?? false,
+      topBarMode: TopBarMode.values[p.getInt('topBarMode') ?? 0],
     );
   }
 
@@ -248,6 +269,11 @@ class SettingsController extends Notifier<Settings> {
   void setNotifyInbox(bool v) {
     _prefs.setBool('notifyInbox', v);
     state = state.copyWith(notifyInbox: v);
+  }
+
+  void setTopBarMode(TopBarMode v) {
+    _prefs.setInt('topBarMode', v.index);
+    state = state.copyWith(topBarMode: v);
   }
 }
 

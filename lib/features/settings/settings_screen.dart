@@ -164,6 +164,12 @@ class SettingsList extends ConsumerWidget {
             subtitle: Text(s.postDisplay.label),
             onTap: () => _pickDisplay(context, ctrl, s.postDisplay),
           ),
+          ListTile(
+            leading: const Icon(Icons.view_headline_rounded),
+            title: const Text('Top bar'),
+            subtitle: Text(s.topBarMode.label),
+            onTap: () => _pickTopBar(context, ctrl, s.topBarMode),
+          ),
           SwitchListTile(
             secondary: const Icon(Icons.blur_on_rounded),
             title: const Text('Blur NSFW media'),
@@ -517,6 +523,34 @@ class SettingsList extends ConsumerWidget {
                   value: d,
                   secondary: Icon(d.icon),
                   title: Text(d.label),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _pickTopBar(
+      BuildContext context, SettingsController ctrl, TopBarMode current) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: RadioGroup<TopBarMode>(
+          groupValue: current,
+          onChanged: (v) {
+            if (v != null) ctrl.setTopBarMode(v);
+            Navigator.pop(ctx);
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final m in TopBarMode.values)
+                RadioListTile<TopBarMode>(
+                  value: m,
+                  title: Text(m.label),
+                  subtitle: Text(m.description),
                 ),
             ],
           ),

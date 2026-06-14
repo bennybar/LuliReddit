@@ -51,8 +51,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/history', builder: (_, __) => const HistoryScreen()),
       GoRoute(
         path: '/search',
-        builder: (_, state) =>
-            SearchScreen(initialSubreddit: state.uri.queryParameters['sr']),
+        builder: (_, state) => SearchScreen(
+          initialSubreddit: state.uri.queryParameters['sr'],
+          initialQuery: state.uri.queryParameters['q'],
+        ),
       ),
       GoRoute(
         path: '/submit',

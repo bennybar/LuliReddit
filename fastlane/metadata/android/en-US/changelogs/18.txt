@@ -1,0 +1,4 @@
+- New: a "Compact" top-bar option (Settings → Feed → Top bar). It clears the
+  top to just the title, moves New post into the bottom bar, and adds a
+  magnifier that opens a floating search. The original "Full top bar" stays the
+  default.
