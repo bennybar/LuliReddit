@@ -195,6 +195,12 @@ class SettingsList extends ConsumerWidget {
             value: s.autoHideReadForYou,
             onChanged: ctrl.setAutoHideReadForYou,
           ),
+          ListTile(
+            leading: const Icon(Icons.tune_rounded),
+            title: const Text('Manage "For You" subreddits'),
+            subtitle: const Text('Review and undo muted / show-less subreddits'),
+            onTap: () => context.push('/manage_for_you'),
+          ),
           SwitchListTile(
             secondary: const Icon(Icons.swipe_rounded),
             title: const Text('Swipe to vote'),

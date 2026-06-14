@@ -133,7 +133,7 @@ class _PostCardState extends ConsumerState<PostCard> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(18, 2, 18, 0),
+            padding: const EdgeInsets.fromLTRB(18, 2, 8, 0),
             child: Row(
               children: [
                 Icon(Icons.auto_awesome_rounded, size: 13, color: cs.primary),
@@ -147,6 +147,28 @@ class _PostCardState extends ConsumerState<PostCard> {
                         fontSize: 11.5,
                         fontWeight: FontWeight.w600,
                         color: cs.primary),
+                  ),
+                ),
+                // Discoverable entry to the feed-tuning sheet (also on long-press)
+                // so "show less from this subreddit" isn't hidden.
+                InkWell(
+                  onTap: _showTuneSheet,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 2),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.tune_rounded, size: 13, color: cs.primary),
+                        const SizedBox(width: 4),
+                        Text('Less',
+                            style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
+                                color: cs.primary)),
+                      ],
+                    ),
                   ),
                 ),
               ],

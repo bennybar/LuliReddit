@@ -92,6 +92,16 @@ class InterestStore extends Notifier<Map<String, double>> {
     return [for (final e in entries.take(n)) e.key];
   }
 
+  /// Forgets the learned affinity for one subreddit (used by the "Manage For
+  /// You" screen to undo a "show less"/"show more"). Works regardless of the
+  /// track-history setting.
+  void reset(String subreddit) {
+    final key = subreddit.toLowerCase();
+    if (!state.containsKey(key)) return;
+    state = {...state}..remove(key);
+    _persistMap(state);
+  }
+
   void clear() {
     state = {};
     ref.read(sharedPrefsProvider).remove(_key);
