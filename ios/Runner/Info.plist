@@ -70,5 +70,17 @@
 		<string>Luli can use the microphone when recording video for posts.</string>
 		<key>UIStatusBarHidden</key>
 		<false/>
+		<!-- Background inbox polling for notifications (best-effort; iOS decides
+		     when BGTaskScheduler runs). Identifier must match the Dart/AppDelegate
+		     task name. -->
+		<key>UIBackgroundModes</key>
+		<array>
+			<string>fetch</string>
+			<string>processing</string>
+		</array>
+		<key>BGTaskSchedulerPermittedIdentifiers</key>
+		<array>
+			<string>luli.inbox.poll</string>
+		</array>
 	</dict>
 </plist>

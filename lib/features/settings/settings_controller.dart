@@ -47,6 +47,7 @@ class Settings {
     required this.textScale,
     required this.autoplayMedia,
     required this.showApiUsage,
+    required this.notifyInbox,
   });
 
   final ThemeMode themeMode;
@@ -68,6 +69,7 @@ class Settings {
   final double textScale; // global text size multiplier (0.8–1.4)
   final bool autoplayMedia; // autoplay videos/GIFs in feeds
   final bool showApiUsage; // show API usage instead of search on Posts screen
+  final bool notifyInbox; // background-poll the inbox + local notifications
 
   Settings copyWith({
     ThemeMode? themeMode,
@@ -89,6 +91,7 @@ class Settings {
     double? textScale,
     bool? autoplayMedia,
     bool? showApiUsage,
+    bool? notifyInbox,
   }) =>
       Settings(
         themeMode: themeMode ?? this.themeMode,
@@ -110,6 +113,7 @@ class Settings {
         textScale: textScale ?? this.textScale,
         autoplayMedia: autoplayMedia ?? this.autoplayMedia,
         showApiUsage: showApiUsage ?? this.showApiUsage,
+        notifyInbox: notifyInbox ?? this.notifyInbox,
       );
 }
 
@@ -142,6 +146,7 @@ class SettingsController extends Notifier<Settings> {
       textScale: p.getDouble('textScale') ?? 1.0,
       autoplayMedia: p.getBool('autoplayMedia') ?? true,
       showApiUsage: p.getBool('showApiUsage') ?? false,
+      notifyInbox: p.getBool('notifyInbox') ?? false,
     );
   }
 
@@ -238,6 +243,11 @@ class SettingsController extends Notifier<Settings> {
   void setShowApiUsage(bool v) {
     _prefs.setBool('showApiUsage', v);
     state = state.copyWith(showApiUsage: v);
+  }
+
+  void setNotifyInbox(bool v) {
+    _prefs.setBool('notifyInbox', v);
+    state = state.copyWith(notifyInbox: v);
   }
 }
 

@@ -8,6 +8,8 @@ import '../../core/providers.dart';
 import '../../core/reddit_constants.dart';
 import '../../data/reddit_repository.dart';
 import '../auth/auth_controller.dart';
+import '../notifications/inbox_poller.dart';
+import '../notifications/notification_service.dart';
 import '../updates/update_checker.dart';
 import 'settings_controller.dart';
 
@@ -219,6 +221,17 @@ class SettingsList extends ConsumerWidget {
             onChanged: ctrl.setShowApiUsage,
           ),
           const Divider(),
+          _section(context, 'Notifications'),
+          SwitchListTile(
+            secondary: const Icon(Icons.notifications_active_outlined),
+            title: const Text('Inbox notifications'),
+            subtitle: const Text(
+                'Check for replies & messages in the background (~every 15 min) '
+                'and notify you. No Firebase — polling only.'),
+            value: s.notifyInbox,
+            onChanged: (v) => _toggleInboxNotifications(context, ref, v),
+          ),
+          const Divider(),
           _section(context, 'History & data'),
           ListTile(
             leading: const Icon(Icons.history_rounded),
@@ -358,6 +371,32 @@ class SettingsList extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _toggleInboxNotifications(
+      BuildContext context, WidgetRef ref, bool enable) async {
+    final ctrl = ref.read(settingsControllerProvider.notifier);
+    final messenger = ScaffoldMessenger.of(context);
+    if (!enable) {
+      ctrl.setNotifyInbox(false);
+      await cancelInboxPolling();
+      return;
+    }
+    final granted = await NotificationService.instance.requestPermission();
+    if (!granted) {
+      messenger.showSnackBar(const SnackBar(
+          content: Text('Notification permission denied. Enable it in system '
+              'settings to get inbox alerts.')));
+      return;
+    }
+    ctrl.setNotifyInbox(true);
+    // Prime the "seen" set with current unread so turning this on doesn't fire a
+    // notification for every pre-existing item, then start the periodic poll.
+    await pollInbox(notify: false);
+    await registerInboxPolling();
+    messenger.showSnackBar(const SnackBar(
+        content: Text('Inbox notifications on. Reddit is checked about every '
+            '15 minutes.')));
   }
 
   Widget _section(BuildContext context, String title) => Padding(

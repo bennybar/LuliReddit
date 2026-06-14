@@ -12,7 +12,8 @@ directly to Reddit; the only other data it sends is anonymous usage analytics
   "why you're seeing this" labels and per-post tuning
 - Full participation: vote, comment, reply, submit text/link/image/gallery/video
   posts, edit, and delete
-- Inbox and private messages
+- Inbox and private messages, with optional background notifications (polling
+  only — no Firebase/push services), plus swipe to mark read/unread or delete
 - Saved, upvoted, and locally-stored history
 - Moderation actions on subreddits you moderate
 - Three feed layouts, swipe-to-vote, NSFW blur, AMOLED and dynamic-color themes

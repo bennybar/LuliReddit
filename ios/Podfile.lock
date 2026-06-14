@@ -11,6 +11,8 @@ PODS:
   - flutter_inappwebview_ios/Core (0.0.1):
     - Flutter
     - OrderedSet (~> 6.0.3)
+  - flutter_local_notifications (0.0.1):
+    - Flutter
   - flutter_native_splash (2.4.3):
     - Flutter
   - flutter_secure_storage (6.0.0):
@@ -58,12 +60,15 @@ PODS:
     - libwebp
   - wakelock_plus (0.0.1):
     - Flutter
+  - workmanager_apple (0.0.1):
+    - Flutter
 
 DEPENDENCIES:
   - app_links (from `.symlinks/plugins/app_links/ios`)
   - device_info_plus (from `.symlinks/plugins/device_info_plus/ios`)
   - Flutter (from `Flutter`)
   - flutter_inappwebview_ios (from `.symlinks/plugins/flutter_inappwebview_ios/ios`)
+  - flutter_local_notifications (from `.symlinks/plugins/flutter_local_notifications/ios`)
   - flutter_native_splash (from `.symlinks/plugins/flutter_native_splash/ios`)
   - flutter_secure_storage (from `.symlinks/plugins/flutter_secure_storage/ios`)
   - flutter_web_auth_2 (from `.symlinks/plugins/flutter_web_auth_2/ios`)
@@ -78,6 +83,7 @@ DEPENDENCIES:
   - video_player_avfoundation (from `.symlinks/plugins/video_player_avfoundation/darwin`)
   - video_thumbnail (from `.symlinks/plugins/video_thumbnail/ios`)
   - wakelock_plus (from `.symlinks/plugins/wakelock_plus/ios`)
+  - workmanager_apple (from `.symlinks/plugins/workmanager_apple/ios`)
 
 SPEC REPOS:
   trunk:
@@ -93,6 +99,8 @@ EXTERNAL SOURCES:
     :path: Flutter
   flutter_inappwebview_ios:
     :path: ".symlinks/plugins/flutter_inappwebview_ios/ios"
+  flutter_local_notifications:
+    :path: ".symlinks/plugins/flutter_local_notifications/ios"
   flutter_native_splash:
     :path: ".symlinks/plugins/flutter_native_splash/ios"
   flutter_secure_storage:
@@ -121,12 +129,15 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/video_thumbnail/ios"
   wakelock_plus:
     :path: ".symlinks/plugins/wakelock_plus/ios"
+  workmanager_apple:
+    :path: ".symlinks/plugins/workmanager_apple/ios"
 
 SPEC CHECKSUMS:
   app_links: 3dbc685f76b1693c66a6d9dd1e9ab6f73d97dc0a
   device_info_plus: 71ffc6ab7634ade6267c7a93088ed7e4f74e5896
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   flutter_inappwebview_ios: b89ba3482b96fb25e00c967aae065701b66e9b99
+  flutter_local_notifications: 395056b3175ba4f08480a7c5de30cd36d69827e4
   flutter_native_splash: c32d145d68aeda5502d5f543ee38c192065986cf
   flutter_secure_storage: 1ed9476fba7e7a782b22888f956cce43e2c62f13
   flutter_web_auth_2: 646fc9df97a01c59e5eea99b237da2c6360f8439
@@ -143,6 +154,7 @@ SPEC CHECKSUMS:
   video_player_avfoundation: dd410b52df6d2466a42d28550e33e4146928280a
   video_thumbnail: b637e0ad5f588ca9945f6e2c927f73a69a661140
   wakelock_plus: e29112ab3ef0b318e58cfa5c32326458be66b556
+  workmanager_apple: 904529ae31e97fc5be632cf628507652294a0778
 
 PODFILE CHECKSUM: 915e58fd71f05ae99fabdd8ac2991c68108b3464
 

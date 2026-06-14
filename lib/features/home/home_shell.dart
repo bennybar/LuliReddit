@@ -14,9 +14,14 @@ import '../explore/explore_screen.dart';
 import '../feed/post_list_view.dart';
 import '../inbox/inbox_controller.dart';
 import '../inbox/inbox_screen.dart';
+import '../notifications/inbox_poller.dart';
+import '../notifications/notification_service.dart';
 import '../settings/settings_controller.dart';
 import '../updates/update_checker.dart';
 import 'account_tab.dart';
+
+/// SharedPreferences flag: have we shown the one-time notifications suggestion?
+const String _kNotifPromptedPref = 'notifyInboxPrompted';
 
 class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
@@ -33,7 +38,47 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeCheckUpdates());
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _maybeCheckUpdates();
+      if (mounted) await _maybeSuggestNotifications();
+    });
+  }
+
+  /// One-time, opt-in suggestion to enable inbox notifications (shown on an
+  /// early app open). Declining or enabling both mark it as handled so we never
+  /// nag again — it stays fully controllable in Settings either way.
+  Future<void> _maybeSuggestNotifications() async {
+    final prefs = ref.read(sharedPrefsProvider);
+    if (prefs.getBool(_kNotifPromptedPref) ?? false) return;
+    if (ref.read(settingsControllerProvider).notifyInbox) return;
+    await prefs.setBool(_kNotifPromptedPref, true);
+    if (!mounted) return;
+    final enable = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.notifications_active_outlined),
+        title: const Text('Get notified of replies?'),
+        content: const Text(
+            'Luli can check your Reddit inbox in the background (about every 15 '
+            'minutes) and notify you of replies, mentions and messages.\n\n'
+            'It uses simple polling — no Firebase or tracking. You can change '
+            'this anytime in Settings.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Not now')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Enable')),
+        ],
+      ),
+    );
+    if (enable != true || !mounted) return;
+    final granted = await NotificationService.instance.requestPermission();
+    if (!granted) return;
+    ref.read(settingsControllerProvider.notifier).setNotifyInbox(true);
+    await pollInbox(notify: false); // prime, don't notify for existing unread
+    await registerInboxPolling();
   }
 
   Future<void> _maybeCheckUpdates() async {
