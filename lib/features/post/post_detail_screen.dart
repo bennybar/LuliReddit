@@ -49,24 +49,46 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   final ItemPositionsListener _itemPositions = ItemPositionsListener.create();
   List<Comment> _flat = const [];
 
-  /// Jumps the comment list to the next top-level (depth 0) comment below the
-  /// current viewport.
+  /// Jumps the comment list to the next top-level (depth 0) comment, cycling
+  /// back to the first once past the last. List index 0 is the post header, so
+  /// comment `ci` lives at list index `ci + 1`.
   void _jumpNextTopLevel() {
-    final positions = _itemPositions.itemPositions.value;
-    if (positions.isEmpty || _flat.isEmpty) return;
-    final visibleMin =
-        positions.map((p) => p.index).reduce((a, b) => a < b ? a : b);
-    for (var li = visibleMin + 1; li <= _flat.length; li++) {
-      final ci = li - 1;
-      if (ci >= 0 && ci < _flat.length && _flat[ci].depth == 0) {
-        _itemScroll.scrollTo(
-            index: li,
-            duration: const Duration(milliseconds: 350),
-            curve: Curves.easeOut,
-            alignment: 0.02);
-        return;
+    if (_flat.isEmpty) return;
+
+    // Reference = the topmost item actually on screen (ignore the cached items
+    // ScrollablePositionedList keeps just outside the viewport).
+    final onScreen = _itemPositions.itemPositions.value
+        .where((p) => p.itemTrailingEdge > 0 && p.itemLeadingEdge < 1);
+    final topIndex = onScreen.isEmpty
+        ? 0
+        : onScreen.map((p) => p.index).reduce((a, b) => a < b ? a : b);
+
+    // First top-level comment strictly below the current top.
+    int? target;
+    for (var ci = 0; ci < _flat.length; ci++) {
+      if (_flat[ci].depth != 0) continue;
+      if (ci + 1 > topIndex) {
+        target = ci + 1;
+        break;
       }
     }
+    // Past the last one → wrap to the first top-level comment.
+    if (target == null) {
+      for (var ci = 0; ci < _flat.length; ci++) {
+        if (_flat[ci].depth == 0) {
+          target = ci + 1;
+          break;
+        }
+      }
+    }
+    if (target == null) return;
+
+    _itemScroll.scrollTo(
+      index: target,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+      alignment: 0.0,
+    );
   }
 
   @override
