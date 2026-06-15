@@ -1,9 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
 
+import '../../core/drafts.dart';
 import '../../core/providers.dart';
 import '../../models/flair.dart';
 import '../media/giphy_picker.dart';
@@ -39,11 +42,35 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
   Flair? _flair;
   String _flairsFor = '';
 
+  static const _draftKey = 'compose_post';
+
   @override
   void initState() {
     super.initState();
-    if ((widget.initialSubreddit ?? '').isNotEmpty) _loadFlairs();
+    final raw = ref.read(draftsProvider).get(_draftKey);
+    if (raw != null) {
+      try {
+        final m = jsonDecode(raw) as Map;
+        if ((widget.initialSubreddit ?? '').isEmpty) {
+          _subreddit.text = m['sr'] ?? '';
+        }
+        _title.text = m['title'] ?? '';
+        _body.text = m['body'] ?? '';
+        _url.text = m['url'] ?? '';
+      } catch (_) {/* ignore malformed draft */}
+    }
+    if (_subreddit.text.trim().isNotEmpty) _loadFlairs();
   }
+
+  void _saveDraft() => ref.read(draftsProvider).save(
+        _draftKey,
+        jsonEncode({
+          'sr': _subreddit.text,
+          'title': _title.text,
+          'body': _body.text,
+          'url': _url.text,
+        }),
+      );
 
   @override
   void dispose() {
@@ -228,6 +255,7 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
 
   void _goToPost(String sr, String id) {
     if (!mounted) return;
+    ref.read(draftsProvider).clear(_draftKey);
     if (id.isEmpty) {
       _done('Posted');
     } else {
@@ -237,6 +265,7 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
 
   void _done(String msg) {
     if (!mounted) return;
+    ref.read(draftsProvider).clear(_draftKey);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     context.pop();
   }
@@ -269,6 +298,7 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
             controller: _subreddit,
             autocorrect: false,
             textInputAction: TextInputAction.next,
+            onChanged: (_) => _saveDraft(),
             onEditingComplete: _loadFlairs,
             onTapOutside: (_) => _loadFlairs(),
             decoration: const InputDecoration(
@@ -280,6 +310,7 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
           const SizedBox(height: 12),
           TextField(
             controller: _title,
+            onChanged: (_) => _saveDraft(),
             decoration: const InputDecoration(
                 labelText: 'Title', prefixIcon: Icon(Icons.title_rounded)),
             maxLines: 2,
@@ -353,6 +384,7 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
             controller: _body,
             minLines: 5,
             maxLines: 12,
+            onChanged: (_) => _saveDraft(),
             decoration: const InputDecoration(
                 labelText: 'Body (Markdown, optional)',
                 alignLabelWithHint: true),
@@ -372,6 +404,7 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
             controller: _url,
             keyboardType: TextInputType.url,
             autocorrect: false,
+            onChanged: (_) => _saveDraft(),
             decoration: const InputDecoration(
                 labelText: 'URL', prefixIcon: Icon(Icons.link_rounded)),
           ),

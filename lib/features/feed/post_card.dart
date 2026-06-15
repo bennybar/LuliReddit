@@ -162,7 +162,7 @@ class _PostCardState extends ConsumerState<PostCard> {
                       children: [
                         Icon(Icons.tune_rounded, size: 13, color: cs.primary),
                         const SizedBox(width: 4),
-                        Text('Less',
+                        Text('Tune',
                             style: TextStyle(
                                 fontSize: 11.5,
                                 fontWeight: FontWeight.w600,

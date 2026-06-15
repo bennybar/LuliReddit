@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/drafts.dart';
 import '../../core/format.dart';
 import '../../core/network/catbox.dart';
 import '../../core/providers.dart';
@@ -24,6 +25,15 @@ class _MessageThreadScreenState extends ConsumerState<MessageThreadScreen> {
   late final List<InboxItem> _messages = [widget.root, ...widget.root.replies];
   bool _sending = false;
   MediaAttachment? _media;
+
+  String get _draftKey => 'msgreply_${widget.root.fullname}';
+
+  @override
+  void initState() {
+    super.initState();
+    final saved = ref.read(draftsProvider).get(_draftKey);
+    if (saved != null && saved.isNotEmpty) _reply.text = saved;
+  }
 
   @override
   void dispose() {
@@ -105,6 +115,7 @@ class _MessageThreadScreenState extends ConsumerState<MessageThreadScreen> {
         text = text.isEmpty ? url : '$text\n\n$url';
       }
       await ref.read(redditRepositoryProvider).sendReply(target, text);
+      ref.read(draftsProvider).clear(_draftKey);
       if (!mounted) return;
       setState(() {
         _messages.add(InboxItem(
@@ -208,6 +219,8 @@ class _MessageThreadScreenState extends ConsumerState<MessageThreadScreen> {
                           controller: _reply,
                           minLines: 1,
                           maxLines: 5,
+                          onChanged: (v) =>
+                              ref.read(draftsProvider).save(_draftKey, v),
                           decoration: const InputDecoration(hintText: 'Reply…'),
                         ),
                       ),

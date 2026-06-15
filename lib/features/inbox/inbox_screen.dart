@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/format.dart';
 import '../../models/inbox_item.dart';
+import '../home/tab_signals.dart';
 import 'inbox_controller.dart';
 
 class InboxScreen extends ConsumerWidget {
@@ -84,6 +85,13 @@ class _InboxListState extends ConsumerState<_InboxList>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    // Re-tapping the Inbox tab scrolls the current list to top.
+    ref.listen<int>(tabReselectProvider(2), (_, __) {
+      if (_scroll.hasClients) {
+        _scroll.animateTo(0,
+            duration: const Duration(milliseconds: 320), curve: Curves.easeOut);
+      }
+    });
     final async = ref.watch(inboxControllerProvider(widget.where));
     final notifier = ref.read(inboxControllerProvider(widget.where).notifier);
 

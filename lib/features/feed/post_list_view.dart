@@ -28,6 +28,7 @@ class PostListView extends ConsumerStatefulWidget {
 
 class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
   final _scroll = ScrollController();
+  final _refreshKey = GlobalKey<RefreshIndicatorState>();
 
   @override
   void initState() {
@@ -68,7 +69,9 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
           duration: const Duration(milliseconds: 320), curve: Curves.easeOut);
     } else {
       HapticFeedback.mediumImpact();
-      ref.read(feedControllerProvider(widget.feedKey).notifier).refresh();
+      // Drive the RefreshIndicator so the user gets a visible spinner while the
+      // re-tap refresh runs (its onRefresh calls notifier.refresh()).
+      _refreshKey.currentState?.show();
     }
   }
 
@@ -82,8 +85,10 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
     final async = ref.watch(feedControllerProvider(widget.feedKey));
     final notifier =
         ref.read(feedControllerProvider(widget.feedKey).notifier);
+    final hasPending = async.valueOrNull?.hasPending ?? false;
 
-    return RefreshIndicator(
+    final refreshable = RefreshIndicator(
+      key: _refreshKey,
       onRefresh: () {
         HapticFeedback.mediumImpact();
         return notifier.refresh();
@@ -165,6 +170,64 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
             },
           );
         },
+      ),
+    );
+
+    return Stack(
+      children: [
+        refreshable,
+        if (hasPending)
+          Positioned(
+            top: 8,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: _NewPostsPill(
+                onTap: () {
+                  notifier.applyPending();
+                  if (_scroll.hasClients) {
+                    _scroll.animateTo(0,
+                        duration: const Duration(milliseconds: 320),
+                        curve: Curves.easeOut);
+                  }
+                },
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Tappable pill shown when a fresh feed page is staged after returning to a
+/// stale feed — applies it and scrolls to top.
+class _NewPostsPill extends StatelessWidget {
+  const _NewPostsPill({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Material(
+      color: cs.primary,
+      elevation: 3,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.arrow_upward_rounded, size: 16, color: cs.onPrimary),
+              const SizedBox(width: 6),
+              Text('New posts',
+                  style: TextStyle(
+                      color: cs.onPrimary, fontWeight: FontWeight.w700)),
+            ],
+          ),
+        ),
       ),
     );
   }

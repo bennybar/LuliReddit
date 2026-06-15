@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -34,14 +35,38 @@ void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post) {
             title: const Text('Hide'),
             onTap: () async {
               final messenger = ScaffoldMessenger.of(context);
+              final repo = ref.read(redditRepositoryProvider);
               Navigator.pop(ctx);
               try {
-                await ref.read(redditRepositoryProvider)
-                    .setHidden(post.fullname, true);
-                _snack(messenger, 'Post hidden');
+                await repo.setHidden(post.fullname, true);
+                messenger.clearSnackBars();
+                messenger.showSnackBar(SnackBar(
+                  content: const Text('Post hidden'),
+                  action: SnackBarAction(
+                    label: 'Undo',
+                    onPressed: () async {
+                      try {
+                        await repo.setHidden(post.fullname, false);
+                      } catch (_) {/* best effort */}
+                    },
+                  ),
+                ));
               } catch (e) {
                 _snack(messenger, 'Could not hide: $e');
               }
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.content_copy_rounded),
+            title: const Text('Copy text'),
+            onTap: () {
+              final messenger = ScaffoldMessenger.of(context);
+              Navigator.pop(ctx);
+              final text = post.isSelf && post.selftext.isNotEmpty
+                  ? post.selftext
+                  : post.title;
+              Clipboard.setData(ClipboardData(text: text));
+              _snack(messenger, 'Copied');
             },
           ),
           ListTile(

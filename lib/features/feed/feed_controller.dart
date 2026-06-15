@@ -15,6 +15,7 @@ class FeedState {
     required this.time,
     this.after,
     this.loadingMore = false,
+    this.hasPending = false,
   });
 
   final List<Post> posts;
@@ -22,6 +23,7 @@ class FeedState {
   final TopTime time;
   final String? after;
   final bool loadingMore;
+  final bool hasPending; // a fresh page is staged behind a "New posts" pill
 
   bool get hasMore => after != null && after!.isNotEmpty;
 
@@ -31,6 +33,7 @@ class FeedState {
     TopTime? time,
     String? after,
     bool? loadingMore,
+    bool? hasPending,
   }) =>
       FeedState(
         posts: posts ?? this.posts,
@@ -38,6 +41,7 @@ class FeedState {
         time: time ?? this.time,
         after: after,
         loadingMore: loadingMore ?? this.loadingMore,
+        hasPending: hasPending ?? this.hasPending,
       );
 }
 
@@ -144,14 +148,41 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
     state = await AsyncValue.guard(() => build(arg));
   }
 
-  /// Silently reloads the feed only if the data is older than [maxAge] — used
-  /// when returning to the feed after viewing a post, so fresh posts appear
-  /// without a jarring spinner or losing the user's place on a quick in/out.
+  // A freshly-fetched first page staged behind the "New posts" pill.
+  List<Post>? _pending;
+  String? _pendingAfter;
+
+  /// When returning to a stale feed, quietly fetch the first page. If it has
+  /// posts we're not already showing, stage them behind a "New posts" pill
+  /// instead of yanking the list out from under the user.
   Future<void> refreshIfStale(
       [Duration maxAge = const Duration(minutes: 5)]) async {
     if (state.isLoading) return;
+    final cur = state.valueOrNull;
+    if (cur == null) return;
+    if (cur.hasPending) return; // already staged
     if (DateTime.now().difference(_lastLoaded) < maxAge) return;
-    await refresh();
+    try {
+      final listing = await _fetch();
+      _lastLoaded = DateTime.now();
+      final currentIds = {for (final p in cur.posts) p.id};
+      final hasNew = listing.items.any((p) => !currentIds.contains(p.id));
+      if (hasNew) {
+        _pending = listing.items;
+        _pendingAfter = listing.after;
+        state = AsyncData(cur.copyWith(hasPending: true, after: cur.after));
+      }
+    } catch (_) {/* leave the current feed in place */}
+  }
+
+  /// Swaps the staged "New posts" page in (called when the pill is tapped).
+  void applyPending() {
+    final cur = state.valueOrNull;
+    if (cur == null || _pending == null) return;
+    state = AsyncData(cur.copyWith(
+        posts: _pending!, after: _pendingAfter, hasPending: false));
+    _pending = null;
+    _pendingAfter = null;
   }
 
   Future<void> loadMore() async {

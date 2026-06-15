@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/deep_links.dart';
 import 'core/theme/app_theme.dart';
+import 'features/notifications/notification_service.dart';
 import 'features/settings/settings_controller.dart';
 import 'router.dart';
 
@@ -29,6 +30,14 @@ class _LuliAppState extends ConsumerState<LuliApp> {
     _appLinks.getInitialLink().then((uri) {
       if (uri != null) _handleLink(uri);
     });
+
+    // Tapping an inbox notification deep-links to the comment/message.
+    NotificationService.onSelectRoute = (route) {
+      if (mounted) ref.read(routerProvider).push(route);
+    };
+    NotificationService.instance
+        .init()
+        .then((_) => NotificationService.instance.handleLaunch());
   }
 
   void _handleLink(Uri uri) {

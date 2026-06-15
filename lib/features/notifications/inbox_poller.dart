@@ -56,10 +56,11 @@ Future<void> cancelInboxPolling() =>
 
 /// One unread item parsed from Reddit's inbox listing.
 class _UnreadItem {
-  _UnreadItem(this.fullname, this.title, this.body);
+  _UnreadItem(this.fullname, this.title, this.body, this.route);
   final String fullname;
   final String title;
   final String body;
+  final String? route; // go_router path to deep-link to (null = just open app)
 }
 
 /// Fetches unread inbox items and, when [notify] is true, fires a notification
@@ -83,6 +84,7 @@ Future<void> pollInbox({required bool notify}) async {
         id: item.fullname.hashCode & 0x7fffffff,
         title: item.title,
         body: item.body,
+        payload: item.route,
       );
     }
   }
@@ -160,7 +162,21 @@ Future<List<_UnreadItem>?> _fetchUnread(SecureStore store) async {
     final snippet = rawBody.length > 140
         ? '${rawBody.substring(0, 140)}…'
         : (rawBody.isEmpty ? 'Open Ilay to read' : rawBody);
-    out.add(_UnreadItem(fullname, title, snippet));
+
+    // Deep-link target for comment replies/mentions (t1_): jump to the comment.
+    String? route;
+    final sub = d['subreddit']?.toString();
+    final linkId = d['link_id']?.toString(); // t3_<postId>
+    if (wasComment &&
+        fullname.startsWith('t1_') &&
+        sub != null &&
+        sub.isNotEmpty &&
+        linkId != null &&
+        linkId.startsWith('t3_')) {
+      route =
+          '/comments/$sub/${linkId.substring(3)}?comment=${fullname.substring(3)}';
+    }
+    out.add(_UnreadItem(fullname, title, snippet, route));
   }
   return out;
 }

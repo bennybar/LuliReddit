@@ -6,19 +6,41 @@ import 'package:go_router/go_router.dart';
 import '../../core/format.dart';
 import '../../core/providers.dart';
 import '../../models/subreddit.dart';
+import '../home/tab_signals.dart';
 
 final subscribedSubredditsProvider =
     FutureProvider.autoDispose<List<Subreddit>>((ref) async {
   return ref.watch(redditRepositoryProvider).getSubscribedSubreddits();
 });
 
-class ExploreScreen extends ConsumerWidget {
+class ExploreScreen extends ConsumerStatefulWidget {
   const ExploreScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ExploreScreen> createState() => _ExploreScreenState();
+}
+
+class _ExploreScreenState extends ConsumerState<ExploreScreen> {
+  final _scroll = ScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final subs = ref.watch(subscribedSubredditsProvider);
+
+    // Re-tapping the Explore tab scrolls back to top.
+    ref.listen<int>(tabReselectProvider(1), (_, __) {
+      if (_scroll.hasClients) {
+        _scroll.animateTo(0,
+            duration: const Duration(milliseconds: 320), curve: Curves.easeOut);
+      }
+    });
 
     return Scaffold(
       body: SafeArea(
@@ -26,6 +48,7 @@ class ExploreScreen extends ConsumerWidget {
         child: RefreshIndicator(
           onRefresh: () async => ref.invalidate(subscribedSubredditsProvider),
           child: CustomScrollView(
+            controller: _scroll,
             slivers: [
               // Search entry
               SliverToBoxAdapter(

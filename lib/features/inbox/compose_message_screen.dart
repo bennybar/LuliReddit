@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/drafts.dart';
 import '../../core/network/catbox.dart';
 import '../../core/providers.dart';
 import '../media/attachment.dart';
@@ -23,6 +26,31 @@ class _ComposeMessageScreenState extends ConsumerState<ComposeMessageScreen> {
   bool _busy = false;
   String? _error;
   MediaAttachment? _media;
+
+  static const _draftKey = 'compose_msg';
+
+  @override
+  void initState() {
+    super.initState();
+    final raw = ref.read(draftsProvider).get(_draftKey);
+    if (raw != null) {
+      try {
+        final m = jsonDecode(raw) as Map;
+        if ((widget.initialTo ?? '').isEmpty) _to.text = m['to'] ?? '';
+        _subject.text = m['subject'] ?? '';
+        _body.text = m['body'] ?? '';
+      } catch (_) {/* ignore malformed draft */}
+    }
+  }
+
+  void _saveDraft() => ref.read(draftsProvider).save(
+        _draftKey,
+        jsonEncode({
+          'to': _to.text,
+          'subject': _subject.text,
+          'body': _body.text,
+        }),
+      );
 
   @override
   void dispose() {
@@ -55,6 +83,7 @@ class _ComposeMessageScreenState extends ConsumerState<ComposeMessageScreen> {
       await ref
           .read(redditRepositoryProvider)
           .composeMessage(to: to, subject: subject, text: body);
+      ref.read(draftsProvider).clear(_draftKey);
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Message sent')));
@@ -95,12 +124,14 @@ class _ComposeMessageScreenState extends ConsumerState<ComposeMessageScreen> {
           TextField(
             controller: _to,
             autocorrect: false,
+            onChanged: (_) => _saveDraft(),
             decoration: const InputDecoration(
                 labelText: 'To', prefixText: 'u/', prefixIcon: Icon(Icons.person_rounded)),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _subject,
+            onChanged: (_) => _saveDraft(),
             decoration: const InputDecoration(
                 labelText: 'Subject', prefixIcon: Icon(Icons.subject_rounded)),
           ),
@@ -109,6 +140,7 @@ class _ComposeMessageScreenState extends ConsumerState<ComposeMessageScreen> {
             controller: _body,
             minLines: 6,
             maxLines: 14,
+            onChanged: (_) => _saveDraft(),
             decoration: const InputDecoration(
                 labelText: 'Message (Markdown)', alignLabelWithHint: true),
           ),

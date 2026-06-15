@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../history/interest_store.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,7 +26,7 @@ import 'comments_controller.dart';
 import 'compose_sheet.dart';
 import 'post_actions.dart';
 
-class PostDetailScreen extends ConsumerWidget {
+class PostDetailScreen extends ConsumerStatefulWidget {
   const PostDetailScreen({
     super.key,
     required this.subreddit,
@@ -40,10 +41,39 @@ class PostDetailScreen extends ConsumerWidget {
   final String? focusCommentId; // open a single comment thread (from a permalink)
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final key = focusCommentId != null
-        ? '$subreddit/$postId/focus_$focusCommentId'
-        : '$subreddit/$postId';
+  ConsumerState<PostDetailScreen> createState() => _PostDetailScreenState();
+}
+
+class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
+  final ItemScrollController _itemScroll = ItemScrollController();
+  final ItemPositionsListener _itemPositions = ItemPositionsListener.create();
+  List<Comment> _flat = const [];
+
+  /// Jumps the comment list to the next top-level (depth 0) comment below the
+  /// current viewport.
+  void _jumpNextTopLevel() {
+    final positions = _itemPositions.itemPositions.value;
+    if (positions.isEmpty || _flat.isEmpty) return;
+    final visibleMin =
+        positions.map((p) => p.index).reduce((a, b) => a < b ? a : b);
+    for (var li = visibleMin + 1; li <= _flat.length; li++) {
+      final ci = li - 1;
+      if (ci >= 0 && ci < _flat.length && _flat[ci].depth == 0) {
+        _itemScroll.scrollTo(
+            index: li,
+            duration: const Duration(milliseconds: 350),
+            curve: Curves.easeOut,
+            alignment: 0.02);
+        return;
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final key = widget.focusCommentId != null
+        ? '${widget.subreddit}/${widget.postId}/focus_${widget.focusCommentId}'
+        : '${widget.subreddit}/${widget.postId}';
     final async = ref.watch(commentsControllerProvider(key));
     final notifier = ref.read(commentsControllerProvider(key).notifier);
     final username =
@@ -53,7 +83,7 @@ class PostDetailScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(thread?.post.subredditPrefixed ??
-            (subreddit == '_' ? 'Post' : 'r/$subreddit')),
+            (widget.subreddit == '_' ? 'Post' : 'r/${widget.subreddit}')),
         actions: [
           if (thread != null)
             PopupMenuButton<String>(
@@ -103,29 +133,45 @@ class PostDetailScreen extends ConsumerWidget {
       ),
       floatingActionButton: thread == null
           ? null
-          : FloatingActionButton.extended(
-              onPressed: () async {
-                final reply = await showReplySheet(context, ref,
-                    parentFullname: thread.post.fullname, parentDepth: -1);
-                if (reply != null) {
-                  notifier.insertReply(thread.post.fullname, reply);
-                  ref
-                      .read(postOverridesProvider.notifier)
-                      .bumpComments(thread.post, 1);
-                  // Commenting is the strongest engagement signal we have.
-                  ref
-                      .read(interestStoreProvider.notifier)
-                      .bump(thread.post.subreddit, 2.5);
-                  ref
-                      .read(keywordStoreProvider.notifier)
-                      .bumpTitle(thread.post.title, 1);
-                }
-              },
-              icon: const Icon(Icons.add_comment_rounded),
-              label: const Text('Comment'),
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (thread.comments.isNotEmpty) ...[
+                  FloatingActionButton.small(
+                    heroTag: 'nextComment',
+                    tooltip: 'Next top-level comment',
+                    onPressed: _jumpNextTopLevel,
+                    child: const Icon(Icons.keyboard_arrow_down_rounded),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                FloatingActionButton.extended(
+                  heroTag: 'comment',
+                  onPressed: () async {
+                    final reply = await showReplySheet(context, ref,
+                        parentFullname: thread.post.fullname, parentDepth: -1);
+                    if (reply != null) {
+                      notifier.insertReply(thread.post.fullname, reply);
+                      ref
+                          .read(postOverridesProvider.notifier)
+                          .bumpComments(thread.post, 1);
+                      // Commenting is the strongest engagement signal we have.
+                      ref
+                          .read(interestStoreProvider.notifier)
+                          .bump(thread.post.subreddit, 2.5);
+                      ref
+                          .read(keywordStoreProvider.notifier)
+                          .bumpTitle(thread.post.title, 1);
+                    }
+                  },
+                  icon: const Icon(Icons.add_comment_rounded),
+                  label: const Text('Comment'),
+                ),
+              ],
             ),
       body: async.when(
-        loading: () => _LoadingWithHeader(post: initialPost),
+        loading: () => _LoadingWithHeader(post: widget.initialPost),
         error: (e, _) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -143,10 +189,13 @@ class PostDetailScreen extends ConsumerWidget {
         ),
         data: (thread) {
           final flat = _flatten(thread.comments, thread.collapsed);
+          _flat = flat;
           final list = RefreshIndicator(
             onRefresh: notifier.refresh,
-            child: ListView.builder(
-              padding: const EdgeInsets.only(top: 6, bottom: 32),
+            child: ScrollablePositionedList.builder(
+              itemScrollController: _itemScroll,
+              itemPositionsListener: _itemPositions,
+              padding: const EdgeInsets.only(top: 6, bottom: 96),
               itemCount: 1 + (flat.isEmpty ? 1 : flat.length),
               itemBuilder: (context, index) {
                 if (index == 0) return _PostHeader(post: thread.post);
@@ -199,7 +248,7 @@ class PostDetailScreen extends ConsumerWidget {
               },
             ),
           );
-          if (focusCommentId == null) return list;
+          if (widget.focusCommentId == null) return list;
           // Single-comment view (from an inbox reply / permalink).
           final cs = Theme.of(context).colorScheme;
           return Column(
@@ -207,8 +256,8 @@ class PostDetailScreen extends ConsumerWidget {
               Material(
                 color: cs.secondaryContainer,
                 child: InkWell(
-                  onTap: () =>
-                      context.replace('/comments/$subreddit/$postId'),
+                  onTap: () => context
+                      .replace('/comments/${widget.subreddit}/${widget.postId}'),
                   child: Padding(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -840,6 +889,10 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
           padding: EdgeInsets.zero,
           onSelected: (v) {
             switch (v) {
+              case 'copy':
+                Clipboard.setData(ClipboardData(text: widget.comment.body));
+                ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Copied')));
               case 'share':
                 shareUrl(context, 'https://reddit.com${widget.comment.permalink}');
               case 'edit':
@@ -851,6 +904,7 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
             }
           },
           itemBuilder: (_) => [
+            const PopupMenuItem(value: 'copy', child: Text('Copy text')),
             if (widget.comment.permalink.isNotEmpty)
               const PopupMenuItem(value: 'share', child: Text('Share')),
             if (widget.isOwn) ...[

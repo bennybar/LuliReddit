@@ -19,6 +19,7 @@ import '../notifications/notification_service.dart';
 import '../settings/settings_controller.dart';
 import '../updates/update_checker.dart';
 import 'account_tab.dart';
+import 'tab_signals.dart';
 
 /// SharedPreferences flag: have we shown the one-time notifications suggestion?
 const String _kNotifPromptedPref = 'notifyInboxPrompted';
@@ -154,10 +155,12 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           selectedIndex: _index,
           unread: unread,
           onSelected: (i) {
-            // Re-tapping the active Posts tab scrolls it to top (or refreshes).
+            // Re-tapping the active tab scrolls it to top (Posts also refreshes).
             if (i == _index) {
               if (i == 0) {
                 ref.read(frontpageScrollSignalProvider.notifier).state++;
+              } else {
+                ref.read(tabReselectProvider(i).notifier).state++;
               }
               return;
             }
@@ -658,16 +661,20 @@ class _FrontpageTab extends ConsumerWidget {
               ),
               const _DisplayMenu(),
               const SizedBox(width: 4),
-              GestureDetector(
-                onTap: () => context.push('/u/$username'),
-                child: CircleAvatar(
-                  radius: 22,
-                  backgroundColor: cs.primaryContainer,
-                  child: Text(
-                    username.isNotEmpty ? username[0].toUpperCase() : '?',
-                    style: TextStyle(
-                        color: cs.onPrimaryContainer,
-                        fontWeight: FontWeight.bold),
+              Semantics(
+                button: true,
+                label: 'Your profile',
+                child: GestureDetector(
+                  onTap: () => context.push('/u/$username'),
+                  child: CircleAvatar(
+                    radius: 22,
+                    backgroundColor: cs.primaryContainer,
+                    child: Text(
+                      username.isNotEmpty ? username[0].toUpperCase() : '?',
+                      style: TextStyle(
+                          color: cs.onPrimaryContainer,
+                          fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
               ),
@@ -786,21 +793,25 @@ Future<void> _showFloatingToolbar(
                     ),
                     const _DisplayMenu(),
                     const SizedBox(width: 4),
-                    GestureDetector(
-                      onTap: () {
-                        close();
-                        router.push('/u/$username');
-                      },
-                      child: CircleAvatar(
-                        radius: 20,
-                        backgroundColor: cs.primaryContainer,
-                        child: Text(
-                          username.isNotEmpty
-                              ? username[0].toUpperCase()
-                              : '?',
-                          style: TextStyle(
-                              color: cs.onPrimaryContainer,
-                              fontWeight: FontWeight.bold),
+                    Semantics(
+                      button: true,
+                      label: 'Your profile',
+                      child: GestureDetector(
+                        onTap: () {
+                          close();
+                          router.push('/u/$username');
+                        },
+                        child: CircleAvatar(
+                          radius: 20,
+                          backgroundColor: cs.primaryContainer,
+                          child: Text(
+                            username.isNotEmpty
+                                ? username[0].toUpperCase()
+                                : '?',
+                            style: TextStyle(
+                                color: cs.onPrimaryContainer,
+                                fontWeight: FontWeight.bold),
+                          ),
                         ),
                       ),
                     ),

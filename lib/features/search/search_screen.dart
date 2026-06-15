@@ -280,22 +280,33 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         children: [
           _filterBar(),
           Expanded(
-            child: _posts.isEmpty
-                ? const Center(child: Text('No posts found'))
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(10, 6, 10, 130),
-                    itemCount: _posts.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (_, i) => PostCard(post: _posts[i]),
-                  ),
+            child: RefreshIndicator(
+              onRefresh: () => _search(_query, saveRecent: false),
+              child: _posts.isEmpty
+                  ? ListView(children: const [
+                      SizedBox(height: 120),
+                      Center(child: Text('No posts found')),
+                    ])
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(10, 6, 10, 130),
+                      itemCount: _posts.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (_, i) => PostCard(post: _posts[i]),
+                    ),
+            ),
           ),
         ],
       );
 
   Widget _subsTab() {
     final cs = Theme.of(context).colorScheme;
-    return _subs.isEmpty
-        ? const Center(child: Text('No subreddits found'))
+    return RefreshIndicator(
+      onRefresh: () => _search(_query, saveRecent: false),
+      child: _subs.isEmpty
+        ? ListView(children: const [
+            SizedBox(height: 120),
+            Center(child: Text('No subreddits found')),
+          ])
         : ListView.builder(
             padding: const EdgeInsets.only(bottom: 130),
             itemCount: _subs.length,
@@ -313,13 +324,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 onTap: () => context.push('/r/${s.name}'),
               );
             },
-          );
+          ),
+    );
   }
 
   Widget _usersTab() {
     final cs = Theme.of(context).colorScheme;
-    return _users.isEmpty
-        ? const Center(child: Text('No users found'))
+    return RefreshIndicator(
+      onRefresh: () => _search(_query, saveRecent: false),
+      child: _users.isEmpty
+        ? ListView(children: const [
+            SizedBox(height: 120),
+            Center(child: Text('No users found')),
+          ])
         : ListView.builder(
             padding: const EdgeInsets.only(bottom: 130),
             itemCount: _users.length,
@@ -337,6 +354,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 onTap: () => context.push('/u/${u.name}'),
               );
             },
-          );
+          ),
+    );
   }
 }
