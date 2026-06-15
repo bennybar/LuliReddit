@@ -65,6 +65,7 @@ class Settings {
     required this.showApiUsage,
     required this.notifyInbox,
     required this.topBarMode,
+    required this.navLabels,
   });
 
   final ThemeMode themeMode;
@@ -88,6 +89,7 @@ class Settings {
   final bool showApiUsage; // show API usage instead of search on Posts screen
   final bool notifyInbox; // background-poll the inbox + local notifications
   final TopBarMode topBarMode; // Posts-screen action layout
+  final bool navLabels; // show text labels on the bottom nav bar
 
   Settings copyWith({
     ThemeMode? themeMode,
@@ -111,6 +113,7 @@ class Settings {
     bool? showApiUsage,
     bool? notifyInbox,
     TopBarMode? topBarMode,
+    bool? navLabels,
   }) =>
       Settings(
         themeMode: themeMode ?? this.themeMode,
@@ -134,6 +137,7 @@ class Settings {
         showApiUsage: showApiUsage ?? this.showApiUsage,
         notifyInbox: notifyInbox ?? this.notifyInbox,
         topBarMode: topBarMode ?? this.topBarMode,
+        navLabels: navLabels ?? this.navLabels,
       );
 }
 
@@ -173,6 +177,7 @@ class SettingsController extends Notifier<Settings> {
           ? TopBarMode.expandable
           : TopBarMode.values[
               p.getInt('topBarMode')!.clamp(0, TopBarMode.values.length - 1)],
+      navLabels: p.getBool('navLabels') ?? true,
     );
   }
 
@@ -279,6 +284,11 @@ class SettingsController extends Notifier<Settings> {
   void setTopBarMode(TopBarMode v) {
     _prefs.setInt('topBarMode', v.index);
     state = state.copyWith(topBarMode: v);
+  }
+
+  void setNavLabels(bool v) {
+    _prefs.setBool('navLabels', v);
+    state = state.copyWith(navLabels: v);
   }
 }
 

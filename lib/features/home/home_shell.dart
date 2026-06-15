@@ -129,6 +129,8 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final unread = ref.watch(unreadCountProvider).valueOrNull ?? 0;
+    final navLabels =
+        ref.watch(settingsControllerProvider.select((s) => s.navLabels));
     return Scaffold(
       // Pop variant: content flows under the detached floating nav.
       extendBody: true,
@@ -154,6 +156,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         child: _FloatingNav(
           selectedIndex: _index,
           unread: unread,
+          showLabels: navLabels,
           onSelected: (i) {
             // Re-tapping the active tab scrolls it to top (Posts also refreshes).
             if (i == _index) {
@@ -183,10 +186,12 @@ class _FloatingNav extends StatefulWidget {
     required this.selectedIndex,
     required this.unread,
     required this.onSelected,
+    this.showLabels = true,
   });
   final int selectedIndex;
   final int unread;
   final ValueChanged<int> onSelected;
+  final bool showLabels;
 
   @override
   State<_FloatingNav> createState() => _FloatingNavState();
@@ -298,6 +303,7 @@ class _FloatingNavState extends State<_FloatingNav>
                 label: _items[i].$3,
                 selected: widget.selectedIndex == i,
                 badge: i == 2 ? widget.unread : 0,
+                showLabel: widget.showLabels,
                 onTap: () => widget.onSelected(i),
               ),
             ),
@@ -417,8 +423,8 @@ class _FloatingNavState extends State<_FloatingNav>
       BuildContext context, int i, ColorScheme cs, int activeIndex) {
     final selected = activeIndex == i;
     final color = selected ? cs.primary : cs.onSurfaceVariant;
-    Widget icon =
-        Icon(selected ? _items[i].$2 : _items[i].$1, size: 24, color: color);
+    Widget icon = Icon(selected ? _items[i].$2 : _items[i].$1,
+        size: widget.showLabels ? 24 : 28, color: color);
     final unread = i == 2 ? widget.unread : 0;
     if (unread > 0) {
       icon = Badge(label: Text(unread > 99 ? '99+' : '$unread'), child: icon);
@@ -433,10 +439,12 @@ class _FloatingNavState extends State<_FloatingNav>
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           icon,
-          const SizedBox(height: 3),
-          Text(_items[i].$3,
-              style: TextStyle(
-                  fontSize: 11, fontWeight: FontWeight.w600, color: color)),
+          if (widget.showLabels) ...[
+            const SizedBox(height: 3),
+            Text(_items[i].$3,
+                style: TextStyle(
+                    fontSize: 11, fontWeight: FontWeight.w600, color: color)),
+          ],
         ],
       ),
     );
@@ -451,6 +459,7 @@ class _NavItem extends StatelessWidget {
     required this.selected,
     required this.badge,
     required this.onTap,
+    this.showLabel = true,
   });
   final IconData iconOff;
   final IconData iconOn;
@@ -458,6 +467,7 @@ class _NavItem extends StatelessWidget {
   final bool selected;
   final int badge;
   final VoidCallback onTap;
+  final bool showLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -471,7 +481,8 @@ class _NavItem extends StatelessWidget {
         ? (glass ? cs.primary : cs.onSecondaryContainer)
         : cs.onSurfaceVariant;
 
-    Widget iconW = Icon(selected ? iconOn : iconOff, size: 24, color: contentColor);
+    Widget iconW = Icon(selected ? iconOn : iconOff,
+        size: showLabel ? 24 : 28, color: contentColor);
     if (badge > 0) {
       iconW = Badge(label: Text(badge > 99 ? '99+' : '$badge'), child: iconW);
     }
@@ -508,7 +519,10 @@ class _NavItem extends StatelessWidget {
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: [iconW, const SizedBox(height: 3), labelW],
+            children: [
+              iconW,
+              if (showLabel) ...[const SizedBox(height: 3), labelW],
+            ],
           ),
         ),
       );
@@ -533,8 +547,7 @@ class _NavItem extends StatelessWidget {
             alignment: Alignment.center,
             child: iconW,
           ),
-          const SizedBox(height: 4),
-          labelW,
+          if (showLabel) ...[const SizedBox(height: 4), labelW],
         ],
       ),
     );

@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ilay for Reddit - QOL Recommendations</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f2ea;
+      --panel: #fffaf2;
+      --panel2: #eef8f5;
+      --ink: #202428;
+      --muted: #65707a;
+      --line: #d9dedf;
+      --accent: #087a75;
+      --orange: #b45112;
+      --green: #177245;
+      --shadow: 0 14px 40px rgba(32,36,40,.10);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #101417;
+        --panel: #171d21;
+        --panel2: #12211f;
+        --ink: #e8edf0;
+        --muted: #9aa5ad;
+        --line: #30383f;
+        --accent: #61d2c8;
+        --orange: #ffa768;
+        --green: #7ee787;
+        --shadow: 0 14px 40px rgba(0,0,0,.28);
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.55;
+    }
+    main { max-width: 1040px; margin: 0 auto; padding: 28px 18px 54px; }
+    header, section, .card, .stat {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+    header { padding: 28px; background: linear-gradient(135deg, var(--panel), var(--panel2)); }
+    h1, h2, h3 { margin: 0; line-height: 1.15; letter-spacing: 0; }
+    h1 { font-size: clamp(32px, 5vw, 56px); max-width: 820px; }
+    h2 { font-size: 24px; }
+    h3 { font-size: 18px; }
+    p { margin: 9px 0 0; color: var(--muted); }
+    code { color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .chips, .tags, .stats { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chips { margin-top: 18px; }
+    .chip, .tag {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 13px;
+      color: var(--muted);
+      background: color-mix(in srgb, var(--panel) 80%, var(--accent) 20%);
+    }
+    .stats { margin: 18px 0; }
+    .stat { flex: 1 1 160px; padding: 16px; }
+    .stat strong { display: block; font-size: 28px; line-height: 1; }
+    section { padding: 20px; margin-top: 18px; }
+    .grid { display: grid; gap: 14px; margin-top: 14px; }
+    .card { padding: 16px; box-shadow: none; }
+    .head { display: flex; gap: 12px; align-items: start; justify-content: space-between; }
+    .title { display: flex; gap: 10px; align-items: center; }
+    .num {
+      width: 32px; height: 32px; border-radius: 999px;
+      display: inline-grid; place-items: center;
+      background: var(--accent); color: white; font-weight: 800; flex: 0 0 auto;
+    }
+    .tag.quick { color: var(--green); }
+    .tag.medium { color: var(--orange); }
+    .tag.large { color: var(--accent); }
+    ul { margin: 9px 0 0; padding-left: 20px; color: var(--muted); }
+    li + li { margin-top: 4px; }
+    .why { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); }
+    .why b { color: var(--ink); }
+    footer { margin-top: 20px; color: var(--muted); font-size: 13px; }
+    @media (max-width: 760px) { .head { flex-direction: column; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>QOL recommendations for Ilay for Reddit</h1>
+      <p>Generated after reading the project structure, README, Android store text, routing, and the main Flutter surfaces: home, feed, post cards, comments, search, explore, inbox, compose, history, and settings.</p>
+      <div class="chips">
+        <span class="chip">Flutter + Riverpod</span>
+        <span class="chip">Material 3 Expressive</span>
+        <span class="chip">Privacy-first Reddit client</span>
+        <span class="chip">June 15, 2026</span>
+      </div>
+    </header>
+
+    <div class="stats">
+      <div class="stat"><strong>12</strong><span>recommendations</span></div>
+      <div class="stat"><strong>5</strong><span>quick wins</span></div>
+      <div class="stat"><strong>5</strong><span>medium scope</span></div>
+      <div class="stat"><strong>2</strong><span>larger bets</span></div>
+    </div>
+
+    <section>
+      <h2>Top Recommendations</h2>
+      <div class="grid">
+        <article class="card">
+          <div class="head"><div class="title"><span class="num">1</span><h3>Add settings search</h3></div><span class="tag medium">Medium</span></div>
+          <p>Settings has a lot of valuable capability, but discovery depends on scrolling and memory. Add a search field that filters settings rows by title/subtitle.</p>
+          <div class="why"><b>Why:</b> `SettingsList` is centralized in `lib/features/settings/settings_screen.dart`, so this is high leverage without changing navigation.</div>
+        </article>
+
+        <article class="card">
+          <div class="head"><div class="title"><span class="num">2</span><h3>Upgrade comment reading controls</h3></div><span class="tag medium">Medium</span></div>
+          <p>The post screen already has comment sorting, collapse, depth rails, and next top-level navigation. Add previous/next top-level controls, collapse-all, and optional current-thread position.</p>
+          <div class="why"><b>Why:</b> `PostDetailScreen` already flattens comments and tracks visible item positions, so the data needed is already close by.</div>
+        </article>
+
+        <article class="card">
+          <div class="head"><div class="title"><span class="num">3</span><h3>Move For You tuning into post actions</h3></div><span class="tag quick">Quick</span></div>
+          <p>Keep the existing long-press and Tune chip, but also add More like this, Less like this, and Mute community to the post action sheet.</p>
+          <div class="why"><b>Why:</b> personalization is a marquee feature, but long-press is easy to miss. The action sheet is where users already look for post-level commands.</div>
+        </article>
+
+        <article class="card">
+          <div class="head"><div class="title"><span class="num">4</span><h3>Save feed and search presets</h3></div><span class="tag large">Larger</span></div>
+          <p>Let users pin common modes like `r/flutter top week`, frontpage new, or a subreddit-scoped search. Put them in Explore or as a small row above the feed sort chip.</p>
+          <div class="why"><b>Why:</b> routing already supports `/search`, `/r/:name`, and feed sort state. This would make repeated browsing feel intentionally fast.</div>
+        </article>
+
+        <article class="card">
+          <div class="head"><div class="title"><span class="num">5</span><h3>Add search result paging and empty-state recovery</h3></div><span class="tag medium">Medium</span></div>
+          <p>Search currently fetches one batch. Add load-more for posts/subreddits/users and show retry/error messages when a search fails.</p>
+          <div class="why"><b>Why:</b> `SearchScreen` already has sort/time filters and recent searches. Paging would make it feel like a core browser, not a one-shot lookup.</div>
+        </article>
+
+        <article class="card">
+          <div class="head"><div class="title"><span class="num">6</span><h3>Improve compose draft handling</h3></div><span class="tag quick">Quick</span></div>
+          <p>Drafts exist for text fields. Add a visible "Draft saved" indicator, restore the selected post type, and warn before leaving with unsaved media attachments.</p>
+          <div class="why"><b>Why:</b> `ComposePostScreen` persists text draft JSON, but not kind/media state. A small bit of visibility reduces posting anxiety.</div>
+        </article>
+
+        <article class="card">
+          <div class="head"><div class="title"><span class="num">7</span><h3>Add inbox bulk actions and filters</h3></div><span class="tag medium">Medium</span></div>
+          <p>Add quick filters for replies, mentions, and private messages inside All, plus bulk mark read for the current tab rather than only the main inbox provider.</p>
+          <div class="why"><b>Why:</b> `InboxScreen` already divides All, Unread, Messages, and Sent. Fine filters would reduce triage time without adding new backend concepts.</div>
+        </article>
+
+        <article class="card">
+          <div class="head"><div class="title"><span class="num">8</span><h3>Add feed position memory</h3></div><span class="tag quick">Quick</span></div>
+          <p>Remember scroll position per feed/subreddit for the session, especially when switching tabs or returning from details. Keep the existing "New posts" pill behavior.</p>
+          <div class="why"><b>Why:</b> `PostListView` already owns a `ScrollController` and route-aware refresh behavior. This makes navigation feel less lossy.</div>
+        </article>
+
+        <article class="card">
+          <div class="head"><div class="title"><span class="num">9</span><h3>Make Explore more useful for large subscription lists</h3></div><span class="tag medium">Medium</span></div>
+          <p>Add local filtering, favorites-only, recently visited, and sort by name/activity/subscriber count. For users with many subscriptions, Explore becomes the command center.</p>
+          <div class="why"><b>Why:</b> `ExploreScreen` already loads subscribed subreddits and splits favorites from the rest.</div>
+        </article>
+
+        <article class="card">
+          <div class="head"><div class="title"><span class="num">10</span><h3>Add history search and cleanup controls</h3></div><span class="tag quick">Quick</span></div>
+          <p>History is currently a simple list. Add search, subreddit filter, and "clear older than 7/30 days" so local history feels controllable.</p>
+          <div class="why"><b>Why:</b> this supports the app's local-only privacy story and gives users finer control than one full clear button.</div>
+        </article>
+
+        <article class="card">
+          <div class="head"><div class="title"><span class="num">11</span><h3>Add a first-run checklist</h3></div><span class="tag large">Larger</span></div>
+          <p>After login, show a short checklist for API credentials, notifications, NSFW blur, default feed, post layout, and privacy choices. Dismiss forever once completed.</p>
+          <div class="why"><b>Why:</b> the app has many privacy and personalization features. A gentle checklist turns setup from hidden settings into a guided moment.</div>
+        </article>
+
+        <article class="card">
+          <div class="head"><div class="title"><span class="num">12</span><h3>Expose lightweight rate-limit status contextually</h3></div><span class="tag quick">Quick</span></div>
+          <p>The API usage option is useful but currently replaces search. Add a small optional rate-limit row in error states and refresh-heavy screens.</p>
+          <div class="why"><b>Why:</b> Reddit API constraints affect UX. Contextual status helps users understand slow or failed refreshes without turning the main UI into diagnostics.</div>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <h2>Suggested Order</h2>
+      <ul>
+        <li><b>First pass:</b> For You actions in post sheet, compose draft visibility, history search, feed position memory.</li>
+        <li><b>Second pass:</b> settings search, search paging, comment toolbar, Explore filtering.</li>
+        <li><b>Product pass:</b> feed/search presets and first-run checklist.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Files Read</h2>
+      <ul>
+        <li><code>README.md</code> and Play Store metadata for product positioning.</li>
+        <li><code>lib/router.dart</code> for navigation surface.</li>
+        <li><code>lib/features/home/home_shell.dart</code>, <code>feed/post_list_view.dart</code>, and <code>feed/post_card.dart</code> for main browsing UX.</li>
+        <li><code>lib/features/post/post_detail_screen.dart</code> for comments and post detail behavior.</li>
+        <li><code>lib/features/search/search_screen.dart</code>, <code>explore/explore_screen.dart</code>, <code>inbox/inbox_screen.dart</code>, <code>compose/compose_post_screen.dart</code>, <code>history/history_screen.dart</code>, and settings files for repeated workflows.</li>
+      </ul>
+    </section>
+
+    <footer>Generated locally for /Users/bennybarak/StudioProjects/luli_for_reddit.</footer>
+  </main>
+</body>
+</html>

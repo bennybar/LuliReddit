@@ -57,20 +57,41 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
         _title.text = m['title'] ?? '';
         _body.text = m['body'] ?? '';
         _url.text = m['url'] ?? '';
+        final ki = (m['kind'] as num?)?.toInt();
+        if (ki != null && ki >= 0 && ki < _Kind.values.length) {
+          _kind = _Kind.values[ki];
+        }
+        _hasDraft = _title.text.trim().isNotEmpty ||
+            _body.text.trim().isNotEmpty ||
+            _url.text.trim().isNotEmpty ||
+            _subreddit.text.trim().isNotEmpty;
       } catch (_) {/* ignore malformed draft */}
     }
     if (_subreddit.text.trim().isNotEmpty) _loadFlairs();
   }
 
-  void _saveDraft() => ref.read(draftsProvider).save(
-        _draftKey,
-        jsonEncode({
-          'sr': _subreddit.text,
-          'title': _title.text,
-          'body': _body.text,
-          'url': _url.text,
-        }),
-      );
+  bool _hasDraft = false;
+
+  bool get _hasMedia =>
+      _image != null || _gallery.isNotEmpty || _video != null;
+
+  void _saveDraft() {
+    ref.read(draftsProvider).save(
+          _draftKey,
+          jsonEncode({
+            'sr': _subreddit.text,
+            'title': _title.text,
+            'body': _body.text,
+            'url': _url.text,
+            'kind': _kind.index,
+          }),
+        );
+    final has = _subreddit.text.trim().isNotEmpty ||
+        _title.text.trim().isNotEmpty ||
+        _body.text.trim().isNotEmpty ||
+        _url.text.trim().isNotEmpty;
+    if (has != _hasDraft) setState(() => _hasDraft = has);
+  }
 
   @override
   void dispose() {
@@ -273,10 +294,47 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Scaffold(
+    return PopScope(
+      canPop: !_hasMedia,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final leave = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Discard attachment?'),
+            content: const Text(
+                'Your text is saved as a draft, but the attached image/video '
+                'is not. Leave anyway?'),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Stay')),
+              FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Leave')),
+            ],
+          ),
+        );
+        if (leave == true && context.mounted) Navigator.of(context).pop();
+      },
+      child: Scaffold(
       appBar: AppBar(
         title: const Text('New post'),
         actions: [
+          if (_hasDraft && !_busy)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Row(
+                children: [
+                  Icon(Icons.cloud_done_outlined,
+                      size: 16, color: cs.onSurfaceVariant),
+                  const SizedBox(width: 4),
+                  Text('Draft saved',
+                      style:
+                          TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                ],
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: FilledButton(
@@ -344,7 +402,10 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
                   value: _Kind.video, icon: Icon(Icons.videocam_rounded)),
             ],
             selected: {_kind},
-            onSelectionChanged: (s) => setState(() => _kind = s.first),
+            onSelectionChanged: (s) {
+              setState(() => _kind = s.first);
+              _saveDraft();
+            },
           ),
           const SizedBox(height: 16),
           ..._kindBody(cs),
@@ -372,6 +433,7 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
             Text(_error!, style: TextStyle(color: cs.error)),
           ],
         ],
+      ),
       ),
     );
   }

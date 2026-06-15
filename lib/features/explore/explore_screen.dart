@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/format.dart';
 import '../../core/providers.dart';
 import '../../models/subreddit.dart';
+import '../history/history_store.dart';
 import '../home/tab_signals.dart';
 
 final subscribedSubredditsProvider =
@@ -22,6 +23,9 @@ class ExploreScreen extends ConsumerStatefulWidget {
 
 class _ExploreScreenState extends ConsumerState<ExploreScreen> {
   final _scroll = ScrollController();
+  String _query = '';
+  bool _favOnly = false;
+  String _sort = 'default'; // default | name | subscribers
 
   @override
   void dispose() {
@@ -87,6 +91,53 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                           ?.copyWith(fontWeight: FontWeight.w800)),
                 ),
               ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          onChanged: (v) => setState(() => _query = v),
+                          decoration: InputDecoration(
+                            isDense: true,
+                            hintText: 'Filter your communities',
+                            prefixIcon: const Icon(Icons.filter_list_rounded),
+                            filled: true,
+                            fillColor: cs.surfaceContainerHigh,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: _favOnly ? 'Showing favorites' : 'Favorites only',
+                        icon: Icon(_favOnly
+                            ? Icons.star_rounded
+                            : Icons.star_border_rounded),
+                        color: _favOnly ? cs.primary : null,
+                        onPressed: () => setState(() => _favOnly = !_favOnly),
+                      ),
+                      PopupMenuButton<String>(
+                        tooltip: 'Sort',
+                        icon: const Icon(Icons.sort_rounded),
+                        initialValue: _sort,
+                        onSelected: (v) => setState(() => _sort = v),
+                        itemBuilder: (_) => const [
+                          PopupMenuItem(
+                              value: 'default', child: Text('Default')),
+                          PopupMenuItem(value: 'name', child: Text('Name A–Z')),
+                          PopupMenuItem(
+                              value: 'subscribers',
+                              child: Text('Most subscribers')),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
               ...subs.when(
                 loading: () => const [
                   SliverToBoxAdapter(
@@ -102,9 +153,52 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                               child: Text('Could not load communities: $e')))),
                 ],
                 data: (list) {
+                  final q = _query.trim().toLowerCase();
+                  final active = q.isNotEmpty || _favOnly || _sort != 'default';
+
+                  if (active) {
+                    // Filtered/sorted flat view.
+                    var working = [
+                      for (final s in list)
+                        if ((q.isEmpty || s.name.toLowerCase().contains(q)) &&
+                            (!_favOnly || s.userHasFavorited))
+                          s
+                    ];
+                    if (_sort == 'name') {
+                      working.sort((a, b) =>
+                          a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+                    } else if (_sort == 'subscribers') {
+                      working
+                          .sort((a, b) => b.subscribers.compareTo(a.subscribers));
+                    }
+                    return [
+                      _sectionHeader(context, '${working.length} communities'),
+                      if (working.isEmpty)
+                        const SliverToBoxAdapter(
+                            child: Padding(
+                                padding: EdgeInsets.all(32),
+                                child: Center(child: Text('No matches'))))
+                      else
+                        _subList(ref, working),
+                    ];
+                  }
+
+                  // Default view: recently visited + favorites + the rest.
+                  final byName = {for (final s in list) s.name.toLowerCase(): s};
+                  final seen = <String>{};
+                  final recent = <Subreddit>[];
+                  for (final h in ref.watch(historyControllerProvider)) {
+                    final s = byName[h.subreddit.toLowerCase()];
+                    if (s != null && seen.add(s.name)) recent.add(s);
+                    if (recent.length >= 5) break;
+                  }
                   final favs = list.where((s) => s.userHasFavorited).toList();
                   final rest = list.where((s) => !s.userHasFavorited).toList();
                   return [
+                    if (recent.isNotEmpty) ...[
+                      _sectionHeader(context, 'Recently visited'),
+                      _subList(ref, recent),
+                    ],
                     if (favs.isNotEmpty) ...[
                       _sectionHeader(context, 'Favorites'),
                       _subList(ref, favs),

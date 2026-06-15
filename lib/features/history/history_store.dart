@@ -14,21 +14,29 @@ class HistoryEntry {
     required this.subreddit,
     required this.title,
     required this.permalink,
+    this.viewedAt = 0,
   });
 
   final String id;
   final String subreddit;
   final String title;
   final String permalink;
+  final int viewedAt; // millis since epoch; 0 = legacy/unknown
 
-  Map<String, dynamic> toJson() =>
-      {'id': id, 'sub': subreddit, 'title': title, 'permalink': permalink};
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'sub': subreddit,
+        'title': title,
+        'permalink': permalink,
+        'ts': viewedAt,
+      };
 
   factory HistoryEntry.fromJson(Map<String, dynamic> j) => HistoryEntry(
         id: j['id'] as String? ?? '',
         subreddit: j['sub'] as String? ?? '',
         title: j['title'] as String? ?? '',
         permalink: j['permalink'] as String? ?? '',
+        viewedAt: (j['ts'] as num?)?.toInt() ?? 0,
       );
 }
 
@@ -49,7 +57,11 @@ class HistoryController extends Notifier<List<HistoryEntry>> {
 
   void markViewed(Post p) {
     final entry = HistoryEntry(
-        id: p.id, subreddit: p.subreddit, title: p.title, permalink: p.permalink);
+        id: p.id,
+        subreddit: p.subreddit,
+        title: p.title,
+        permalink: p.permalink,
+        viewedAt: DateTime.now().millisecondsSinceEpoch);
     final list = [entry, ...state.where((e) => e.id != p.id)];
     if (list.length > _cap) list.removeRange(_cap, list.length);
     state = list;
@@ -58,6 +70,15 @@ class HistoryController extends Notifier<List<HistoryEntry>> {
 
   void removeViewed(String id) {
     state = state.where((e) => e.id != id).toList();
+    _persist();
+  }
+
+  /// Removes entries older than [age]. Legacy entries (no timestamp) count as
+  /// old and are removed too.
+  void clearOlderThan(Duration age) {
+    final cutoff =
+        DateTime.now().millisecondsSinceEpoch - age.inMilliseconds;
+    state = state.where((e) => e.viewedAt >= cutoff).toList();
     _persist();
   }
 

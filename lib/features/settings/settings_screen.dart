@@ -37,19 +37,39 @@ class SettingsScreen extends StatelessWidget {
 
 /// The settings list — reusable both as the full Settings screen and embedded
 /// (e.g. inside the Account tab). Pass [embedded] when nesting in a scroll view.
-class SettingsList extends ConsumerWidget {
+class SettingsList extends ConsumerStatefulWidget {
   const SettingsList({super.key, this.embedded = false});
   final bool embedded;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsList> createState() => _SettingsListState();
+}
+
+class _SettingsListState extends ConsumerState<SettingsList> {
+  String _query = '';
+
+  /// Searches a tile's title/subtitle text. Non-tile widgets (dividers,
+  /// sliders, section headers) are dropped from search results.
+  bool _matches(Widget w, String q) {
+    String t(Object? x) => x is Text ? (x.data ?? '') : '';
+    String text;
+    if (w is ListTile) {
+      text = '${t(w.title)} ${t(w.subtitle)}';
+    } else if (w is SwitchListTile) {
+      text = '${t(w.title)} ${t(w.subtitle)}';
+    } else {
+      return false;
+    }
+    return text.toLowerCase().contains(q);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final s = ref.watch(settingsControllerProvider);
     final ctrl = ref.read(settingsControllerProvider.notifier);
+    final cs = Theme.of(context).colorScheme;
 
-    return ListView(
-      shrinkWrap: embedded,
-      physics: embedded ? const NeverScrollableScrollPhysics() : null,
-      children: [
+    final all = <Widget>[
           _section(context, 'Appearance'),
           ListTile(
             leading: const Icon(Icons.brightness_6_rounded),
@@ -150,6 +170,19 @@ class SettingsList extends ConsumerWidget {
               style: Theme.of(context).textTheme.bodyMedium,
             ),
           ),
+          ListTile(
+            leading: const Icon(Icons.view_headline_rounded),
+            title: const Text('Top bar'),
+            subtitle: Text(s.topBarMode.label),
+            onTap: () => _pickTopBar(context, ctrl, s.topBarMode),
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.label_outline_rounded),
+            title: const Text('Bottom bar labels'),
+            subtitle: const Text('Show text labels under the navigation icons'),
+            value: s.navLabels,
+            onChanged: ctrl.setNavLabels,
+          ),
           const Divider(),
           _section(context, 'Feed'),
           ListTile(
@@ -163,12 +196,6 @@ class SettingsList extends ConsumerWidget {
             title: const Text('Post display'),
             subtitle: Text(s.postDisplay.label),
             onTap: () => _pickDisplay(context, ctrl, s.postDisplay),
-          ),
-          ListTile(
-            leading: const Icon(Icons.view_headline_rounded),
-            title: const Text('Top bar'),
-            subtitle: Text(s.topBarMode.label),
-            onTap: () => _pickTopBar(context, ctrl, s.topBarMode),
           ),
           SwitchListTile(
             secondary: const Icon(Icons.blur_on_rounded),
@@ -232,6 +259,7 @@ class SettingsList extends ConsumerWidget {
             value: s.showApiUsage,
             onChanged: ctrl.setShowApiUsage,
           ),
+          _RateLimitTile(),
           const Divider(),
           _section(context, 'Notifications'),
           SwitchListTile(
@@ -293,7 +321,7 @@ class SettingsList extends ConsumerWidget {
             },
           ),
           const Divider(),
-          _section(context, 'Updates & links'),
+          _section(context, 'About'),
           SwitchListTile(
             secondary: const Icon(Icons.system_update_rounded),
             title: const Text('Check for updates'),
@@ -314,7 +342,6 @@ class SettingsList extends ConsumerWidget {
                 'Ilay the verified default, enable it under system app settings '
                 '› Open by default.'),
           ),
-          _RateLimitTile(),
           ListTile(
             leading: const Icon(Icons.gavel_rounded),
             title: const Text('Content & conduct policy'),
@@ -349,7 +376,38 @@ class SettingsList extends ConsumerWidget {
             onTap: () => _clearAll(context, ref),
           ),
           const SizedBox(height: 24),
-        ],
+    ];
+
+    final q = _query.trim().toLowerCase();
+    final shown = q.isEmpty ? all : all.where((w) => _matches(w, q)).toList();
+    return ListView(
+      shrinkWrap: widget.embedded,
+      physics: widget.embedded ? const NeverScrollableScrollPhysics() : null,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: TextField(
+            onChanged: (v) => setState(() => _query = v),
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: 'Search settings',
+              prefixIcon: const Icon(Icons.search_rounded),
+              filled: true,
+              fillColor: cs.surfaceContainerHigh,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(24),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+        ),
+        ...shown,
+        if (q.isNotEmpty && shown.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(40),
+            child: Center(child: Text('No settings found')),
+          ),
+      ],
     );
   }
 

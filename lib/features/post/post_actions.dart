@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/providers.dart';
 import '../../core/share.dart';
+import '../../core/widgets/tap_guard.dart';
 import '../../models/post.dart';
 import '../history/interest_store.dart';
 
@@ -14,8 +15,12 @@ void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post) {
   showModalBottomSheet(
     context: context,
     showDragHandle: true,
-    builder: (ctx) => SafeArea(
-      child: Column(
+    // Ignore taps briefly so the gesture that opened the sheet can't fall
+    // through onto an item.
+    builder: (ctx) => TapGuard(
+      child: SafeArea(
+      child: SingleChildScrollView(
+        child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           ListTile(
@@ -124,8 +129,53 @@ void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post) {
                 (r) => r.modLock(post.fullname, !post.locked),
                 post.locked ? 'Unlocked' : 'Locked'),
           ],
+          const Divider(height: 8),
+          ListTile(
+            leading: const Icon(Icons.thumb_up_alt_outlined),
+            title: const Text('More like this'),
+            subtitle: Text('Show more from r/${post.subreddit} in For You'),
+            onTap: () {
+              Navigator.pop(ctx);
+              ref.read(interestStoreProvider.notifier).bump(post.subreddit, 5);
+              ref.read(keywordStoreProvider.notifier).bumpTitle(post.title, 2);
+              _snackManage(context, "We'll show more like this");
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.thumb_down_alt_outlined),
+            title: const Text('Less like this'),
+            subtitle: Text('Show less from r/${post.subreddit} in For You'),
+            onTap: () {
+              Navigator.pop(ctx);
+              ref.read(interestStoreProvider.notifier).bump(post.subreddit, -5);
+              ref.read(keywordStoreProvider.notifier).bumpTitle(post.title, -2);
+              _snackManage(context, "We'll show less like this");
+            },
+          ),
+          Builder(builder: (_) {
+            final muted =
+                ref.read(mutedSubsProvider.notifier).contains(post.subreddit);
+            return ListTile(
+              leading: Icon(
+                  muted ? Icons.volume_up_rounded : Icons.volume_off_rounded),
+              title: Text(muted
+                  ? 'Unmute r/${post.subreddit}'
+                  : 'Mute r/${post.subreddit} in For You'),
+              onTap: () {
+                Navigator.pop(ctx);
+                ref.read(mutedSubsProvider.notifier).toggle(post.subreddit);
+                _snackManage(
+                    context,
+                    muted
+                        ? 'r/${post.subreddit} unmuted'
+                        : 'r/${post.subreddit} muted from For You');
+              },
+            );
+          }),
         ],
+        ),
       ),
+    ),
     ),
   );
 }
@@ -307,4 +357,16 @@ Future<void> confirmBlockUser(
 void _snack(ScaffoldMessengerState messenger, String msg) {
   messenger.showSnackBar(
       SnackBar(content: Text(msg.replaceFirst('Exception: ', ''))));
+}
+
+/// Snackbar for a personalization change, with a "Manage" action that opens the
+/// Manage For You screen where it can be reviewed/undone.
+void _snackManage(BuildContext context, String msg) {
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    content: Text(msg),
+    action: SnackBarAction(
+      label: 'Manage',
+      onPressed: () => context.push('/manage_for_you'),
+    ),
+  ));
 }

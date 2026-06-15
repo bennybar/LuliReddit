@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/analytics.dart';
 import '../../core/format.dart';
 import '../../core/providers.dart';
+import '../../core/widgets/tap_guard.dart';
 import 'inline_video.dart';
 import 'post_overrides.dart';
 import '../../core/theme/app_theme.dart';
@@ -195,13 +196,22 @@ class _PostCardState extends ConsumerState<PostCard> {
     final sub = widget.post.subreddit;
     final muted = ref.read(mutedSubsProvider.notifier).contains(sub);
     final interest = ref.read(interestStoreProvider.notifier);
-    void toast(String msg) => ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg)));
+    void toast(String msg) =>
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(msg),
+          action: SnackBarAction(
+            label: 'Manage',
+            onPressed: () => context.push('/manage_for_you'),
+          ),
+        ));
 
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
-      builder: (ctx) => SafeArea(
+      // Ignore taps briefly so the gesture that opened the sheet can't fall
+      // through onto an item (which fired More/Less directly with no sheet).
+      builder: (ctx) => TapGuard(
+        child: SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -260,6 +270,7 @@ class _PostCardState extends ConsumerState<PostCard> {
               },
             ),
           ],
+        ),
         ),
       ),
     );

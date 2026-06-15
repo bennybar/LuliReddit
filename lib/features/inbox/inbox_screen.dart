@@ -25,12 +25,18 @@ class InboxScreen extends ConsumerWidget {
         appBar: AppBar(
           title: const Text('Inbox'),
           actions: [
-            IconButton(
-              tooltip: 'Mark all read',
-              icon: const Icon(Icons.mark_email_read_outlined),
-              onPressed: () =>
-                  ref.read(inboxControllerProvider('inbox').notifier).markAllRead(),
-            ),
+            Builder(builder: (ctx) {
+              return IconButton(
+                tooltip: 'Mark this tab read',
+                icon: const Icon(Icons.mark_email_read_outlined),
+                onPressed: () {
+                  final i = DefaultTabController.of(ctx).index;
+                  ref
+                      .read(inboxControllerProvider(_tabs[i].$2).notifier)
+                      .markAllRead();
+                },
+              );
+            }),
           ],
           bottom: TabBar(
             isScrollable: true,
@@ -63,8 +69,52 @@ class _InboxListState extends ConsumerState<_InboxList>
     with AutomaticKeepAliveClientMixin {
   final _scroll = ScrollController();
 
+  // Kind filter, only used on the "All" tab: all | replies | mentions | messages.
+  String _kindFilter = 'all';
+
   @override
   bool get wantKeepAlive => true;
+
+  List<InboxItem> _applyFilter(List<InboxItem> items) {
+    if (widget.where != 'inbox' || _kindFilter == 'all') return items;
+    return items.where((i) {
+      switch (_kindFilter) {
+        case 'replies':
+          return i.kind == InboxKind.commentReply ||
+              i.kind == InboxKind.postReply;
+        case 'mentions':
+          return i.kind == InboxKind.mention;
+        case 'messages':
+          return i.kind == InboxKind.message;
+      }
+      return true;
+    }).toList();
+  }
+
+  Widget _filterBar() {
+    const opts = [
+      ('all', 'All'),
+      ('replies', 'Replies'),
+      ('mentions', 'Mentions'),
+      ('messages', 'Messages'),
+    ];
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Row(
+        children: [
+          for (final o in opts) ...[
+            ChoiceChip(
+              label: Text(o.$2),
+              selected: _kindFilter == o.$1,
+              onSelected: (_) => setState(() => _kindFilter = o.$1),
+            ),
+            const SizedBox(width: 6),
+          ],
+        ],
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -95,7 +145,7 @@ class _InboxListState extends ConsumerState<_InboxList>
     final async = ref.watch(inboxControllerProvider(widget.where));
     final notifier = ref.read(inboxControllerProvider(widget.where).notifier);
 
-    return RefreshIndicator(
+    final body = RefreshIndicator(
       onRefresh: notifier.refresh,
       child: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -106,7 +156,8 @@ class _InboxListState extends ConsumerState<_InboxList>
           ),
         ]),
         data: (state) {
-          if (state.items.isEmpty) {
+          final items = _applyFilter(state.items);
+          if (items.isEmpty) {
             return ListView(children: const [
               SizedBox(height: 120),
               Center(child: Text('Nothing here')),
@@ -115,17 +166,17 @@ class _InboxListState extends ConsumerState<_InboxList>
           return ListView.separated(
             controller: _scroll,
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 130),
-            itemCount: state.items.length + 1,
+            itemCount: items.length + 1,
             separatorBuilder: (_, __) => const SizedBox(height: 10),
             itemBuilder: (context, i) {
-              if (i == state.items.length) {
+              if (i == items.length) {
                 return state.loadingMore
                     ? const Padding(
                         padding: EdgeInsets.all(16),
                         child: Center(child: CircularProgressIndicator()))
                     : const SizedBox.shrink();
               }
-              final item = state.items[i];
+              final item = items[i];
               return Dismissible(
                 key: ValueKey(item.fullname),
                 // Messages: swipe right = read/unread, swipe left = delete.
@@ -155,6 +206,9 @@ class _InboxListState extends ConsumerState<_InboxList>
         },
       ),
     );
+
+    if (widget.where != 'inbox') return body;
+    return Column(children: [_filterBar(), Expanded(child: body)]);
   }
 
   /// [read]=true → the read/unread (right-swipe) background; else the delete
