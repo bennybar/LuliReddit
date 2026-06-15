@@ -49,6 +49,65 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   final ItemPositionsListener _itemPositions = ItemPositionsListener.create();
   List<Comment> _flat = const [];
 
+  // In-post comment search.
+  bool _searchOpen = false;
+  final TextEditingController _searchCtrl = TextEditingController();
+  List<int> _matchIndices = []; // list indices (ci + 1) of matching comments
+  int _matchPos = 0;
+  String? _currentMatchId;
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  void _toggleSearch() {
+    setState(() {
+      _searchOpen = !_searchOpen;
+      if (!_searchOpen) {
+        _searchCtrl.clear();
+        _matchIndices = [];
+        _currentMatchId = null;
+      }
+    });
+  }
+
+  void _runSearch(String raw) {
+    final q = raw.trim().toLowerCase();
+    final m = <int>[];
+    if (q.isNotEmpty) {
+      for (var ci = 0; ci < _flat.length; ci++) {
+        final c = _flat[ci];
+        if (!c.isMore && c.body.toLowerCase().contains(q)) m.add(ci + 1);
+      }
+    }
+    setState(() {
+      _matchIndices = m;
+      _matchPos = 0;
+      _currentMatchId = m.isEmpty ? null : _flat[m.first - 1].fullname;
+    });
+    if (m.isNotEmpty) _scrollToMatch();
+  }
+
+  void _scrollToMatch() {
+    if (_matchIndices.isEmpty) return;
+    final li = _matchIndices[_matchPos];
+    _currentMatchId = _flat[li - 1].fullname;
+    _itemScroll.scrollTo(
+        index: li,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+        alignment: 0.12);
+  }
+
+  void _stepMatch(int delta) {
+    if (_matchIndices.isEmpty) return;
+    setState(() => _matchPos =
+        (_matchPos + delta + _matchIndices.length) % _matchIndices.length);
+    _scrollToMatch();
+  }
+
   /// Jumps the comment list to the next top-level (depth 0) comment, cycling
   /// back to the first once past the last. List index 0 is the post header, so
   /// comment `ci` lives at list index `ci + 1`.
@@ -123,6 +182,13 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
             ),
           if (thread != null)
             IconButton(
+              tooltip: 'Search comments',
+              icon: Icon(
+                  _searchOpen ? Icons.search_off_rounded : Icons.search_rounded),
+              onPressed: _toggleSearch,
+            ),
+          if (thread != null)
+            IconButton(
               icon: const Icon(Icons.more_vert_rounded),
               onPressed: () =>
                   showPostActionsSheet(context, ref, thread.post),
@@ -192,7 +258,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                 ),
               ],
             ),
-      body: async.when(
+      body: Stack(
+        children: [
+          async.when(
         loading: () => _LoadingWithHeader(post: widget.initialPost),
         error: (e, _) => Center(
           child: Padding(
@@ -231,6 +299,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                 return _CommentTile(
                   key: ValueKey(c.fullname),
                   comment: c,
+                  highlighted: _currentMatchId == c.fullname,
                   isOwn: c.author == username,
                   opAuthor: thread.post.author,
                   collapsed: thread.collapsed.contains(c.id),
@@ -307,6 +376,71 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
             ],
           );
         },
+          ),
+          if (_searchOpen && thread != null)
+            Positioned(
+              left: 8,
+              right: 8,
+              top: 8,
+              child: _buildSearchBar(context),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final total = _matchIndices.length;
+    final has = _searchCtrl.text.trim().isNotEmpty;
+    return Material(
+      elevation: 4,
+      borderRadius: BorderRadius.circular(28),
+      color: cs.surfaceContainerHigh,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Row(
+          children: [
+            const SizedBox(width: 6),
+            Icon(Icons.search_rounded, size: 20, color: cs.onSurfaceVariant),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: _searchCtrl,
+                autofocus: true,
+                textInputAction: TextInputAction.search,
+                onChanged: _runSearch,
+                onSubmitted: (_) => _stepMatch(1),
+                decoration: const InputDecoration(
+                  hintText: 'Search comments',
+                  border: InputBorder.none,
+                  isDense: true,
+                ),
+              ),
+            ),
+            if (has)
+              Text(total == 0 ? '0/0' : '${_matchPos + 1}/$total',
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+            IconButton(
+              tooltip: 'Previous',
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.keyboard_arrow_up_rounded),
+              onPressed: total == 0 ? null : () => _stepMatch(-1),
+            ),
+            IconButton(
+              tooltip: 'Next',
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.keyboard_arrow_down_rounded),
+              onPressed: total == 0 ? null : () => _stepMatch(1),
+            ),
+            IconButton(
+              tooltip: 'Close',
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.close_rounded),
+              onPressed: _toggleSearch,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -641,6 +775,7 @@ class _CommentTile extends ConsumerStatefulWidget {
     required this.onReply,
     required this.onEdit,
     required this.onDelete,
+    this.highlighted = false,
   });
 
   final Comment comment;
@@ -648,6 +783,7 @@ class _CommentTile extends ConsumerStatefulWidget {
   final String opAuthor;
   final bool collapsed;
   final bool loadingMore;
+  final bool highlighted; // current in-post search match
   final VoidCallback onToggle;
   final VoidCallback onLoadMore;
   final VoidCallback onReply;
@@ -738,8 +874,13 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
       child: Container(
         margin: EdgeInsets.fromLTRB(10 + indent, 0, 10, 8),
         decoration: BoxDecoration(
-          color: cs.surfaceContainerLow,
+          color: widget.highlighted
+              ? cs.primaryContainer
+              : cs.surfaceContainerLow,
           borderRadius: BorderRadius.circular(14),
+          border: widget.highlighted
+              ? Border.all(color: cs.primary, width: 1.5)
+              : null,
           boxShadow: [
             BoxShadow(
                 color: Colors.black.withValues(alpha: 0.05),
