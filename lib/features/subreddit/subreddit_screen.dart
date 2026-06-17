@@ -37,6 +37,11 @@ class _SubredditScreenState extends ConsumerState<SubredditScreen> {
             onPressed: () => context.push('/search?sr=${widget.name}'),
           ),
           IconButton(
+            tooltip: 'About & rules',
+            icon: const Icon(Icons.info_outline_rounded),
+            onPressed: () => _showAbout(context),
+          ),
+          IconButton(
             icon: const Icon(Icons.share_outlined),
             onPressed: () =>
                 shareUrl(context, 'https://reddit.com/r/${widget.name}'),
@@ -54,6 +59,95 @@ class _SubredditScreenState extends ConsumerState<SubredditScreen> {
           error: (_, __) => const SizedBox.shrink(),
           data: (s) => _header(context, s),
         ),
+      ),
+    );
+  }
+
+  void _showAbout(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.6,
+        maxChildSize: 0.92,
+        builder: (ctx, scroll) {
+          final about =
+              ref.read(subredditAboutProvider(widget.name)).valueOrNull;
+          return ListView(
+            controller: scroll,
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+            children: [
+              Text('r/${widget.name}',
+                  style: Theme.of(ctx)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w800)),
+              if (about != null && about.title.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(about.title,
+                      style: Theme.of(ctx).textTheme.bodyMedium),
+                ),
+              if (about != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text('${compactNumber(about.subscribers)} members',
+                      style: TextStyle(
+                          color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+                ),
+              if (about != null && about.description.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(about.description),
+              ],
+              const SizedBox(height: 18),
+              Text('Rules',
+                  style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
+                      color: Theme.of(ctx).colorScheme.primary,
+                      fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              FutureBuilder<List<(String, String)>>(
+                future: ref
+                    .read(redditRepositoryProvider)
+                    .getSubredditRules(widget.name),
+                builder: (ctx, snap) {
+                  if (snap.connectionState != ConnectionState.done) {
+                    return const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Center(child: CircularProgressIndicator()));
+                  }
+                  final rules = snap.data ?? const [];
+                  if (rules.isEmpty) return const Text('No rules listed.');
+                  return Column(
+                    children: [
+                      for (var i = 0; i < rules.length; i++)
+                        Theme(
+                          data: Theme.of(ctx)
+                              .copyWith(dividerColor: Colors.transparent),
+                          child: ExpansionTile(
+                            tilePadding: EdgeInsets.zero,
+                            title: Text('${i + 1}. ${rules[i].$1}',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600)),
+                            childrenPadding:
+                                const EdgeInsets.only(bottom: 12),
+                            children: [
+                              if (rules[i].$2.isNotEmpty)
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(rules[i].$2),
+                                ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ],
+          );
+        },
       ),
     );
   }

@@ -392,6 +392,20 @@ class RedditRepository {
     return Subreddit.fromData(res.data!['data'] as Map<String, dynamic>);
   }
 
+  /// Subreddit rules as (title, description) pairs.
+  Future<List<(String, String)>> getSubredditRules(String name) async {
+    final res = await _client.get<Map<String, dynamic>>('/r/$name/about/rules');
+    final rules = (res.data?['rules'] as List?) ?? const [];
+    return [
+      for (final r in rules)
+        if (r is Map)
+          (
+            (r['short_name'] as String? ?? '').trim(),
+            (r['description'] as String? ?? '').trim(),
+          ),
+    ];
+  }
+
   Future<RedditUser> getUserAbout(String username) async {
     final res =
         await _client.get<Map<String, dynamic>>('/user/$username/about');

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/drafts.dart';
 import '../../core/network/catbox.dart';
 import '../../core/providers.dart';
+import '../../core/widgets/markdown_toolbar.dart';
 import '../media/attachment.dart';
 import '../media/attachment_bar.dart';
 
@@ -144,6 +145,7 @@ class _ComposeMessageScreenState extends ConsumerState<ComposeMessageScreen> {
             decoration: const InputDecoration(
                 labelText: 'Message (Markdown)', alignLabelWithHint: true),
           ),
+          MarkdownToolbar(controller: _body),
           const SizedBox(height: 4),
           AttachmentControls(
             media: _media,

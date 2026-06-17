@@ -7,6 +7,7 @@ import '../../core/widgets/error_view.dart';
 import '../../data/reddit_repository.dart';
 import '../history/history_store.dart';
 import '../settings/settings_controller.dart';
+import 'content_filters.dart';
 import 'feed_controller.dart';
 import 'post_card.dart';
 import 'post_skeleton.dart';
@@ -125,6 +126,11 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
             posts = posts
                 .where((p) => !(p.feedReason != null && seen.contains(p.id)))
                 .toList();
+          }
+          // User content filters (keywords / domains / flairs).
+          final filters = ref.watch(contentFiltersProvider);
+          if (!filters.isEmpty) {
+            posts = posts.where((p) => !filters.hides(p)).toList();
           }
           final itemCount = 1 + posts.length + 1; // sortbar + posts + footer
           return ListView.separated(

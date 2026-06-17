@@ -8,6 +8,7 @@ import 'package:video_thumbnail/video_thumbnail.dart';
 
 import '../../core/drafts.dart';
 import '../../core/providers.dart';
+import '../../core/widgets/markdown_toolbar.dart';
 import '../../models/flair.dart';
 import '../media/giphy_picker.dart';
 
@@ -451,6 +452,7 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
                 labelText: 'Body (Markdown, optional)',
                 alignLabelWithHint: true),
           ),
+          MarkdownToolbar(controller: _body),
           Align(
             alignment: Alignment.centerLeft,
             child: TextButton.icon(

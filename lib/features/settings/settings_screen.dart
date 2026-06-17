@@ -1,8 +1,13 @@
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/backup.dart';
 import '../../core/network/rate_limit.dart';
 import '../../core/providers.dart';
 import '../../core/reddit_constants.dart';
@@ -234,6 +239,12 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             subtitle: const Text('Review and undo muted / show-less subreddits'),
             onTap: () => context.push('/manage_for_you'),
           ),
+          ListTile(
+            leading: const Icon(Icons.filter_alt_outlined),
+            title: const Text('Content filters'),
+            subtitle: const Text('Hide posts by keyword, domain or flair'),
+            onTap: () => context.push('/content_filters'),
+          ),
           SwitchListTile(
             secondary: const Icon(Icons.swipe_rounded),
             title: const Text('Swipe to vote'),
@@ -273,6 +284,12 @@ class _SettingsListState extends ConsumerState<SettingsList> {
           ),
           const Divider(),
           _section(context, 'History & data'),
+          ListTile(
+            leading: const Icon(Icons.bookmark_outline_rounded),
+            title: const Text('Saved'),
+            subtitle: const Text('Search your saved posts & comments'),
+            onTap: () => context.push('/saved'),
+          ),
           ListTile(
             leading: const Icon(Icons.history_rounded),
             title: const Text('History'),
@@ -319,6 +336,19 @@ class _SettingsListState extends ConsumerState<SettingsList> {
                     const SnackBar(content: Text('Cache cleared')));
               }
             },
+          ),
+          ListTile(
+            leading: const Icon(Icons.backup_outlined),
+            title: const Text('Back up data'),
+            subtitle: const Text(
+                'Export settings, For You model & history (no login/keys)'),
+            onTap: () => _backupData(context, ref),
+          ),
+          ListTile(
+            leading: const Icon(Icons.restore_rounded),
+            title: const Text('Restore data'),
+            subtitle: const Text('Import a backup file'),
+            onTap: () => _restoreData(context, ref),
           ),
           const Divider(),
           _section(context, 'About'),
@@ -409,6 +439,54 @@ class _SettingsListState extends ConsumerState<SettingsList> {
           ),
       ],
     );
+  }
+
+  Future<void> _backupData(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    Rect? origin;
+    final box = context.findRenderObject();
+    if (box is RenderBox && box.hasSize) {
+      origin = box.localToGlobal(Offset.zero) & box.size;
+    }
+    try {
+      final json = Backup.export(ref.read(sharedPrefsProvider));
+      final path = await Backup.writeTempFile(json);
+      await Share.shareXFiles([XFile(path)],
+          subject: 'Ilay backup', sharePositionOrigin: origin);
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Backup failed: $e')));
+    }
+  }
+
+  Future<void> _restoreData(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final res = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+        withData: true,
+      );
+      if (res == null) return;
+      final bytes = res.files.single.bytes;
+      if (bytes == null) return;
+      final n =
+          await Backup.import(ref.read(sharedPrefsProvider), utf8.decode(bytes));
+      if (!context.mounted) return;
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Restore complete'),
+          content: Text(
+              'Imported $n settings. Restart Ilay to apply everything.'),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
+          ],
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Restore failed: $e')));
+    }
   }
 
   Future<void> _checkUpdatesNow(BuildContext context, WidgetRef ref) async {

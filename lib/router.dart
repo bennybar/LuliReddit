@@ -15,9 +15,11 @@ import 'features/multireddit/manage_multireddit_screen.dart';
 import 'features/multireddit/multireddit_feed_screen.dart';
 import 'features/post/post_detail_screen.dart';
 import 'features/search/search_screen.dart';
+import 'features/settings/content_filters_screen.dart';
 import 'features/settings/manage_for_you_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/subreddit/subreddit_screen.dart';
+import 'features/user/saved_hub_screen.dart';
 import 'features/user/user_screen.dart';
 import 'models/inbox_item.dart';
 import 'models/post.dart';
@@ -47,8 +49,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/manage_for_you',
           builder: (_, __) => const ManageForYouScreen()),
+      GoRoute(
+          path: '/content_filters',
+          builder: (_, __) => const ContentFiltersScreen()),
       GoRoute(path: '/policy', builder: (_, __) => const PolicyScreen()),
       GoRoute(path: '/history', builder: (_, __) => const HistoryScreen()),
+      GoRoute(path: '/saved', builder: (_, __) => const SavedHubScreen()),
       GoRoute(
         path: '/search',
         builder: (_, state) => SearchScreen(

@@ -5,6 +5,7 @@ import '../../core/drafts.dart';
 import '../../core/network/catbox.dart';
 import '../../core/providers.dart';
 import '../../models/comment.dart';
+import '../../core/widgets/markdown_toolbar.dart';
 import '../media/attachment.dart';
 import '../media/attachment_bar.dart';
 import '../media/giphy_picker.dart';
@@ -201,6 +202,7 @@ class _ComposeSheetState<T> extends State<_ComposeSheet<T>> {
               hintText: 'Markdown supported',
             ),
           ),
+          MarkdownToolbar(controller: _controller),
           const SizedBox(height: 6),
           if (widget.allowAttachments)
             AttachmentControls(

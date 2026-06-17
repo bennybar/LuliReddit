@@ -83,6 +83,31 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
               ),
               SliverToBoxAdapter(
                 child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => context.push('/r/popular'),
+                          icon: const Icon(Icons.local_fire_department_rounded,
+                              size: 18),
+                          label: const Text('Popular'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => context.push('/r/all'),
+                          icon: const Icon(Icons.public_rounded, size: 18),
+                          label: const Text('All'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                   child: Text('Explore',
                       style: Theme.of(context)
