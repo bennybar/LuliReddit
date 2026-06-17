@@ -12,6 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/format.dart';
 import '../../core/providers.dart';
 import '../../core/share.dart';
+import '../../data/ai_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/comment.dart';
 import '../../models/post.dart';
@@ -108,6 +109,33 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     _scrollToMatch();
   }
 
+  Future<void> _summarize(Post post) async {
+    final key = ref.read(openAiKeyProvider).valueOrNull;
+    if (key == null || key.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Add an OpenAI key in Settings → AI summaries.')));
+      return;
+    }
+    final s = ref.read(settingsControllerProvider);
+    final baseUrl =
+        s.aiUseCustomUrl ? s.aiBaseUrl : 'https://api.openai.com';
+    final style = SummaryStyle
+        .values[s.aiSummaryStyle.clamp(0, SummaryStyle.values.length - 1)];
+    final threadText = AiService.buildThreadText(post, _flat, s.aiMaxChars);
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (_) => _SummarySheet(
+        baseUrl: baseUrl,
+        apiKey: key,
+        model: s.aiModel,
+        style: style,
+        threadText: threadText,
+      ),
+    );
+  }
+
   /// Jumps the comment list to the next top-level (depth 0) comment, cycling
   /// back to the first once past the last. List index 0 is the post header, so
   /// comment `ci` lives at list index `ci + 1`.
@@ -160,6 +188,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     final username =
         ref.watch(authControllerProvider).valueOrNull?.username ?? '';
     final thread = async.valueOrNull;
+    final hasAiKey =
+        ref.watch(openAiKeyProvider).valueOrNull?.isNotEmpty ?? false;
 
     return Scaffold(
       appBar: AppBar(
@@ -190,8 +220,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
           if (thread != null)
             IconButton(
               icon: const Icon(Icons.more_vert_rounded),
-              onPressed: () =>
-                  showPostActionsSheet(context, ref, thread.post),
+              onPressed: () => showPostActionsSheet(context, ref, thread.post,
+                  onSummarize:
+                      hasAiKey ? () => _summarize(thread.post) : null),
             ),
           if (thread != null && thread.post.author == username)
             PopupMenuButton<String>(
@@ -441,6 +472,122 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Runs an AI thread summary and shows the result (markdown) with copy.
+class _SummarySheet extends StatefulWidget {
+  const _SummarySheet({
+    required this.baseUrl,
+    required this.apiKey,
+    required this.model,
+    required this.style,
+    required this.threadText,
+  });
+  final String baseUrl;
+  final String apiKey;
+  final String model;
+  final SummaryStyle style;
+  final String threadText;
+
+  @override
+  State<_SummarySheet> createState() => _SummarySheetState();
+}
+
+class _SummarySheetState extends State<_SummarySheet> {
+  bool _loading = true;
+  String? _result;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _run();
+  }
+
+  Future<void> _run() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final out = await AiService.summarize(
+        baseUrl: widget.baseUrl,
+        apiKey: widget.apiKey,
+        model: widget.model,
+        style: widget.style,
+        threadText: widget.threadText,
+      );
+      if (mounted) {
+        setState(() {
+          _result = out;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = '$e'.replaceFirst('Exception: ', '');
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.6,
+      maxChildSize: 0.92,
+      builder: (ctx, scroll) => ListView(
+        controller: scroll,
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+        children: [
+          Row(
+            children: [
+              Icon(Icons.auto_awesome_rounded, size: 18, color: cs.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('AI summary · ${widget.style.label}',
+                    style: Theme.of(ctx)
+                        .textTheme
+                        .titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w700)),
+              ),
+              if (_result != null)
+                IconButton(
+                  tooltip: 'Copy',
+                  icon: const Icon(Icons.content_copy_rounded, size: 18),
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: _result!));
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                        const SnackBar(content: Text('Copied')));
+                  },
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.all(28),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_error != null) ...[
+            Text(_error!, style: TextStyle(color: cs.error)),
+            const SizedBox(height: 12),
+            FilledButton(onPressed: _run, child: const Text('Retry')),
+          ] else
+            MarkdownBody(data: _result ?? ''),
+          if (!_loading && _error == null) ...[
+            const SizedBox(height: 16),
+            Text('Generated by ${widget.model}. AI summaries can be wrong.',
+                style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+          ],
+        ],
       ),
     );
   }

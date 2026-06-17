@@ -11,7 +11,10 @@ import '../../models/post.dart';
 import '../history/interest_store.dart';
 
 /// Bottom sheet of secondary actions for a post: hide, report, crosspost, open.
-void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post) {
+/// [onSummarize], when provided (post detail only, with an AI key configured),
+/// adds a "Summarize thread" action.
+void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post,
+    {VoidCallback? onSummarize}) {
   showModalBottomSheet(
     context: context,
     showDragHandle: true,
@@ -23,6 +26,16 @@ void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post) {
         child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (onSummarize != null)
+            ListTile(
+              leading: const Icon(Icons.auto_awesome_rounded),
+              title: const Text('Summarize thread'),
+              subtitle: const Text('AI summary of the post & top comments'),
+              onTap: () {
+                Navigator.pop(ctx);
+                onSummarize();
+              },
+            ),
           ListTile(
             leading: const Icon(Icons.share_outlined),
             title: const Text('Share'),

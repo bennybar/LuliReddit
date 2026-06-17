@@ -66,6 +66,11 @@ class Settings {
     required this.notifyInbox,
     required this.topBarMode,
     required this.navLabels,
+    required this.aiModel,
+    required this.aiSummaryStyle,
+    required this.aiMaxChars,
+    required this.aiUseCustomUrl,
+    required this.aiBaseUrl,
   });
 
   final ThemeMode themeMode;
@@ -90,6 +95,11 @@ class Settings {
   final bool notifyInbox; // background-poll the inbox + local notifications
   final TopBarMode topBarMode; // Posts-screen action layout
   final bool navLabels; // show text labels on the bottom nav bar
+  final String aiModel; // OpenAI(-compatible) model id for summaries
+  final int aiSummaryStyle; // index into SummaryStyle
+  final int aiMaxChars; // max thread text sent to the model
+  final bool aiUseCustomUrl; // use a custom API base URL
+  final String aiBaseUrl; // custom base URL (when enabled)
 
   Settings copyWith({
     ThemeMode? themeMode,
@@ -114,6 +124,11 @@ class Settings {
     bool? notifyInbox,
     TopBarMode? topBarMode,
     bool? navLabels,
+    String? aiModel,
+    int? aiSummaryStyle,
+    int? aiMaxChars,
+    bool? aiUseCustomUrl,
+    String? aiBaseUrl,
   }) =>
       Settings(
         themeMode: themeMode ?? this.themeMode,
@@ -138,6 +153,11 @@ class Settings {
         notifyInbox: notifyInbox ?? this.notifyInbox,
         topBarMode: topBarMode ?? this.topBarMode,
         navLabels: navLabels ?? this.navLabels,
+        aiModel: aiModel ?? this.aiModel,
+        aiSummaryStyle: aiSummaryStyle ?? this.aiSummaryStyle,
+        aiMaxChars: aiMaxChars ?? this.aiMaxChars,
+        aiUseCustomUrl: aiUseCustomUrl ?? this.aiUseCustomUrl,
+        aiBaseUrl: aiBaseUrl ?? this.aiBaseUrl,
       );
 }
 
@@ -178,6 +198,11 @@ class SettingsController extends Notifier<Settings> {
           : TopBarMode.values[
               p.getInt('topBarMode')!.clamp(0, TopBarMode.values.length - 1)],
       navLabels: p.getBool('navLabels') ?? true,
+      aiModel: p.getString('aiModel') ?? 'gpt-5.5',
+      aiSummaryStyle: p.getInt('aiSummaryStyle') ?? 1, // Key points
+      aiMaxChars: p.getInt('aiMaxChars') ?? 100000,
+      aiUseCustomUrl: p.getBool('aiUseCustomUrl') ?? false,
+      aiBaseUrl: p.getString('aiBaseUrl') ?? 'https://api.openai.com',
     );
   }
 
@@ -289,6 +314,31 @@ class SettingsController extends Notifier<Settings> {
   void setNavLabels(bool v) {
     _prefs.setBool('navLabels', v);
     state = state.copyWith(navLabels: v);
+  }
+
+  void setAiModel(String v) {
+    _prefs.setString('aiModel', v);
+    state = state.copyWith(aiModel: v);
+  }
+
+  void setAiSummaryStyle(int v) {
+    _prefs.setInt('aiSummaryStyle', v);
+    state = state.copyWith(aiSummaryStyle: v);
+  }
+
+  void setAiMaxChars(int v) {
+    _prefs.setInt('aiMaxChars', v);
+    state = state.copyWith(aiMaxChars: v);
+  }
+
+  void setAiUseCustomUrl(bool v) {
+    _prefs.setBool('aiUseCustomUrl', v);
+    state = state.copyWith(aiUseCustomUrl: v);
+  }
+
+  void setAiBaseUrl(String v) {
+    _prefs.setString('aiBaseUrl', v);
+    state = state.copyWith(aiBaseUrl: v);
   }
 }
 

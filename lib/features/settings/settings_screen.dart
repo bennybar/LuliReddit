@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/backup.dart';
 import '../../core/network/rate_limit.dart';
+import '../../data/ai_service.dart';
 import '../../core/providers.dart';
 import '../../core/reddit_constants.dart';
 import '../../data/reddit_repository.dart';
@@ -73,6 +74,8 @@ class _SettingsListState extends ConsumerState<SettingsList> {
     final s = ref.watch(settingsControllerProvider);
     final ctrl = ref.read(settingsControllerProvider.notifier);
     final cs = Theme.of(context).colorScheme;
+    final aiKeySet =
+        ref.watch(openAiKeyProvider).valueOrNull?.isNotEmpty ?? false;
 
     final all = <Widget>[
           _section(context, 'Appearance'),
@@ -282,6 +285,55 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             value: s.notifyInbox,
             onChanged: (v) => _toggleInboxNotifications(context, ref, v),
           ),
+          const Divider(),
+          _section(context, 'AI summaries'),
+          ListTile(
+            leading: const Icon(Icons.key_rounded),
+            title: const Text('OpenAI API key'),
+            subtitle: Text(aiKeySet
+                ? 'Key set — tap to change or remove'
+                : 'Add a key to enable thread summaries'),
+            onTap: () => _editOpenAiKey(context, ref, aiKeySet),
+          ),
+          ListTile(
+            enabled: aiKeySet,
+            leading: const Icon(Icons.smart_toy_outlined),
+            title: const Text('Model'),
+            subtitle: Text(s.aiModel),
+            onTap: () => _pickAiModel(context, ctrl, s.aiModel),
+          ),
+          ListTile(
+            enabled: aiKeySet,
+            leading: const Icon(Icons.auto_awesome_rounded),
+            title: const Text('Summary style'),
+            subtitle: Text(SummaryStyle
+                .values[s.aiSummaryStyle.clamp(0, SummaryStyle.values.length - 1)]
+                .label),
+            onTap: () => _pickAiStyle(context, ctrl, s.aiSummaryStyle),
+          ),
+          ListTile(
+            enabled: aiKeySet,
+            leading: const Icon(Icons.straighten_rounded),
+            title: const Text('Max thread size'),
+            subtitle: Text('${(s.aiMaxChars / 1000).round()}k characters '
+                '(~${(s.aiMaxChars / 4000).round()}k tokens)'),
+            onTap: () => _pickAiMaxChars(context, ctrl, s.aiMaxChars),
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.dns_rounded),
+            title: const Text('Custom API base URL'),
+            subtitle: const Text(
+                'Advanced — use an OpenAI-compatible endpoint (e.g. LiteLLM)'),
+            value: s.aiUseCustomUrl,
+            onChanged: ctrl.setAiUseCustomUrl,
+          ),
+          if (s.aiUseCustomUrl)
+            ListTile(
+              leading: const Icon(Icons.link_rounded),
+              title: const Text('API base URL'),
+              subtitle: Text(s.aiBaseUrl),
+              onTap: () => _editAiBaseUrl(context, ctrl, s.aiBaseUrl),
+            ),
           const Divider(),
           _section(context, 'History & data'),
           ListTile(
@@ -694,6 +746,163 @@ class _SettingsListState extends ConsumerState<SettingsList> {
         ),
       ),
     );
+  }
+
+  Future<void> _editOpenAiKey(
+      BuildContext context, WidgetRef ref, bool hasKey) async {
+    final ctrl = TextEditingController();
+    final action = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('OpenAI API key'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              obscureText: true,
+              autocorrect: false,
+              enableSuggestions: false,
+              decoration: const InputDecoration(hintText: 'sk-…'),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Stored securely on this device (never in backups). Summaries '
+              'send the thread text to your AI endpoint.',
+              style: TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          if (hasKey)
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, 'remove'),
+                child: const Text('Remove')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, 'save'),
+              child: const Text('Save')),
+        ],
+      ),
+    );
+    if (action == null) return;
+    final store = ref.read(secureStoreProvider);
+    if (action == 'remove') {
+      await store.saveOpenaiKey(null);
+    } else if (ctrl.text.trim().isNotEmpty) {
+      await store.saveOpenaiKey(ctrl.text.trim());
+    }
+    ref.invalidate(openAiKeyProvider);
+  }
+
+  void _pickAiModel(
+      BuildContext context, SettingsController ctrl, String current) {
+    const models = ['gpt-5.5', 'gpt-5.4-mini', 'gpt-5.4-nano'];
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final m in models)
+              ListTile(
+                title: Text(m),
+                trailing:
+                    m == current ? const Icon(Icons.check_rounded) : null,
+                onTap: () {
+                  ctrl.setAiModel(m);
+                  Navigator.pop(ctx);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _pickAiStyle(
+      BuildContext context, SettingsController ctrl, int current) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < SummaryStyle.values.length; i++)
+              ListTile(
+                title: Text(SummaryStyle.values[i].label),
+                trailing:
+                    i == current ? const Icon(Icons.check_rounded) : null,
+                onTap: () {
+                  ctrl.setAiSummaryStyle(i);
+                  Navigator.pop(ctx);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _pickAiMaxChars(
+      BuildContext context, SettingsController ctrl, int current) {
+    const options = [50000, 100000, 200000, 400000];
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final v in options)
+              ListTile(
+                title: Text('${(v / 1000).round()}k characters'),
+                subtitle: Text('~${(v / 4000).round()}k tokens'),
+                trailing:
+                    v == current ? const Icon(Icons.check_rounded) : null,
+                onTap: () {
+                  ctrl.setAiMaxChars(v);
+                  Navigator.pop(ctx);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _editAiBaseUrl(
+      BuildContext context, SettingsController ctrl, String current) async {
+    final c = TextEditingController(text: current);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('API base URL'),
+        content: TextField(
+          controller: c,
+          autofocus: true,
+          autocorrect: false,
+          keyboardType: TextInputType.url,
+          decoration:
+              const InputDecoration(hintText: 'https://your-litellm-host'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Save')),
+        ],
+      ),
+    );
+    if (ok == true && c.text.trim().isNotEmpty) {
+      ctrl.setAiBaseUrl(c.text.trim());
+    }
   }
 
   void _showLoginMethodInfo(BuildContext context, bool isWeb) {

@@ -17,6 +17,7 @@ class SecureStore {
   static const _kClientId = 'client_id';
   static const _kRedirectUri = 'redirect_uri';
   static const _kGiphyKey = 'giphy_api_key';
+  static const _kOpenaiKey = 'openai_api_key';
   static const _kAccessToken = 'access_token';
   static const _kRefreshToken = 'refresh_token';
   static const _kTokenExpiry = 'token_expiry'; // millis since epoch
@@ -35,6 +36,11 @@ class SecureStore {
   Future<String?> get clientId => read(_kClientId);
   Future<String?> get redirectUri => read(_kRedirectUri);
   Future<String?> get giphyKey => read(_kGiphyKey);
+
+  // OpenAI (or compatible) API key for AI thread summaries. Account-independent.
+  Future<String?> get openaiKey => read(_kOpenaiKey);
+  Future<void> saveOpenaiKey(String? value) =>
+      _write(_kOpenaiKey, (value == null || value.isEmpty) ? null : value);
 
   Future<void> saveCredentials({
     required String clientId,

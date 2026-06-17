@@ -5,6 +5,10 @@ import 'auth_repository.dart';
 
 final secureStoreProvider = Provider<SecureStore>((ref) => SecureStore());
 
+/// The stored OpenAI(-compatible) API key, or null. Invalidate after changing.
+final openAiKeyProvider = FutureProvider<String?>(
+    (ref) => ref.read(secureStoreProvider).openaiKey);
+
 final authRepositoryProvider = Provider<AuthRepository>(
   (ref) => AuthRepository(ref.watch(secureStoreProvider)),
 );
