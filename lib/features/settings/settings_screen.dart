@@ -443,11 +443,12 @@ class _SettingsListState extends ConsumerState<SettingsList> {
 
   Future<void> _backupData(BuildContext context, WidgetRef ref) async {
     final messenger = ScaffoldMessenger.of(context);
-    Rect? origin;
-    final box = context.findRenderObject();
-    if (box is RenderBox && box.hasSize) {
-      origin = box.localToGlobal(Offset.zero) & box.size;
-    }
+    // Anchor the iOS/iPad share popover to a valid on-screen rect. (Using the
+    // settings ListView's render box gave an off-screen rect when scrolled,
+    // which iOS rejects.)
+    final size = MediaQuery.of(context).size;
+    final origin =
+        Rect.fromCenter(center: size.center(Offset.zero), width: 40, height: 40);
     try {
       final json = Backup.export(ref.read(sharedPrefsProvider));
       final path = await Backup.writeTempFile(json);
