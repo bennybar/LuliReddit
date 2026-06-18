@@ -2,7 +2,7 @@ name: luli_for_reddit
 description: "A Material 3 Expressive Reddit client built with Flutter."
 publish_to: 'none'
 
-version: 1.0.28+28
+version: 1.0.29+29
 
 environment:
   sdk: ^3.9.2
@@ -39,7 +39,6 @@ dependencies:
   cached_network_image: ^3.4.1
   photo_view: ^0.15.0
   video_player: ^2.9.2
-  chewie: ^1.8.5
   flutter_markdown: ^0.7.4+3
   url_launcher: ^6.3.1
   image_picker: ^1.1.2

@@ -12,6 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/format.dart';
 import '../../core/providers.dart';
 import '../../core/share.dart';
+import '../../core/widgets/markdown_style.dart';
 import '../../data/ai_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/comment.dart';
@@ -786,6 +787,7 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
             MarkdownBody(
               data: p.selftext,
               selectable: true,
+              styleSheet: redditMarkdownStyle(context),
               onTapLink: (_, href, __) {
                 if (href != null) {
                   launchUrl(Uri.parse(href),
@@ -865,8 +867,9 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
         ),
       );
     }
-    final url =
-        p.previewUrl ?? (p.gallery.isNotEmpty ? p.gallery.first.url : null);
+    final url = p.previewUrl ??
+        ((p.type == PostType.image || p.type == PostType.gif) ? p.url : null) ??
+        (p.gallery.isNotEmpty ? p.gallery.first.url : null);
     final aspect = (p.previewWidth != null &&
             p.previewHeight != null &&
             p.previewHeight! > 0)
@@ -1106,12 +1109,7 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
               child: MarkdownBody(
                 data: comment.body,
                 selectable: true,
-                styleSheet: MarkdownStyleSheet(
-                  p: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(fontSize: 15, height: 1.45),
-                ),
+                styleSheet: redditMarkdownStyle(context),
                 onTapLink: (_, href, __) {
                   if (href != null) {
                     launchUrl(Uri.parse(href),

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/deep_links.dart';
 import '../../core/format.dart';
 import '../../core/providers.dart';
+import '../../core/widgets/markdown_style.dart';
 import '../../models/comment.dart';
 import '../../models/post.dart';
 import '../auth/auth_controller.dart';
@@ -238,7 +239,8 @@ class _SavedComment extends StatelessWidget {
                 ),
               ]),
               const SizedBox(height: 6),
-              MarkdownBody(data: comment.body),
+              MarkdownBody(
+                  data: comment.body, styleSheet: redditMarkdownStyle(context)),
             ],
           ),
         ),

@@ -141,13 +141,23 @@ PostType _detectType(Map<String, dynamic> d, bool isVideo, bool hasGallery) {
   final hint = d['post_hint'] as String?;
   if (hint == 'image') return PostType.image;
   if (hint == 'rich:video' || hint == 'hosted:video') return PostType.video;
-  final url = (d['url'] as String? ?? '').toLowerCase();
-  if (url.endsWith('.gif')) return PostType.gif;
-  if (url.endsWith('.jpg') || url.endsWith('.jpeg') || url.endsWith('.png') ||
-      url.endsWith('.webp')) {
+  final rawUrl = (d['url'] as String? ?? '');
+  // Check the path without query params — e.g. preview.redd.it links end with
+  // `.png?width=…&s=…`, so a plain endsWith('.png') misses them.
+  final path = (Uri.tryParse(rawUrl)?.path ?? rawUrl).toLowerCase();
+  if (path.endsWith('.gif')) return PostType.gif;
+  if (path.endsWith('.jpg') || path.endsWith('.jpeg') ||
+      path.endsWith('.png') || path.endsWith('.webp')) {
     return PostType.image;
   }
-  if (url.endsWith('.gifv') || url.endsWith('.mp4')) return PostType.video;
+  if (path.endsWith('.gifv') || path.endsWith('.mp4')) return PostType.video;
+  // Direct image-host links without a file extension in the path.
+  final host = (Uri.tryParse(rawUrl)?.host ?? '').toLowerCase();
+  if (host == 'i.redd.it' ||
+      host == 'preview.redd.it' ||
+      host == 'i.imgur.com') {
+    return PostType.image;
+  }
   return PostType.link;
 }
 

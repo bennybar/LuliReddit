@@ -1,0 +1,5 @@
+- Video player: a draggable seek bar (thicker, raised), -10s/+10s, and tapping
+  the video now only shows/hides the controls — it never resumes a paused video.
+- Fix: direct image links (e.g. preview.redd.it) now show inline instead of as
+  a raw URL.
+- Fix: quoted text in comments is now readable (was low-contrast on a light box).

@@ -6,6 +6,7 @@ import '../../core/drafts.dart';
 import '../../core/format.dart';
 import '../../core/network/catbox.dart';
 import '../../core/providers.dart';
+import '../../core/widgets/markdown_style.dart';
 import '../../models/inbox_item.dart';
 import '../auth/auth_controller.dart';
 import '../media/attachment.dart';
@@ -183,8 +184,7 @@ class _MessageThreadScreenState extends ConsumerState<MessageThreadScreen> {
                         MarkdownBody(
                           data: m.body,
                           selectable: true,
-                          styleSheet: MarkdownStyleSheet(
-                              p: Theme.of(context).textTheme.bodyMedium),
+                          styleSheet: redditMarkdownStyle(context, fontSize: 14),
                         ),
                       ],
                     ),

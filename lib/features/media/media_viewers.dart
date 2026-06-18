@@ -1,7 +1,7 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:chewie/chewie.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
@@ -466,8 +466,9 @@ class _VideoViewer extends StatefulWidget {
 
 class _VideoViewerState extends State<_VideoViewer> {
   VideoPlayerController? _video;
-  ChewieController? _chewie;
   String? _error;
+  bool _controls = true;
+  Timer? _hideTimer;
 
   @override
   void initState() {
@@ -481,34 +482,60 @@ class _VideoViewerState extends State<_VideoViewer> {
       final v = VideoPlayerController.networkUrl(Uri.parse(widget.url));
       await v.initialize();
       if (!mounted) return;
-      setState(() {
-        _video = v;
-        _chewie = ChewieController(
-          videoPlayerController: v,
-          autoPlay: true,
-          looping: true,
-          aspectRatio: v.value.aspectRatio,
-          // Lift the control bar above the home indicator / our top buttons.
-          controlsSafeAreaMinimum:
-              const EdgeInsets.only(left: 8, right: 8, bottom: 28, top: 56),
-          // iOS gets the larger, touch-friendly Cupertino scrubber/buttons.
-          customControls: Platform.isIOS
-              ? const CupertinoControls(
-                  backgroundColor: Color(0xB2000000),
-                  iconColor: Colors.white,
-                )
-              : const MaterialControls(),
-        );
-      });
+      await v.setLooping(true);
+      await v.play();
+      setState(() => _video = v);
+      _scheduleHide();
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
     }
   }
 
+  void _scheduleHide() {
+    _hideTimer?.cancel();
+    // Only auto-hide while playing; keep controls up when paused.
+    if (_video?.value.isPlaying ?? false) {
+      _hideTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) setState(() => _controls = false);
+      });
+    }
+  }
+
+  // Tapping the video only toggles the overlay — it never changes play state.
+  void _toggleControls() {
+    setState(() => _controls = !_controls);
+    if (_controls) _scheduleHide();
+  }
+
+  void _togglePlay() {
+    final v = _video;
+    if (v == null) return;
+    setState(() => v.value.isPlaying ? v.pause() : v.play());
+    _scheduleHide();
+  }
+
+  Future<void> _seekBy(int seconds) async {
+    final v = _video;
+    if (v == null) return;
+    final target = v.value.position + Duration(seconds: seconds);
+    final max = v.value.duration;
+    await v.seekTo(target < Duration.zero
+        ? Duration.zero
+        : (target > max ? max : target));
+    _scheduleHide();
+  }
+
+  static String _fmt(Duration d) {
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    final h = d.inHours;
+    return h > 0 ? '$h:$m:$s' : '$m:$s';
+  }
+
   @override
   void dispose() {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    _chewie?.dispose();
+    _hideTimer?.cancel();
     _video?.dispose();
     super.dispose();
   }
@@ -542,28 +569,139 @@ class _VideoViewerState extends State<_VideoViewer> {
 
   @override
   Widget build(BuildContext context) {
+    final v = _video;
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          Center(
-            child: _error != null
-                ? _errorView(context)
-                : _chewie == null
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : Chewie(controller: _chewie!),
-          ),
-          _ViewerControls(
-            title: widget.title,
-            sourceUrl: widget.url,
-            downloadUrl: (widget.downloadUrl != null &&
-                    !widget.downloadUrl!.contains('.m3u8'))
-                ? widget.downloadUrl
-                : null,
-            downloadIsVideo: true,
-          ),
+          if (_error != null)
+            Center(child: _errorView(context))
+          else if (v == null)
+            const Center(child: CircularProgressIndicator(color: Colors.white))
+          else
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _toggleControls,
+                child: Center(
+                  child: AspectRatio(
+                    aspectRatio: v.value.aspectRatio,
+                    child: VideoPlayer(v),
+                  ),
+                ),
+              ),
+            ),
+          // Playback controls overlay (tap the video to show/hide).
+          if (v != null)
+            AnimatedOpacity(
+              opacity: _controls ? 1 : 0,
+              duration: const Duration(milliseconds: 150),
+              child: IgnorePointer(
+                ignoring: !_controls,
+                child: _videoControls(v),
+              ),
+            ),
+          if (_controls || _error != null)
+            _ViewerControls(
+              title: widget.title,
+              sourceUrl: widget.url,
+              downloadUrl: (widget.downloadUrl != null &&
+                      !widget.downloadUrl!.contains('.m3u8'))
+                  ? widget.downloadUrl
+                  : null,
+              downloadIsVideo: true,
+            ),
           const _EdgeBack(),
         ],
+      ),
+    );
+  }
+
+  Widget _videoControls(VideoPlayerController v) {
+    return Stack(
+      children: [
+        // Center transport: −10s · play/pause · +10s.
+        Positioned.fill(
+          child: Container(
+            color: Colors.black26,
+            child: ValueListenableBuilder<VideoPlayerValue>(
+              valueListenable: v,
+              builder: (_, value, __) => Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _circleBtn(Icons.replay_10_rounded, () => _seekBy(-10)),
+                  const SizedBox(width: 28),
+                  _circleBtn(
+                      value.isPlaying
+                          ? Icons.pause_rounded
+                          : Icons.play_arrow_rounded,
+                      _togglePlay,
+                      big: true),
+                  const SizedBox(width: 28),
+                  _circleBtn(Icons.forward_10_rounded, () => _seekBy(10)),
+                ],
+              ),
+            ),
+          ),
+        ),
+        // Bottom: time + draggable scrubber.
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+              child: ValueListenableBuilder<VideoPlayerValue>(
+                valueListenable: v,
+                builder: (_, value, __) => Row(
+                  children: [
+                    Text(_fmt(value.position),
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 12)),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: SizedBox(
+                          height: 26,
+                          child: VideoProgressIndicator(
+                            v,
+                            allowScrubbing: true,
+                            // height − 2×vertical padding = ~8px thick bar.
+                            padding: const EdgeInsets.symmetric(vertical: 9),
+                            colors: const VideoProgressColors(
+                              playedColor: Colors.white,
+                              bufferedColor: Colors.white38,
+                              backgroundColor: Colors.white24,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Text(_fmt(value.duration),
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _circleBtn(IconData icon, VoidCallback onTap, {bool big = false}) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        width: big ? 72 : 56,
+        height: big ? 72 : 56,
+        decoration: const BoxDecoration(
+            color: Colors.black45, shape: BoxShape.circle),
+        child: Icon(icon, color: Colors.white, size: big ? 40 : 28),
       ),
     );
   }

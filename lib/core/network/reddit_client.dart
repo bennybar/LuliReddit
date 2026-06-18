@@ -15,7 +15,6 @@ import 'response_cache.dart';
 class RedditClient {
   RedditClient(
     this._store,
-
     this._auth, {
     this.onRateLimit,
     this.cacheEnabled,

@@ -98,8 +98,6 @@ PODS:
   - video_thumbnail (0.0.1):
     - Flutter
     - libwebp
-  - wakelock_plus (0.0.1):
-    - Flutter
   - workmanager_apple (0.0.1):
     - Flutter
 
@@ -124,7 +122,6 @@ DEPENDENCIES:
   - url_launcher_ios (from `.symlinks/plugins/url_launcher_ios/ios`)
   - video_player_avfoundation (from `.symlinks/plugins/video_player_avfoundation/darwin`)
   - video_thumbnail (from `.symlinks/plugins/video_thumbnail/ios`)
-  - wakelock_plus (from `.symlinks/plugins/wakelock_plus/ios`)
   - workmanager_apple (from `.symlinks/plugins/workmanager_apple/ios`)
 
 SPEC REPOS:
@@ -177,8 +174,6 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/video_player_avfoundation/darwin"
   video_thumbnail:
     :path: ".symlinks/plugins/video_thumbnail/ios"
-  wakelock_plus:
-    :path: ".symlinks/plugins/wakelock_plus/ios"
   workmanager_apple:
     :path: ".symlinks/plugins/workmanager_apple/ios"
 
@@ -209,7 +204,6 @@ SPEC CHECKSUMS:
   url_launcher_ios: 7a95fa5b60cc718a708b8f2966718e93db0cef1b
   video_player_avfoundation: dd410b52df6d2466a42d28550e33e4146928280a
   video_thumbnail: b637e0ad5f588ca9945f6e2c927f73a69a661140
-  wakelock_plus: e29112ab3ef0b318e58cfa5c32326458be66b556
   workmanager_apple: 904529ae31e97fc5be632cf628507652294a0778
 
 PODFILE CHECKSUM: 915e58fd71f05ae99fabdd8ac2991c68108b3464
