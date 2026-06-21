@@ -783,7 +783,9 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
             Text('Vote in the official app',
                 style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
           ],
-          if (p.isSelf && p.selftext.isNotEmpty)
+          // Gallery/image/link posts can carry a body too — show it whenever
+          // there's selftext, not only for pure self-posts.
+          if (p.selftext.isNotEmpty)
             MarkdownBody(
               data: p.selftext,
               selectable: true,

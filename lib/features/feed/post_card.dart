@@ -303,7 +303,7 @@ class _PostCardState extends ConsumerState<PostCard> {
               ],
               const SizedBox(height: 12),
               _media(cs),
-              if (p.isSelf && p.selftext.isNotEmpty) ...[
+              if (p.selftext.isNotEmpty) ...[
                 const SizedBox(height: 4),
                 Text(
                   p.selftext,
@@ -352,7 +352,7 @@ class _PostCardState extends ConsumerState<PostCard> {
               ],
               const SizedBox(height: 12),
               _bannerMedia(cs, 180),
-              if (p.isSelf && p.selftext.isNotEmpty) ...[
+              if (p.selftext.isNotEmpty) ...[
                 const SizedBox(height: 4),
                 Text(
                   p.selftext,

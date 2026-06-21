@@ -1,0 +1,2 @@
+- Fix: posts that have both images and text (e.g. gallery posts with a
+  description) now show their body — previously only text-only posts did.
