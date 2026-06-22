@@ -52,6 +52,7 @@ class Post with _$Post {
     int? previewHeight,
     String? hlsUrl,
     String? fallbackVideoUrl,
+    String? gifMp4Url, // reddit's mp4 variant for GIF posts (much smaller)
     @Default(<GalleryImage>[]) List<GalleryImage> gallery,
     // vote state: true=up, false=down, null=none
     bool? likes,
@@ -104,6 +105,9 @@ class Post with _$Post {
       previewHeight: preview?.height,
       hlsUrl: redditVideo?['hls_url'] as String?,
       fallbackVideoUrl: redditVideo?['fallback_url'] as String?,
+      gifMp4Url:
+          _m(_m(d['preview'])?['reddit_video_preview'])?['fallback_url']
+              as String?,
       gallery: gallery,
       likes: d['likes'] as bool?,
     );

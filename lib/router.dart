@@ -53,24 +53,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (atLogin) return '/';
       return null;
     },
-    errorBuilder: (context, state) => Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Page not found', style: TextStyle(fontSize: 18)),
-              const SizedBox(height: 12),
-              FilledButton(
-                onPressed: () => context.go('/'),
-                child: const Text('Home'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    ),
+    // Fires whenever a location can't be matched (e.g. a reddit.com deep link
+    // delivered by the OS). Map reddit/redd.it URLs to the right in-app screen;
+    // otherwise just go home — never show the raw "no routes" error.
+    onException: (context, state, router) {
+      final host = state.uri.host.toLowerCase();
+      final isReddit = host == 'redd.it' ||
+          host == 'reddit.com' ||
+          host.endsWith('.reddit.com');
+      router.go(isReddit ? (routeForRedditUrl(state.uri) ?? '/') : '/');
+    },
     routes: [
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
       GoRoute(path: '/', builder: (_, __) => const HomeShell()),

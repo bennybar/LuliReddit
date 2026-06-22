@@ -54,6 +54,8 @@ mixin _$Post {
   int? get previewHeight => throw _privateConstructorUsedError;
   String? get hlsUrl => throw _privateConstructorUsedError;
   String? get fallbackVideoUrl => throw _privateConstructorUsedError;
+  String? get gifMp4Url =>
+      throw _privateConstructorUsedError; // reddit's mp4 variant for GIF posts (much smaller)
   List<GalleryImage> get gallery =>
       throw _privateConstructorUsedError; // vote state: true=up, false=down, null=none
   bool? get likes => throw _privateConstructorUsedError;
@@ -104,6 +106,7 @@ abstract class $PostCopyWith<$Res> {
     int? previewHeight,
     String? hlsUrl,
     String? fallbackVideoUrl,
+    String? gifMp4Url,
     List<GalleryImage> gallery,
     bool? likes,
   });
@@ -158,6 +161,7 @@ class _$PostCopyWithImpl<$Res, $Val extends Post>
     Object? previewHeight = freezed,
     Object? hlsUrl = freezed,
     Object? fallbackVideoUrl = freezed,
+    Object? gifMp4Url = freezed,
     Object? gallery = null,
     Object? likes = freezed,
   }) {
@@ -299,6 +303,10 @@ class _$PostCopyWithImpl<$Res, $Val extends Post>
                 ? _value.fallbackVideoUrl
                 : fallbackVideoUrl // ignore: cast_nullable_to_non_nullable
                       as String?,
+            gifMp4Url: freezed == gifMp4Url
+                ? _value.gifMp4Url
+                : gifMp4Url // ignore: cast_nullable_to_non_nullable
+                      as String?,
             gallery: null == gallery
                 ? _value.gallery
                 : gallery // ignore: cast_nullable_to_non_nullable
@@ -356,6 +364,7 @@ abstract class _$$PostImplCopyWith<$Res> implements $PostCopyWith<$Res> {
     int? previewHeight,
     String? hlsUrl,
     String? fallbackVideoUrl,
+    String? gifMp4Url,
     List<GalleryImage> gallery,
     bool? likes,
   });
@@ -407,6 +416,7 @@ class __$$PostImplCopyWithImpl<$Res>
     Object? previewHeight = freezed,
     Object? hlsUrl = freezed,
     Object? fallbackVideoUrl = freezed,
+    Object? gifMp4Url = freezed,
     Object? gallery = null,
     Object? likes = freezed,
   }) {
@@ -548,6 +558,10 @@ class __$$PostImplCopyWithImpl<$Res>
             ? _value.fallbackVideoUrl
             : fallbackVideoUrl // ignore: cast_nullable_to_non_nullable
                   as String?,
+        gifMp4Url: freezed == gifMp4Url
+            ? _value.gifMp4Url
+            : gifMp4Url // ignore: cast_nullable_to_non_nullable
+                  as String?,
         gallery: null == gallery
             ? _value._gallery
             : gallery // ignore: cast_nullable_to_non_nullable
@@ -599,6 +613,7 @@ class _$PostImpl extends _Post {
     this.previewHeight,
     this.hlsUrl,
     this.fallbackVideoUrl,
+    this.gifMp4Url,
     final List<GalleryImage> gallery = const <GalleryImage>[],
     this.likes,
   }) : _pollOptions = pollOptions,
@@ -694,7 +709,11 @@ class _$PostImpl extends _Post {
   final String? hlsUrl;
   @override
   final String? fallbackVideoUrl;
+  @override
+  final String? gifMp4Url;
+  // reddit's mp4 variant for GIF posts (much smaller)
   final List<GalleryImage> _gallery;
+  // reddit's mp4 variant for GIF posts (much smaller)
   @override
   @JsonKey()
   List<GalleryImage> get gallery {
@@ -709,7 +728,7 @@ class _$PostImpl extends _Post {
 
   @override
   String toString() {
-    return 'Post(id: $id, fullname: $fullname, title: $title, subreddit: $subreddit, subredditPrefixed: $subredditPrefixed, author: $author, score: $score, numComments: $numComments, upvoteRatio: $upvoteRatio, created: $created, permalink: $permalink, url: $url, domain: $domain, type: $type, isSelf: $isSelf, selftext: $selftext, over18: $over18, spoiler: $spoiler, stickied: $stickied, locked: $locked, saved: $saved, canModPost: $canModPost, linkFlairText: $linkFlairText, distinguished: $distinguished, feedReason: $feedReason, crosspostFrom: $crosspostFrom, pollOptions: $pollOptions, thumbnailUrl: $thumbnailUrl, previewUrl: $previewUrl, previewMedUrl: $previewMedUrl, previewWidth: $previewWidth, previewHeight: $previewHeight, hlsUrl: $hlsUrl, fallbackVideoUrl: $fallbackVideoUrl, gallery: $gallery, likes: $likes)';
+    return 'Post(id: $id, fullname: $fullname, title: $title, subreddit: $subreddit, subredditPrefixed: $subredditPrefixed, author: $author, score: $score, numComments: $numComments, upvoteRatio: $upvoteRatio, created: $created, permalink: $permalink, url: $url, domain: $domain, type: $type, isSelf: $isSelf, selftext: $selftext, over18: $over18, spoiler: $spoiler, stickied: $stickied, locked: $locked, saved: $saved, canModPost: $canModPost, linkFlairText: $linkFlairText, distinguished: $distinguished, feedReason: $feedReason, crosspostFrom: $crosspostFrom, pollOptions: $pollOptions, thumbnailUrl: $thumbnailUrl, previewUrl: $previewUrl, previewMedUrl: $previewMedUrl, previewWidth: $previewWidth, previewHeight: $previewHeight, hlsUrl: $hlsUrl, fallbackVideoUrl: $fallbackVideoUrl, gifMp4Url: $gifMp4Url, gallery: $gallery, likes: $likes)';
   }
 
   @override
@@ -773,6 +792,8 @@ class _$PostImpl extends _Post {
             (identical(other.hlsUrl, hlsUrl) || other.hlsUrl == hlsUrl) &&
             (identical(other.fallbackVideoUrl, fallbackVideoUrl) ||
                 other.fallbackVideoUrl == fallbackVideoUrl) &&
+            (identical(other.gifMp4Url, gifMp4Url) ||
+                other.gifMp4Url == gifMp4Url) &&
             const DeepCollectionEquality().equals(other._gallery, _gallery) &&
             (identical(other.likes, likes) || other.likes == likes));
   }
@@ -814,6 +835,7 @@ class _$PostImpl extends _Post {
     previewHeight,
     hlsUrl,
     fallbackVideoUrl,
+    gifMp4Url,
     const DeepCollectionEquality().hash(_gallery),
     likes,
   ]);
@@ -863,6 +885,7 @@ abstract class _Post extends Post {
     final int? previewHeight,
     final String? hlsUrl,
     final String? fallbackVideoUrl,
+    final String? gifMp4Url,
     final List<GalleryImage> gallery,
     final bool? likes,
   }) = _$PostImpl;
@@ -936,6 +959,8 @@ abstract class _Post extends Post {
   String? get hlsUrl;
   @override
   String? get fallbackVideoUrl;
+  @override
+  String? get gifMp4Url; // reddit's mp4 variant for GIF posts (much smaller)
   @override
   List<GalleryImage> get gallery; // vote state: true=up, false=down, null=none
   @override

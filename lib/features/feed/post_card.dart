@@ -93,8 +93,15 @@ class _PostCardState extends ConsumerState<PostCard> {
     }
     switch (p.type) {
       case PostType.image:
-      case PostType.gif:
         openImageViewer(context, p.previewUrl ?? p.url, title: p.title);
+      case PostType.gif:
+        // Play reddit's mp4 variant (small, loops); else the animated .gif.
+        if (p.gifMp4Url != null) {
+          openVideoViewer(context, p.gifMp4Url!,
+              title: p.title, downloadUrl: p.gifMp4Url, externalUrl: p.url);
+        } else {
+          openImageViewer(context, p.url, title: p.title);
+        }
       case PostType.gallery:
         openGalleryViewer(context, p.gallery, title: p.title);
       case PostType.video:
@@ -501,8 +508,14 @@ class _PostCardState extends ConsumerState<PostCard> {
                     )
                   else
                     Container(color: cs.surfaceContainerHighest),
-                  if (p.type == PostType.video)
+                  if (p.type == PostType.video || p.type == PostType.gif)
                     const Center(child: _PlayBadge()),
+                  if (p.type == PostType.gif)
+                    const Positioned(
+                      top: 8,
+                      right: 8,
+                      child: _Pill(icon: Icons.gif_rounded, label: 'GIF'),
+                    ),
                   if (p.type == PostType.gallery)
                     Positioned(
                       top: 8,

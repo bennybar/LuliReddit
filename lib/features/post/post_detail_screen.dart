@@ -698,8 +698,14 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
     final p = widget.post;
     switch (p.type) {
       case PostType.image:
-      case PostType.gif:
         openImageViewer(context, p.previewUrl ?? p.url, title: p.title);
+      case PostType.gif:
+        if (p.gifMp4Url != null) {
+          openVideoViewer(context, p.gifMp4Url!,
+              title: p.title, downloadUrl: p.gifMp4Url, externalUrl: p.url);
+        } else {
+          openImageViewer(context, p.url, title: p.title);
+        }
       case PostType.gallery:
         openGalleryViewer(context, p.gallery, title: p.title);
       case PostType.video:
