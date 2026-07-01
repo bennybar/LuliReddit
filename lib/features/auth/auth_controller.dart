@@ -1,7 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/storage/secure_store.dart';
+import '../settings/settings_controller.dart' show sharedPrefsProvider;
 import 'auth_repository.dart';
+
+/// Durable "an account exists on this device" flag, kept in plain prefs so the
+/// router can tell a real logout apart from a transient keychain read failure
+/// (which must not bounce the user to the login screen). See [router].
+const kHasAccountPref = 'has_account';
 
 final secureStoreProvider = Provider<SecureStore>((ref) => SecureStore());
 
@@ -65,6 +71,7 @@ class AuthController extends AsyncNotifier<AuthSession?> {
       if (!accounts.contains(username)) {
         await _store.upsertWebAccount(username, cookie, await _store.webModhash);
       }
+      _setHasAccount(true);
       return AuthSession(username: username);
     }
     // OAuth (default).
@@ -78,13 +85,21 @@ class AuthController extends AsyncNotifier<AuthSession?> {
         await _store.upsertAccount(username, refresh);
       }
     }
+    _setHasAccount(true);
     return AuthSession(username: username);
+  }
+
+  void _setHasAccount(bool v) {
+    try {
+      ref.read(sharedPrefsProvider).setBool(kHasAccountPref, v);
+    } catch (_) {/* prefs not ready — ignore */}
   }
 
   /// Website-session login (no API key). [cookie] is captured by the WebView.
   Future<void> loginWithWebSession(String cookie) async {
     final r = await _repo.completeWebLogin(cookie);
     await _store.upsertWebAccount(r.username, cookie, r.modhash);
+    _setHasAccount(true);
     state = AsyncData(AuthSession(username: r.username));
   }
 
@@ -99,6 +114,7 @@ class AuthController extends AsyncNotifier<AuthSession?> {
         clientId: clientId, redirectUri: redirectUri, ephemeral: ephemeral);
     final rt = await _store.refreshToken;
     if (rt != null) await _store.upsertAccount(username, rt);
+    _setHasAccount(true);
     state = AsyncData(AuthSession(username: username));
   }
 
@@ -133,6 +149,7 @@ class AuthController extends AsyncNotifier<AuthSession?> {
     if (remaining.isEmpty) {
       await _store.clearSession();
       await _store.clearAccounts();
+      _setHasAccount(false);
       state = const AsyncData(null);
     } else {
       await _store.activateAccount(remaining.first);
@@ -144,6 +161,7 @@ class AuthController extends AsyncNotifier<AuthSession?> {
   Future<void> logout() async {
     await _store.clearSession();
     await _store.clearAccounts();
+    _setHasAccount(false);
     state = const AsyncData(null);
   }
 }

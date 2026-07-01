@@ -8,6 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/deep_links.dart';
 import 'core/theme/app_theme.dart';
+import 'features/auth/auth_controller.dart';
+import 'features/inbox/inbox_controller.dart';
 import 'features/notifications/notification_service.dart';
 import 'features/settings/settings_controller.dart';
 import 'router.dart';
@@ -19,13 +21,14 @@ class LuliApp extends ConsumerStatefulWidget {
   ConsumerState<LuliApp> createState() => _LuliAppState();
 }
 
-class _LuliAppState extends ConsumerState<LuliApp> {
+class _LuliAppState extends ConsumerState<LuliApp> with WidgetsBindingObserver {
   final _appLinks = AppLinks();
   StreamSubscription<Uri>? _linkSub;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Warm deep links only. The cold-start link is handled by the GoRouter
     // redirect (which maps reddit URLs), so we don't open it twice.
     _linkSub = _appLinks.uriLinkStream.listen(_handleLink);
@@ -45,7 +48,20 @@ class _LuliAppState extends ConsumerState<LuliApp> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Re-read the keychain to restore auth state after a background/resume
+      // (fixes the transient sign-out), and re-sync the inbox so items read on
+      // the official app show as read here.
+      ref.invalidate(authControllerProvider);
+      ref.invalidate(inboxControllerProvider);
+      ref.invalidate(unreadCountProvider);
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _linkSub?.cancel();
     super.dispose();
   }

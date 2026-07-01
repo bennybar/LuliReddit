@@ -9,6 +9,12 @@ class SecureStore {
       : _storage = storage ??
             const FlutterSecureStorage(
               aOptions: AndroidOptions(encryptedSharedPreferences: true),
+              // `first_unlock` keeps tokens readable after the first unlock
+              // post-boot (incl. when the app is resumed/relaunched in the
+              // background), avoiding transient null reads that logged users out.
+              iOptions: IOSOptions(
+                accessibility: KeychainAccessibility.first_unlock,
+              ),
             );
 
   final FlutterSecureStorage _storage;

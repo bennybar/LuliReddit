@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'core/route_observer.dart';
 import 'features/auth/auth_controller.dart';
+import 'features/settings/settings_controller.dart' show sharedPrefsProvider;
 import 'features/auth/login_screen.dart';
 import 'features/compose/compose_post_screen.dart';
 import 'features/history/history_screen.dart';
@@ -49,7 +50,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (auth.isLoading) return null;
       final loggedIn = auth.valueOrNull != null;
       final atLogin = state.matchedLocation == '/login';
-      if (!loggedIn) return atLogin ? null : '/login';
+      if (!loggedIn) {
+        // Only show login if no account is stored. A transient keychain read
+        // failure (iOS resume / network change) can momentarily null the auth
+        // state — don't bounce a known account to the login screen.
+        final hasAccount =
+            ref.read(sharedPrefsProvider).getBool(kHasAccountPref) ?? false;
+        if (hasAccount) return atLogin ? '/' : null;
+        return atLogin ? null : '/login';
+      }
       if (atLogin) return '/';
       return null;
     },

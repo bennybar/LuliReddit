@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -31,6 +32,19 @@ class PostCard extends ConsumerStatefulWidget {
 }
 
 class _PostCardState extends ConsumerState<PostCard> {
+  // Tapping the "u/author" part of the header opens their profile.
+  late final TapGestureRecognizer _authorTap = TapGestureRecognizer()
+    ..onTap = () {
+      final a = widget.post.author;
+      if (a.isNotEmpty && a != '[deleted]') context.push('/u/$a');
+    };
+
+  @override
+  void dispose() {
+    _authorTap.dispose();
+    super.dispose();
+  }
+
   // Vote / score / saved / comment-count live in the shared post-overrides
   // store (keyed by post id) so the card stays in sync with the post-detail
   // screen and survives scrolling.
@@ -616,7 +630,12 @@ class _PostCardState extends ConsumerState<PostCard> {
                     style: TextStyle(
                         fontWeight: FontWeight.w600, color: cs.onSurface),
                   ),
-                  TextSpan(text: '  ·  u/${p.author}  ·  ${timeAgo(p.created)}'),
+                  const TextSpan(text: '  ·  '),
+                  TextSpan(
+                    text: 'u/${p.author}',
+                    recognizer: _authorTap,
+                  ),
+                  TextSpan(text: '  ·  ${timeAgo(p.created)}'),
                 ],
               ),
             ),
