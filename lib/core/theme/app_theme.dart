@@ -113,7 +113,23 @@ class AppTheme {
 
   static ColorScheme _baseScheme(
       ColorScheme? dynamicScheme, Color seed, Brightness brightness) {
-    if (dynamicScheme != null) return dynamicScheme;
+    if (dynamicScheme != null) {
+      // dynamic_color builds its scheme without the M3 surface-container
+      // tones, so they all fall back to `surface` and cards, inputs and the
+      // nav blend into the background. Derive them from the wallpaper colour.
+      final tones = ColorScheme.fromSeed(
+          seedColor: dynamicScheme.primary, brightness: brightness);
+      return dynamicScheme.copyWith(
+        surface: tones.surface,
+        surfaceDim: tones.surfaceDim,
+        surfaceBright: tones.surfaceBright,
+        surfaceContainerLowest: tones.surfaceContainerLowest,
+        surfaceContainerLow: tones.surfaceContainerLow,
+        surfaceContainer: tones.surfaceContainer,
+        surfaceContainerHigh: tones.surfaceContainerHigh,
+        surfaceContainerHighest: tones.surfaceContainerHighest,
+      );
+    }
     if (seed.toARGB32() == AppTheme.seed.toARGB32()) {
       return brightness == Brightness.light ? bloomLight : bloomDark;
     }

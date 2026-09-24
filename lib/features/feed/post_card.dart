@@ -140,11 +140,7 @@ class _PostCardState extends ConsumerState<PostCard> {
       case PostType.gallery:
         openGalleryViewer(context, p.gallery, title: p.title);
       case PostType.video:
-        final src = p.hlsUrl ?? p.fallbackVideoUrl ?? resolveVideoUrl(p.url);
-        openVideoViewer(context, src,
-            title: p.title,
-            downloadUrl: p.fallbackVideoUrl ?? resolveVideoUrl(p.url),
-            externalUrl: p.url);
+        openPostVideo(context, p);
       case PostType.link:
         launchUrl(Uri.parse(p.url), mode: LaunchMode.externalApplication);
       case PostType.self:
@@ -504,7 +500,7 @@ class _PostCardState extends ConsumerState<PostCard> {
     if (p.type == PostType.video &&
         !blur &&
         ref.watch(settingsControllerProvider).autoplayMedia) {
-      final vurl = p.hlsUrl ?? p.fallbackVideoUrl ?? resolveVideoUrl(p.url);
+      final vurl = postVideoUrl(p);
       if (vurl.isNotEmpty && !vurl.toLowerCase().endsWith('.gif')) {
         return Padding(
           padding: const EdgeInsets.only(bottom: 4),

@@ -13,6 +13,8 @@ import 'package:photo_view/photo_view_gallery.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../core/media_links.dart';
+import '../../core/redgifs.dart';
 import '../../core/share.dart';
 import '../../models/post.dart';
 
@@ -67,6 +69,34 @@ void openVideoViewer(BuildContext context, String url,
       title: title,
       downloadUrl: downloadUrl,
       externalUrl: externalUrl)));
+}
+
+/// A video post's playable URL, without any network lookup: Reddit's own
+/// stream when it hosts the video, a direct file link as-is, and otherwise
+/// Reddit's mp4 copy of the embed (e.g. RedGifs), whose own URL is a web page.
+String postVideoUrl(Post p) {
+  final hosted = p.hlsUrl ?? p.fallbackVideoUrl;
+  if (hosted != null) return hosted;
+  final direct = resolveVideoUrl(p.url);
+  final uri = Uri.tryParse(direct);
+  if (uri != null && isVideoUrl(uri)) return direct;
+  return p.gifMp4Url ?? direct;
+}
+
+/// Opens a video post full-screen. RedGifs clips are resolved to their HD
+/// file (with sound) first, falling back to Reddit's silent mp4 copy.
+Future<void> openPostVideo(BuildContext context, Post p) async {
+  var src = postVideoUrl(p);
+  var download = p.fallbackVideoUrl ?? src;
+  if (p.hlsUrl == null &&
+      p.fallbackVideoUrl == null &&
+      redgifsId(p.url) != null) {
+    final hd = await resolveRedgifs(p.url);
+    if (hd != null) src = download = hd;
+    if (!context.mounted) return;
+  }
+  openVideoViewer(context, src,
+      title: p.title, downloadUrl: download, externalUrl: p.url);
 }
 
 /// Normalizes common host quirks to a directly-playable video URL

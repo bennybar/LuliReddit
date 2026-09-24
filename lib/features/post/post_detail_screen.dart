@@ -889,11 +889,7 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
       case PostType.gallery:
         openGalleryViewer(context, p.gallery, title: p.title);
       case PostType.video:
-        openVideoViewer(
-            context, p.hlsUrl ?? p.fallbackVideoUrl ?? resolveVideoUrl(p.url),
-            title: p.title,
-            downloadUrl: p.fallbackVideoUrl ?? resolveVideoUrl(p.url),
-            externalUrl: p.url);
+        openPostVideo(context, p);
       case PostType.link:
         launchUrl(Uri.parse(p.url), mode: LaunchMode.externalApplication);
       case PostType.self:

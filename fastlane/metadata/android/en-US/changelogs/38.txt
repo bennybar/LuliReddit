@@ -1,0 +1,2 @@
+- Fix: with Dynamic Color on, cards, inputs and the bottom bar now stand out from the background again.
+- RedGifs videos now play: in HD with sound when opened, with an inline preview in the feed.
