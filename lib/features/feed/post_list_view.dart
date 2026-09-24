@@ -38,10 +38,8 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
   void initState() {
     super.initState();
     _scroll.addListener(() {
-      // Page early: a fast flick covers several cards in less time than a
-      // page takes to arrive.
       if (_scroll.position.pixels >=
-          _scroll.position.maxScrollExtent - 1500) {
+          _scroll.position.maxScrollExtent - 600) {
         ref.read(feedControllerProvider(widget.feedKey).notifier).loadMore();
       }
     });
@@ -172,6 +170,13 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
               index -= 1;
               if (index < posts.length) {
                 _prefetchImages(posts, index, settings.midResThumbnails);
+                // Page early, 10 cards from the end: a fast flick covers
+                // several cards in less time than a page takes to arrive.
+                // After the frame, since loadMore updates provider state.
+                if (index >= posts.length - 10 && state.hasMore) {
+                  WidgetsBinding.instance
+                      .addPostFrameCallback((_) => notifier.loadMore());
+                }
                 return PostCard(post: posts[index]);
               }
               // footer
