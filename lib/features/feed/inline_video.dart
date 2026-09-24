@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
+import '../../core/widgets/image_decode.dart';
+
 /// A feed video that autoplays (muted, looping) while it's on screen and pauses
 /// when scrolled away. Tap opens the full-screen viewer (with sound).
 class InlineVideo extends StatefulWidget {
@@ -40,13 +42,15 @@ class _InlineVideoState extends State<InlineVideo> {
     if (mounted) setState(() => _hasFrame = true);
   }
 
-  @override
-  void initState() {
-    super.initState();
+  // The player is created only once the card is mostly on screen, not when
+  // it's built: the list builds cards ahead of the viewport, and a decoder
+  // per nearby video competing while scrolling is what made scrolling past
+  // videos stutter.
+  void _setUp() {
     final c = VideoPlayerController.networkUrl(Uri.parse(widget.url));
     _c = c;
     c.setLooping(true);
-    c.setVolume(0);
+    c.setVolume(_muted ? 0 : 1);
     c.addListener(_watchFirstFrame);
     c.initialize().then((_) {
       if (!mounted) return;
@@ -59,6 +63,10 @@ class _InlineVideoState extends State<InlineVideo> {
     final visible = info.visibleFraction > 0.6;
     if (visible == _visible) return;
     _visible = visible;
+    if (visible && _c == null) {
+      if (mounted) setState(_setUp);
+      return;
+    }
     final c = _c;
     if (c == null || !_ready) return;
     visible ? c.play() : c.pause();
@@ -87,7 +95,10 @@ class _InlineVideoState extends State<InlineVideo> {
               // The poster stays underneath; the video fades in on top once
               // it has a frame to show.
               if (widget.poster != null)
-                CachedNetworkImage(imageUrl: widget.poster!, fit: BoxFit.cover)
+                CachedNetworkImage(
+                    imageUrl: widget.poster!,
+                    fit: BoxFit.cover,
+                    memCacheWidth: feedDecodeWidth(context))
               else
                 const ColoredBox(color: Colors.black12),
               if (_ready && c != null)
@@ -104,7 +115,7 @@ class _InlineVideoState extends State<InlineVideo> {
                     ),
                   ),
                 ),
-              if (!_hasFrame)
+              if (c != null && !_hasFrame)
                 const Center(
                     child: SizedBox(
                         width: 26,

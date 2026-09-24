@@ -1,0 +1,5 @@
+- Smoother scrolling: feed images are decoded at screen size instead of full resolution.
+- Large cards now honour the mid-res thumbnails setting.
+- Feed videos only start a player once they're on screen.
+- Cheaper dimming of already-read posts.
+- NSFW/spoiler blur uses Reddit's pre-blurred image instead of a live blur.

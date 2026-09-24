@@ -48,6 +48,7 @@ class Post with _$Post {
     String? thumbnailUrl,
     String? previewUrl,
     String? previewMedUrl, // smaller resolution for feed cards
+    String? blurredPreviewUrl, // reddit's pre-blurred NSFW/spoiler variant
     int? previewWidth,
     int? previewHeight,
     String? hlsUrl,
@@ -101,6 +102,7 @@ class Post with _$Post {
       thumbnailUrl: _validThumb(d['thumbnail'] as String?),
       previewUrl: preview?.url,
       previewMedUrl: _medPreviewUrl(d) ?? preview?.url,
+      blurredPreviewUrl: _blurredPreviewUrl(d),
       previewWidth: preview?.width,
       previewHeight: preview?.height,
       hlsUrl: redditVideo?['hls_url'] as String?,
@@ -186,6 +188,24 @@ String? _validThumb(String? thumb) {
     width: (source?['width'] as num?)?.toInt(),
     height: (source?['height'] as num?)?.toInt(),
   );
+}
+
+/// Reddit's own pre-blurred copy of an NSFW (`nsfw`) or spoiler
+/// (`obfuscated`) preview. A blurred image needs little resolution, so the
+/// smallest >= 320px wide.
+String? _blurredPreviewUrl(Map<String, dynamic> d) {
+  final images = _l(_m(d['preview'])?['images']);
+  if (images == null || images.isEmpty) return null;
+  final variants = _m(_m(images.first)?['variants']);
+  final v = _m(variants?['nsfw']) ?? _m(variants?['obfuscated']);
+  if (v == null) return null;
+  for (final r in _l(v['resolutions']) ?? const []) {
+    final m = _m(r);
+    if (((m?['width'] as num?)?.toInt() ?? 0) >= 320) {
+      return m?['url'] as String?;
+    }
+  }
+  return _m(v['source'])?['url'] as String?;
 }
 
 /// A mid-resolution preview (~the smallest >= 640px wide, else the largest

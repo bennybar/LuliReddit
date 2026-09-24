@@ -34,6 +34,34 @@ void main() {
     expect(post.subredditPrefixed, 'r/flutter');
   });
 
+  test('Post.fromData picks the pre-blurred NSFW preview', () {
+    final post = Post.fromData({
+      'id': 'nsfw1',
+      'title': 'NSFW',
+      'url': 'https://i.redd.it/y.jpg',
+      'over_18': true,
+      'post_hint': 'image',
+      'preview': {
+        'images': [
+          {
+            'source': {'url': 'https://i.redd.it/y.jpg', 'width': 1920},
+            'variants': {
+              'nsfw': {
+                'source': {'url': 'https://preview.redd.it/blur-src.jpg'},
+                'resolutions': [
+                  {'url': 'https://preview.redd.it/blur-108.jpg', 'width': 108},
+                  {'url': 'https://preview.redd.it/blur-320.jpg', 'width': 320},
+                  {'url': 'https://preview.redd.it/blur-640.jpg', 'width': 640},
+                ],
+              },
+            },
+          }
+        ]
+      },
+    });
+    expect(post.blurredPreviewUrl, 'https://preview.redd.it/blur-320.jpg');
+  });
+
   test('Post.fromData detects a self post', () {
     final post = Post.fromData({
       'id': 'def',

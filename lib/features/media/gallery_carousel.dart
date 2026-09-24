@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/widgets/image_decode.dart';
 import '../../models/post.dart';
 import 'media_viewers.dart';
 
@@ -53,6 +54,7 @@ class _GalleryCarouselState extends State<GalleryCarousel> {
                 child: CachedNetworkImage(
                   imageUrl: widget.images[i].url,
                   fit: BoxFit.cover,
+                  memCacheWidth: feedDecodeWidth(context),
                   placeholder: (_, __) =>
                       Container(color: cs.surfaceContainerHighest),
                   errorWidget: (_, __, ___) => Container(

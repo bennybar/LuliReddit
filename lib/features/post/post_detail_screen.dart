@@ -1063,6 +1063,7 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
       padding: const EdgeInsets.only(bottom: 12),
       child: NsfwBlur(
         blur: blur,
+        blurredImageUrl: p.blurredPreviewUrl,
         child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
         child: GestureDetector(

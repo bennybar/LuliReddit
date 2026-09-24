@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/route_observer.dart';
 import '../../core/widgets/error_view.dart';
+import '../../core/widgets/image_decode.dart';
 import '../../data/reddit_repository.dart';
 import '../../models/post.dart';
 import '../history/history_store.dart';
@@ -66,12 +67,20 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
     super.dispose();
   }
 
-  /// Warms the image cache for the cards just below the one being built.
-  void _prefetchImages(List<Post> posts, int index, bool midRes) {
+  /// Warms the image cache for the cards just below the one being built —
+  /// same URL and decode size as the card, so the card hits the cache.
+  void _prefetchImages(List<Post> posts, int index, Settings settings) {
+    // Mini cards only show small thumbnails; not worth warming.
+    if (settings.postDisplay == PostDisplay.mini) return;
+    final width = feedDecodeWidth(context);
     for (final p in posts.skip(index + 1).take(8)) {
-      final url = midRes ? (p.previewMedUrl ?? p.previewUrl) : p.previewUrl;
+      final url = (settings.midResThumbnails
+              ? (p.previewMedUrl ?? p.previewUrl)
+              : p.previewUrl) ??
+          (p.gallery.isNotEmpty ? p.gallery.first.url : null);
       if (url == null || !_prefetched.add(url)) continue;
-      precacheImage(CachedNetworkImageProvider(url), context,
+      precacheImage(
+          ResizeImage(CachedNetworkImageProvider(url), width: width), context,
           onError: (_, __) {});
     }
   }
@@ -169,7 +178,7 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
               }
               index -= 1;
               if (index < posts.length) {
-                _prefetchImages(posts, index, settings.midResThumbnails);
+                _prefetchImages(posts, index, settings);
                 // Page early, 10 cards from the end: a fast flick covers
                 // several cards in less time than a page takes to arrive.
                 // After the frame, since loadMore updates provider state.

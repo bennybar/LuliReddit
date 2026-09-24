@@ -12,6 +12,7 @@ import 'package:visibility_detector/visibility_detector.dart';
 import '../../core/analytics.dart';
 import '../../core/format.dart';
 import '../../core/providers.dart';
+import '../../core/widgets/image_decode.dart';
 import '../../core/widgets/tap_guard.dart';
 import 'inline_video.dart';
 import 'post_overrides.dart';
@@ -159,7 +160,18 @@ class _PostCardState extends ConsumerState<PostCard> {
     };
     // Dim already-viewed posts when history tracking is on.
     if (seen && settings.trackHistory) {
-      card = Opacity(opacity: 0.55, child: card);
+      // A page-colour veil looks the same as Opacity(0.55) — the card sits on
+      // the page surface — but Opacity re-renders the whole card, images and
+      // all, into an offscreen layer on every frame it scrolls.
+      card = DecoratedBox(
+        position: DecorationPosition.foreground,
+        decoration: BoxDecoration(
+            color: Theme.of(context)
+                .colorScheme
+                .surface
+                .withValues(alpha: 0.45)),
+        child: card,
+      );
     }
     // "Why you're seeing this" banner (For You feed only).
     final reason = widget.post.feedReason;
@@ -521,6 +533,7 @@ class _PostCardState extends ConsumerState<PostCard> {
       padding: const EdgeInsets.only(bottom: 4),
       child: NsfwBlur(
         blur: blur,
+        blurredImageUrl: p.blurredPreviewUrl,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
           child: GestureDetector(
@@ -535,6 +548,7 @@ class _PostCardState extends ConsumerState<PostCard> {
                     CachedNetworkImage(
                       imageUrl: url,
                       fit: BoxFit.cover,
+                      memCacheWidth: feedDecodeWidth(context),
                       placeholder: (_, __) =>
                           Container(color: cs.surfaceContainerHighest),
                       errorWidget: (_, __, ___) =>
@@ -586,6 +600,9 @@ class _PostCardState extends ConsumerState<PostCard> {
               CachedNetworkImage(
                 imageUrl: url,
                 fit: BoxFit.cover,
+                // Cover-cropped into a square: 2× leaves room for a 2:1 image.
+                memCacheWidth:
+                    (size * MediaQuery.devicePixelRatioOf(context) * 2).round(),
                 placeholder: (_, __) =>
                     Container(color: cs.surfaceContainerHighest),
                 errorWidget: (_, __, ___) => Container(
@@ -703,11 +720,17 @@ class _PostCardState extends ConsumerState<PostCard> {
             ),
           );
         }
-        return NsfwBlur(blur: blur, child: _mediaPreview(cs));
+        return NsfwBlur(
+            blur: blur,
+            blurredImageUrl: p.blurredPreviewUrl,
+            child: _mediaPreview(cs));
       case PostType.image:
       case PostType.gif:
       case PostType.video:
-        return NsfwBlur(blur: blur, child: _mediaPreview(cs));
+        return NsfwBlur(
+            blur: blur,
+            blurredImageUrl: p.blurredPreviewUrl,
+            child: _mediaPreview(cs));
       case PostType.link:
         return _linkPreview(cs);
       case PostType.self:
@@ -717,7 +740,11 @@ class _PostCardState extends ConsumerState<PostCard> {
 
   Widget _mediaPreview(ColorScheme cs) {
     final p = widget.post;
-    final url = p.previewUrl ?? (p.gallery.isNotEmpty ? p.gallery.first.url : null);
+    // Mid-res when the data-saver setting is on, like the other layouts.
+    final preview = ref.read(settingsControllerProvider).midResThumbnails
+        ? (p.previewMedUrl ?? p.previewUrl)
+        : p.previewUrl;
+    final url = preview ?? (p.gallery.isNotEmpty ? p.gallery.first.url : null);
     final aspect = (p.previewWidth != null &&
             p.previewHeight != null &&
             p.previewHeight! > 0)
@@ -738,6 +765,7 @@ class _PostCardState extends ConsumerState<PostCard> {
                   CachedNetworkImage(
                     imageUrl: url,
                     fit: BoxFit.cover,
+                    memCacheWidth: feedDecodeWidth(context),
                     placeholder: (_, __) =>
                         Container(color: cs.surfaceContainerHighest),
                     errorWidget: (_, __, ___) => Container(
