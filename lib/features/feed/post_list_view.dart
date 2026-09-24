@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/route_observer.dart';
 import '../../core/widgets/error_view.dart';
 import '../../data/reddit_repository.dart';
+import '../../models/post.dart';
 import '../history/history_store.dart';
 import '../settings/settings_controller.dart';
 import 'content_filters.dart';
@@ -30,13 +32,16 @@ class PostListView extends ConsumerStatefulWidget {
 class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
   final _scroll = ScrollController();
   final _refreshKey = GlobalKey<RefreshIndicatorState>();
+  final _prefetched = <String>{};
 
   @override
   void initState() {
     super.initState();
     _scroll.addListener(() {
+      // Page early: a fast flick covers several cards in less time than a
+      // page takes to arrive.
       if (_scroll.position.pixels >=
-          _scroll.position.maxScrollExtent - 600) {
+          _scroll.position.maxScrollExtent - 1500) {
         ref.read(feedControllerProvider(widget.feedKey).notifier).loadMore();
       }
     });
@@ -61,6 +66,16 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
     appRouteObserver.unsubscribe(this);
     _scroll.dispose();
     super.dispose();
+  }
+
+  /// Warms the image cache for the cards just below the one being built.
+  void _prefetchImages(List<Post> posts, int index, bool midRes) {
+    for (final p in posts.skip(index + 1).take(8)) {
+      final url = midRes ? (p.previewMedUrl ?? p.previewUrl) : p.previewUrl;
+      if (url == null || !_prefetched.add(url)) continue;
+      precacheImage(CachedNetworkImageProvider(url), context,
+          onError: (_, __) {});
+    }
   }
 
   void _scrollToTopOrRefresh() {
@@ -156,6 +171,7 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
               }
               index -= 1;
               if (index < posts.length) {
+                _prefetchImages(posts, index, settings.midResThumbnails);
                 return PostCard(post: posts[index]);
               }
               // footer

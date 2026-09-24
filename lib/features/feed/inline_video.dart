@@ -28,6 +28,17 @@ class _InlineVideoState extends State<InlineVideo> {
   bool _ready = false;
   bool _muted = true;
   bool _visible = false;
+  // The first frame has been decoded. Until then the video surface is blank,
+  // so swapping the poster out as soon as the controller initialises made the
+  // card flash empty for a moment as it scrolled in.
+  bool _hasFrame = false;
+
+  void _watchFirstFrame() {
+    final c = _c;
+    if (c == null || _hasFrame || c.value.position <= Duration.zero) return;
+    c.removeListener(_watchFirstFrame);
+    if (mounted) setState(() => _hasFrame = true);
+  }
 
   @override
   void initState() {
@@ -36,6 +47,7 @@ class _InlineVideoState extends State<InlineVideo> {
     _c = c;
     c.setLooping(true);
     c.setVolume(0);
+    c.addListener(_watchFirstFrame);
     c.initialize().then((_) {
       if (!mounted) return;
       setState(() => _ready = true);
@@ -72,21 +84,27 @@ class _InlineVideoState extends State<InlineVideo> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              if (_ready && c != null)
-                FittedBox(
-                  fit: BoxFit.cover,
-                  clipBehavior: Clip.hardEdge,
-                  child: SizedBox(
-                    width: c.value.size.width,
-                    height: c.value.size.height,
-                    child: VideoPlayer(c),
-                  ),
-                )
-              else if (widget.poster != null)
+              // The poster stays underneath; the video fades in on top once
+              // it has a frame to show.
+              if (widget.poster != null)
                 CachedNetworkImage(imageUrl: widget.poster!, fit: BoxFit.cover)
               else
                 const ColoredBox(color: Colors.black12),
-              if (!_ready)
+              if (_ready && c != null)
+                AnimatedOpacity(
+                  opacity: _hasFrame ? 1 : 0,
+                  duration: const Duration(milliseconds: 150),
+                  child: FittedBox(
+                    fit: BoxFit.cover,
+                    clipBehavior: Clip.hardEdge,
+                    child: SizedBox(
+                      width: c.value.size.width,
+                      height: c.value.size.height,
+                      child: VideoPlayer(c),
+                    ),
+                  ),
+                ),
+              if (!_hasFrame)
                 const Center(
                     child: SizedBox(
                         width: 26,

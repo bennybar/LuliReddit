@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 
 import '../core/network/catbox.dart';
 import '../core/network/reddit_client.dart';
+import '../features/history/interest_store.dart' show titleKeywords;
 import '../models/comment.dart';
 import '../models/flair.dart';
 import '../models/inbox_item.dart';
@@ -91,19 +92,10 @@ class RedditRepository {
     String? cursors, // JSON cursor bundle from a previous page's `after`
     Set<String> excludeIds = const {},
   }) async {
-    // Your communities are the backbone of the feed.
-    List<Subreddit> mySubs = const [];
-    try {
-      mySubs = await getSubscribedSubreddits();
-    } catch (_) {}
-    final favourites = {
-      for (final s in mySubs)
-        if (s.userHasFavorited) s.name.toLowerCase()
-    };
-    final subscribed = {for (final s in mySubs) s.name.toLowerCase()};
     double interestOf(String sub) => interest[sub.toLowerCase()] ?? 0;
 
-    // Subreddits you engage with most (learned on-device), even if not favourited.
+    // Subreddits you engage with most (learned on-device), even if not
+    // favourited. Local data, so known before any request goes out.
     final topInterest = (interest.entries.where((e) => e.value >= 2).toList()
           ..sort((a, b) => b.value.compareTo(a.value)))
         .take(5)
@@ -130,6 +122,12 @@ class RedditRepository {
     final risingAfter = prev['rising'] as String?;
     final popularAfter = prev['popular'] as String?;
 
+    // Every request that doesn't need the subscription list starts now,
+    // alongside it. Awaiting the list first (up to five sequential pages)
+    // made a cold For You pay for an extra round of latency; only the
+    // favourite fetches actually depend on it.
+    final subsF = getSubscribedSubreddits()
+        .catchError((_) => const <Subreddit>[]);
     final bestF = (firstPage || bestAfter != null)
         ? safe(getPosts(
             sort: PostSort.best, limit: firstPage ? 100 : 50, after: bestAfter))
@@ -145,18 +143,31 @@ class RedditRepository {
             limit: firstPage ? 20 : 15,
             after: popularAfter))
         : Future.value(const Listing<Post>(items: []));
-    final extraF = <Future<Listing<Post>>>[
-      if (firstPage) ...[
-        for (final f in favourites.take(8))
-          safe(getPosts(subreddit: f, sort: PostSort.hot, limit: 10)),
+    final interestF = <Future<Listing<Post>>>[
+      if (firstPage)
         for (final s in topInterest)
-          if (!favourites.contains(s))
-            safe(getPosts(subreddit: s, sort: PostSort.hot, limit: 8)),
-      ],
+          safe(getPosts(subreddit: s, sort: PostSort.hot, limit: 8)),
     ];
 
-    final results =
-        await Future.wait([bestF, risingF, popularF, ...extraF]);
+    // Your communities are the backbone of the feed.
+    final mySubs = await subsF;
+    final favourites = {
+      for (final s in mySubs)
+        if (s.userHasFavorited) s.name.toLowerCase()
+    };
+    final subscribed = {for (final s in mySubs) s.name.toLowerCase()};
+
+    // Favourites go out the moment the list is known, while the rest is still
+    // in flight. One already fetched as a top interest isn't fetched twice.
+    final favouriteF = <Future<Listing<Post>>>[
+      if (firstPage)
+        for (final f in favourites.take(8))
+          if (!topInterest.contains(f))
+            safe(getPosts(subreddit: f, sort: PostSort.hot, limit: 10)),
+    ];
+
+    final results = await Future.wait(
+        [bestF, risingF, popularF, ...favouriteF, ...interestF]);
     final best = results[0], rising = results[1], popular = results[2];
 
     final ids = <String>{...excludeIds};
@@ -284,6 +295,32 @@ class RedditRepository {
     }
     if (out.isEmpty) out.addAll(discovery); // no subscriptions → discovery only
 
+    // Big news lands in a dozen subreddits at once, and the per-sub cap can't
+    // see that: five near-identical headlines from five communities would
+    // each pass it. Two titles count as the same story when they share at
+    // least three keywords and half their keywords overall. Repeats are
+    // deferred to the end rather than dropped — another community's thread
+    // on the same news can still be worth reading later.
+    final shownStories = <Set<String>>[];
+    final kept = <Post>[];
+    final deferred = <Post>[];
+    for (final p in out) {
+      final words = titleKeywords(p.title).toSet();
+      final isRepeat = words.length >= 3 &&
+          shownStories.any((story) {
+            final shared = story.intersection(words).length;
+            return shared >= 3 &&
+                shared / story.union(words).length >= 0.5;
+          });
+      if (isRepeat) {
+        deferred.add(p);
+      } else {
+        kept.add(p);
+        shownStories.add(words);
+      }
+    }
+    final ranked = [...kept, ...deferred];
+
     // Encode the next-page cursors; null when every source is exhausted.
     final nextCursors = <String, String>{
       if (best.after != null && best.after!.isNotEmpty) 'best': best.after!,
@@ -293,8 +330,8 @@ class RedditRepository {
         'popular': popular.after!,
     };
     return Listing(
-      items: out,
-      after: (out.isNotEmpty && nextCursors.isNotEmpty)
+      items: ranked,
+      after: (ranked.isNotEmpty && nextCursors.isNotEmpty)
           ? jsonEncode(nextCursors)
           : null,
     );
@@ -318,6 +355,27 @@ class RedditRepository {
       },
     );
     return _parsePostListing(res.data!);
+  }
+
+  /// The last cached first page for exactly this feed, or null. Used to paint
+  /// instantly while the fresh page is still in flight.
+  Future<Listing<Post>?> cachedPosts({
+    String? subreddit,
+    PostSort sort = PostSort.best,
+    TopTime time = TopTime.day,
+    int limit = 25,
+  }) async {
+    final base = subreddit == null ? '' : '/r/$subreddit';
+    final json = await _client.cached(
+      '$base/${sort.path}',
+      query: {
+        'limit': limit,
+        if (sort.needsTime) 't': time.param,
+      },
+    );
+    if (json is! Map<String, dynamic>) return null;
+    final listing = _parsePostListing(json);
+    return listing.items.isEmpty ? null : listing;
   }
 
   /// Returns the post (refreshed) and its top-level comment tree.

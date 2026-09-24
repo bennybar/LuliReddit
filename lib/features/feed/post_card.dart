@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -5,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 import '../../core/analytics.dart';
 import '../../core/format.dart';
@@ -39,10 +42,28 @@ class _PostCardState extends ConsumerState<PostCard> {
       if (a.isNotEmpty && a != '[deleted]') context.push('/u/$a');
     };
 
+  // Counts the For You impression once the card has stayed mostly on screen
+  // for a moment.
+  Timer? _impressionTimer;
+
   @override
   void dispose() {
     _authorTap.dispose();
+    _impressionTimer?.cancel();
     super.dispose();
+  }
+
+  // A card flung past mid-scroll wasn't really seen; counting it would bury
+  // posts the user never had a chance to read. Only a card that sits ≥60%
+  // visible for a second counts as shown.
+  void _onVisibility(VisibilityInfo info) {
+    _impressionTimer?.cancel();
+    if (info.visibleFraction < 0.6) return;
+    _impressionTimer = Timer(const Duration(seconds: 1), () {
+      if (mounted) {
+        ref.read(impressionStoreProvider.notifier).record(widget.post.id);
+      }
+    });
   }
 
   // Vote / score / saved / comment-count live in the shared post-overrides
@@ -147,9 +168,6 @@ class _PostCardState extends ConsumerState<PostCard> {
     // "Why you're seeing this" banner (For You feed only).
     final reason = widget.post.feedReason;
     if (reason != null) {
-      // Count the impression: shown-but-never-opened posts get demoted on the
-      // next feed build (batched + deduped inside the store).
-      ref.read(impressionStoreProvider.notifier).record(widget.post.id);
       final cs = Theme.of(context).colorScheme;
       card = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -198,6 +216,12 @@ class _PostCardState extends ConsumerState<PostCard> {
           ),
           card,
         ],
+      );
+      // Shown-but-never-opened posts get demoted on the next feed build.
+      card = VisibilityDetector(
+        key: Key('impression_${widget.post.id}'),
+        onVisibilityChanged: _onVisibility,
+        child: card,
       );
     }
     return GestureDetector(

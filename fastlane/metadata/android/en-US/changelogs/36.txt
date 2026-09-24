@@ -1,0 +1,7 @@
+- Faster feed open: the last loaded page shows instantly while fresh posts load.
+- Loads the next page and upcoming images further ahead while scrolling.
+- For You: faster cold start (requests now run in parallel).
+- For You: posts only count as "shown" after staying on screen for a second.
+- For You: learns from reading time (long reads boost, instant bounces lower).
+- For You: the same story posted in several subreddits no longer stacks up.
+- Fix: feed videos no longer flash blank as they scroll into view.

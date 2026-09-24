@@ -53,6 +53,8 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
   PostSort? _sort;
   TopTime _time = TopTime.day;
   bool _initialized = false;
+  bool _cacheConsulted = false;
+  bool _showingCache = false; // a cached page is on screen, fresh one in flight
   DateTime _lastLoaded = DateTime.fromMillisecondsSinceEpoch(0);
 
   /// A multireddit feed key looks like `m::username::multiname`.
@@ -107,14 +109,39 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
       _sort = ref.read(settingsControllerProvider).defaultSort;
       _initialized = true;
     }
+    // Paint the last cached page straight away on a cold open, before the
+    // network answers: parsing a page costs milliseconds, the request costs
+    // hundreds. Only once per feed — a refresh or sort change already has
+    // intent behind it and shouldn't flash an older page. Never for For You,
+    // which is ranked locally from live signals.
+    Listing<Post>? cached;
+    if (!_cacheConsulted) {
+      _cacheConsulted = true;
+      cached = await _cachedFirstPage();
+      if (cached != null) {
+        _showingCache = true;
+        state = AsyncData(FeedState(
+            posts: cached.items, sort: _sort!, time: _time, after: cached.after));
+      }
+    }
     // Retry once: a cold-start request can fail while the token is being
     // refreshed for the first time.
     Listing<Post> listing;
     try {
-      listing = await _fetch();
+      try {
+        listing = await _fetch();
+      } catch (_) {
+        listing = await _fetch();
+      }
     } catch (_) {
-      listing = await _fetch();
+      // Keep the cached page rather than replacing it with an error: it's
+      // still the most useful thing to show, and pull-to-refresh retries.
+      if (cached == null) rethrow;
+      _showingCache = false;
+      return FeedState(
+          posts: cached.items, sort: _sort!, time: _time, after: cached.after);
     }
+    _showingCache = false;
     _lastLoaded = DateTime.now();
     return FeedState(
       posts: listing.items,
@@ -122,6 +149,16 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
       time: _time,
       after: listing.after,
     );
+  }
+
+  Future<Listing<Post>?> _cachedFirstPage() async {
+    if (_forYou || _multi != null) return null;
+    try {
+      return await _repo.cachedPosts(
+          subreddit: _subreddit, sort: _sort!, time: _time);
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> changeSort(PostSort sort, {TopTime? time}) async {
@@ -188,6 +225,8 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
   Future<void> loadMore() async {
     final current = state.valueOrNull;
     if (current == null || !current.hasMore || current.loadingMore) return;
+    // Paging off a cached page would be overwritten by the fresh one.
+    if (_showingCache) return;
     state = AsyncData(current.copyWith(loadingMore: true, after: current.after));
     try {
       final listing = await _fetch(after: current.after);

@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/format.dart';
 import '../../core/providers.dart';
+import '../../core/route_observer.dart';
 import '../../core/deep_links.dart';
 import '../../core/media_links.dart';
 import '../../core/share.dart';
@@ -48,7 +49,8 @@ class PostDetailScreen extends ConsumerStatefulWidget {
   ConsumerState<PostDetailScreen> createState() => _PostDetailScreenState();
 }
 
-class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
+class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
+    with RouteAware {
   final ItemScrollController _itemScroll = ItemScrollController();
   final ItemPositionsListener _itemPositions = ItemPositionsListener.create();
   List<Comment> _flat = const [];
@@ -60,8 +62,76 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   int _matchPos = 0;
   String? _currentMatchId;
 
+  // Reading time, counted only while the app is in the foreground and this
+  // thread is the top route.
+  final Stopwatch _dwell = Stopwatch();
+  final Set<String> _dwellAwarded = {};
+  late final AppLifecycleListener _lifecycle;
+  late final InterestStore _interest;
+  late final KeywordStore _keywords;
+  Post? _dwellPost;
+
+  @override
+  void initState() {
+    super.initState();
+    // Captured up front: learning also runs from dispose(), where ref is off
+    // limits.
+    _interest = ref.read(interestStoreProvider.notifier);
+    _keywords = ref.read(keywordStoreProvider.notifier);
+    _dwell.start();
+    _lifecycle = AppLifecycleListener(
+      onStateChange: (s) =>
+          s == AppLifecycleState.resumed ? _dwell.start() : _dwell.stop(),
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) appRouteObserver.subscribe(this, route);
+  }
+
+  // A pushed profile or subreddit covers the thread: pause, and learn from
+  // what was read so far. Later time keeps accumulating when it's revealed.
+  @override
+  void didPushNext() {
+    _dwell.stop();
+    _learnFromDwell();
+  }
+
+  @override
+  void didPopNext() => _dwell.start();
+
+  /// Time in a thread is the strongest cheap signal there is: a post read for
+  /// two minutes is a far stronger "more like this" than one backed out of at
+  /// once. Each tier is awarded at most once per visit.
+  void _learnFromDwell() {
+    final post = _dwellPost;
+    if (post == null) return;
+    final seconds = _dwell.elapsed.inSeconds.clamp(0, 600);
+    if (seconds < 3) {
+      if (_dwellAwarded.isEmpty && _dwellAwarded.add('bounce')) {
+        _interest.bump(post.subreddit, -0.5);
+      }
+      return;
+    }
+    if (seconds >= 30 && _dwellAwarded.add('read')) {
+      _interest.bump(post.subreddit, 1);
+      _keywords.bumpTitle(post.title, 0.5);
+    }
+    if (seconds >= 120 && _dwellAwarded.add('longRead')) {
+      _interest.bump(post.subreddit, 1.5);
+      _keywords.bumpTitle(post.title, 1);
+    }
+  }
+
   @override
   void dispose() {
+    _dwell.stop();
+    _learnFromDwell();
+    _lifecycle.dispose();
+    appRouteObserver.unsubscribe(this);
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -191,6 +261,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     final username =
         ref.watch(authControllerProvider).valueOrNull?.username ?? '';
     final thread = async.valueOrNull;
+    _dwellPost = thread?.post ?? widget.initialPost;
     final hasAiKey =
         ref.watch(openAiKeyProvider).valueOrNull?.isNotEmpty ?? false;
 

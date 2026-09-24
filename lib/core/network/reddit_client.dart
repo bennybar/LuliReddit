@@ -135,6 +135,14 @@ class RedditClient {
   String _cacheKey(String path, Map<String, dynamic>? query) =>
       '$path?${(query ?? {}).entries.map((e) => '${e.key}=${e.value}').join('&')}';
 
+  /// The last cached response for this exact request, without touching the
+  /// network — so a feed can paint instantly and replace it when the network
+  /// answers, instead of only falling back to the cache after a failure.
+  Future<dynamic> cached(String path, {Map<String, dynamic>? query}) async {
+    if (!_cacheOn) return null;
+    return _cache.read(_cacheKey(path, query));
+  }
+
   Future<Response<T>> get<T>(String path, {Map<String, dynamic>? query}) async {
     await _ensureConfig();
     final url = _reqUrl(path, isGet: true);
