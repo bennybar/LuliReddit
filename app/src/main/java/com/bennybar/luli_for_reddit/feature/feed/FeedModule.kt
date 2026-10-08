@@ -58,9 +58,6 @@ class FeedModule(private val c: AppContainer) : UserScoped {
      */
     fun tabReselect(tab: Int): MutableStateFlow<Int> = reselect.getOrPut(tab) { MutableStateFlow(0) }
 
-    /** The update check + notifications suggestion run once per app start. */
-    var startupChecksDone = false
-
     // --- Custom feeds (multireddits) ---
 
     private val _multis = MutableStateFlow<Async<List<Multireddit>>>(Async.Loading)

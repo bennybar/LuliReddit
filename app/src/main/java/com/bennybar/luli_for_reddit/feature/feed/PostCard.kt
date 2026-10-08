@@ -2,6 +2,7 @@ package com.bennybar.luli_for_reddit.feature.feed
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,6 +55,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onVisibilityChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -250,10 +252,11 @@ fun PostCard(post: Post, modifier: Modifier = Modifier) {
     val startSpec = remember(settings.swipePostStart, actions, votes, cs) { swipe(settings.swipePostStart) }
     val endSpec = remember(settings.swipePostEnd, actions, votes, cs) { swipe(settings.swipePostEnd) }
 
-    Column(outer) {
-        // "Why you're seeing this" banner (For You feed only).
-        if (reason != null) ReasonRow(reason, onTune = actions::tune)
-        SwipeActions(start = startSpec, end = endSpec, enabled = settings.swipeActions) {
+    // The whole card, "why" banner included, is the swipe target (as Flutter).
+    SwipeActions(start = startSpec, end = endSpec, modifier = outer, enabled = settings.swipeActions) {
+        Column {
+            // "Why you're seeing this" banner (For You feed only).
+            if (reason != null) ReasonRow(reason, onTune = actions::tune)
             // Dim already-viewed posts when history tracking is on. A
             // page-colour veil looks the same as 55% opacity — the card sits on
             // the page surface — without re-rendering the whole card, images
@@ -275,7 +278,13 @@ fun PostCard(post: Post, modifier: Modifier = Modifier) {
 @Composable
 private fun ReasonRow(reason: String, onTune: () -> Unit) {
     val cs = MaterialTheme.colorScheme
-    Row(Modifier.fillMaxWidth().padding(start = 18.dp, top = 2.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        Modifier.fillMaxWidth()
+            // Long-press anywhere on the card tunes For You, banner included.
+            .pointerInput(onTune) { detectTapGestures(onLongPress = { onTune() }) }
+            .padding(start = 18.dp, top = 2.dp, end = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(13.dp), tint = cs.primary)
         Spacer(Modifier.width(6.dp))
         Text(

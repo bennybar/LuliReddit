@@ -70,6 +70,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -102,11 +103,14 @@ fun HomeScreen() {
     val settings by app.settings.state.collectAsStateWithLifecycle()
     val inboxReselect by app.feed.tabReselect(2).collectAsStateWithLifecycle()
 
-    // Once per app start: GitHub update check, then the one-time
-    // notifications suggestion.
+    // Each time the home shell is created (app start, after signing in
+    // again): GitHub update check, then the one-time notifications
+    // suggestion. Saveable, so returning from a pushed screen or rotating
+    // doesn't re-run it.
+    var startupChecksDone by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        if (app.feed.startupChecksDone) return@LaunchedEffect
-        app.feed.startupChecksDone = true
+        if (startupChecksDone) return@LaunchedEffect
+        startupChecksDone = true
         maybeCheckUpdates(context)
         maybeSuggestNotifications()
     }
@@ -118,21 +122,56 @@ fun HomeScreen() {
     }
 
     // Hide the nav (and the Full top bar) while scrolling down, reveal on
-    // scrolling up or reaching the top — any tab's main list.
+    // scrolling up or reaching the top — any tab's main list. Mirrors
+    // Flutter's UserScrollNotification handling: decide when the user's
+    // drag direction changes and when scrolling settles (a fling landing);
+    // near the top (≤ 4px) or overscrolling, always show.
     val scrollConnection = remember {
         object : NestedScrollConnection {
+            // How far each tab's list is from its top, tracked from the
+            // scroll deltas (lists start at the top; null = unknown).
+            val fromTop = arrayOfNulls<Float>(4).apply { fill(0f) }
+            var direction = 0 // last user direction: -1 down the list, 1 up, 0 idle
+
+            fun nearTop() = (fromTop[index] ?: Float.MAX_VALUE) <= 4f
+
+            fun update(dir: Int) {
+                chrome = when {
+                    nearTop() -> true
+                    dir < 0 -> false
+                    dir > 0 -> true
+                    else -> chrome
+                }
+            }
+
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 if (source == NestedScrollSource.UserInput) {
-                    if (available.y < -1f && chrome) chrome = false
-                    else if (available.y > 1f && !chrome) chrome = true
+                    val dir = if (available.y < -1f) -1 else if (available.y > 1f) 1 else 0
+                    if (dir != 0 && dir != direction) {
+                        direction = dir
+                        update(dir)
+                    }
                 }
                 return Offset.Zero
             }
 
             override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
-                // Overscrolling at the top: keep the chrome shown.
-                if (available.y > 0f && !chrome) chrome = true
+                if (available.y > 0f) {
+                    // Overscrolling at the top: keep the chrome shown.
+                    fromTop[index] = 0f
+                    chrome = true
+                } else {
+                    fromTop[index] = fromTop[index]?.let { (it - consumed.y).coerceAtLeast(0f) }
+                }
                 return Offset.Zero
+            }
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                // The scroll settled (drag released / fling landed).
+                direction = 0
+                if (available.y > 0f) fromTop[index] = 0f
+                update(0)
+                return Velocity.Zero
             }
         }
     }
