@@ -1495,7 +1495,7 @@ private fun CalmThreadRow(first: Boolean, last: Boolean, highlighted: Boolean, c
             .fillMaxWidth()
             .padding(start = 12.dp, end = 12.dp, bottom = if (last) 10.dp else 0.dp)
             .clip(shape)
-            .background(cs.surfaceContainerLow)
+            .background(com.bennybar.luli_for_reddit.feature.feed.calmCardColor())
             .padding(top = if (first) 6.dp else 0.dp, bottom = if (last) 6.dp else 0.dp)
             .then(if (highlighted) Modifier.background(cs.primaryContainer) else Modifier),
     ) { content() }

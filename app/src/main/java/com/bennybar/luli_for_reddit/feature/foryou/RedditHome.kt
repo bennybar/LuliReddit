@@ -69,10 +69,6 @@ class RedditHomeLoader(private val context: Context) {
         // A refresh hands back the first posts as soon as they render; the feed
         // pages for more on its own as you scroll.
         val target = if (restart) 10 else want
-        // The page renders a first handful of posts with its HTML and fetches
-        // the rest ~2s later: on a restart, hand the first wave back once it
-        // stops growing (the next page call picks up the second wave).
-        val settleMs = 350L
         val fresh = ArrayList<String>()
         val deadline = System.currentTimeMillis() + 15_000
         var lastGrowth = System.currentTimeMillis()
@@ -90,7 +86,6 @@ class RedditHomeLoader(private val context: Context) {
             if (fresh.size >= target) break
             val now = System.currentTimeMillis()
             if (grew) lastGrowth = now
-            if (restart && fresh.isNotEmpty() && now - lastGrowth >= settleMs) break
             // Nothing new for a while after posts had appeared: end of the feed.
             // (Before any appear, the page is still loading — keep waiting.)
             if (seen.isNotEmpty() && now - lastGrowth >= 6_000) break

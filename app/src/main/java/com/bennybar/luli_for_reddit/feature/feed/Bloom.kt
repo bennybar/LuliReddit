@@ -87,9 +87,10 @@ fun BloomCard(
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
     shape: RoundedCornerShape = BloomCardShape,
+    color: Color = MaterialTheme.colorScheme.surfaceContainerLow,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    var m = modifier.clip(shape).background(MaterialTheme.colorScheme.surfaceContainerLow)
+    var m = modifier.clip(shape).background(color)
     if (onClick != null || onLongClick != null) {
         m = m.combinedClickable(onClick = { onClick?.invoke() }, onLongClick = onLongClick)
     }
