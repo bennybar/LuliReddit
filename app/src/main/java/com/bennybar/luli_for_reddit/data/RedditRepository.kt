@@ -623,4 +623,12 @@ class RedditRepository(val client: RedditClient) {
         client.delete("/api/multi$multipath/r/$subreddit")
     }
 
+    /**
+     * [Agent D] One private-message conversation (root + replies) by any
+     * message id in it, for opening a thread from a notification.
+     */
+    suspend fun getMessageThread(id: String): InboxItem? {
+        val json = client.get("/message/messages/${id.removePrefix("t4_")}")
+        return parse { json["data"]["children"].arr()?.firstOrNull()?.let { InboxItem.fromChild(it) } }
+    }
 }
