@@ -7,8 +7,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -67,16 +65,13 @@ import com.bennybar.luli_for_reddit.ui.theme.IlayTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
 import com.bennybar.luli_for_reddit.core.Analytics
 import androidx.compose.animation.AnimatedContentScope
-import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.scaleOut
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraphBuilder
@@ -193,14 +188,6 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
         app.navigatorOrNull = navigator
         onDispose { if (app.navigatorOrNull === navigator) app.navigatorOrNull = null }
     }
-    // An app pop's motion is picked when it starts; clear the flag once it has
-    // played so the next back gesture peeks again.
-    LaunchedEffect(navigator) {
-        controller.currentBackStackEntryFlow.collectLatest {
-            delay(600)
-            navigator.buttonPop = false
-        }
-    }
     val session by app.session.state.collectAsStateWithLifecycle()
     val link by pendingLink.collectAsStateWithLifecycle()
 
@@ -233,19 +220,15 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
             NavHost(
                 navController = controller,
                 startDestination = start,
-                // Scoops' motion: Android's "fade forwards" for pushes and app
-                // pops; the back gesture peeks (the page shrinks and fades over
-                // the previous one).
-                enterTransition = { slideInHorizontally(tween(450, easing = Emphasized)) { it / 4 } + fadeIn(tween(337)) },
-                exitTransition = { slideOutHorizontally(tween(450, easing = Emphasized)) { -it / 4 } + fadeOut(tween(112)) },
-                popEnterTransition = {
-                    if (navigator.buttonPop) slideInHorizontally(tween(450, easing = Emphasized)) { -it / 4 } + fadeIn(tween(337))
-                    else EnterTransition.None
-                },
-                popExitTransition = {
-                    if (navigator.buttonPop) slideOutHorizontally(tween(450, easing = Emphasized)) { it / 4 } + fadeOut(tween(112))
-                    else scaleOut(targetScale = 0.9f) + fadeOut()
-                },
+                // A fast full-width slide: the new page slides in from the
+                // right over a slight parallax of the old one. The back gesture
+                // scrubs the reverse (linear, so the page stays under the finger).
+                enterTransition = { slideInHorizontally(tween(300, easing = Emphasized)) { it } },
+                exitTransition = { slideOutHorizontally(tween(300, easing = Emphasized)) { -it / 4 } },
+                popEnterTransition = { slideInHorizontally(tween(300, easing = Emphasized)) { -it / 4 } },
+                popExitTransition = { slideOutHorizontally(tween(300, easing = Emphasized)) { it } },
+                predictivePopEnterTransition = { slideInHorizontally(tween(300, easing = LinearEasing)) { -it / 4 } },
+                predictivePopExitTransition = { slideOutHorizontally(tween(300, easing = LinearEasing)) { it } },
             ) {
                 screen<Route.Login> { LoginScreen() }
                 screen<Route.WebLogin> { WebLoginScreen(it.toRoute<Route.WebLogin>().clearFirst) }
