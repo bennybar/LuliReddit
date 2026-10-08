@@ -12,6 +12,8 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
@@ -182,6 +184,11 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
     @Volatile private var leftovers: List<Candidate> = emptyList()
     private var communityTurn = 0
 
+    private val _progress = MutableStateFlow(0)
+
+    /** Candidate posts gathered so far while the first page loads (for the loading deck). */
+    val progress: StateFlow<Int> = _progress
+
     internal fun reset() {
         leftovers = emptyList()
         communityTurn = 0
@@ -194,6 +201,7 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
      */
     suspend fun page(after: String?, loaded: List<Post>): Listing<Post> {
         val firstPage = after == null
+        if (firstPage) _progress.value = 0
         if (firstPage) seedIfNeeded()
         val page = getForYouFeed(
             inputs = rankInputs(firstPage, loaded),
@@ -352,6 +360,7 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
         // long the page takes.
         fun source(secondary: Boolean = true, f: suspend () -> Listing<Post>): Deferred<Listing<Post>?> = async {
             orNull { if (secondary) withTimeout(2500) { f() } else f() }
+                ?.also { l -> if (firstPage) _progress.update { it + l.items.size } }
         }
 
         // A cursor of "" means "start this source from the top" (its first

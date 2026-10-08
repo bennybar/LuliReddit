@@ -117,7 +117,9 @@ fun PostListView(
     var refreshing by remember { mutableStateOf(false) }
     val isFrontpage = feedKey.isEmpty()
     val homeMode = isFrontpage && settings.redditHomeAllowed && settings.redditHomeFeed
-    // The Home loading deck was just showing: deal the first cards in.
+    // Home and For You load behind the shuffling deck.
+    val deckMode = isFrontpage && (homeMode || settings.forYouFeed)
+    // The loading deck was just showing: deal the first cards in.
     var dealHome by remember { mutableStateOf(false) }
 
     fun refresh(haptic: Boolean = true) {
@@ -184,14 +186,14 @@ fun PostListView(
                 FeedUi.Loading -> {
                     // Home (no saved page to show yet): the shuffling deck with a
                     // live count of posts found; its cards are then dealt in.
-                    if (homeMode) SideEffect { dealHome = true }
+                    if (deckMode) SideEffect { dealHome = true }
                     LazyColumn(Modifier.fillMaxSize(), contentPadding = FeedPadding, userScrollEnabled = true) {
                         if (header != null) item(key = "header", contentType = "header") { header() }
-                        if (homeMode) {
+                        if (deckMode) {
                             item(key = "deck") {
                                 Column {
                                     Spacer(Modifier.height(120.dp))
-                                    HomeLoadingDeck()
+                                    HomeLoadingDeck(forYou = !homeMode)
                                 }
                             }
                         } else {
@@ -215,6 +217,7 @@ fun PostListView(
                     listState = listState,
                     header = header,
                     homeMode = homeMode,
+                    deckMode = deckMode,
                     dealHome = dealHome,
                     onDealt = { dealHome = false },
                     onSort = { s, t -> controller.changeSort(s, t) },
@@ -243,6 +246,7 @@ private fun FeedList(
     listState: LazyListState,
     header: (@Composable () -> Unit)?,
     homeMode: Boolean,
+    deckMode: Boolean,
     dealHome: Boolean,
     onDealt: () -> Unit,
     onSort: (PostSort, TopTime?) -> Unit,
@@ -330,7 +334,7 @@ private fun FeedList(
         }
         items(posts.size, key = { posts[it].id }, contentType = { "post_${posts[it].type}" }) { i ->
             val p = posts[i]
-            if (homeMode && i < 3) {
+            if (deckMode && i < 3) {
                 // The first cards after the loading deck are dealt in.
                 if (i == 2) LaunchedEffect(Unit) { onDealt() }
                 DealIn(i, animate = dealHome) { PostCard(p) }

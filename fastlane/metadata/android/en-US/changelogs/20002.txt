@@ -1,0 +1,2 @@
+- Home and For You open with the shuffling-deck animation and a live count, then deal the posts in — no more showing old posts and swapping them out.
+- Fixed: the beta couldn't install over the per-device (arm64 etc.) 1.0.51 APKs.
