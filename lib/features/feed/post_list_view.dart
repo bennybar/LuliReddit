@@ -11,6 +11,7 @@ import '../../data/reddit_repository.dart';
 import '../../models/post.dart';
 import '../history/history_store.dart';
 import '../post/post_actions.dart' show hiddenPostsProvider;
+import '../reddit_home/home_loading.dart';
 import '../reddit_home/reddit_home_loader.dart' show redditHomeNoticeProvider;
 import '../settings/settings_controller.dart';
 import 'content_filters.dart';
@@ -34,6 +35,8 @@ class PostListView extends ConsumerStatefulWidget {
 }
 
 class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
+  // The Home loading deck was just showing: deal the first cards in.
+  bool _dealHome = false;
   final _scroll = ScrollController();
   final _refreshKey = GlobalKey<RefreshIndicatorState>();
   final _prefetched = <String>{};
@@ -119,6 +122,9 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
     final notifier =
         ref.read(feedControllerProvider(widget.feedKey).notifier);
     final hasPending = async.valueOrNull?.hasPending ?? false;
+    final homeMode = widget.feedKey.isEmpty &&
+        ref.watch(settingsControllerProvider
+            .select((s) => s.redditHomeAllowed && s.redditHomeFeed));
 
     final refreshable = RefreshIndicator(
       key: _refreshKey,
@@ -127,18 +133,33 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
         return notifier.refresh();
       },
       child: async.when(
-        loading: () => ListView(
-          padding: const EdgeInsets.fromLTRB(10, 0, 10, 130),
-          children: [
-            if (widget.header != null) widget.header!,
-            const SizedBox(height: 8),
-            for (var i = 0; i < 5; i++)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 10),
-                child: PostSkeleton(),
-              ),
-          ],
-        ),
+        loading: () {
+          // Home (no saved page to show yet): the shuffling deck with a live
+          // count of posts found; its cards are then dealt into the feed.
+          if (homeMode) {
+            _dealHome = true;
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 130),
+              children: [
+                if (widget.header != null) widget.header!,
+                const SizedBox(height: 120),
+                const HomeLoadingDeck(),
+              ],
+            );
+          }
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(10, 0, 10, 130),
+            children: [
+              if (widget.header != null) widget.header!,
+              const SizedBox(height: 8),
+              for (var i = 0; i < 5; i++)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 10),
+                  child: PostSkeleton(),
+                ),
+            ],
+          );
+        },
         error: (e, _) => ListView(
           children: [
             if (widget.header != null) widget.header!,
@@ -227,6 +248,18 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
                 if (index >= posts.length - 10 && state.hasMore) {
                   WidgetsBinding.instance
                       .addPostFrameCallback((_) => notifier.loadMore());
+                }
+                if (homeMode && index < 3) {
+                  // The first cards after the loading deck are dealt in.
+                  final deal = _dealHome;
+                  if (deal && index == 2) {
+                    WidgetsBinding.instance
+                        .addPostFrameCallback((_) => _dealHome = false);
+                  }
+                  return DealIn(
+                      index: index,
+                      animate: deal,
+                      child: PostCard(post: posts[index]));
                 }
                 return PostCard(post: posts[index]);
               }

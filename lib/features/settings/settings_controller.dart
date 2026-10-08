@@ -264,7 +264,7 @@ class SettingsController extends Notifier<Settings> {
           : TopBarMode.values[
               p.getInt('topBarMode')!.clamp(0, TopBarMode.values.length - 1)],
       navLabels: p.getBool('navLabels') ?? true,
-      aiModel: p.getString('aiModel') ?? 'gpt-5.5',
+      aiModel: p.getString('aiModel') ?? 'gpt-5.4-mini',
       aiSummaryStyle: p.getInt('aiSummaryStyle') ?? 1, // Key points
       aiMaxChars: p.getInt('aiMaxChars') ?? 100000,
       aiUseCustomUrl: p.getBool('aiUseCustomUrl') ?? false,

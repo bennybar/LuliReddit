@@ -918,7 +918,7 @@ class _SettingsListState extends ConsumerState<SettingsList> {
 
   void _pickAiModel(
       BuildContext context, SettingsController ctrl, String current) {
-    const models = ['gpt-5.5', 'gpt-5.4-mini', 'gpt-5.4-nano'];
+    const models = ['gpt-6.1-sol', 'gpt-5.5', 'gpt-5.4-mini', 'gpt-5.4-nano'];
     showModalBottomSheet(
       context: context,
       showDragHandle: true,

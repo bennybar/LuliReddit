@@ -41,6 +41,7 @@ class RedditHomeLoader {
     required bool restart,
     required String cookieHeader,
     int want = 25,
+    void Function(int found)? onProgress, // running count, for the UI
   }) async {
     if (_page == null || cookieHeader != _cookies) {
       // First use, or the account changed: (re)open with its session.
@@ -73,6 +74,7 @@ class RedditHomeLoader {
           grew = true;
         }
       }
+      if (grew) onProgress?.call(fresh.length);
       if (fresh.length >= target) break;
       final now = DateTime.now();
       if (grew) lastGrowth = now;

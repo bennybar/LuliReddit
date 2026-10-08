@@ -10,6 +10,7 @@ import '../foryou/for_you_seeder.dart';
 import '../foryou/for_you_stores.dart';
 import '../history/history_store.dart';
 import '../history/interest_store.dart';
+import '../reddit_home/home_loading.dart' show redditHomeProgressProvider;
 import '../reddit_home/reddit_home_loader.dart';
 import '../settings/settings_controller.dart';
 
@@ -97,8 +98,12 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
         throw StateError('Reddit Home needs website sign-in');
       }
       final loader = _home ??= RedditHomeLoader();
+      final progress = ref.read(redditHomeProgressProvider.notifier);
+      if (firstPage) progress.state = 0;
       final ids = await loader.next(
-          restart: firstPage, cookieHeader: await store.webCookie ?? '');
+          restart: firstPage,
+          cookieHeader: await store.webCookie ?? '',
+          onProgress: firstPage ? (n) => progress.state = n : null);
       if (ids.isEmpty) {
         if (firstPage) throw StateError('No posts found on Reddit Home');
         // One empty batch can just be the page still setting up its "load
