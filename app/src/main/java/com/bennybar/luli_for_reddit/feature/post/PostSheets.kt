@@ -82,6 +82,7 @@ import com.bennybar.luli_for_reddit.core.net.uploadToCatbox
 import com.bennybar.luli_for_reddit.data.RedditRepository
 import com.bennybar.luli_for_reddit.feature.compose.AttachmentControls
 import com.bennybar.luli_for_reddit.feature.compose.MediaAttachment
+import com.bennybar.luli_for_reddit.feature.compose.errorText
 import com.bennybar.luli_for_reddit.feature.compose.showGiphyPicker
 import com.bennybar.luli_for_reddit.feature.foryou.showTuneSheet
 import com.bennybar.luli_for_reddit.feature.markdown.MarkdownToolbar
@@ -112,8 +113,6 @@ fun copyToClipboard(text: String) {
     cm?.setPrimaryClip(ClipData.newPlainText("text", text))
     snack("Copied")
 }
-
-private fun errText(e: Throwable) = (e.message ?: e.toString()).removePrefix("Exception: ")
 
 /** The Bloom filled input: radius 18, no underline. */
 @Composable
@@ -209,26 +208,37 @@ private fun <T> ComposeSheet(
         setText(TextFieldValue(t, TextRange(t.length)))
     }
 
+    // Dismissed while sending: the send still completes (as in Flutter) and
+    // its result is still delivered; only the sheet goes away.
+    var dismissed by remember { mutableStateOf(false) }
+
     fun submit() {
         val text = value.text.trim()
         if (text.isEmpty() && media == null) return
         busy = true
         error = null
-        scope.launch {
+        // On the app scope: closing the sheet mustn't cancel the request.
+        app.scope.launch {
             try {
                 val result = onSubmit(text, media)
                 draftKey?.let { app.drafts.clear(it) }
-                scope.hideThen(sheet) { done(result) }
+                if (dismissed) done(result) else scope.hideThen(sheet) { done(result) }
             } catch (e: Exception) {
-                busy = false
-                error = errText(e)
+                if (dismissed) {
+                    snack(errorText(e))
+                    done(null)
+                } else {
+                    busy = false
+                    error = errorText(e)
+                }
             }
         }
     }
 
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
 
-    ModalBottomSheet(onDismissRequest = { done(null) }, sheetState = sheet) {
+    if (dismissed) return
+    ModalBottomSheet(onDismissRequest = { if (busy) dismissed = true else done(null) }, sheetState = sheet) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -494,7 +504,7 @@ suspend fun showReportDialog(fullname: String) {
         app.repository.report(fullname, reason)
         snack("Reported. Thanks.")
     } catch (e: Exception) {
-        snack("Could not report: ${errText(e)}")
+        snack("Could not report: ${errorText(e)}")
     }
 }
 
@@ -544,7 +554,7 @@ private suspend fun showCrosspostDialog(post: Post) {
         val id = app.repository.submitCrosspost(srName, title, post.fullname)
         app.navigator.push(Route.Post(srName, id))
     } catch (e: Exception) {
-        snack("Crosspost failed: ${errText(e)}")
+        snack("Crosspost failed: ${errorText(e)}")
     }
 }
 
@@ -570,7 +580,7 @@ suspend fun confirmBlockUser(username: String) {
         app.repository.blockUser(username)
         snack("Blocked u/$username")
     } catch (e: Exception) {
-        snack("Could not block: ${errText(e)}")
+        snack("Could not block: ${errorText(e)}")
     }
 }
 

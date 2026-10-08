@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import android.provider.Settings
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
@@ -72,16 +73,19 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bennybar.luli_for_reddit.app
+import com.bennybar.luli_for_reddit.feature.markdown.IconTooltip
 import com.bennybar.luli_for_reddit.feature.markdown.RedditMarkdown
 import com.bennybar.luli_for_reddit.model.Comment
 import com.bennybar.luli_for_reddit.model.Post
 import com.bennybar.luli_for_reddit.ui.Overlays
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.PI
@@ -117,16 +121,22 @@ private fun SummarySheet(baseUrl: String, apiKey: String, model: String, style: 
         error = null
         try {
             result = AiService.summarize(baseUrl, apiKey, model, style, threadText)
+        } catch (e: CancellationException) {
+            throw e // the sheet closed
         } catch (e: Exception) {
             error = (e.message ?: e.toString()).removePrefix("Exception: ")
         }
         loading = false
     }
 
+    // Flutter's DraggableScrollableSheet (opens at 60%, drags up to 92%): the
+    // sheet is 92% tall and opens partially expanded; dragging up reveals the rest.
+    val maxHeight = LocalConfiguration.current.screenHeightDp.dp * 0.92f
     ModalBottomSheet(onDismissRequest = done, sheetState = rememberModalBottomSheetState()) {
         Column(
             Modifier
                 .fillMaxWidth()
+                .height(maxHeight)
                 .verticalScroll(rememberScrollState())
                 .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 28.dp)
                 .navigationBarsPadding(),
@@ -140,8 +150,10 @@ private fun SummarySheet(baseUrl: String, apiKey: String, model: String, style: 
                     modifier = Modifier.weight(1f),
                 )
                 if (result != null && !loading) {
-                    IconButton(onClick = { copyToClipboard(result!!) }) {
-                        Icon(Icons.Rounded.ContentCopy, "Copy", Modifier.size(18.dp))
+                    IconTooltip("Copy") {
+                        IconButton(onClick = { copyToClipboard(result!!) }) {
+                            Icon(Icons.Rounded.ContentCopy, "Copy", Modifier.size(18.dp))
+                        }
                     }
                 }
             }
@@ -219,6 +231,8 @@ private fun AskThreadSheet(baseUrl: String, apiKey: String, model: String, threa
                 val answer = AiService.ask(baseUrl, apiKey, model, threadText, history, question)
                 messages.add(AiMessage(false, answer))
                 waiting = false
+            } catch (e: CancellationException) {
+                throw e // the sheet closed
             } catch (e: Exception) {
                 messages.removeAt(messages.lastIndex) // the question goes back into the box
                 input = question
@@ -303,12 +317,14 @@ private fun AskThreadSheet(baseUrl: String, apiKey: String, model: String, threa
                 val ready = !waiting && input.isNotBlank()
                 val bg by animateColorAsState(if (ready) cs.primary else cs.surfaceContainerHighest, tween(200), label = "send")
                 Box(Modifier.size(42.dp).clip(CircleShape).background(bg), contentAlignment = Alignment.Center) {
-                    IconButton(onClick = { send(input) }, enabled = ready) {
-                        Icon(
-                            Icons.Rounded.ArrowUpward,
-                            "Send",
-                            tint = if (ready) cs.onPrimary else cs.onSurfaceVariant.copy(alpha = 0.6f),
-                        )
+                    IconTooltip("Send") {
+                        IconButton(onClick = { send(input) }, enabled = ready) {
+                            Icon(
+                                Icons.Rounded.ArrowUpward,
+                                "Send",
+                                tint = if (ready) cs.onPrimary else cs.onSurfaceVariant.copy(alpha = 0.6f),
+                            )
+                        }
                     }
                 }
             }
@@ -349,8 +365,11 @@ private fun Thinking() {
     val reel = remember { Animatable(0f) }
     var shift by remember { mutableIntStateOf(0) } // rows already scrolled past, so the reel never repeats
     var phase by remember { mutableIntStateOf(0) }
-    LaunchedEffect(Unit) {
-        while (true) {
+    // "Remove animations" (system animator scale 0): the reel stands still.
+    val context = LocalContext.current
+    val still = remember { Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f }
+    LaunchedEffect(still) {
+        while (!still) {
             reel.animateTo(1f, tween(900, easing = LinearEasing))
             shift++
             reel.snapTo(0f)

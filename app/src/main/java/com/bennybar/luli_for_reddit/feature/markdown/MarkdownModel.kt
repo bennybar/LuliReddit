@@ -121,16 +121,32 @@ object RedditMarkdownParser {
         private fun block(n: Node, out: MutableList<MdBlock>) {
             when (n) {
                 is Paragraph -> {
-                    // A paragraph of only images shows them as images.
-                    val kids = children(n).filterNot { it is SoftLineBreak || it is HardLineBreak || (it is Text && it.literal.isBlank()) }
-                    if (kids.isNotEmpty() && kids.all { it is Image }) {
-                        kids.forEach { out.add(MdBlock.ImageBlock((it as Image).destination, altOf(it))) }
-                    } else {
-                        val inl = inlines(n)
+                    // Images show as images, also mid-text (`text ![](url) text`,
+                    // as flutter_markdown does): the paragraph is split into
+                    // text runs around them.
+                    val kids = children(n)
+                    if (kids.none { it is Image }) {
+                        val inl = inlines(kids)
                         if (inl.isNotEmpty()) out.add(MdBlock.Paragraph(inl))
+                    } else {
+                        var run = mutableListOf<Node>()
+                        fun flush() {
+                            val inl = inlines(run)
+                            if (inl.isNotEmpty()) out.add(MdBlock.Paragraph(inl))
+                            run = mutableListOf()
+                        }
+                        for (k in kids) {
+                            if (k is Image) {
+                                flush()
+                                out.add(MdBlock.ImageBlock(k.destination, altOf(k)))
+                            } else {
+                                run.add(k)
+                            }
+                        }
+                        flush()
                     }
                 }
-                is Heading -> out.add(MdBlock.Heading(n.level, inlines(n)))
+                is Heading -> out.add(MdBlock.Heading(n.level, inlines(children(n))))
                 is BlockQuote -> out.add(MdBlock.Quote(blocks(n)))
                 is BulletList -> out.add(MdBlock.ListBlock(false, 1, children(n).filterIsInstance<ListItem>().map { blocks(it) }))
                 is OrderedList -> out.add(
@@ -152,7 +168,7 @@ object RedditMarkdownParser {
             for (section in children(t)) {
                 for (row in children(section).filterIsInstance<TableRow>()) {
                     val cells = children(row).filterIsInstance<TableCell>()
-                    val content = cells.map { inlines(it) }
+                    val content = cells.map { inlines(children(it)) }
                     if (section is TableHead) {
                         header = content
                         align = cells.map {
@@ -170,9 +186,10 @@ object RedditMarkdownParser {
             return MdBlock.Table(header, rows, align)
         }
 
-        fun inlines(parent: Node): List<MdInline> {
+        /** Inline runs of [nodes] (a block's children, or a slice of them). */
+        fun inlines(nodes: List<Node>): List<MdInline> {
             val out = mutableListOf<MdInline>()
-            walk(parent, 0, null, out)
+            for (n in nodes) walkNode(n, 0, null, out)
             // Trim the paragraph's outer whitespace and merge equal runs.
             val merged = mutableListOf<MdInline>()
             for (r in out) {
@@ -194,21 +211,25 @@ object RedditMarkdownParser {
         private fun walk(parent: Node, style: Int, link: String?, out: MutableList<MdInline>) {
             var n = parent.firstChild
             while (n != null) {
-                when (n) {
-                    is Text -> out.addAll(textRuns(n.literal, style, link))
-                    is Code -> out.add(MdInline(n.literal, style or MdStyle.CODE, link, inSpoiler))
-                    is Emphasis -> walk(n, style or MdStyle.ITALIC, link, out)
-                    is StrongEmphasis -> walk(n, style or MdStyle.BOLD, link, out)
-                    is Strikethrough -> walk(n, style or MdStyle.STRIKE, link, out)
-                    is Link -> walk(n, style, n.destination, out)
-                    // An image mid-text: its alt text, linking to the image.
-                    is Image -> out.add(MdInline(altOf(n).ifEmpty { n.destination }, style, n.destination, inSpoiler))
-                    is SoftLineBreak -> out.add(MdInline(" ", style, link, inSpoiler))
-                    is HardLineBreak -> out.add(MdInline("\n", style, link, inSpoiler))
-                    is HtmlInline -> out.addAll(textRuns(n.literal, style, link))
-                    else -> walk(n, style, link, out)
-                }
+                walkNode(n, style, link, out)
                 n = n.next
+            }
+        }
+
+        private fun walkNode(n: Node, style: Int, link: String?, out: MutableList<MdInline>) {
+            when (n) {
+                is Text -> out.addAll(textRuns(n.literal, style, link))
+                is Code -> out.add(MdInline(n.literal, style or MdStyle.CODE, link, inSpoiler))
+                is Emphasis -> walk(n, style or MdStyle.ITALIC, link, out)
+                is StrongEmphasis -> walk(n, style or MdStyle.BOLD, link, out)
+                is Strikethrough -> walk(n, style or MdStyle.STRIKE, link, out)
+                is Link -> walk(n, style, n.destination, out)
+                // An image nested in a link or emphasis: its alt text, linking to the image.
+                is Image -> out.add(MdInline(altOf(n).ifEmpty { n.destination }, style, n.destination, inSpoiler))
+                is SoftLineBreak -> out.add(MdInline(" ", style, link, inSpoiler))
+                is HardLineBreak -> out.add(MdInline("\n", style, link, inSpoiler))
+                is HtmlInline -> out.addAll(textRuns(n.literal, style, link))
+                else -> walk(n, style, link, out)
             }
         }
 
