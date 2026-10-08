@@ -44,7 +44,9 @@
             </intent-filter>
         </activity>
 
-        <!-- OAuth redirect callback for flutter_web_auth_2 (scheme: luli://oauth) -->
+        <!-- OAuth redirect callback for flutter_web_auth_2 (luli://oauth, or
+             redreader://rr_oauth_redir for RedReader-issued client IDs).
+             Keep in sync with RedditConstants.callbackSchemes. -->
         <activity
             android:name="com.linusu.flutter_web_auth_2.CallbackActivity"
             android:exported="true">
@@ -53,6 +55,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="luli" />
+                <data android:scheme="redreader" />
             </intent-filter>
         </activity>
 

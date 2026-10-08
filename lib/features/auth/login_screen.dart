@@ -29,6 +29,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   void initState() {
     super.initState();
+    // The RedReader note and setup steps follow the redirect as it's typed.
+    _redirect.addListener(() => setState(() {}));
     _prefill();
   }
 
@@ -198,7 +200,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               helper:
                   'Must match the redirect URI registered on your Reddit app.',
             ),
-            const SizedBox(height: 12),
+            // A RedReader-issued client ID only redirects to RedReader's URI.
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton.icon(
+                icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+                label: const Text('Using a RedReader client ID?'),
+                onPressed: () =>
+                    _redirect.text = RedditConstants.redReaderRedirectUri,
+              ),
+            ),
+            if (_redirect.text.trim().startsWith('redreader:'))
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+                child: Text(
+                  'If RedReader is also installed, Android will ask which app '
+                  'should finish signing in. Pick Ilay. This client ID was '
+                  'issued to RedReader, and Reddit could revoke it.',
+                  style: TextStyle(
+                      fontSize: 12.5,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant),
+                ),
+              ),
+            const SizedBox(height: 4),
             _Field(
               controller: _giphy,
               label: 'Giphy API Key (optional)',

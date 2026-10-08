@@ -7,7 +7,7 @@ class RedditConstants {
   RedditConstants._();
 
   /// App version (keep in sync with pubspec) + GitHub repo for in-app updates.
-  static const String appVersion = '1.0.39';
+  static const String appVersion = '1.0.40';
   static const String githubRepo = 'bennybar/LuliReddit';
 
   // Hosts
@@ -32,6 +32,13 @@ class RedditConstants {
 
   // Custom scheme used by flutter_web_auth_2 to capture the redirect.
   static const String callbackScheme = 'luli';
+
+  // Every scheme the OAuth redirect can come back on. Android needs each one
+  // declared on CallbackActivity in AndroidManifest.xml, so this can't be
+  // "whatever the user types". `redreader` lets people sign in with a client
+  // ID issued to RedReader, whose redirect is fixed to [redReaderRedirectUri].
+  static const Set<String> callbackSchemes = {callbackScheme, 'redreader'};
+  static const String redReaderRedirectUri = 'redreader://rr_oauth_redir';
 
 
   // OAuth params
@@ -60,6 +67,6 @@ class RedditConstants {
   /// User-Agent. Reddit requires a unique, descriptive UA per its API rules.
   static String userAgent(String? username) {
     final who = (username == null || username.isEmpty) ? 'anonymous' : username;
-    return 'android:com.bennybar.luli_for_reddit:1.0.39 (by /u/$who)';
+    return 'android:com.bennybar.luli_for_reddit:1.0.40 (by /u/$who)';
   }
 }

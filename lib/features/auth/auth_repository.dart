@@ -94,6 +94,17 @@ class AuthRepository {
     clientId = clientId.trim();
     redirectUri = redirectUri.trim();
 
+    // The browser only returns to us on a scheme the app listens for; any
+    // other one would surface as a confusing "cancelled" login.
+    final scheme = Uri.tryParse(redirectUri)?.scheme.toLowerCase() ?? '';
+    if (!RedditConstants.callbackSchemes.contains(scheme)) {
+      throw AuthException(
+        'Redirect URIs starting with "$scheme://" aren\'t supported. Use '
+        '${RedditConstants.defaultRedirectUri}, or '
+        '${RedditConstants.redReaderRedirectUri} with a RedReader client ID.',
+      );
+    }
+
     final authUri = Uri.parse(RedditConstants.authorizeUrl).replace(
       queryParameters: {
         'client_id': clientId,
@@ -109,7 +120,7 @@ class AuthRepository {
     try {
       resultUrl = await FlutterWebAuth2.authenticate(
         url: authUri.toString(),
-        callbackUrlScheme: RedditConstants.callbackScheme,
+        callbackUrlScheme: scheme,
         // Ephemeral = don't reuse the browser's Reddit cookies, so adding a
         // second account lets you sign into a *different* account.
         options: FlutterWebAuth2Options(preferEphemeral: ephemeral),
