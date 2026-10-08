@@ -13,7 +13,6 @@ import coil3.video.VideoFrameDecoder
 import com.bennybar.luli_for_reddit.core.Analytics
 import com.bennybar.luli_for_reddit.core.net.Http
 import com.bennybar.luli_for_reddit.core.storage.FlutterMigration
-import kotlinx.coroutines.launch
 
 class IlayApp : Application(), SingletonImageLoader.Factory {
     override fun onCreate() {
@@ -27,16 +26,6 @@ class IlayApp : Application(), SingletonImageLoader.Factory {
         app.session.reload()
 
         Analytics.init(this)
-        app.scope.launch {
-            // Anonymous: which login method this install uses.
-            val username = app.secureStore.username()
-            val method = when {
-                username.isNullOrEmpty() -> "logged_out"
-                app.secureStore.authMode() == "web" -> "website"
-                else -> "api"
-            }
-            Analytics.track("app_started", mapOf("login_method" to method))
-        }
         // Background inbox notifications (opt-in).
         app.inbox.onAppStart()
     }
