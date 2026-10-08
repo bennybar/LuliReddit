@@ -131,6 +131,7 @@ import com.bennybar.luli_for_reddit.core.isVideoUrl
 import com.bennybar.luli_for_reddit.core.splitMediaRefs
 import com.bennybar.luli_for_reddit.core.timeAgo
 import com.bennybar.luli_for_reddit.data.COMMENT_SORTS
+import com.bennybar.luli_for_reddit.feature.markdown.IconTooltip
 import com.bennybar.luli_for_reddit.feature.markdown.RedditMarkdown
 import com.bennybar.luli_for_reddit.feature.media.GalleryCarousel
 import com.bennybar.luli_for_reddit.feature.media.NsfwBlur
@@ -272,8 +273,10 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
                 actions = {
                     if (thread != null) {
                         SortMenu(vm.currentSort, vm::changeSort)
-                        IconButton(onClick = ::toggleSearch) {
-                            Icon(if (searchOpen) Icons.Rounded.SearchOff else Icons.Rounded.Search, "Search comments")
+                        IconTooltip("Search comments") {
+                            IconButton(onClick = ::toggleSearch) {
+                                Icon(if (searchOpen) Icons.Rounded.SearchOff else Icons.Rounded.Search, "Search comments")
+                            }
                         }
                         IconButton(onClick = { showPostActionsSheet(thread.post) }) { Icon(Icons.Rounded.MoreVert, "More") }
                         if (username.isNotEmpty() && thread.post.author == username) OwnPostMenu(thread.post, vm, nav)
@@ -593,7 +596,9 @@ private fun FocusBanner(onShowAll: () -> Unit) {
 private fun SortMenu(current: String, onPick: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { open = true }) { Icon(Icons.AutoMirrored.Rounded.Sort, "Sort comments") }
+        IconTooltip("Sort comments") {
+            IconButton(onClick = { open = true }) { Icon(Icons.AutoMirrored.Rounded.Sort, "Sort comments") }
+        }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             for ((id, label) in COMMENT_SORTS) {
                 DropdownMenuItem(
@@ -679,13 +684,19 @@ private fun SearchBar(
             if (query.isNotBlank()) {
                 Text(if (total == 0) "0/0" else "${pos + 1}/$total", fontSize = 12.sp, color = cs.onSurfaceVariant)
             }
-            IconButton(onClick = { onStep(-1) }, enabled = total > 0, modifier = Modifier.size(40.dp)) {
-                Icon(Icons.Rounded.KeyboardArrowUp, "Previous")
+            IconTooltip("Previous") {
+                IconButton(onClick = { onStep(-1) }, enabled = total > 0, modifier = Modifier.size(40.dp)) {
+                    Icon(Icons.Rounded.KeyboardArrowUp, "Previous")
+                }
             }
-            IconButton(onClick = { onStep(1) }, enabled = total > 0, modifier = Modifier.size(40.dp)) {
-                Icon(Icons.Rounded.KeyboardArrowDown, "Next")
+            IconTooltip("Next") {
+                IconButton(onClick = { onStep(1) }, enabled = total > 0, modifier = Modifier.size(40.dp)) {
+                    Icon(Icons.Rounded.KeyboardArrowDown, "Next")
+                }
             }
-            IconButton(onClick = onClose, modifier = Modifier.size(40.dp)) { Icon(Icons.Rounded.Close, "Close") }
+            IconTooltip("Close") {
+                IconButton(onClick = onClose, modifier = Modifier.size(40.dp)) { Icon(Icons.Rounded.Close, "Close") }
+            }
         }
     }
 }
@@ -741,7 +752,9 @@ private fun ThreadToolbar(
 
     @Composable
     fun btn(icon: ImageVector, tip: String, onClick: () -> Unit) {
-        IconButton(onClick = onClick, modifier = Modifier.size(40.dp)) { Icon(icon, tip, Modifier.size(22.dp), tint = on) }
+        IconTooltip(tip) {
+            IconButton(onClick = onClick, modifier = Modifier.size(40.dp)) { Icon(icon, tip, Modifier.size(22.dp), tint = on) }
+        }
     }
 
     Surface(color = cs.primaryContainer, shape = CircleShape, shadowElevation = 3.dp) {
@@ -1295,6 +1308,7 @@ private fun CommentMedia(body: String, extra: List<android.net.Uri>, nav: AppNav
                     Icon(Icons.Rounded.PlayCircleFilled, "Play", Modifier.size(48.dp), tint = cs.onSurface.copy(alpha = 0.8f))
                 } else {
                     var failed by remember(uri) { mutableStateOf(false) }
+                    var loaded by remember(uri) { mutableStateOf(false) }
                     if (failed) {
                         Box(Modifier.fillMaxWidth().height(60.dp).background(cs.surfaceContainerHighest), contentAlignment = Alignment.Center) {
                             Text("Could not load media", fontSize = 12.sp, color = cs.onSurfaceVariant)
@@ -1304,8 +1318,13 @@ private fun CommentMedia(body: String, extra: List<android.net.Uri>, nav: AppNav
                             model = uri.toString(),
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
+                            onSuccess = { loaded = true },
                             onError = { failed = true },
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 260.dp).background(cs.surfaceContainerHighest),
+                            // A 120dp placeholder only while loading; then the image's own height (max 260).
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = if (loaded) 0.dp else 120.dp, max = 260.dp)
+                                .then(if (loaded) Modifier else Modifier.background(cs.surfaceContainerHighest)),
                         )
                     }
                     if (isGifUrl(uri)) {
