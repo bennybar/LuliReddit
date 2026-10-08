@@ -10,6 +10,7 @@ import '../../data/reddit_repository.dart';
 import '../../models/post.dart';
 import '../history/history_store.dart';
 import '../post/post_actions.dart' show hiddenPostsProvider;
+import '../reddit_home/reddit_home_loader.dart' show redditHomeNoticeProvider;
 import '../settings/settings_controller.dart';
 import 'content_filters.dart';
 import 'feed_controller.dart';
@@ -105,6 +106,13 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
     if (widget.feedKey.isEmpty) {
       ref.listen<int>(frontpageScrollSignalProvider,
           (_, __) => _scrollToTopOrRefresh());
+      // "Reddit Home couldn't load, showing For You" and similar.
+      ref.listen<String?>(redditHomeNoticeProvider, (_, msg) {
+        if (msg == null) return;
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(msg)));
+        ref.read(redditHomeNoticeProvider.notifier).state = null;
+      });
     }
     final async = ref.watch(feedControllerProvider(widget.feedKey));
     final notifier =
@@ -141,6 +149,7 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
         ),
         data: (state) {
           final settings = ref.watch(settingsControllerProvider);
+          final homeOn = settings.redditHomeAllowed && settings.redditHomeFeed;
           var posts = state.posts;
           // Auto-hide already-read items in the For You feed (live: rebuilds
           // when history changes).
@@ -199,6 +208,10 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
                   isFrontpage: widget.feedKey.isEmpty,
                   forYou: settings.forYouFeed && widget.feedKey.isEmpty,
                   onForYou: notifier.selectForYou,
+                  redditHome: homeOn && widget.feedKey.isEmpty,
+                  onRedditHome: settings.redditHomeAllowed
+                      ? notifier.selectRedditHome
+                      : null,
                 );
               }
               index -= 1;
@@ -309,6 +322,8 @@ class _SortBar extends StatelessWidget {
     this.isFrontpage = false,
     this.forYou = false,
     this.onForYou,
+    this.redditHome = false,
+    this.onRedditHome,
   });
   final PostSort sort;
   final TopTime time;
@@ -316,19 +331,25 @@ class _SortBar extends StatelessWidget {
   final bool isFrontpage;
   final bool forYou;
   final VoidCallback? onForYou;
+  final bool redditHome;
+  final VoidCallback? onRedditHome; // null unless enabled in Settings
 
   @override
   Widget build(BuildContext context) {
-    final label = forYou
-        ? 'For You · Beta'
-        : (sort.needsTime ? '${sort.label} · ${time.label}' : sort.label);
+    final label = redditHome
+        ? 'Reddit Home · Experimental'
+        : forYou
+            ? 'For You · Beta'
+            : (sort.needsTime ? '${sort.label} · ${time.label}' : sort.label);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
       child: Row(
         children: [
           ActionChip(
             avatar: Icon(
-                forYou ? Icons.auto_awesome_rounded : Icons.sort_rounded,
+                redditHome
+                    ? Icons.home_rounded
+                    : (forYou ? Icons.auto_awesome_rounded : Icons.sort_rounded),
                 size: 18),
             label: Text(label),
             onPressed: () => _showSortSheet(context),
@@ -357,12 +378,24 @@ class _SortBar extends StatelessWidget {
                   onForYou!();
                 },
               ),
+            if (isFrontpage && onRedditHome != null)
+              ListTile(
+                leading: const Icon(Icons.home_rounded),
+                title: const Text('Reddit Home'),
+                subtitle: const Text('Your reddit.com Home · Experimental'),
+                trailing: redditHome ? const Icon(Icons.check_rounded) : null,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  onRedditHome!();
+                },
+              ),
             for (final s in PostSort.values)
               ListTile(
                 leading: Icon(_iconFor(s)),
                 title: Text(s.label),
-                trailing:
-                    (!forYou && s == sort) ? const Icon(Icons.check_rounded) : null,
+                trailing: (!forYou && !redditHome && s == sort)
+                    ? const Icon(Icons.check_rounded)
+                    : null,
                 onTap: () {
                   Navigator.pop(ctx);
                   if (s.needsTime) {

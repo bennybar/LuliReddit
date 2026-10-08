@@ -618,6 +618,7 @@ class _FrontpageTab extends ConsumerWidget {
         ref.watch(authControllerProvider).valueOrNull?.username ?? '';
     final settings = ref.watch(settingsControllerProvider);
     final forYou = settings.forYouFeed;
+    final homeOn = settings.redditHomeAllowed && settings.redditHomeFeed;
     final mode = settings.topBarMode;
     final expandable = mode == TopBarMode.expandable;
     final hasTrailing = expandable;
@@ -706,13 +707,35 @@ class _FrontpageTab extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Text(
-                    forYou ? 'For You' : 'Frontpage',
+                    homeOn ? 'Reddit Home' : (forYou ? 'For You' : 'Frontpage'),
                     style: Theme.of(context)
                         .textTheme
                         .titleLarge
                         ?.copyWith(fontWeight: FontWeight.w800),
                   ),
-                  if (forYou) ...[
+                  if (homeOn) ...[
+                    const SizedBox(width: 8),
+                    // A constant reminder while it's on: this feed puts the
+                    // account at risk.
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: cs.error,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text('⚠ Experimental · account risk',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w800,
+                                color: cs.onError)),
+                      ),
+                    ),
+                    const Spacer(),
+                  ] else if (forYou) ...[
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text('Personalized on-device · Beta',

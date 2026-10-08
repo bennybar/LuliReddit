@@ -4,12 +4,13 @@ import '../../core/providers.dart';
 import '../../data/reddit_repository.dart';
 import '../../models/listing.dart';
 import '../../models/post.dart';
-import '../history/history_store.dart';
 import '../auth/auth_controller.dart';
 import '../foryou/for_you_ranker.dart';
 import '../foryou/for_you_seeder.dart';
 import '../foryou/for_you_stores.dart';
+import '../history/history_store.dart';
 import '../history/interest_store.dart';
+import '../reddit_home/reddit_home_loader.dart';
 import '../settings/settings_controller.dart';
 
 class FeedState {
@@ -76,6 +77,44 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
   bool get _forYou =>
       _isFrontpage && ref.read(settingsControllerProvider).forYouFeed;
 
+  /// Experimental Reddit Home (opt-in after a risk warning in Settings).
+  bool get _redditHome {
+    final s = ref.read(settingsControllerProvider);
+    return _isFrontpage && s.redditHomeAllowed && s.redditHomeFeed;
+  }
+
+  RedditHomeLoader? _home;
+  // This load fell back to For You (Reddit Home couldn't be read); paging
+  // continues with For You until the next refresh.
+  bool _homeFellBack = false;
+
+  Future<Listing<Post>> _redditHomePage(String? after) async {
+    final firstPage = after == null;
+    try {
+      final store = ref.read(secureStoreProvider);
+      if (await store.authMode != 'web') {
+        throw StateError('Reddit Home needs website sign-in');
+      }
+      final loader = _home ??= RedditHomeLoader();
+      final ids = await loader.next(
+          restart: firstPage, cookieHeader: await store.webCookie ?? '');
+      if (ids.isEmpty) {
+        if (firstPage) throw StateError('No posts found on Reddit Home');
+        return const Listing(items: [], after: null); // end of the feed
+      }
+      final posts = await _repo.getPostsByIds(ids);
+      return Listing(items: posts, after: 'home');
+    } catch (e) {
+      if (!firstPage) rethrow; // a failed page keeps its cursor; retry
+      // Reddit changed its page, the session expired, or the site refused:
+      // show For You rather than an empty feed, and say so.
+      _homeFellBack = true;
+      ref.read(redditHomeNoticeProvider.notifier).state =
+          "Couldn't load Reddit Home, showing For You instead.";
+      return _forYouPage(null);
+    }
+  }
+
   /// "Hide read posts": drops posts already in history as each page arrives.
   /// Filtering when fetched rather than live keeps a post you've just read
   /// (or scrolled past) from vanishing under you; the next load skips it.
@@ -95,6 +134,10 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
       _dropRead(await _fetchRaw(after: after));
 
   Future<Listing<Post>> _fetchRaw({String? after}) {
+    if (_redditHome) {
+      if (after == null) _homeFellBack = false;
+      return _homeFellBack ? _forYouPage(after) : _redditHomePage(after);
+    }
     if (_forYou) return _forYouPage(after);
     final multi = _multi;
     if (multi != null) {
@@ -193,6 +236,7 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
   @override
   Future<FeedState> build(String arg) async {
     _generation++;
+    ref.onDispose(() => _home?.dispose());
     if (!_initialized) {
       _sort = ref.read(settingsControllerProvider).defaultSort;
       _initialized = true;
@@ -240,6 +284,7 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
   }
 
   Future<Listing<Post>?> _cachedFirstPage() async {
+    if (_redditHome) return null;
     if (_forYou) {
       // The last ranked For You page, minus posts opened since.
       final user = ref.read(authControllerProvider).valueOrNull?.username ?? '';
@@ -266,6 +311,7 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
       final s = ref.read(settingsControllerProvider.notifier);
       s.setDefaultSort(sort);
       s.setForYouFeed(false);
+      s.setRedditHomeFeed(false);
     }
     state = const AsyncLoading();
     state = await AsyncValue.guard(() => build(arg));
@@ -274,6 +320,13 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
   /// Switches the frontpage to the "For You (Beta)" feed (persisted).
   Future<void> selectForYou() async {
     ref.read(settingsControllerProvider.notifier).setForYouFeed(true);
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() => build(arg));
+  }
+
+  /// Switches the frontpage to the experimental Reddit Home (persisted).
+  Future<void> selectRedditHome() async {
+    ref.read(settingsControllerProvider.notifier).setRedditHomeFeed(true);
     state = const AsyncLoading();
     state = await AsyncValue.guard(() => build(arg));
   }

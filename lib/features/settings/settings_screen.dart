@@ -264,6 +264,31 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             value: s.autoHideReadForYou,
             onChanged: ctrl.setAutoHideReadForYou,
           ),
+          Builder(builder: (context) {
+            final web = ref.watch(authModeProvider).valueOrNull == 'web';
+            final red = Theme.of(context).colorScheme.error;
+            return SwitchListTile(
+              secondary: Icon(Icons.warning_amber_rounded, color: red),
+              title: Text('Reddit Home (experimental)',
+                  style: TextStyle(color: red, fontWeight: FontWeight.w700)),
+              subtitle: Text(
+                  web
+                      ? 'RISK TO YOUR ACCOUNT: against Reddit\'s terms. '
+                          'Shows your real reddit.com Home'
+                      : 'Needs website sign-in',
+                  style: TextStyle(color: red)),
+              activeThumbColor: red,
+              value: s.redditHomeAllowed,
+              onChanged: !web && !s.redditHomeAllowed
+                  ? null
+                  : (v) async {
+                      if (!v) return ctrl.setRedditHomeAllowed(false);
+                      if (await _confirmRedditHome(context)) {
+                        ctrl.setRedditHomeAllowed(true);
+                      }
+                    },
+            );
+          }),
           SwitchListTile(
             secondary: const Icon(Icons.visibility_off_outlined),
             title: const Text('Hide read posts'),
@@ -1074,6 +1099,95 @@ class _SettingsListState extends ConsumerState<SettingsList> {
       await ref.read(authControllerProvider.notifier).logout();
     }
   }
+}
+
+/// The risk warning for the experimental Reddit Home feed. True if accepted.
+Future<bool> _confirmRedditHome(BuildContext context) async {
+  var accepted = false; // the checkbox must be ticked before enabling
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) {
+      final cs = Theme.of(ctx).colorScheme;
+      return StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          backgroundColor: cs.errorContainer,
+          icon: Icon(Icons.warning_amber_rounded, size: 56, color: cs.error),
+          title: Text('Your Reddit account is at risk',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  color: cs.onErrorContainer, fontWeight: FontWeight.w900)),
+          content: SingleChildScrollView(
+            child: DefaultTextStyle.merge(
+              style: TextStyle(color: cs.onErrorContainer, height: 1.4),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: cs.error,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'Reddit can SUSPEND OR BAN your account for this. '
+                      'Use it only if you accept that risk.',
+                      style: TextStyle(
+                          color: cs.onError,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text(
+                      'Reddit Home shows your real reddit.com Home feed by '
+                      'loading reddit.com in a hidden browser with your '
+                      'website sign-in and reading which posts it shows.'),
+                  const SizedBox(height: 10),
+                  const Text(
+                      '• It is NOT an official API. Reddit\'s User Agreement '
+                      'prohibits automated access to its site.'),
+                  const SizedBox(height: 6),
+                  const Text(
+                      '• It can stop working whenever Reddit changes its site. '
+                      'Ilay then shows For You instead.'),
+                  const SizedBox(height: 6),
+                  const Text('• Website sign-in only. It talks only to '
+                      'reddit.com.'),
+                  const SizedBox(height: 8),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    activeColor: cs.error,
+                    value: accepted,
+                    onChanged: (v) => setState(() => accepted = v ?? false),
+                    title: Text(
+                        'I understand Reddit may suspend my account',
+                        style: TextStyle(
+                            color: cs.onErrorContainer,
+                            fontWeight: FontWeight.w700)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            FilledButton.tonal(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel')),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                  backgroundColor: cs.error, foregroundColor: cs.onError),
+              onPressed: accepted ? () => Navigator.pop(ctx, true) : null,
+              child: const Text('Enable anyway'),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+  return ok ?? false;
 }
 
 /// Picks what each swipe direction does, for posts and for comments.

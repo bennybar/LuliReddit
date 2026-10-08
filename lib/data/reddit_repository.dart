@@ -265,6 +265,22 @@ class RedditRepository {
     );
   }
 
+  /// Posts by fullname (t3_…), in the order given. Reddit returns /by_id in
+  /// its own order and drops removed posts, so the result is re-ordered.
+  Future<List<Post>> getPostsByIds(List<String> fullnames) async {
+    if (fullnames.isEmpty) return const [];
+    final res = await _client.get<Map<String, dynamic>>(
+        '/by_id/${fullnames.join(',')}',
+        query: {'limit': fullnames.length});
+    final byId = {
+      for (final p in _parsePostListing(res.data!).items) 't3_${p.id}': p
+    };
+    return [
+      for (final f in fullnames)
+        if (byId[f] != null) byId[f]!
+    ];
+  }
+
   /// Frontpage (subreddit == null) or a specific subreddit's posts.
   Future<Listing<Post>> getPosts({
     String? subreddit,

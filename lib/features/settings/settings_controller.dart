@@ -67,6 +67,8 @@ class Settings {
     required this.offlineCache,
     required this.checkUpdates,
     required this.forYouFeed,
+    required this.redditHomeAllowed,
+    required this.redditHomeFeed,
     required this.autoHideReadForYou,
     required this.midResThumbnails,
     required this.subsCacheEnabled,
@@ -105,6 +107,10 @@ class Settings {
   final bool offlineCache;
   final bool checkUpdates;
   final bool forYouFeed; // frontpage uses the "For You (Beta)" feed
+  // Experimental Reddit Home: the user accepted its risk warning in Settings
+  // (allowed), and the frontpage currently shows it (feed).
+  final bool redditHomeAllowed;
+  final bool redditHomeFeed;
   final bool autoHideReadForYou; // hide already-read items in For You
   final bool midResThumbnails; // load smaller preview images in feeds
   final bool subsCacheEnabled; // cache subscription list in memory
@@ -144,6 +150,8 @@ class Settings {
     bool? offlineCache,
     bool? checkUpdates,
     bool? forYouFeed,
+    bool? redditHomeAllowed,
+    bool? redditHomeFeed,
     bool? autoHideReadForYou,
     bool? midResThumbnails,
     bool? subsCacheEnabled,
@@ -183,6 +191,8 @@ class Settings {
         offlineCache: offlineCache ?? this.offlineCache,
         checkUpdates: checkUpdates ?? this.checkUpdates,
         forYouFeed: forYouFeed ?? this.forYouFeed,
+        redditHomeAllowed: redditHomeAllowed ?? this.redditHomeAllowed,
+        redditHomeFeed: redditHomeFeed ?? this.redditHomeFeed,
         autoHideReadForYou: autoHideReadForYou ?? this.autoHideReadForYou,
         midResThumbnails: midResThumbnails ?? this.midResThumbnails,
         subsCacheEnabled: subsCacheEnabled ?? this.subsCacheEnabled,
@@ -237,6 +247,8 @@ class SettingsController extends Notifier<Settings> {
       offlineCache: p.getBool('offlineCache') ?? true,
       checkUpdates: p.getBool('checkUpdates') ?? true,
       forYouFeed: p.getBool('forYouFeed') ?? false,
+      redditHomeAllowed: p.getBool('redditHomeAllowed') ?? false,
+      redditHomeFeed: p.getBool('redditHomeFeed') ?? false,
       autoHideReadForYou: p.getBool('autoHideReadForYou') ?? false,
       midResThumbnails: p.getBool('midResThumbnails') ?? true,
       subsCacheEnabled: p.getBool('subsCacheEnabled') ?? true,
@@ -320,9 +332,26 @@ class SettingsController extends Notifier<Settings> {
     state = state.copyWith(checkUpdates: v);
   }
 
+  /// Turning Reddit Home off in Settings also takes the frontpage off it.
+  void setRedditHomeAllowed(bool v) {
+    _prefs.setBool('redditHomeAllowed', v);
+    state = state.copyWith(redditHomeAllowed: v);
+    if (!v) setRedditHomeFeed(false);
+  }
+
+  void setRedditHomeFeed(bool v) {
+    _prefs.setBool('redditHomeFeed', v);
+    state = state.copyWith(redditHomeFeed: v);
+    if (v && state.forYouFeed) {
+      _prefs.setBool('forYouFeed', false);
+      state = state.copyWith(forYouFeed: false);
+    }
+  }
+
   void setForYouFeed(bool v) {
     _prefs.setBool('forYouFeed', v);
     state = state.copyWith(forYouFeed: v);
+    if (v) setRedditHomeFeed(false); // one frontpage mode at a time
   }
 
   void setAutoHideReadForYou(bool v) {
