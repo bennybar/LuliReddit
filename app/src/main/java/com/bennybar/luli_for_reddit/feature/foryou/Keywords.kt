@@ -24,8 +24,8 @@ private val STOPWORDS = setOf(
     "היום", "אחרי", "לפני", "אחד", "אחת",
 )
 
-private val NON_WORD = Regex("(?U)[^\\p{L}\\p{N}\\s]")
-private val WHITESPACE = Regex("(?U)\\s+")
+private val NON_WORD = Regex("[^\\p{L}\\p{N}\\s\\p{Z}]") // no (?U): Android ICU rejects it
+private val WHITESPACE = Regex("[\\s\\p{Z}]+")
 private val UPPER = Regex("\\p{Lu}")
 private val LETTER = Regex("\\p{L}")
 private val DIGIT = Regex("\\d")
