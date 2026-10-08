@@ -29,6 +29,7 @@ import '../media/media_viewers.dart';
 import '../media/nsfw_blur.dart';
 import '../settings/settings_controller.dart';
 import 'comments_controller.dart';
+import 'ask_thread_sheet.dart';
 import 'compose_sheet.dart';
 import 'post_actions.dart';
 import 'share_comment_image.dart';
@@ -237,6 +238,23 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
     );
   }
 
+  void _ask(Post post) {
+    final key = ref.read(openAiKeyProvider).valueOrNull;
+    if (key == null || key.isEmpty) return;
+    final s = ref.read(settingsControllerProvider);
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (_) => AskThreadSheet(
+        baseUrl: s.aiUseCustomUrl ? s.aiBaseUrl : 'https://api.openai.com',
+        apiKey: key,
+        model: s.aiModel,
+        threadText: AiService.buildThreadText(post, _flat, s.aiMaxChars),
+      ),
+    );
+  }
+
   /// Jumps the comment list to the next top-level (depth 0) comment, cycling
   /// back to the first once past the last. List index 0 is the post header, so
   /// comment `ci` lives at list index `ci + 1`.
@@ -413,6 +431,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
                 }
               },
               onSummarize: hasAiKey ? () => _summarize(thread.post) : null,
+              onAsk: hasAiKey ? () => _ask(thread.post) : null,
               onNext: _jumpNextTopLevel,
               onNextLongPress: () => _showJumpMenu(
                   thread.post.author, username,
@@ -873,7 +892,7 @@ Future<bool> _confirmDelete(BuildContext context, String what) async {
 
 /// Everything that moves through the thread in ONE compact floating pill
 /// (as in Scoops), instead of a stack of large buttons:
-/// [↑ N new ↓] [your comment] [summarize] [comment] [● next top-level].
+/// [↑ N new ↓] [your comment] [summarize] [ask] [comment] [● next top-level].
 class _ThreadToolbar extends StatelessWidget {
   const _ThreadToolbar({
     required this.newCount,
@@ -884,6 +903,7 @@ class _ThreadToolbar extends StatelessWidget {
     required this.onMine,
     required this.onComment,
     this.onSummarize,
+    this.onAsk,
     required this.onNext,
     required this.onNextLongPress,
   });
@@ -892,7 +912,7 @@ class _ThreadToolbar extends StatelessWidget {
   final bool hasMine;
   final bool hasComments;
   final VoidCallback onPrevNew, onNextNew, onMine, onComment, onNext;
-  final VoidCallback? onSummarize; // only when AI summaries are set up
+  final VoidCallback? onSummarize, onAsk; // only when AI is set up
   final VoidCallback onNextLongPress;
 
   @override
@@ -936,6 +956,8 @@ class _ThreadToolbar extends StatelessWidget {
             if (hasMine) icon(Icons.person_rounded, 'Your comments', onMine),
             if (onSummarize != null)
               icon(Icons.auto_awesome_rounded, 'Summarize thread', onSummarize!),
+            if (onAsk != null)
+              icon(Icons.forum_rounded, 'Ask about this thread', onAsk!),
             icon(Icons.add_comment_rounded, 'Comment', onComment),
             if (hasComments)
               // The main action: a filled accent circle. Long-press for the

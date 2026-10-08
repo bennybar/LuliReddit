@@ -41,10 +41,64 @@ class AiService {
     required SummaryStyle style,
     required String threadText,
   }) async {
-    final url = '${baseUrl.replaceAll(RegExp(r'/+$'), '')}/v1/chat/completions';
     final system =
         'You summarize Reddit threads accurately and neutrally. Do not invent '
         'details. ${style.instruction}';
+    return _chat(
+      baseUrl: baseUrl,
+      apiKey: apiKey,
+      model: model,
+      messages: [
+        {'role': 'system', 'content': system},
+        {'role': 'user', 'content': threadText},
+      ],
+    );
+  }
+
+  /// Answers [question] about the thread in [threadText], continuing the
+  /// conversation in [history] (alternating user / assistant turns, oldest
+  /// first). Answers only from the thread, and says so when it can't tell.
+  static Future<String> ask({
+    required String baseUrl,
+    required String apiKey,
+    required String model,
+    required String threadText,
+    required List<({bool fromUser, String text})> history,
+    required String question,
+  }) {
+    const system =
+        'You answer questions about one Reddit thread: the post and its '
+        'comments, given in the first user message. Use only what the thread '
+        'says. If it doesn\'t answer the question, say so plainly instead of '
+        'guessing. Mention the u/username when a point comes from a specific '
+        'comment. Be concise and use markdown.';
+    return _chat(
+      baseUrl: baseUrl,
+      apiKey: apiKey,
+      model: model,
+      messages: [
+        {'role': 'system', 'content': system},
+        {'role': 'user', 'content': 'THE THREAD:\n$threadText'},
+        {
+          'role': 'assistant',
+          'content': 'Got it. Ask me anything about this thread.'
+        },
+        for (final m in history)
+          {'role': m.fromUser ? 'user' : 'assistant', 'content': m.text},
+        {'role': 'user', 'content': question},
+      ],
+    );
+  }
+
+  /// One /v1/chat/completions call; returns the reply text or throws with a
+  /// readable message.
+  static Future<String> _chat({
+    required String baseUrl,
+    required String apiKey,
+    required String model,
+    required List<Map<String, String>> messages,
+  }) async {
+    final url = '${baseUrl.replaceAll(RegExp(r'/+$'), '')}/v1/chat/completions';
     final dio = Dio(BaseOptions(
       connectTimeout: const Duration(seconds: 20),
       receiveTimeout: const Duration(seconds: 90),
@@ -58,13 +112,7 @@ class AiService {
           'Authorization': 'Bearer $apiKey',
           'Content-Type': 'application/json',
         }),
-        data: {
-          'model': model,
-          'messages': [
-            {'role': 'system', 'content': system},
-            {'role': 'user', 'content': threadText},
-          ],
-        },
+        data: {'model': model, 'messages': messages},
       );
     } on DioException catch (e) {
       throw Exception('Could not reach the AI endpoint: ${e.message}');
@@ -86,7 +134,7 @@ class AiService {
       }
     }
     final text = content?.trim() ?? '';
-    if (text.isEmpty) throw Exception('The AI returned an empty summary.');
+    if (text.isEmpty) throw Exception('The AI returned an empty answer.');
     return text;
   }
 
