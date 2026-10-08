@@ -65,25 +65,28 @@ Future<void> seedForYouIfNeeded(Ref ref) async {
 // Last ranked page, for an instant first paint
 // ---------------------------------------------------------------------------
 
-Future<File> _cacheFile(String user) async => File(
-    '${(await getApplicationSupportDirectory()).path}/foryou_${user.toLowerCase()}.json');
+// [feed] is 'foryou' or 'home' (Reddit Home): each keeps its own last page.
+Future<File> _cacheFile(String user, String feed) async => File(
+    '${(await getApplicationSupportDirectory()).path}/${feed}_${user.toLowerCase()}.json');
 
-/// Saves the first ranked page (raw post data + each post's reason).
+/// Saves the first page (raw post data + each post's reason).
 Future<void> saveForYouPage(String user, List<Post> posts,
-    Map<String, dynamic>? Function(String id) raw) async {
+    Map<String, dynamic>? Function(String id) raw,
+    {String feed = 'foryou'}) async {
   try {
     final rows = [
       for (final p in posts.take(40))
         if (raw(p.id) != null) {'raw': raw(p.id), 'reason': p.feedReason},
     ];
-    await (await _cacheFile(user)).writeAsString(jsonEncode(rows));
+    await (await _cacheFile(user, feed)).writeAsString(jsonEncode(rows));
   } catch (_) {/* best effort */}
 }
 
 /// The saved page, minus posts opened since (they'd only be demoted now).
-Future<List<Post>?> loadForYouPage(String user, Set<String> opened) async {
+Future<List<Post>?> loadForYouPage(String user, Set<String> opened,
+    {String feed = 'foryou'}) async {
   try {
-    final f = await _cacheFile(user);
+    final f = await _cacheFile(user, feed);
     if (!f.existsSync()) return null;
     final rows = jsonDecode(await f.readAsString()) as List;
     final posts = [

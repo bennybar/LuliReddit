@@ -87,6 +87,7 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
   // This load fell back to For You (Reddit Home couldn't be read); paging
   // continues with For You until the next refresh.
   bool _homeFellBack = false;
+  int _homeEmpty = 0; // consecutive empty "more" batches from Reddit Home
 
   Future<Listing<Post>> _redditHomePage(String? after) async {
     final firstPage = after == null;
@@ -100,9 +101,16 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
           restart: firstPage, cookieHeader: await store.webCookie ?? '');
       if (ids.isEmpty) {
         if (firstPage) throw StateError('No posts found on Reddit Home');
-        return const Listing(items: [], after: null); // end of the feed
+        // One empty batch can just be the page still setting up its "load
+        // more"; only two in a row end the feed.
+        return Listing(items: const [], after: ++_homeEmpty >= 2 ? null : 'home');
       }
+      _homeEmpty = 0;
       final posts = await _repo.getPostsByIds(ids);
+      final user = ref.read(authControllerProvider).valueOrNull?.username ?? '';
+      if (firstPage && user.isNotEmpty) {
+        saveForYouPage(user, posts, _repo.rawPost, feed: 'home');
+      }
       return Listing(items: posts, after: 'home');
     } catch (e) {
       if (!firstPage) rethrow; // a failed page keeps its cursor; retry
@@ -284,13 +292,14 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
   }
 
   Future<Listing<Post>?> _cachedFirstPage() async {
-    if (_redditHome) return null;
-    if (_forYou) {
-      // The last ranked For You page, minus posts opened since.
+    if (_redditHome || _forYou) {
+      // The last Home / For You page, minus posts opened since, while the
+      // fresh one loads.
       final user = ref.read(authControllerProvider).valueOrNull?.username ?? '';
       if (user.isEmpty) return null;
       final opened = {for (final e in ref.read(historyControllerProvider)) e.id};
-      final posts = await loadForYouPage(user, opened);
+      final posts = await loadForYouPage(user, opened,
+          feed: _redditHome ? 'home' : 'foryou');
       return posts == null ? null : Listing(items: posts, after: null);
     }
     if (_multi != null) return null;
