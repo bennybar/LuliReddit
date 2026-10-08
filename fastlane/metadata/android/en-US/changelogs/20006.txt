@@ -1,0 +1,3 @@
+- Reddit Home: pull-to-refresh (and opening the app) brings a fresh feed again.
+- Back gesture: the screen shrinks into a rounded card over the previous one, instead of fading out.
+- Calm layout: clearer contrast in light mode.
