@@ -34,6 +34,7 @@ import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.rounded.OfflinePin
@@ -88,6 +89,7 @@ import com.bennybar.luli_for_reddit.feature.foryou.showTuneSheet
 import com.bennybar.luli_for_reddit.feature.markdown.MarkdownToolbar
 import com.bennybar.luli_for_reddit.model.Comment
 import com.bennybar.luli_for_reddit.model.Post
+import com.bennybar.luli_for_reddit.settings.PostDisplay
 import com.bennybar.luli_for_reddit.nav.Route
 import com.bennybar.luli_for_reddit.ui.Overlays
 import com.bennybar.luli_for_reddit.ui.friendlyError
@@ -356,6 +358,16 @@ private fun PostActionsSheet(post: Post, done: () -> Unit) {
                 app.navigator.shareWithTitle(link, post.title)
             }
             item(Icons.Outlined.VisibilityOff, "Hide") { hidePost(post) }
+            // The Calm card has no read toggle of its own: it lives here.
+            if (app.settings.value.postDisplay == PostDisplay.CALM) {
+                val seen = app.history.contains(post.id)
+                item(
+                    if (seen) Icons.Rounded.CheckCircle else Icons.Outlined.CheckCircleOutline,
+                    if (seen) "Mark as unread" else "Mark as read",
+                ) {
+                    if (seen) app.history.removeViewed(post.id) else app.history.markViewed(post)
+                }
+            }
             item(
                 if (savedOffline) Icons.Rounded.OfflinePin else Icons.Outlined.DownloadForOffline,
                 if (savedOffline) "Remove offline copy" else "Save for offline",

@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.HelpOutline
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.outlined.BrokenImage
 import androidx.compose.material.icons.outlined.ModeComment
@@ -33,10 +35,14 @@ import androidx.compose.material.icons.rounded.Gif
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Newspaper
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.PlayCircleFilled
 import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.Repeat
+import androidx.compose.material.icons.rounded.Sell
+import androidx.compose.material.icons.rounded.SentimentSatisfied
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Icon
@@ -54,6 +60,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -196,6 +203,12 @@ private class PostActions(val post: Post, val nav: AppNavigator) {
     fun hide() {
         app.scope.launch { hidePost(post) }
     }
+
+    fun share() {
+        // Sharing is a strong interest signal (as in the ⋮ sheet).
+        app.forYou.learner.share(post)
+        nav.share("https://reddit.com${post.permalink}", subject = post.title)
+    }
 }
 
 /** The live override for one post: only this card recomposes when it changes. */
@@ -255,8 +268,9 @@ fun PostCard(post: Post, modifier: Modifier = Modifier) {
     // The whole card, "why" banner included, is the swipe target (as Flutter).
     SwipeActions(start = startSpec, end = endSpec, modifier = outer, enabled = settings.swipeActions) {
         Column {
-            // "Why you're seeing this" banner (For You feed only).
-            if (reason != null) ReasonRow(reason, onTune = actions::tune)
+            // "Why you're seeing this" banner (For You feed only). Calm shows
+            // the reason in the card header instead.
+            if (reason != null && settings.postDisplay != PostDisplay.CALM) ReasonRow(reason, onTune = actions::tune)
             // Dim already-viewed posts when history tracking is on. A
             // page-colour veil looks the same as 55% opacity — the card sits on
             // the page surface — without re-rendering the whole card, images
@@ -270,6 +284,7 @@ fun PostCard(post: Post, modifier: Modifier = Modifier) {
                 PostDisplay.LARGE -> LargeCard(post, actions, settings, dim)
                 PostDisplay.CARD -> CardsCard(post, actions, settings, dim)
                 PostDisplay.MINI -> MiniCard(post, actions, settings, dim)
+                PostDisplay.CALM -> CalmCard(post, actions, settings, dim)
             }
         }
     }
@@ -818,5 +833,331 @@ private fun MediaPill(label: String, icon: ImageVector?, modifier: Modifier = Mo
             Spacer(Modifier.width(4.dp))
         }
         Text(label, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Calm layout
+// ---------------------------------------------------------------------------
+
+private val CalmCardShape = RoundedCornerShape(24.dp)
+private val CalmMediaShape = RoundedCornerShape(18.dp)
+
+/**
+ * "Calm" — a quieter card: two-line header (subreddit / author or the For
+ * You reason), a medium-weight title, a flair pill, 16:10 media and a
+ * connected vote group. Mark-read lives in the ⋮ sheet.
+ */
+@Composable
+private fun CalmCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
+    val cs = MaterialTheme.colorScheme
+    val ov by rememberOverride(p)
+    val likes = if (ov != null) ov!!.likes else p.likes
+    val score = ov?.score ?: p.score
+    val saved = ov?.saved ?: p.saved
+    val numComments = ov?.numComments ?: p.numComments
+    // The feed's side padding is 10dp; Calm cards sit 12dp in.
+    BloomCard(Modifier.padding(horizontal = 2.dp).then(dim), onClick = a::openDetail, onLongClick = a::tune, shape = CalmCardShape) {
+        Column(Modifier.padding(start = 16.dp, top = 14.dp, end = 16.dp, bottom = 12.dp)) {
+            CalmHeader(p, a)
+            Text(
+                p.title,
+                Modifier.padding(top = 10.dp),
+                fontSize = 16.5.sp,
+                fontWeight = FontWeight.Medium,
+                lineHeight = 1.3.em,
+                color = cs.onSurface,
+            )
+            p.linkFlairText?.let { CalmFlair(it, Modifier.padding(top = 8.dp)) }
+            CrosspostLine(p)
+            CalmMedia(p, a, s)
+            if (p.pollOptions.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                PollOptions(p)
+            }
+            if (p.selftext.isNotEmpty()) {
+                Text(
+                    p.selftext,
+                    Modifier.padding(top = 6.dp),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    fontSize = 14.sp,
+                    color = cs.onSurfaceVariant,
+                )
+            }
+            Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                CalmVoteGroup(score, likes, onUp = { a.vote(1) }, onDown = { a.vote(-1) })
+                Spacer(Modifier.width(8.dp))
+                CalmPill(Icons.Outlined.ModeComment, compactNumber(numComments), onClick = a::openDetail)
+                Spacer(Modifier.weight(1f))
+                CalmGhost(Icons.Rounded.Share, "Share", cs.onSurfaceVariant, a::share)
+                CalmGhost(
+                    if (saved) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
+                    if (saved) "Unsave" else "Save",
+                    if (saved) cs.primary else cs.onSurfaceVariant,
+                    a::toggleSave,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CalmHeader(p: Post, a: PostActions) {
+    val cs = MaterialTheme.colorScheme
+    val reason = p.feedReason
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        LetterAvatar(
+            p.subreddit,
+            size = 34.dp,
+            container = cs.secondaryContainer,
+            content = cs.onSecondaryContainer,
+            modifier = Modifier.clickable(onClick = a::openSubreddit),
+        )
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                p.subredditPrefixed.ifEmpty { "r/${p.subreddit}" },
+                Modifier.clickable(onClick = a::openSubreddit),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color = cs.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (reason != null) {
+                // For You: why it's here, in place of the author. Tap → the
+                // "why you're seeing this" / tune sheet.
+                Row(Modifier.clickable(onClick = a::tune), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(13.dp), tint = cs.primary)
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        reason,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = cs.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            } else {
+                Text(
+                    "u/${p.author} · ${timeAgo(p.createdUtc)}",
+                    Modifier.clickable(onClick = a::openAuthor),
+                    fontSize = 12.sp,
+                    color = cs.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        if (p.stickied) Icon(Icons.Rounded.PushPin, null, Modifier.size(16.dp), tint = cs.primary)
+        if (p.over18) {
+            Text(
+                "NSFW",
+                Modifier
+                    .padding(start = 6.dp)
+                    .background(cs.errorContainer, RoundedCornerShape(6.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = cs.onErrorContainer,
+            )
+        }
+        Box(
+            Modifier.size(36.dp).clip(CircleShape).clickable(onClick = a::more),
+            contentAlignment = Alignment.Center,
+        ) { Icon(Icons.Rounded.MoreVert, "More", Modifier.size(20.dp), tint = cs.onSurfaceVariant) }
+    }
+}
+
+/** Calm media: 16:10 cover crop (radius 18), galleries, inline video, or a link block. */
+@Composable
+private fun CalmMedia(p: Post, a: PostActions, s: Settings) {
+    val cs = MaterialTheme.colorScheme
+    if (p.type == PostType.SELF) return
+    val blur = blurOf(p, s)
+    val top = Modifier.padding(top = 10.dp)
+    if (p.type == PostType.LINK) {
+        val img = cardImg(p, s) ?: p.thumbnailUrl
+        Column(top.fillMaxWidth().clip(CalmMediaShape).background(cs.surfaceContainerHigh).clickable(onClick = a::openMedia)) {
+            if (img != null) {
+                NsfwBlur(blur, blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, s)) {
+                    Box(Modifier.fillMaxWidth().aspectRatio(2f).background(cs.surfaceContainerHighest)) {
+                        FeedImage(img, Modifier.fillMaxSize())
+                    }
+                }
+            }
+            Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.Link, null, Modifier.size(14.dp), tint = cs.onSurfaceVariant)
+                Spacer(Modifier.width(6.dp))
+                Text(p.domain, Modifier.weight(1f), fontSize = 12.sp, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Icon(Icons.AutoMirrored.Rounded.OpenInNew, null, Modifier.size(14.dp), tint = cs.onSurfaceVariant)
+            }
+        }
+        return
+    }
+    BoxWithConstraints(top.fillMaxWidth()) {
+        val height = maxWidth * 10f / 16f
+        if (p.type == PostType.GALLERY && p.gallery.isNotEmpty()) {
+            NsfwBlur(blur, label = blurLabel(p, s)) {
+                GalleryCarousel(p.gallery, Modifier.clip(CalmMediaShape), title = p.title, height = height)
+            }
+            return@BoxWithConstraints
+        }
+        val url = feedImageUrl(p, s)
+        // Inline autoplay for videos (when enabled and not NSFW-blurred).
+        if (p.type == PostType.VIDEO && !blur && s.autoplayMedia) {
+            val vurl = postVideoUrl(p)
+            if (vurl.isNotEmpty() && !vurl.lowercase().endsWith(".gif")) {
+                Box(Modifier.clip(CalmMediaShape)) {
+                    androidx.compose.runtime.key(p.id) {
+                        InlineVideo(vurl, height = height, onTap = a::openMedia, poster = url)
+                    }
+                }
+                return@BoxWithConstraints
+            }
+        }
+        NsfwBlur(blur, blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, s)) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(height)
+                    .clip(CalmMediaShape)
+                    .background(cs.surfaceContainerHighest)
+                    .clickable(onClick = a::openMedia),
+            ) {
+                if (url != null) FeedImage(url, Modifier.fillMaxSize(), brokenIcon = true)
+                if (p.type == PostType.VIDEO || p.type == PostType.GIF) PlayBadge(Modifier.align(Alignment.Center))
+                if (p.type == PostType.GIF) MediaPill("GIF", Icons.Rounded.Gif, Modifier.align(Alignment.TopEnd).padding(8.dp))
+                if (p.type == PostType.GALLERY) {
+                    MediaPill("${p.gallery.size}", Icons.Rounded.Collections, Modifier.align(Alignment.TopEnd).padding(8.dp))
+                }
+            }
+        }
+    }
+}
+
+private val FlairShortcode = Regex(""":[A-Za-z0-9_+\-]+:""")
+private val Whitespace = Regex("\\s+")
+
+/** Flair text without Reddit's `:emoji:` shortcodes (":Discussion: Discussion" → "Discussion"). */
+fun cleanFlair(text: String): String = text.replace(FlairShortcode, " ").replace(Whitespace, " ").trim()
+
+/** A small icon matching common flair words (the flair's emoji images aren't in its text). */
+private fun flairIcon(text: String): ImageVector {
+    val t = text.lowercase()
+    return when {
+        "discuss" in t -> Icons.Outlined.ModeComment
+        "question" in t || "help" in t -> Icons.AutoMirrored.Rounded.HelpOutline
+        "news" in t -> Icons.Rounded.Newspaper
+        "meme" in t || "humor" in t || "funny" in t -> Icons.Rounded.SentimentSatisfied
+        t == "oc" || "image" in t || "photo" in t || "art" in t -> Icons.Rounded.Image
+        "video" in t -> Icons.Rounded.PlayArrow
+        else -> Icons.Rounded.Sell
+    }
+}
+
+/** Calm flair pill: 26dp, surfaceContainerHigh, icon + cleaned text. Nothing when it's only emoji. */
+@Composable
+fun CalmFlair(raw: String, modifier: Modifier = Modifier) {
+    val text = remember(raw) { cleanFlair(raw) }
+    if (text.isEmpty()) return
+    val cs = MaterialTheme.colorScheme
+    Row(
+        modifier
+            .height(26.dp)
+            .background(cs.surfaceContainerHigh, RoundedCornerShape(13.dp))
+            .padding(start = 8.dp, end = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(flairIcon(text), null, Modifier.size(14.dp), tint = cs.primary)
+        Spacer(Modifier.width(5.dp))
+        Text(text, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/**
+ * Calm's connected vote group: [↑ score][↓] segments (outer corners
+ * [height]/2, inner 6, 2dp gap); the active segment takes the vote colour.
+ */
+@Composable
+fun CalmVoteGroup(
+    score: Int,
+    likes: Boolean?,
+    onUp: () -> Unit,
+    onDown: () -> Unit,
+    height: Dp = 36.dp,
+    iconSize: Dp = 18.dp,
+    hPad: Dp = 11.dp,
+) {
+    val votes = LocalVoteColors.current
+    val up = likes == true
+    val down = likes == false
+    val r = height / 2
+    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        CalmSegment(
+            RoundedCornerShape(topStart = r, bottomStart = r, topEnd = 6.dp, bottomEnd = 6.dp),
+            if (up) votes.up else null,
+            height,
+            hPad,
+            "Upvote",
+            onUp,
+        ) { fg ->
+            Icon(Icons.Rounded.ArrowUpward, null, Modifier.size(iconSize), tint = fg)
+            Spacer(Modifier.width(4.dp))
+            Text(compactNumber(score), fontSize = 13.sp, fontWeight = FontWeight.Medium, color = if (down) votes.down else fg)
+        }
+        CalmSegment(
+            RoundedCornerShape(topStart = 6.dp, bottomStart = 6.dp, topEnd = r, bottomEnd = r),
+            if (down) votes.down else null,
+            height,
+            hPad,
+            "Downvote",
+            onDown,
+        ) { fg -> Icon(Icons.Rounded.ArrowDownward, null, Modifier.size(iconSize), tint = fg) }
+    }
+}
+
+/** A solo Calm pill (icon + label), e.g. the comment count. */
+@Composable
+fun CalmPill(icon: ImageVector, label: String, onClick: (() -> Unit)?, height: Dp = 36.dp, iconSize: Dp = 17.dp, hPad: Dp = 11.dp) {
+    CalmSegment(RoundedCornerShape(height / 2), null, height, hPad, null, onClick) { fg ->
+        Icon(icon, null, Modifier.size(iconSize), tint = fg)
+        Spacer(Modifier.width(4.dp))
+        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = fg)
+    }
+}
+
+/** One tonal segment; [tint] (a vote colour) fills it at 22% and colours its content. */
+@Composable
+private fun CalmSegment(
+    shape: RoundedCornerShape,
+    tint: Color?,
+    height: Dp,
+    hPad: Dp,
+    label: String?,
+    onClick: (() -> Unit)?,
+    content: @Composable (Color) -> Unit,
+) {
+    val cs = MaterialTheme.colorScheme
+    val bg = if (tint != null) tint.copy(alpha = 0.22f).compositeOver(cs.surfaceContainerHigh) else cs.surfaceContainerHigh
+    val fg = tint ?: cs.onSurface
+    Row(
+        Modifier
+            .height(height)
+            .clip(shape)
+            .background(bg)
+            .then(if (onClick != null) Modifier.clickable(onClickLabel = label, onClick = onClick) else Modifier)
+            .padding(horizontal = hPad),
+        verticalAlignment = Alignment.CenterVertically,
+    ) { content(fg) }
+}
+
+/** A borderless icon button (Calm's share / save). */
+@Composable
+fun CalmGhost(icon: ImageVector, label: String, tint: Color, onClick: () -> Unit, size: Dp = 36.dp, iconSize: Dp = 19.dp) {
+    Box(Modifier.size(size).clip(CircleShape).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+        Icon(icon, label, Modifier.size(iconSize), tint = tint)
     }
 }

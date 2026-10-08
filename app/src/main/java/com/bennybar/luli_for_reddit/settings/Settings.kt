@@ -9,6 +9,7 @@ import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.CalendarViewDay
+import androidx.compose.material.icons.rounded.Spa
 import androidx.compose.material.icons.rounded.UnfoldLess
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.runtime.Immutable
@@ -40,6 +41,7 @@ enum class PostDisplay(val label: String, val icon: ImageVector) {
     LARGE("Default", Icons.Outlined.ViewAgenda),
     CARD("Cards", Icons.Rounded.CalendarViewDay),
     MINI("Mini cards", Icons.AutoMirrored.Rounded.ViewList),
+    CALM("Calm", Icons.Rounded.Spa),
 }
 
 /** What a swipe on a post or comment does. Persisted by [key] (Flutter's enum name). */

@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.layout.LazyLayoutCacheWindow
 import androidx.compose.foundation.shape.CircleShape
@@ -56,6 +57,7 @@ import androidx.compose.material.icons.rounded.PlayCircleFilled
 import androidx.compose.material.icons.rounded.RecordVoiceOver
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.material.icons.rounded.SubdirectoryArrowRight
 import androidx.compose.material.icons.rounded.UnfoldLess
@@ -142,6 +144,13 @@ import com.bennybar.luli_for_reddit.nav.AppNavigator
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.NavCache
 import com.bennybar.luli_for_reddit.nav.Route
+import com.bennybar.luli_for_reddit.feature.feed.CalmFlair
+import com.bennybar.luli_for_reddit.feature.feed.CalmGhost
+import com.bennybar.luli_for_reddit.feature.feed.CalmPill
+import com.bennybar.luli_for_reddit.feature.feed.CalmVoteGroup
+import com.bennybar.luli_for_reddit.feature.feed.LetterAvatar
+import com.bennybar.luli_for_reddit.model.Subreddit
+import com.bennybar.luli_for_reddit.settings.PostDisplay
 import com.bennybar.luli_for_reddit.settings.Settings
 import com.bennybar.luli_for_reddit.settings.SwipeAction
 import com.bennybar.luli_for_reddit.state.PostOverrides
@@ -552,6 +561,29 @@ private fun CommentList(
             item(key = "empty", contentType = "empty") {
                 Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { Text("No comments yet") }
             }
+        } else if (settings.postDisplay == PostDisplay.CALM) {
+            // Calm: one container per top-level thread, drawn as contiguous
+            // rows (still one lazy item per comment) whose first / last
+            // rows round the container's top / bottom.
+            itemsIndexed(flat, key = { _, c -> c.fullname }, contentType = { _, c -> if (c.isMore) "more" else "comment" }) { i, c ->
+                val first = i == 0 || c.depth == 0
+                val last = i == flat.lastIndex || flat[i + 1].depth == 0
+                CalmThreadRow(first, last, highlighted = currentMatchId == c.fullname) {
+                    if (c.isMore) {
+                        MoreRow(c, loading = c.fullname in thread.loadingMore, onClick = { actions.loadMore(c) })
+                    } else {
+                        CalmCommentRow(
+                            comment = c,
+                            isNew = isNew(c),
+                            isOwn = username.isNotEmpty() && c.author == username,
+                            opAuthor = thread.post.author,
+                            collapsed = c.id in thread.collapsed,
+                            settings = settings,
+                            actions = actions,
+                        )
+                    }
+                }
+            }
         } else {
             items(flat, key = { it.fullname }, contentType = { if (it.isMore) "more" else "comment" }) { c ->
                 if (c.isMore) {
@@ -851,6 +883,12 @@ private fun PostHeader(post: Post, fresh: Boolean) {
         }
     }
 
+    val settings by app.settings.state.collectAsState()
+    if (settings.postDisplay == PostDisplay.CALM) {
+        CalmPostHeader(p, fresh, score, likes, saved, numComments, ::vote, ::toggleSave)
+        return
+    }
+
     Column(Modifier.fillMaxWidth().padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 8.dp)) {
         Text(
             p.subredditPrefixed,
@@ -933,6 +971,150 @@ private fun PostHeader(post: Post, fresh: Boolean) {
     }
 }
 
+/**
+ * The Calm post header: subreddit avatar + [r/sub / u/author · age] + a
+ * Join pill, a 24sp regular title, the flair pill, media (radius 22) and
+ * the connected vote group, then the comment count.
+ */
+@Composable
+private fun CalmPostHeader(
+    p: Post,
+    fresh: Boolean,
+    score: Int,
+    likes: Boolean?,
+    saved: Boolean,
+    numComments: Int,
+    vote: (Int) -> Unit,
+    toggleSave: () -> Unit,
+) {
+    val cs = MaterialTheme.colorScheme
+    val nav = LocalNavigator.current
+    val signedIn = app.session.username.isNotEmpty()
+    // Icon + membership come from the subreddit's about (fetched once the
+    // thread is in; the feed's copy shown while loading skips it).
+    val about by androidx.compose.runtime.produceState<Subreddit?>(null, p.subreddit, fresh) {
+        if (fresh) value = runCatching { app.repository.getSubredditAbout(p.subreddit) }.getOrNull()
+    }
+    var joinedOverride by remember(p.subreddit) { mutableStateOf<Boolean?>(null) }
+    val joined = joinedOverride ?: about?.userIsSubscriber
+
+    Column(Modifier.fillMaxWidth().padding(start = 20.dp, top = 4.dp, end = 20.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            LetterAvatar(
+                p.subreddit,
+                size = 40.dp,
+                container = cs.secondaryContainer,
+                content = cs.onSecondaryContainer,
+                imageUrl = about?.iconUrl,
+                modifier = Modifier.clickable { nav.openSubreddit(p.subreddit) },
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    p.subredditPrefixed.ifEmpty { "r/${p.subreddit}" },
+                    Modifier.clickable { nav.openSubreddit(p.subreddit) },
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    "u/${p.author} · ${timeAgo(p.createdUtc)}",
+                    Modifier.clickable { nav.openUser(p.author) },
+                    fontSize = 12.5.sp,
+                    color = cs.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (signedIn && joined != null) {
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    Modifier
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(cs.secondaryContainer)
+                        .clickable {
+                            val next = !joined
+                            joinedOverride = next
+                            app.scope.launch {
+                                try {
+                                    app.repository.setSubscribed(p.subreddit, next)
+                                } catch (e: Exception) {
+                                    joinedOverride = !next
+                                    nav.showActionError(if (next) "join" else "leave", e)
+                                }
+                            }
+                        }
+                        .padding(horizontal = 14.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(if (joined) "Joined" else "Join", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = cs.onSecondaryContainer)
+                }
+            }
+        }
+        Text(
+            p.title,
+            Modifier.padding(top = 14.dp),
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Normal,
+            lineHeight = 1.2.em,
+            letterSpacing = (-0.01).em,
+        )
+        p.linkFlairText?.let { CalmFlair(it, Modifier.padding(top = 8.dp)) }
+        p.crosspostFrom?.let { from ->
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.Repeat, null, Modifier.size(14.dp), tint = cs.onSurfaceVariant)
+                Spacer(Modifier.width(6.dp))
+                Text("Crossposted from r/$from", fontSize = 12.sp, color = cs.onSurfaceVariant)
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        PostMedia(p, nav, radius = 22.dp)
+        if (p.pollOptions.isNotEmpty()) {
+            Spacer(Modifier.height(4.dp))
+            for (opt in p.pollOptions) {
+                Text(
+                    opt,
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(cs.surfaceContainerHigh)
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                )
+            }
+            Text("Vote in the official app", fontSize = 12.sp, color = cs.onSurfaceVariant)
+        }
+        if (p.selftext.isNotEmpty()) RedditMarkdown(p.selftext, selectable = true)
+        Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            CalmVoteGroup(score, likes, onUp = { vote(1) }, onDown = { vote(-1) }, height = 40.dp, iconSize = 19.dp, hPad = 14.dp)
+            Spacer(Modifier.width(8.dp))
+            CalmPill(Icons.Outlined.ModeComment, compactNumber(numComments), onClick = null, height = 40.dp, iconSize = 18.dp, hPad = 14.dp)
+            Spacer(Modifier.weight(1f))
+            CalmGhost(Icons.Rounded.Share, "Share", cs.onSurfaceVariant, {
+                app.forYou.learner.share(p)
+                nav.share("https://reddit.com${p.permalink}", subject = p.title)
+            }, size = 40.dp, iconSize = 20.dp)
+            CalmGhost(
+                if (saved) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
+                if (saved) "Unsave" else "Save",
+                if (saved) cs.primary else cs.onSurfaceVariant,
+                toggleSave,
+                size = 40.dp,
+                iconSize = 20.dp,
+            )
+        }
+        Text(
+            "${compactNumber(numComments)} comments",
+            Modifier.padding(top = 16.dp, bottom = 10.dp),
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
 private fun openMedia(p: Post, nav: AppNavigator) {
     when (p.type) {
         PostType.IMAGE -> nav.openImage(p.previewUrl ?: p.url, p.title)
@@ -949,14 +1131,16 @@ private fun openMedia(p: Post, nav: AppNavigator) {
 }
 
 @Composable
-private fun PostMedia(p: Post, nav: AppNavigator) {
+private fun PostMedia(p: Post, nav: AppNavigator, radius: androidx.compose.ui.unit.Dp = 16.dp) {
     if (p.type == PostType.SELF) return
     val cs = MaterialTheme.colorScheme
     val blurNsfw by app.settings.state.collectAsState()
     val blur = (p.over18 && blurNsfw.blurNsfw) || p.spoiler
     val label = if (p.over18) "NSFW" else "Spoiler"
     if (p.type == PostType.GALLERY && p.gallery.isNotEmpty()) {
-        NsfwBlur(blur, Modifier.padding(bottom = 12.dp), label = label) { GalleryCarousel(p.gallery, title = p.title) }
+        NsfwBlur(blur, Modifier.padding(bottom = 12.dp), label = label) {
+            GalleryCarousel(p.gallery, if (radius != 16.dp) Modifier.clip(RoundedCornerShape(radius)) else Modifier, title = p.title)
+        }
         return
     }
     if (p.type == PostType.LINK) {
@@ -978,7 +1162,7 @@ private fun PostMedia(p: Post, nav: AppNavigator) {
             Modifier
                 .fillMaxWidth()
                 .aspectRatio(aspect)
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(radius))
                 .background(cs.surfaceContainerHighest)
                 .clickable { openMedia(p, nav) },
             contentAlignment = Alignment.Center,
@@ -1239,41 +1423,263 @@ private fun CommentActionsRow(c: Comment, isOwn: Boolean, actions: ThreadActions
         Box {
             small(Icons.Rounded.MoreHoriz, "More", cs.onSurfaceVariant) { menu = true }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                fun pick(f: () -> Unit) {
+                CommentMenuItems(c, isOwn, actions) { f ->
                     menu = false
                     f()
                 }
-                DropdownMenuItem(text = { Text("Copy text") }, onClick = { pick { copyToClipboard(c.body) } })
-                if (c.permalink.isNotEmpty()) DropdownMenuItem(text = { Text("Share") }, onClick = { pick { actions.share(c) } })
-                DropdownMenuItem(text = { Text("Share as image") }, onClick = { pick { actions.shareImage(c) } })
-                if (isOwn) {
-                    DropdownMenuItem(text = { Text("Edit") }, onClick = { pick { actions.edit(c) } })
-                    DropdownMenuItem(text = { Text("Delete") }, onClick = { pick { actions.delete(c) } })
+            }
+        }
+    }
+}
+
+/** The comment ⋯ menu's entries; [pick] closes the menu then runs the action. */
+@Composable
+private fun CommentMenuItems(c: Comment, isOwn: Boolean, actions: ThreadActions, pick: (() -> Unit) -> Unit) {
+    DropdownMenuItem(text = { Text("Copy text") }, onClick = { pick { copyToClipboard(c.body) } })
+    if (c.permalink.isNotEmpty()) DropdownMenuItem(text = { Text("Share") }, onClick = { pick { actions.share(c) } })
+    DropdownMenuItem(text = { Text("Share as image") }, onClick = { pick { actions.shareImage(c) } })
+    if (isOwn) {
+        DropdownMenuItem(text = { Text("Edit") }, onClick = { pick { actions.edit(c) } })
+        DropdownMenuItem(text = { Text("Delete") }, onClick = { pick { actions.delete(c) } })
+    }
+    if (!isOwn && c.author != "[deleted]") {
+        DropdownMenuItem(text = { Text("Block u/${c.author}") }, onClick = { pick { actions.block(c) } })
+    }
+    // Moderators of this community (the post says so) can act on comments too.
+    if (actions.post?.canModPost == true) {
+        HorizontalDivider()
+        DropdownMenuItem(text = { Text("Approve") }, onClick = { pick { actions.mod(c, "Approved") { it.modApprove(c.fullname) } } })
+        DropdownMenuItem(text = { Text("Remove") }, onClick = { pick { actions.mod(c, "Removed") { it.modRemove(c.fullname) } } })
+        DropdownMenuItem(
+            text = { Text("Remove as spam") },
+            onClick = { pick { actions.mod(c, "Removed as spam") { it.modRemove(c.fullname, spam = true) } } },
+        )
+        if (isOwn) {
+            val distinguished = c.distinguished == "moderator"
+            DropdownMenuItem(
+                text = { Text(if (distinguished) "Undistinguish" else "Distinguish as mod") },
+                onClick = {
+                    pick {
+                        actions.mod(c, if (distinguished) "Undistinguished" else "Distinguished") {
+                            it.modDistinguish(c.fullname, if (distinguished) "no" else "yes")
+                        }
+                    }
+                },
+            )
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Calm comments
+// ---------------------------------------------------------------------------
+
+private val CalmRadius = 24.dp
+
+/**
+ * One row of a Calm thread container (surfaceContainerLow, radius 24, 12dp
+ * side margin): [first] rounds the top and adds the container's top inset,
+ * [last] rounds the bottom and leaves the 10dp gap to the next thread.
+ */
+@Composable
+private fun CalmThreadRow(first: Boolean, last: Boolean, highlighted: Boolean, content: @Composable () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(
+        topStart = if (first) CalmRadius else 0.dp,
+        topEnd = if (first) CalmRadius else 0.dp,
+        bottomStart = if (last) CalmRadius else 0.dp,
+        bottomEnd = if (last) CalmRadius else 0.dp,
+    )
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .padding(start = 12.dp, end = 12.dp, bottom = if (last) 10.dp else 0.dp)
+            .clip(shape)
+            .background(cs.surfaceContainerLow)
+            .padding(top = if (first) 6.dp else 0.dp, bottom = if (last) 6.dp else 0.dp)
+            .then(if (highlighted) Modifier.background(cs.primaryContainer) else Modifier),
+    ) { content() }
+}
+
+/**
+ * A Calm comment row inside its thread container: 2dp neutral rails per
+ * depth (OP's own rail tinted primary), avatar 24 + name + OP + age, the
+ * body, and a small ↑ score ↓ · Reply · ⋯ row (save / collapse in ⋯).
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun CalmCommentRow(
+    comment: Comment,
+    isNew: Boolean,
+    isOwn: Boolean,
+    opAuthor: String,
+    collapsed: Boolean,
+    settings: Settings,
+    actions: ThreadActions,
+) {
+    val cs = MaterialTheme.colorScheme
+    val votes = LocalVoteColors.current
+    val haptic = LocalHapticFeedback.current
+    val nav = LocalNavigator.current
+    val tapToCollapse = settings.tapToCollapse
+    val depth = comment.depth.coerceIn(0, 8)
+    val isOp = comment.author == opAuthor && comment.author != "[deleted]"
+    val nameColor = when {
+        comment.distinguished == "moderator" -> Color(0xFF4CAF50)
+        isOwn -> cs.primary
+        else -> cs.onSurface
+    }
+    val rail = cs.outlineVariant
+    val opRail = cs.primary.copy(alpha = 0.55f)
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    val toggle = { actions.toggle(comment) }
+    val up = comment.likes == true
+    val down = comment.likes == false
+    var menu by remember { mutableStateOf(false) }
+
+    fun swipe(a: SwipeAction): SwipeSpec? = when (a) {
+        SwipeAction.UPVOTE -> SwipeSpec(a.icon, votes.up) { actions.vote(comment, 1) }
+        SwipeAction.DOWNVOTE -> SwipeSpec(a.icon, votes.down) { actions.vote(comment, -1) }
+        SwipeAction.SAVE -> SwipeSpec(a.icon, cs.primary) { actions.toggleSave(comment) }
+        SwipeAction.REPLY -> SwipeSpec(a.icon, cs.tertiary) { actions.reply(comment) }
+        SwipeAction.COLLAPSE -> SwipeSpec(a.icon, cs.secondary) { toggle() }
+        SwipeAction.HIDE, SwipeAction.NONE -> null
+    }
+
+    SwipeActions(
+        enabled = settings.swipeActions,
+        start = swipe(settings.swipeCommentStart),
+        end = swipe(settings.swipeCommentEnd),
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                // Rails: drawn, not laid out (no extra layout pass per depth).
+                .drawBehind {
+                    val w = 2.dp.toPx()
+                    val top = 10.dp.toPx()
+                    val bottom = size.height - 2.dp.toPx()
+                    for (l in 0 until depth) {
+                        val x = (16 + l * 16 + 10).dp.toPx()
+                        val color = if (isOp && l == depth - 1) opRail else rail
+                        drawRect(color, Offset(if (rtl) size.width - x - w else x, top), Size(w, (bottom - top).coerceAtLeast(0f)))
+                    }
                 }
-                if (!isOwn && c.author != "[deleted]") {
-                    DropdownMenuItem(text = { Text("Block u/${c.author}") }, onClick = { pick { actions.block(c) } })
-                }
-                // Moderators of this community (the post says so) can act on comments too.
-                if (actions.post?.canModPost == true) {
-                    HorizontalDivider()
-                    DropdownMenuItem(text = { Text("Approve") }, onClick = { pick { actions.mod(c, "Approved") { it.modApprove(c.fullname) } } })
-                    DropdownMenuItem(text = { Text("Remove") }, onClick = { pick { actions.mod(c, "Removed") { it.modRemove(c.fullname) } } })
-                    DropdownMenuItem(
-                        text = { Text("Remove as spam") },
-                        onClick = { pick { actions.mod(c, "Removed as spam") { it.modRemove(c.fullname, spam = true) } } },
+                .padding(start = (16 + depth * 16).dp, top = 10.dp, end = 16.dp, bottom = 8.dp),
+        ) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .combinedClickable(
+                        onClick = { if (collapsed || tapToCollapse) toggle() },
+                        onLongClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                            toggle()
+                        },
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(
+                    Modifier
+                        .weight(1f, fill = false)
+                        .clickable(enabled = comment.author != "[deleted]") { nav.openUser(comment.author) },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    AuthorDot(comment.author, 24)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        comment.author,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = nameColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
-                    if (isOwn) {
-                        val distinguished = c.distinguished == "moderator"
+                }
+                if (isOp) {
+                    Spacer(Modifier.width(6.dp))
+                    Badge("OP", cs.primaryContainer, cs.onPrimaryContainer, 10.sp)
+                }
+                if (comment.stickied) {
+                    Spacer(Modifier.width(6.dp))
+                    Badge("PINNED", cs.secondaryContainer, cs.onSecondaryContainer, 10.sp)
+                }
+                Spacer(Modifier.width(6.dp))
+                Text("· ${timeAgo(comment.createdUtc)}", fontSize = 13.sp, color = cs.onSurfaceVariant, maxLines = 1)
+                if (isNew) {
+                    Spacer(Modifier.width(6.dp))
+                    Badge("NEW", cs.tertiaryContainer, cs.onTertiaryContainer, 10.5.sp)
+                }
+                Spacer(Modifier.weight(1f))
+                if (collapsed) Icon(Icons.Rounded.UnfoldMore, "Expand", Modifier.size(16.dp), tint = cs.onSurfaceVariant)
+            }
+            if (collapsed) {
+                Text(
+                    comment.body.replace('\n', ' '),
+                    Modifier.padding(top = 4.dp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    fontSize = 13.sp,
+                    color = cs.onSurfaceVariant,
+                    fontStyle = FontStyle.Italic,
+                )
+                return@Column
+            }
+            val split = remember(comment.body, comment.media) { splitMediaRefs(comment.body, comment.media) }
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp)
+                    .then(if (tapToCollapse) Modifier.clickable(indication = null, interactionSource = null, onClick = toggle) else Modifier),
+            ) {
+                if (split.first.isNotEmpty()) RedditMarkdown(split.first)
+                CommentMedia(comment.body, split.second, nav)
+            }
+            // ↑ score ↓ · Reply · ⋯ — small, 36dp targets.
+            Row(Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                val muted = cs.onSurfaceVariant
+                Box(Modifier.size(32.dp).clip(CircleShape).clickable { actions.vote(comment, 1) }, contentAlignment = Alignment.Center) {
+                    Icon(Icons.Rounded.ArrowUpward, "Upvote", Modifier.size(16.dp), tint = if (up) votes.up else muted)
+                }
+                Text(
+                    if (comment.scoreHidden) "–" else compactNumber(comment.score),
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = if (up) votes.up else if (down) votes.down else muted,
+                )
+                Box(Modifier.size(32.dp).clip(CircleShape).clickable { actions.vote(comment, -1) }, contentAlignment = Alignment.Center) {
+                    Icon(Icons.Rounded.ArrowDownward, "Downvote", Modifier.size(16.dp), tint = if (down) votes.down else muted)
+                }
+                Spacer(Modifier.width(6.dp))
+                Row(
+                    Modifier
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable { actions.reply(comment) }
+                        .padding(horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.AutoMirrored.Rounded.Reply, null, Modifier.size(16.dp), tint = muted)
+                    Spacer(Modifier.width(4.dp))
+                    Text("Reply", fontSize = 12.5.sp, fontWeight = FontWeight.Medium, color = muted)
+                }
+                Spacer(Modifier.weight(1f))
+                if (comment.saved) Icon(Icons.Rounded.Bookmark, "Saved", Modifier.size(16.dp), tint = cs.primary)
+                Box {
+                    Box(Modifier.size(32.dp).clip(CircleShape).clickable { menu = true }, contentAlignment = Alignment.Center) {
+                        Icon(Icons.Rounded.MoreHoriz, "More", Modifier.size(16.dp), tint = muted)
+                    }
+                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                        val pick = { f: () -> Unit ->
+                            menu = false
+                            f()
+                        }
                         DropdownMenuItem(
-                            text = { Text(if (distinguished) "Undistinguish" else "Distinguish as mod") },
-                            onClick = {
-                                pick {
-                                    actions.mod(c, if (distinguished) "Undistinguished" else "Distinguished") {
-                                        it.modDistinguish(c.fullname, if (distinguished) "no" else "yes")
-                                    }
-                                }
-                            },
+                            text = { Text(if (comment.saved) "Unsave" else "Save") },
+                            onClick = { pick { actions.toggleSave(comment) } },
                         )
+                        DropdownMenuItem(text = { Text("Collapse thread") }, onClick = { pick { toggle() } })
+                        CommentMenuItems(comment, isOwn, actions, pick)
                     }
                 }
             }
