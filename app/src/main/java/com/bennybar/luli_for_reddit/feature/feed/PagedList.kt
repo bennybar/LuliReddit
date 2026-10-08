@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
@@ -23,8 +24,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,10 +34,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bennybar.luli_for_reddit.model.Listing
+import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.ui.friendlyError
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -140,9 +143,18 @@ fun <T> PagedList(
     val state by source.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var refreshing by remember { mutableStateOf(false) }
-    var resumedOnce by rememberSaveable { mutableStateOf(false) }
+    // Only a return from a pushed route (as Flutter's didPopNext) — not the
+    // app coming back to the foreground, which would replace the list under
+    // the user and lose their place.
+    val nav = LocalNavigator.current
+    val owner = LocalLifecycleOwner.current
+    var coveredByRoute by remember { mutableStateOf(false) }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+        coveredByRoute = nav.controller.currentBackStackEntry !== owner
+    }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        if (resumedOnce) source.refreshIfStale() else resumedOnce = true
+        if (coveredByRoute) source.refreshIfStale()
+        coveredByRoute = false
     }
     fun refresh() {
         scope.launch {
@@ -178,12 +190,7 @@ fun <T> PagedList(
         }
         else -> PullToRefreshBox(refreshing, onRefresh = ::refresh, modifier = modifier.fillMaxSize()) {
             val listState = rememberLazyListState()
-            LaunchedEffect(listState, source) {
-                snapshotFlow {
-                    val info = listState.layoutInfo
-                    (info.visibleItemsInfo.lastOrNull()?.index ?: 0) >= info.totalItemsCount - 4
-                }.distinctUntilChanged().collect { nearEnd -> if (nearEnd) source.loadMore() }
-            }
+            LoadMoreNearEnd(listState, fromEnd = 4, page = state.items.size to state.after, onLoadMore = source::loadMore)
             val items = remember(state.items) { state.items.distinctBy(itemKey) }
             LazyColumn(
                 Modifier.fillMaxSize(),
@@ -201,5 +208,27 @@ fun <T> PagedList(
                 }
             }
         }
+    }
+}
+
+/**
+ * Infinite-scroll trigger: calls [onLoadMore] while the last visible row is
+ * within [fromEnd] rows of the end. Like Flutter (which asks on every
+ * scroll/build near the end), it asks again whenever the loaded [page]
+ * changes (new rows, or a new cursor after an empty page) and whenever a new
+ * scroll starts there (retrying a failed page) — not only when the end first
+ * comes into view, which stalled short lists. [onLoadMore] must ignore calls
+ * while a page is in flight or there is no more.
+ */
+@Composable
+fun LoadMoreNearEnd(listState: LazyListState, fromEnd: Int, page: Any?, onLoadMore: () -> Unit) {
+    val currentPage by rememberUpdatedState(page)
+    val loadMore by rememberUpdatedState(onLoadMore)
+    LaunchedEffect(listState) {
+        snapshotFlow {
+            val info = listState.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull()?.index ?: return@snapshotFlow null
+            if (last < info.totalItemsCount - fromEnd) null else currentPage to listState.isScrollInProgress
+        }.distinctUntilChanged().collect { if (it != null) loadMore() }
     }
 }

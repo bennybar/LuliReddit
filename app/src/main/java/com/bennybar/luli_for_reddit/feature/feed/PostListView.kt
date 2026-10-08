@@ -1,8 +1,5 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -59,7 +56,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -75,12 +71,12 @@ import coil3.size.Size
 import com.bennybar.luli_for_reddit.app
 import com.bennybar.luli_for_reddit.data.PostSort
 import com.bennybar.luli_for_reddit.data.TopTime
+import com.bennybar.luli_for_reddit.feature.foryou.DealIn
 import com.bennybar.luli_for_reddit.feature.foryou.HomeLoadingDeck
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.settings.PostDisplay
 import com.bennybar.luli_for_reddit.ui.ErrorView
 import com.bennybar.luli_for_reddit.ui.Overlays
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
@@ -152,8 +148,13 @@ fun PostListView(
     if (isFrontpage) {
         // Frontpage only: respond to the "tap active tab" signal — scroll to
         // top, or refresh (with a visible spinner) when already there.
-        LaunchedEffect(listState) {
+        // Keyed on the controller too: an account switch swaps it, and the
+        // re-tap refresh must hit the current one.
+        LaunchedEffect(listState, controller) {
             app.feed.frontpageScrollSignal.drop(1).collect {
+                // No list yet (loading / error): ignore, as Flutter (whose
+                // scroll controller is only attached to the loaded list).
+                if (controller.ui.value !is FeedUi.Data) return@collect
                 if (listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 20) {
                     listState.animateScrollToItem(0)
                 } else {
@@ -283,15 +284,15 @@ private fun FeedList(
     val decodeWidth = feedDecodeWidth()
     val prefetched = remember { HashSet<String>() }
     val latestPosts by rememberUpdatedState(posts)
-    val latestState by rememberUpdatedState(state)
     val headerCount = if (header != null) 2 else 1 // header + sort bar
+    // 10 posts from the end = 11 rows counting the footer.
+    LoadMoreNearEnd(listState, fromEnd = 11, page = state.posts.size to state.after, onLoadMore = controller::loadMore)
     LaunchedEffect(listState) {
         snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }
             .distinctUntilChanged()
             .collect { last ->
                 val ps = latestPosts
                 val postIndex = last - headerCount
-                if (postIndex >= ps.size - 10 && latestState.hasMore) controller.loadMore()
                 // Mini cards only show small thumbnails; not worth warming.
                 val s = app.settings.value
                 if (s.postDisplay == PostDisplay.MINI) return@collect
@@ -331,7 +332,8 @@ private fun FeedList(
             val p = posts[i]
             if (homeMode && i < 3) {
                 // The first cards after the loading deck are dealt in.
-                DealIn(i, animate = dealHome, onStarted = { if (i == 2) onDealt() }) { PostCard(p) }
+                if (i == 2) LaunchedEffect(Unit) { onDealt() }
+                DealIn(i, animate = dealHome) { PostCard(p) }
             } else {
                 PostCard(p)
             }
@@ -355,36 +357,6 @@ private fun FeedList(
             }
         }
     }
-}
-
-/**
- * Deals a freshly loaded Home card into the feed: it rises from below with a
- * slight tilt, staggered by [index], once. Only cards that arrive right after
- * the loading deck are dealt ([animate] is read once); later ones just show.
- */
-@Composable
-private fun DealIn(index: Int, animate: Boolean, onStarted: () -> Unit, content: @Composable () -> Unit) {
-    val progress = remember { Animatable(if (animate) 0f else 1f) }
-    LaunchedEffect(Unit) {
-        onStarted()
-        if (progress.value < 1f) {
-            delay(100L * index)
-            progress.animateTo(1f, tween(600, easing = CubicBezierEasing(0.33f, 1f, 0.68f, 1f)))
-        }
-    }
-    val tilt = floatArrayOf(-6f, 5f, -3f)[index % 3]
-    val rise = 180f - 60 * (index % 3)
-    Box(
-        Modifier.graphicsLayer {
-            val t = progress.value
-            alpha = t
-            translationY = rise * density * (1 - t)
-            rotationZ = tilt * (1 - t)
-            val sc = 0.85f + 0.15f * t
-            scaleX = sc
-            scaleY = sc
-        },
-    ) { content() }
 }
 
 /**

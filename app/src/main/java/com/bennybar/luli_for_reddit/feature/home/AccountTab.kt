@@ -226,6 +226,8 @@ private suspend fun showAccountSheet(current: String, context: android.content.C
         val cs = MaterialTheme.colorScheme
         val version by app.session.accountsVersion.collectAsStateWithLifecycle()
         val accounts by produceState(listOf(current), version) { value = app.session.accounts().ifEmpty { listOf(current) } }
+        // Removing another account confirms over the sheet (Cancel returns to it).
+        val sheetScope = rememberCoroutineScope()
         ModalBottomSheet(onDismissRequest = { done(null) }) {
             TapGuard {
                 Column(Modifier.navigationBarsPadding()) {
@@ -244,7 +246,7 @@ private suspend fun showAccountSheet(current: String, context: android.content.C
                                 if (isCurrent) {
                                     Icon(Icons.Rounded.CheckCircle, null, tint = cs.primary)
                                 } else {
-                                    IconButton(onClick = { done(AccountAction.Remove(a)) }) { Icon(Icons.Rounded.Close, "Remove") }
+                                    IconButton(onClick = { sheetScope.launch { confirmRemove(a) } }) { Icon(Icons.Rounded.Close, "Remove") }
                                 }
                             },
                             onClick = if (isCurrent) null else ({ done(AccountAction.Switch(a)) }),

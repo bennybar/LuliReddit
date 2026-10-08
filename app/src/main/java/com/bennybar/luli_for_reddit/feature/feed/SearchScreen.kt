@@ -50,7 +50,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -74,7 +73,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -430,12 +428,7 @@ private fun PostsTab(state: SearchState, vm: SearchViewModel) {
         ) {
             val listState = rememberLazyListState()
             // Page in more results 5 cards from the end.
-            LaunchedEffect(listState) {
-                snapshotFlow {
-                    val info = listState.layoutInfo
-                    (info.visibleItemsInfo.lastOrNull()?.index ?: 0) >= info.totalItemsCount - 5
-                }.distinctUntilChanged().collect { if (it) vm.loadMorePosts() }
-            }
+            LoadMoreNearEnd(listState, fromEnd = 5, page = state.posts.size to state.postsAfter, onLoadMore = vm::loadMorePosts)
             LazyColumn(
                 Modifier.fillMaxSize(),
                 state = listState,
