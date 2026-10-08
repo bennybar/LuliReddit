@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -154,7 +155,8 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
     }
 
     CompositionLocalProvider(LocalNavigator provides navigator) {
-        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
+        // A Surface (not a plain background) so content colour = onSurface everywhere.
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) { Box(Modifier.fillMaxSize()) {
             NavHost(
                 navController = controller,
                 startDestination = start,
@@ -193,6 +195,6 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
                 navigator.snackbar,
                 Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = navigator.snackbarBottomPadding),
             )
-        }
+        } }
     }
 }
