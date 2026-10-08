@@ -1,0 +1,3 @@
+- Ilay is now a native Android app (Kotlin + Jetpack Compose): smaller, faster, smoother.
+- Installs over the previous version and keeps your sign-in, settings, For You learning, history and filters.
+- Requires Android 14 or newer. Beta — please report anything that looks or works differently.
