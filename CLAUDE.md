@@ -17,7 +17,7 @@ export ANDROID_HOME="$HOME/Library/Android/sdk"   # local.properties is gitignor
 ./gradlew :app:assembleDebug        # compile check
 ./gradlew :app:testDebugUnitTest    # JVM unit tests
 ```
-Release: `./gradlew :app:assembleRelease` (needs `key.properties` + the .jks at
+Release: `./gradlew :app:assembleRelease` (versionCode scheme 20000+build: it must stay above the Flutter per-ABI codes, abi*1000+build, e.g. 2051) (needs `key.properties` + the .jks at
 the repo root, copied from the Flutter project's `android/`; both gitignored).
 Emulator: `~/Library/Android/sdk/emulator/emulator -avd Pixel_9_Pro_XL`,
 adb at `~/Library/Android/sdk/platform-tools/adb`.
