@@ -2,14 +2,16 @@
 <resources>
     <!-- Window theme. Compose draws everything; this only sets the launch
          splash (same colours/logo as the Flutter build) and an edge-to-edge window. -->
-    <style name="Theme.Ilay.Starting" parent="Theme.SplashScreen">
+    <style name="Theme.Ilay.Starting" parent="Theme.SplashScreen.IconBackground">
         <item name="windowSplashScreenBackground">#FFFFFF</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/android12splash</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_icon_fg_violet</item>
+        <item name="windowSplashScreenIconBackgroundColor">#6E52D6</item>
         <item name="postSplashScreenTheme">@style/Theme.Ilay</item>
     </style>
     <style name="Theme.Ilay" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowSplashScreenBackground">#FFFFFF</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/android12splash</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_icon_fg_violet</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">#6E52D6</item>
         <item name="android:windowBackground">#FEF7FF</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>

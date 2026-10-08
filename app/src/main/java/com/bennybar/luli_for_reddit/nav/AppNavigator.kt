@@ -39,7 +39,7 @@ class AppNavigator(
     val context: Context,
     val controller: NavHostController,
     val scope: CoroutineScope,
-    /** Full-screen media viewers, drawn over the current screen (see MainActivity). */
+    /** Full-screen media viewers, drawn over the current screen (see IlayActivity). */
     val viewers: ViewerStack = ViewerStack(),
 ) {
     val snackbar = SnackbarHostState()

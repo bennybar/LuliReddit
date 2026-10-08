@@ -14,7 +14,7 @@ private class ResultBox<O>(val value: O)
  * Runs an activity-result contract from anywhere (a module, a click handler)
  * and suspends for its result — the replacement for the Flutter build's
  * method-channel / plugin round-trips. The launcher is registered by an
- * invisible entry in the app's [Overlays] host, so MainActivity needs no
+ * invisible entry in the app's [Overlays] host, so IlayActivity needs no
  * per-feature code. Null when there's no activity (background) or the
  * launch failed.
  */

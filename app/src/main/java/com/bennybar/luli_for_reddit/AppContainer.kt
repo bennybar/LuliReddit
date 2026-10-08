@@ -75,7 +75,7 @@ class AppContainer(val context: Context) {
     /** The identity whose per-account stores are loaded (after a login/switch settles). */
     val loadedIdentity = MutableStateFlow<String?>(null)
 
-    /** Set by MainActivity while it's alive. */
+    /** Set by IlayActivity while it's alive. */
     @Volatile var navigatorOrNull: AppNavigator? = null
     val navigator: AppNavigator get() = navigatorOrNull ?: error("No activity")
 
