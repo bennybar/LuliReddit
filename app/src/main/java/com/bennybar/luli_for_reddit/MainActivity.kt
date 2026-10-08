@@ -65,6 +65,7 @@ import com.bennybar.luli_for_reddit.nav.ViewerStack
 import com.bennybar.luli_for_reddit.ui.OverlayHost
 import com.bennybar.luli_for_reddit.ui.theme.IlayTheme
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import com.bennybar.luli_for_reddit.core.Analytics
 
@@ -87,6 +88,7 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
         )
         if (savedInstanceState == null) {
+            prestartFrontpage()
             trackAppStarted()
             // Reopened from Recents after the process died: the launch intent is
             // the old one (e.g. a notification tap) — don't replay it.
@@ -120,6 +122,21 @@ class MainActivity : ComponentActivity() {
                 else -> "api"
             }
             Analytics.track("app_started", mapOf("login_method" to method))
+        }
+    }
+
+    /**
+     * Starts loading the frontpage (For You's sources, or Reddit Home's hidden
+     * browser) as soon as the stored session is read, while the splash and
+     * first frame are still being set up, instead of when Home first composes.
+     * Not in Application.onCreate: that also runs for the background inbox poll.
+     */
+    private fun prestartFrontpage() {
+        app.scope.launch {
+            val s = app.session.state.first { it != SessionState.Loading } as? SessionState.LoggedIn ?: return@launch
+            // After the account's stores are loaded: that also resets the feeds.
+            app.loadedIdentity.first { it == s.session.identity }
+            app.feed.controller("").start()
         }
     }
 

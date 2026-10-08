@@ -72,6 +72,9 @@ class AppContainer(val context: Context) {
     val inbox by lazy { InboxModule(this) }
     val media by lazy { MediaModule(this) }
 
+    /** The identity whose per-account stores are loaded (after a login/switch settles). */
+    val loadedIdentity = MutableStateFlow<String?>(null)
+
     /** Set by MainActivity while it's alive. */
     @Volatile var navigatorOrNull: AppNavigator? = null
     val navigator: AppNavigator get() = navigatorOrNull ?: error("No activity")
@@ -115,6 +118,7 @@ class AppContainer(val context: Context) {
                     // start() already loaded the logged-out identity.
                     if (!(first && identity.isEmpty())) userScoped.forEach { it.onUserChanged(username) }
                 }
+                loadedIdentity.value = identity
             }
         }
     }

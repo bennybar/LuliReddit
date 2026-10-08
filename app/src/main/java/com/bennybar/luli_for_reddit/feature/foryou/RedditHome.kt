@@ -4,6 +4,8 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.webkit.CookieManager
 import android.webkit.WebView
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebViewClient
 import com.bennybar.luli_for_reddit.AppContainer
 import com.bennybar.luli_for_reddit.core.AppJson
@@ -67,6 +69,10 @@ class RedditHomeLoader(private val context: Context) {
         // A refresh hands back the first posts as soon as they render; the feed
         // pages for more on its own as you scroll.
         val target = if (restart) 10 else want
+        // The page renders a first handful of posts with its HTML and fetches
+        // the rest ~2s later: on a restart, hand the first wave back once it
+        // stops growing (the next page call picks up the second wave).
+        val settleMs = 350L
         val fresh = ArrayList<String>()
         val deadline = System.currentTimeMillis() + 15_000
         var lastGrowth = System.currentTimeMillis()
@@ -84,6 +90,7 @@ class RedditHomeLoader(private val context: Context) {
             if (fresh.size >= target) break
             val now = System.currentTimeMillis()
             if (grew) lastGrowth = now
+            if (restart && fresh.isNotEmpty() && now - lastGrowth >= settleMs) break
             // Nothing new for a while after posts had appeared: end of the feed.
             // (Before any appear, the page is still loading — keep waiting.)
             if (seen.isNotEmpty() && now - lastGrowth >= 6_000) break
@@ -94,7 +101,7 @@ class RedditHomeLoader(private val context: Context) {
                 eval("window.scrollTo(0, document.body.scrollHeight);")
             }
             // Check often: posts appear well before the whole page has loaded.
-            delay(250)
+            delay(100)
         }
         fresh
     }
@@ -108,18 +115,25 @@ class RedditHomeLoader(private val context: Context) {
         suspend fun set(cookie: String) = suspendCancellableCoroutine { cont ->
             jar.setCookie(HOME, cookie) { if (cont.isActive) cont.resume(Unit) }
         }
-        for (part in jar.getCookie(HOME)?.split(';') ?: emptyList()) {
-            val name = part.substringBefore('=').trim()
-            if (name.isEmpty()) continue
-            set("$name=; Domain=.reddit.com; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT")
-            set("$name=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT")
-        }
-        for (part in cookieHeader.split(';')) {
-            val i = part.indexOf('=')
-            if (i <= 0) continue
-            val name = part.substring(0, i).trim()
-            val value = part.substring(i + 1).trim()
-            set("$name=$value; Domain=.reddit.com; Path=/; Secure")
+        fun session(header: String?) = header?.split(';')
+            ?.firstOrNull { it.trim().startsWith("reddit_session=") }?.trim()
+        // Same account already in the jar: keep it as is. Wiping it also threw
+        // away the cookies Reddit set when the page passed its browser check,
+        // so every launch had to pass that check again (an extra page load).
+        if (session(jar.getCookie(HOME)) != session(cookieHeader)) {
+            for (part in jar.getCookie(HOME)?.split(';') ?: emptyList()) {
+                val name = part.substringBefore('=').trim()
+                if (name.isEmpty()) continue
+                set("$name=; Domain=.reddit.com; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT")
+                set("$name=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT")
+            }
+            for (part in cookieHeader.split(';')) {
+                val i = part.indexOf('=')
+                if (i <= 0) continue
+                val name = part.substring(0, i).trim()
+                val value = part.substring(i + 1).trim()
+                set("$name=$value; Domain=.reddit.com; Path=/; Secure")
+            }
         }
         jar.flush()
 
@@ -129,7 +143,16 @@ class RedditHomeLoader(private val context: Context) {
         // Ilay loads its own images for the cards; the hidden page doesn't
         // need to download any, which gets its posts on screen sooner.
         v.settings.blockNetworkImage = true
-        v.webViewClient = WebViewClient() // keep navigation inside the hidden view
+        // Keep navigation inside the hidden view, and skip what the page
+        // doesn't need to list its posts: autoplaying videos (dozens of
+        // streams), fonts and telemetry. They competed with the feed request
+        // for bandwidth and CPU. Reddit's own scripts and checks still load.
+        v.webViewClient = object : WebViewClient() {
+            override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
+                val url = request?.url ?: return null
+                return if (isSkippable(url)) EMPTY_RESPONSE() else null
+            }
+        }
         // A real viewport, so the page lays out and "scroll to bottom" loads more.
         v.layout(0, 0, 1080, 2400)
         view = v
@@ -170,6 +193,24 @@ class RedditHomeLoader(private val context: Context) {
 
     companion object {
         private const val HOME = "https://www.reddit.com/"
+
+        private val SKIP_HOSTS = setOf(
+            "v.redd.it", "packaged-media.redd.it", "fonts.gstatic.com", "w3-reporting.reddit.com", "pi.reddit.com",
+        )
+        private val SKIP_EXT = listOf(".mp4", ".m3u8", ".mpd", ".m4s", ".ts", ".woff", ".woff2", ".ttf", ".gif", ".webm")
+        private val SKIP_PATHS = listOf("/svc/shreddit/events", "/svc/shreddit/perfMetrics", "/svc/events/")
+
+        /** Media, fonts and telemetry: not needed to read the feed's post ids. */
+        internal fun isSkippable(url: android.net.Uri): Boolean {
+            val host = url.host?.lowercase() ?: return false
+            if (host in SKIP_HOSTS) return true
+            val path = url.path?.lowercase() ?: return false
+            if (SKIP_EXT.any { path.endsWith(it) }) return true
+            return (host == "www.reddit.com" || host == "reddit.com") && SKIP_PATHS.any { path.startsWith(it) }
+        }
+
+        @Suppress("FunctionName")
+        private fun EMPTY_RESPONSE() = WebResourceResponse("text/plain", "utf-8", 204, "No Content", emptyMap(), java.io.ByteArrayInputStream(ByteArray(0)))
 
         // The ids of the feed's posts, in page order. Reddit's site renders each
         // post as a <shreddit-post id="t3_…">; ads are separate elements. Returns
