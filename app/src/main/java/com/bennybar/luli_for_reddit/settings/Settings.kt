@@ -15,6 +15,17 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.bennybar.luli_for_reddit.data.PostSort
 
+/** The app's typeface (Settings → App font). Persisted by [key] (`appFont`). */
+enum class AppFont(val key: String, val label: String, val description: String) {
+    ROBOTO("roboto", "Roboto", "Android's default"),
+    GOOGLE_SANS("googlesans", "Google Sans", "The typeface of Google's own apps"),
+    JAKARTA("jakarta", "Plus Jakarta Sans", "Rounder, with Unbounded for headlines");
+
+    companion object {
+        fun parse(key: String?, fallback: AppFont) = entries.firstOrNull { it.key == key } ?: fallback
+    }
+}
+
 /** Order matters: persisted by index (`themeMode`), same as Flutter's ThemeMode. */
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
@@ -53,7 +64,8 @@ data class Settings(
     val amoled: Boolean = false,
     /** Default off so the Bloom palette shows out of the box. */
     val useDynamicColor: Boolean = false,
-    val jakartaFont: Boolean = false, // Plus Jakarta Sans + Unbounded instead of Roboto
+    val jakartaFont: Boolean = false, // legacy switch, mirrored from appFont (Flutter backups)
+    val appFont: AppFont = AppFont.ROBOTO, // the app's typeface
     val inAppBrowser: Boolean = false, // open web links in a Custom Tab, not the browser app
     val tapToCollapse: Boolean = false, // tap a comment to collapse it (else long-press)
     val hideReadPosts: Boolean = false, // skip already-read posts when feeds load
