@@ -146,11 +146,12 @@ class FeedController(val key: String) {
         // hundreds. Only once per feed — a refresh or sort change already has
         // intent behind it and shouldn't flash an older page.
         var cached: Listing<Post>? = null
-        if (!cacheConsulted) {
+        // In deck mode the saved page is only a fallback for a failed load, so
+        // it's read only then (it used to delay every load by a disk read).
+        if (!cacheConsulted && !deckMode) {
             cacheConsulted = true
             cached = cachedFirstPage()
-            // In deck mode the saved page is only a fallback for a failed load.
-            if (cached != null && !deckMode) {
+            if (cached != null) {
                 showingCache = true
                 _ui.value = FeedUi.Data(FeedState(cached.items, sort, time, cached.after))
             }
@@ -170,6 +171,7 @@ class FeedController(val key: String) {
         } catch (e: Exception) {
             // Keep the cached page rather than replacing it with an error: it's
             // still the most useful thing to show, and pull-to-refresh retries.
+            if (cached == null && deckMode) cached = cachedFirstPage()
             if (cached == null) throw e
             showingCache = false
             return FeedState(cached.items, sort, time, cached.after)

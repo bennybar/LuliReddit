@@ -271,7 +271,7 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
             val posts = c.repository.getPostsByIds(ids)
             val user = c.session.username
             if (firstPage && user.isNotEmpty()) {
-                saveForYouPage(c.context, user, posts, c.repository::rawPost, feed = "home")
+                c.scope.launch(Dispatchers.IO) { saveForYouPage(c.context, user, posts, c.repository::rawPost, feed = "home") }
             }
             return Listing(posts, after = "home")
         } catch (e: kotlinx.coroutines.CancellationException) {
