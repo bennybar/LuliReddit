@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -53,6 +53,7 @@ import com.bennybar.luli_for_reddit.core.net.Http
 import com.bennybar.luli_for_reddit.core.net.await
 import com.bennybar.luli_for_reddit.core.str
 import com.bennybar.luli_for_reddit.ui.Overlays
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -108,7 +109,13 @@ private fun GiphySheet(apiKey: String, done: (String?) -> Unit) {
         job?.cancel()
         loading = true
         job = scope.launch {
-            results = runCatching { loadGifs(apiKey, q) }.getOrDefault(results)
+            try {
+                results = loadGifs(apiKey, q)
+            } catch (e: CancellationException) {
+                throw e // superseded by a newer search: leave its results and spinner alone
+            } catch (_: Exception) {
+                // keep the previous results
+            }
             loading = false
         }
     }
@@ -146,7 +153,7 @@ private fun GiphySheet(apiKey: String, done: (String?) -> Unit) {
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        items(results, key = { it.full }) { g ->
+                        itemsIndexed(results, key = { i, g -> "$i:${g.full}" }) { _, g ->
                             AsyncImage(
                                 model = g.preview,
                                 contentDescription = null,

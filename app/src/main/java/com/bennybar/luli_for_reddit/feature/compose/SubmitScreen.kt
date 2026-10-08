@@ -96,6 +96,7 @@ import com.bennybar.luli_for_reddit.app
 import com.bennybar.luli_for_reddit.core.AppJson
 import com.bennybar.luli_for_reddit.core.get
 import com.bennybar.luli_for_reddit.core.int
+import com.bennybar.luli_for_reddit.core.net.RedditApiException
 import com.bennybar.luli_for_reddit.core.str
 import com.bennybar.luli_for_reddit.feature.markdown.MarkdownToolbar
 import com.bennybar.luli_for_reddit.model.Flair
@@ -145,6 +146,23 @@ private suspend fun posterFrame(context: Context, uri: Uri): ByteArray? = withCo
             r.release()
         }
     }.getOrNull()
+}
+
+/**
+ * An error for display, as the Flutter build showed it: a Reddit API error
+ * reads "HTTP 403 (reason)", followed by Reddit's own message when it sent one.
+ */
+internal fun errorText(e: Throwable): String {
+    if (e is RedditApiException) {
+        val head = e.toString()
+        val msg = e.message
+        return when {
+            msg.isNullOrBlank() -> head
+            msg.contains("HTTP ${e.statusCode}") -> msg // already says it
+            else -> "$head: $msg"
+        }
+    }
+    return (e.message ?: e.toString()).removePrefix("Exception: ")
 }
 
 private class Draft(val sr: String, val title: String, val body: String, val url: String, val kind: Kind) {
@@ -301,7 +319,7 @@ fun SubmitScreen(subreddit: String?) {
                 }
             } catch (e: Exception) {
                 busy = false
-                error = (e.message ?: e.toString()).removePrefix("Exception: ")
+                error = errorText(e)
             }
         }
     }
