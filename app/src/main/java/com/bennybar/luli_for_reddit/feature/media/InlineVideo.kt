@@ -80,6 +80,9 @@ class InlineVideoPool(private val context: Context) {
     private var activeUrl: String? = null
     private var foreground = true
 
+    /** A full-screen viewer is open over the feed (it stays composed beneath). */
+    private var covered = false
+
     private val _active = MutableStateFlow<Any?>(null)
 
     /** The key of the card currently holding the player. */
@@ -105,9 +108,16 @@ class InlineVideoPool(private val context: Context) {
 
             override fun onStart(owner: LifecycleOwner) {
                 foreground = true
-                if (_active.value != null) player?.play()
+                if (_active.value != null && !covered) player?.play()
             }
         })
+    }
+
+    /** Pauses the feed clip while a media viewer covers it; resumes after. */
+    fun setCovered(value: Boolean) {
+        if (covered == value) return
+        covered = value
+        if (value) player?.pause() else if (foreground && _active.value != null) player?.play()
     }
 
     private fun player(): ExoPlayer = player ?: buildPlayer(context, audioFocus = false).also { p ->
@@ -187,7 +197,7 @@ class InlineVideoPool(private val context: Context) {
         pl.volume = if (c.muted) 0f else 1f
         pl.setMediaItem(mediaItemFor(c.url), positions[c.url] ?: 0L)
         pl.prepare()
-        pl.playWhenReady = foreground
+        pl.playWhenReady = foreground && !covered
     }
 }
 

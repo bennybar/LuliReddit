@@ -78,7 +78,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.bennybar.luli_for_reddit.core.RedditConstants
 import com.bennybar.luli_for_reddit.core.net.Http
-import com.bennybar.luli_for_reddit.nav.Route
+import com.bennybar.luli_for_reddit.nav.MediaViewer
 import kotlinx.coroutines.delay
 
 /**
@@ -114,7 +114,7 @@ private fun fmt(ms: Long): String {
 
 /** Full-screen video player with sound. */
 @Composable
-internal fun VideoViewer(route: Route.VideoViewer) {
+internal fun VideoViewer(route: MediaViewer.Video) {
     ImmersiveMode()
     val context = LocalContext.current
     val player = remember {
