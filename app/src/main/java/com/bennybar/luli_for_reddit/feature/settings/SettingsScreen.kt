@@ -3,7 +3,6 @@ package com.bennybar.luli_for_reddit.feature.settings
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.provider.DocumentsContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -60,7 +59,6 @@ import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.DoneAll
 import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.FontDownload
 import androidx.compose.material.icons.rounded.FormatSize
 import androidx.compose.material.icons.rounded.Gavel
@@ -70,7 +68,6 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.OpenInBrowser
 import androidx.compose.material.icons.rounded.Palette
-import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Search
@@ -134,6 +131,7 @@ import com.bennybar.luli_for_reddit.core.RedditConstants
 import com.bennybar.luli_for_reddit.core.UpdateChecker
 import com.bennybar.luli_for_reddit.data.COMMENT_SORTS
 import com.bennybar.luli_for_reddit.data.PostSort
+import com.bennybar.luli_for_reddit.feature.media.MediaFolderSettingRow
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.Route
 import com.bennybar.luli_for_reddit.settings.PostDisplay
@@ -168,8 +166,6 @@ private val AI_MODELS = listOf("gpt-6.1-sol", "gpt-5.5", "gpt-5.4-mini", "gpt-5.
 
 // Where saved media goes (same prefs keys as the Flutter build). null = the
 // gallery's "Ilay" album.
-private const val MEDIA_FOLDER_URI = "mediaFolderUri"
-private const val MEDIA_FOLDER_NAME = "mediaFolderName"
 
 private fun themeLabel(m: ThemeMode) = when (m) {
     ThemeMode.SYSTEM -> "Follow system"
@@ -229,24 +225,6 @@ fun SettingsList(
     }
     val web = authMode == "web"
 
-    var mediaFolderName by remember {
-        mutableStateOf(app.prefs.getString(MEDIA_FOLDER_URI)?.let { app.prefs.getString(MEDIA_FOLDER_NAME) ?: "" })
-    }
-    val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
-        // TODO(Agent D hook): if feature/media grows a folder API, route this through it.
-        if (tree == null) return@rememberLauncherForActivityResult // keep the current choice on cancel
-        runCatching {
-            context.contentResolver.takePersistableUriPermission(
-                tree, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
-            )
-        }
-        // "primary:Pictures/Reddit" → "Pictures/Reddit"; the root reads as "Internal storage".
-        val docId = runCatching { DocumentsContract.getTreeDocumentId(tree) }.getOrDefault("")
-        val name = docId.substringAfter(':').ifEmpty { "Internal storage" }
-        app.prefs.setString(MEDIA_FOLDER_URI, tree.toString())
-        app.prefs.setString(MEDIA_FOLDER_NAME, name)
-        mediaFolderName = name
-    }
     val pickBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch { restoreData(context, uri) }
     }
@@ -390,17 +368,7 @@ fun SettingsList(
             "Autoplay videos", "Play videos muted as you scroll the feed",
             Icons.Outlined.PlayCircleOutline, s.autoplayMedia, ctrl::setAutoplayMedia,
         )
-        tile("Save media to", mediaFolderName ?: "Gallery (Ilay album)", Icons.Rounded.Folder, onClick = launch {
-            when (pickMediaFolder(mediaFolderName)) {
-                true -> {
-                    app.prefs.remove(MEDIA_FOLDER_URI)
-                    app.prefs.remove(MEDIA_FOLDER_NAME)
-                    mediaFolderName = null
-                }
-                false -> pickFolder.launch(null)
-                null -> {}
-            }
-        })
+        add(Entry("mediaFolder", "Save media to folder gallery") { MediaFolderSettingRow() })
         switch(
             "Open links inside the app",
             "Web links open in an in-app browser tab instead of your browser app",
@@ -660,20 +628,6 @@ private fun RateLimitTile() {
 }
 
 /** "Save media to" sheet: true = gallery, false = choose a folder, null = dismissed. */
-private suspend fun pickMediaFolder(current: String?): Boolean? = Overlays.show<Boolean> { done ->
-    OverlaySheet<Boolean>(done) { close ->
-        SettingTile(
-            "Gallery (Ilay album)", icon = Icons.Rounded.PhotoLibrary,
-            trailing = if (current == null) ({ Icon(Icons.Rounded.Check, null) }) else null,
-        ) { close(true) }
-        SettingTile(
-            current ?: "Choose a folder…",
-            subtitle = if (current == null) null else "Tap to change",
-            icon = Icons.Rounded.CreateNewFolder,
-            trailing = if (current != null) ({ Icon(Icons.Rounded.Check, null) }) else null,
-        ) { close(false) }
-    }
-}
 
 /** Picks what each swipe direction does, for posts and for comments. */
 private fun showSwipeSettings() {
