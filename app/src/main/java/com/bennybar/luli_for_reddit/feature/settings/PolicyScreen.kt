@@ -55,7 +55,7 @@ fun PolicyScreen() {
     @Composable
     fun P(t: String) = Text(
         t,
-        style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 1.45.em),
+        style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 1.45.em),
         modifier = Modifier.padding(bottom = 8.dp),
     )
 
