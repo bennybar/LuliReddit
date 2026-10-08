@@ -34,6 +34,7 @@ mixin _$Comment {
   String get linkTitle => throw _privateConstructorUsedError;
   String get permalink => throw _privateConstructorUsedError;
   String get subreddit => throw _privateConstructorUsedError;
+  Map<String, String> get media => throw _privateConstructorUsedError;
   List<Comment> get replies =>
       throw _privateConstructorUsedError; // "more" placeholder fields
   bool get isMore => throw _privateConstructorUsedError;
@@ -69,6 +70,7 @@ abstract class $CommentCopyWith<$Res> {
     String linkTitle,
     String permalink,
     String subreddit,
+    Map<String, String> media,
     List<Comment> replies,
     bool isMore,
     int moreCount,
@@ -108,6 +110,7 @@ class _$CommentCopyWithImpl<$Res, $Val extends Comment>
     Object? linkTitle = null,
     Object? permalink = null,
     Object? subreddit = null,
+    Object? media = null,
     Object? replies = null,
     Object? isMore = null,
     Object? moreCount = null,
@@ -180,6 +183,10 @@ class _$CommentCopyWithImpl<$Res, $Val extends Comment>
                 ? _value.subreddit
                 : subreddit // ignore: cast_nullable_to_non_nullable
                       as String,
+            media: null == media
+                ? _value.media
+                : media // ignore: cast_nullable_to_non_nullable
+                      as Map<String, String>,
             replies: null == replies
                 ? _value.replies
                 : replies // ignore: cast_nullable_to_non_nullable
@@ -231,6 +238,7 @@ abstract class _$$CommentImplCopyWith<$Res> implements $CommentCopyWith<$Res> {
     String linkTitle,
     String permalink,
     String subreddit,
+    Map<String, String> media,
     List<Comment> replies,
     bool isMore,
     int moreCount,
@@ -269,6 +277,7 @@ class __$$CommentImplCopyWithImpl<$Res>
     Object? linkTitle = null,
     Object? permalink = null,
     Object? subreddit = null,
+    Object? media = null,
     Object? replies = null,
     Object? isMore = null,
     Object? moreCount = null,
@@ -341,6 +350,10 @@ class __$$CommentImplCopyWithImpl<$Res>
             ? _value.subreddit
             : subreddit // ignore: cast_nullable_to_non_nullable
                   as String,
+        media: null == media
+            ? _value._media
+            : media // ignore: cast_nullable_to_non_nullable
+                  as Map<String, String>,
         replies: null == replies
             ? _value._replies
             : replies // ignore: cast_nullable_to_non_nullable
@@ -386,12 +399,14 @@ class _$CommentImpl extends _Comment {
     this.linkTitle = '',
     this.permalink = '',
     this.subreddit = '',
+    final Map<String, String> media = const <String, String>{},
     final List<Comment> replies = const <Comment>[],
     this.isMore = false,
     this.moreCount = 0,
     final List<String> moreChildren = const <String>[],
     this.collapsed = false,
-  }) : _replies = replies,
+  }) : _media = media,
+       _replies = replies,
        _moreChildren = moreChildren,
        super._();
 
@@ -437,6 +452,19 @@ class _$CommentImpl extends _Comment {
   @override
   @JsonKey()
   final String subreddit;
+  // media_metadata id → playable URL, for media referenced in the body as
+  // `![gif](giphy|…)` / `![img](id)` instead of by URL.
+  final Map<String, String> _media;
+  // media_metadata id → playable URL, for media referenced in the body as
+  // `![gif](giphy|…)` / `![img](id)` instead of by URL.
+  @override
+  @JsonKey()
+  Map<String, String> get media {
+    if (_media is EqualUnmodifiableMapView) return _media;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(_media);
+  }
+
   final List<Comment> _replies;
   @override
   @JsonKey()
@@ -468,7 +496,7 @@ class _$CommentImpl extends _Comment {
 
   @override
   String toString() {
-    return 'Comment(id: $id, fullname: $fullname, parentId: $parentId, author: $author, body: $body, score: $score, created: $created, depth: $depth, distinguished: $distinguished, stickied: $stickied, scoreHidden: $scoreHidden, saved: $saved, likes: $likes, linkTitle: $linkTitle, permalink: $permalink, subreddit: $subreddit, replies: $replies, isMore: $isMore, moreCount: $moreCount, moreChildren: $moreChildren, collapsed: $collapsed)';
+    return 'Comment(id: $id, fullname: $fullname, parentId: $parentId, author: $author, body: $body, score: $score, created: $created, depth: $depth, distinguished: $distinguished, stickied: $stickied, scoreHidden: $scoreHidden, saved: $saved, likes: $likes, linkTitle: $linkTitle, permalink: $permalink, subreddit: $subreddit, media: $media, replies: $replies, isMore: $isMore, moreCount: $moreCount, moreChildren: $moreChildren, collapsed: $collapsed)';
   }
 
   @override
@@ -500,6 +528,7 @@ class _$CommentImpl extends _Comment {
                 other.permalink == permalink) &&
             (identical(other.subreddit, subreddit) ||
                 other.subreddit == subreddit) &&
+            const DeepCollectionEquality().equals(other._media, _media) &&
             const DeepCollectionEquality().equals(other._replies, _replies) &&
             (identical(other.isMore, isMore) || other.isMore == isMore) &&
             (identical(other.moreCount, moreCount) ||
@@ -531,6 +560,7 @@ class _$CommentImpl extends _Comment {
     linkTitle,
     permalink,
     subreddit,
+    const DeepCollectionEquality().hash(_media),
     const DeepCollectionEquality().hash(_replies),
     isMore,
     moreCount,
@@ -565,6 +595,7 @@ abstract class _Comment extends Comment {
     final String linkTitle,
     final String permalink,
     final String subreddit,
+    final Map<String, String> media,
     final List<Comment> replies,
     final bool isMore,
     final int moreCount,
@@ -605,6 +636,8 @@ abstract class _Comment extends Comment {
   String get permalink;
   @override
   String get subreddit;
+  @override
+  Map<String, String> get media;
   @override
   List<Comment> get replies; // "more" placeholder fields
   @override

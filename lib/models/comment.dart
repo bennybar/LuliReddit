@@ -26,6 +26,9 @@ class Comment with _$Comment {
     @Default('') String linkTitle,
     @Default('') String permalink,
     @Default('') String subreddit,
+    // media_metadata id → playable URL, for media referenced in the body as
+    // `![gif](giphy|…)` / `![img](id)` instead of by URL.
+    @Default(<String, String>{}) Map<String, String> media,
     @Default(<Comment>[]) List<Comment> replies,
     // "more" placeholder fields
     @Default(false) bool isMore,
@@ -90,7 +93,26 @@ class Comment with _$Comment {
       linkTitle: (d['link_title'] as String?)?.trim() ?? '',
       permalink: d['permalink'] as String? ?? '',
       subreddit: d['subreddit'] as String? ?? '',
+      media: _mediaUrls(d['media_metadata']),
       replies: replies,
     );
   }
+}
+
+/// Resolves a comment's `media_metadata` (GIFs from Reddit's GIF picker,
+/// uploaded images) to one URL per id. Emotes are left out: they're meant to
+/// sit inline in the text, not as full-width media.
+Map<String, String> _mediaUrls(dynamic raw) {
+  if (raw is! Map) return const {};
+  final out = <String, String>{};
+  raw.forEach((key, value) {
+    if (key is! String || key.startsWith('emote|') || value is! Map) return;
+    if (value['status'] != 'valid') return;
+    final s = value['s'];
+    if (s is! Map) return;
+    final url = (s['gif'] ?? s['u'] ?? s['mp4']) as String?;
+    // Without raw_json Reddit HTML-escapes these URLs.
+    if (url != null) out[key] = url.replaceAll('&amp;', '&');
+  });
+  return out;
 }

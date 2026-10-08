@@ -50,3 +50,23 @@ List<Uri> extractMediaLinks(String markdown) {
   }
   return out;
 }
+
+final _mediaRefRe = RegExp(r'!\[[^\]]*\]\(([^)\s]+)\)');
+
+/// Reddit stores GIFs from its picker and some uploaded images in a comment
+/// as `![gif](giphy|id|downsized)` / `![img](id)`, with the real URL in
+/// `media_metadata` ([media]). Returns [body] with those references removed
+/// (markdown can't load them, so they rendered as nothing) and their URLs.
+({String text, List<Uri> media}) splitMediaRefs(
+    String body, Map<String, String> media) {
+  if (media.isEmpty) return (text: body, media: const []);
+  final found = <Uri>[];
+  final text = body.replaceAllMapped(_mediaRefRe, (m) {
+    final url = media[m.group(1)];
+    final uri = url == null ? null : Uri.tryParse(url);
+    if (uri == null) return m.group(0)!;
+    found.add(uri);
+    return '';
+  });
+  return (text: text.trim(), media: found);
+}

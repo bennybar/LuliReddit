@@ -576,12 +576,14 @@ void _openCommentLink(BuildContext context, String? href) {
 /// Inline previews for any media linked in a comment body (images, gifs,
 /// videos), so comments don't just show a bare URL that opens a browser.
 class _CommentMedia extends StatelessWidget {
-  const _CommentMedia({required this.body});
+  const _CommentMedia({required this.body, this.extra = const []});
   final String body;
+  // Media resolved from media_metadata (see splitMediaRefs), shown first.
+  final List<Uri> extra;
 
   @override
   Widget build(BuildContext context) {
-    final links = extractMediaLinks(body);
+    final links = [...extra, ...extractMediaLinks(body)];
     if (links.isEmpty) return const SizedBox.shrink();
     final cs = Theme.of(context).colorScheme;
     return Padding(
@@ -1170,6 +1172,7 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
   @override
   Widget build(BuildContext context) {
     final comment = widget.comment;
+    final split = splitMediaRefs(comment.body, comment.media);
     final cs = Theme.of(context).colorScheme;
     final depth = comment.depth;
     final indent = depth.clamp(0, 6) * 12.0;
@@ -1309,13 +1312,13 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   MarkdownBody(
-                    data: comment.body,
+                    data: split.text,
                     selectable: true,
                     styleSheet: redditMarkdownStyle(context),
                     onTapLink: (_, href, __) =>
                         _openCommentLink(context, href),
                   ),
-                  _CommentMedia(body: comment.body),
+                  _CommentMedia(body: comment.body, extra: split.media),
                 ],
               ),
             ),
