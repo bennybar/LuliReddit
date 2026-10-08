@@ -1,15 +1,20 @@
 package com.bennybar.luli_for_reddit.feature.auth
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -38,10 +43,16 @@ internal fun BloomTextField(
     enabled: Boolean = true,
 ) {
     val cs = MaterialTheme.colorScheme
-    OutlinedTextField(
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    val shape = RoundedCornerShape(18.dp)
+    // A filled field with the label inside: an outlined field's floating label
+    // cuts a notch that shows as a box over the filled background.
+    TextField(
         value = value,
         onValueChange = onValueChange,
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().then(if (focused) Modifier.border(2.dp, cs.primary, shape) else Modifier),
+        interactionSource = interaction,
         enabled = enabled,
         label = label?.let { { Text(it) } },
         placeholder = placeholder?.let { { Text(it) } },
@@ -52,19 +63,19 @@ internal fun BloomTextField(
         singleLine = singleLine,
         minLines = minLines,
         maxLines = maxLines,
-        shape = RoundedCornerShape(18.dp),
+        shape = shape,
         keyboardOptions = if (plain) {
             KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None)
         } else {
             KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
         },
-        colors = OutlinedTextFieldDefaults.colors(
+        colors = TextFieldDefaults.colors(
             focusedContainerColor = cs.surfaceContainerHighest,
             unfocusedContainerColor = cs.surfaceContainerHighest,
             disabledContainerColor = cs.surfaceContainerHighest,
-            focusedBorderColor = cs.primary,
-            unfocusedBorderColor = Color.Transparent,
-            disabledBorderColor = Color.Transparent,
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
+            disabledIndicatorColor = Color.Transparent,
         ),
     )
 }

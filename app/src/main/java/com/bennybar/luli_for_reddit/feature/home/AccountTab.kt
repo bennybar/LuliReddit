@@ -23,15 +23,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Login
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DynamicFeed
-import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.OfflinePin
 import androidx.compose.material.icons.rounded.PeopleAlt
 import androidx.compose.material.icons.rounded.PersonAddAlt1
-import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.TravelExplore
 import androidx.compose.material.icons.rounded.UnfoldMore
 import androidx.compose.material3.AlertDialog
@@ -74,6 +71,7 @@ import com.bennybar.luli_for_reddit.feature.feed.LetterAvatar
 import com.bennybar.luli_for_reddit.feature.feed.Tile
 import com.bennybar.luli_for_reddit.feature.feed.SectionHeader
 import com.bennybar.luli_for_reddit.feature.feed.TapGuard
+import com.bennybar.luli_for_reddit.feature.settings.SettingsList
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.Route
 import com.bennybar.luli_for_reddit.ui.Overlays
@@ -138,14 +136,8 @@ internal fun AccountTab() {
         item(key = "offline") {
             NavTile(Icons.Rounded.OfflinePin, "Read later", "Threads saved for offline reading") { nav.push(Route.Offline) }
         }
-        // Settings (primary). The settings list itself lives on its own screen.
-        item(key = "settings") {
-            NavTile(Icons.Rounded.Settings, "Settings", "Appearance, feeds, privacy, notifications and more") { nav.push(Route.Settings) }
-        }
-        if (!anonymous) {
-            item(key = "saved") { NavTile(Icons.Rounded.Bookmark, "Saved", "Posts and comments you saved") { nav.push(Route.Saved) } }
-        }
-        item(key = "history") { NavTile(Icons.Rounded.History, "History", "Posts you've viewed on this device") { nav.push(Route.History) } }
+        // Settings (primary), inline as in the Flutter build.
+        item(key = "settings", contentType = "settings") { SettingsList(embedded = true) }
         item(key = "div") { HorizontalDivider(Modifier.padding(vertical = 8.dp), color = cs.outlineVariant.copy(alpha = 0.5f)) }
 
         // Custom feeds (secondary)
