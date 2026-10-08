@@ -98,12 +98,22 @@ class AppContainer(val context: Context) {
             var previous: String? = null
             session.state.collect { s ->
                 client.invalidateAuthConfig()
-                val identity = (s as? SessionState.LoggedIn)?.session?.identity ?: return@collect
+                // A full logout drops back to the logged-out identity (bare keys),
+                // so the previous account's stores don't stay loaded.
+                val identity = when (s) {
+                    is SessionState.LoggedIn -> s.session.identity
+                    // Only a real logout (has_account cleared) — not a transient
+                    // keystore read failure, which must keep everything loaded.
+                    SessionState.LoggedOut -> if (session.hasAccount) return@collect else ""
+                    SessionState.Loading -> return@collect
+                }
                 if (identity != previous) {
                     if (previous != null) repository.clearSubsCache()
+                    val first = previous == null
                     previous = identity
-                    val username = (s as SessionState.LoggedIn).session.username
-                    userScoped.forEach { it.onUserChanged(username) }
+                    val username = (s as? SessionState.LoggedIn)?.session?.username ?: ""
+                    // start() already loaded the logged-out identity.
+                    if (!(first && identity.isEmpty())) userScoped.forEach { it.onUserChanged(username) }
                 }
             }
         }

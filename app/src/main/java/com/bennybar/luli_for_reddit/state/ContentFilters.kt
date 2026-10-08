@@ -52,7 +52,7 @@ data class ContentFilters(
     companion object {
         /** Whole-word, any-script match: "cat" doesn't hide "vacation". */
         fun hasWord(text: String, word: String): Boolean =
-            Regex("(?<![\\p{L}\\p{N}])${Regex.escape(word)}(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE)
+            Regex("(?<![\\p{L}\\p{N}])${Regex.escape(word)}(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE) // Kotlin adds UNICODE_CASE itself
                 .containsMatchIn(text)
     }
 }
