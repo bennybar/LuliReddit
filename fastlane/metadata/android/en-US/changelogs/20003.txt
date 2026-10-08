@@ -1,0 +1,3 @@
+- New app icon, and Settings → Appearance → App icon to pick its colour: Violet, Ocean, Forest, Sunset or Midnight.
+- Faster Reddit Home: the first posts show sooner, and the hidden page no longer downloads dozens of videos while loading.
+- Home and For You start loading during the splash screen.
