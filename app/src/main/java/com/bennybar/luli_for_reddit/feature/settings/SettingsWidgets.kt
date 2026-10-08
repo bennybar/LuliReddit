@@ -84,6 +84,7 @@ internal fun SettingTile(
     leadingSpacer: Boolean = false,
     trailing: (@Composable () -> Unit)? = null,
     onClick: (() -> Unit)? = null,
+    leading: (@Composable () -> Unit)? = null,
 ) {
     ListItem(
         modifier = Modifier
@@ -91,6 +92,7 @@ internal fun SettingTile(
             .alpha(if (enabled) 1f else 0.38f),
         colors = clearItem,
         leadingContent = when {
+            leading != null -> leading
             icon != null -> ({ Icon(icon, null, tint = iconTint ?: MaterialTheme.colorScheme.onSurfaceVariant) })
             leadingSpacer -> ({ Spacer(Modifier.size(24.dp)) })
             else -> null

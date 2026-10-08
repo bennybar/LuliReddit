@@ -61,6 +61,7 @@ class SettingsStore(private val p: Prefs) {
             aiMaxChars = p.getInt("aiMaxChars") ?: d.aiMaxChars,
             aiUseCustomUrl = b("aiUseCustomUrl", d.aiUseCustomUrl),
             aiBaseUrl = p.getString("aiBaseUrl") ?: d.aiBaseUrl,
+            appIcon = p.getString("appIcon") ?: d.appIcon,
         )
     }
 
@@ -141,5 +142,6 @@ class SettingsStore(private val p: Prefs) {
     fun setAiMaxChars(v: Int) { p.setInt("aiMaxChars", v); set { it.copy(aiMaxChars = v) } }
     fun setAiUseCustomUrl(v: Boolean) { p.setBool("aiUseCustomUrl", v); set { it.copy(aiUseCustomUrl = v) } }
     fun setAiBaseUrl(v: String) { p.setString("aiBaseUrl", v); set { it.copy(aiBaseUrl = v) } }
+    fun setAppIcon(v: String) { p.setString("appIcon", v); set { it.copy(appIcon = v) } }
 }
 

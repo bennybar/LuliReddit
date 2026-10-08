@@ -13,7 +13,7 @@ import androidx.browser.auth.AuthTabIntent
 import androidx.browser.customtabs.CustomTabsClient
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.runtime.LaunchedEffect
-import com.bennybar.luli_for_reddit.MainActivity
+import com.bennybar.luli_for_reddit.IlayActivity
 import com.bennybar.luli_for_reddit.app
 import com.bennybar.luli_for_reddit.ui.Overlays
 import kotlinx.coroutines.CancellationException
@@ -139,7 +139,7 @@ class OAuthRedirectActivity : Activity() {
         super.onCreate(savedInstanceState)
         intent?.data?.let(OAuthFlow::complete)
         startActivity(
-            Intent(this, MainActivity::class.java)
+            Intent(this, IlayActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
         )
         finish()

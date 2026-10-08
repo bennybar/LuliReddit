@@ -152,6 +152,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.math.roundToInt
+import com.bennybar.luli_for_reddit.core.AppIcon
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.clip
 
 private val ACCENT_SWATCHES = listOf(
     0xFF6750A4L, // Bloom lavender (default)
@@ -267,6 +273,18 @@ fun SettingsList(
         )
         switch("Dynamic color", "Use colors from your wallpaper", Icons.Rounded.Palette, s.useDynamicColor, ctrl::setUseDynamicColor)
         add(Entry("accent", null) { AccentPicker(s) })
+        add(Entry("appIcon", "App icon launcher home screen colour") {
+            val current = AppIcon.parse(s.appIcon)
+            SettingTile("App icon", current.label, onClick = {
+                scope.launch {
+                    val picked = pickAppIcon(current) ?: return@launch
+                    if (picked == current) return@launch
+                    ctrl.setAppIcon(picked.key)
+                    AppIcon.apply(context, picked)
+                    nav.showSnackbar("App icon changed. Your home screen can take a few seconds to update.")
+                }
+            }, leading = { AppIconPreview(current, 24.dp) })
+        })
         tile("Font size", "${(s.textScale * 100).roundToInt()}% of normal", Icons.Rounded.FormatSize)
         add(Entry("fontSlider", null) {
             val sliderInteraction = remember { MutableInteractionSource() }
@@ -603,6 +621,60 @@ fun SettingsList(
     }
 }
 
+/** The launcher icon as the home screen shows it: its colour layer under the Saturn mark, cropped to a circle. */
+@Composable
+internal fun AppIconPreview(icon: AppIcon, size: Dp) {
+    Box(Modifier.size(size).clip(CircleShape)) {
+        // Adaptive icons are 108 units with the visible area in the middle 72: scale to crop like a launcher.
+        val m = Modifier.fillMaxSize().graphicsLayer { scaleX = 1.5f; scaleY = 1.5f }
+        Image(painterResource(icon.background), null, m)
+        Image(painterResource(icon.foreground), null, m)
+    }
+}
+
+private suspend fun pickAppIcon(current: AppIcon): AppIcon? = Overlays.show { done ->
+    OverlaySheet<AppIcon>(done) { close ->
+        Text(
+            "App icon",
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 16.dp),
+        )
+        FlowRow(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            for (icon in AppIcon.entries) {
+                val selected = icon == current
+                Column(
+                    Modifier.clip(RoundedCornerShape(20.dp)).clickable { close(icon) }.padding(8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Box(
+                        Modifier.border(
+                            width = 3.dp,
+                            color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                            shape = CircleShape,
+                        ).padding(5.dp),
+                    ) { AppIconPreview(icon, 56.dp) }
+                    Text(
+                        icon.label,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+            }
+        }
+        Text(
+            "Your home screen shows the new icon after a few seconds.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 16.dp),
+        )
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AccentPicker(s: Settings) {
@@ -862,6 +934,8 @@ private suspend fun restoreData(context: Context, uri: Uri) {
  */
 internal fun reloadLocalData() {
     app.settings.reload()
+    // A restored icon choice only takes effect once its launcher entry is switched.
+    AppIcon.apply(app.context, AppIcon.parse(app.settings.value.appIcon))
     val user = app.session.username
     listOf(
         app.postOverrides, app.hiddenPosts, app.history, app.threadVisits, app.contentFilters,

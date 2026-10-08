@@ -92,6 +92,7 @@ data class Settings(
     val aiMaxChars: Int = 100_000, // max thread text sent to the model
     val aiUseCustomUrl: Boolean = false, // use a custom API base URL
     val aiBaseUrl: String = "https://api.openai.com", // custom base URL (when enabled)
+    val appIcon: String = "violet", // launcher icon colour (AppIcon key)
 ) {
     companion object {
         /** Bloom primary — the default accent. */

@@ -14,7 +14,7 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
-import com.bennybar.luli_for_reddit.MainActivity
+import com.bennybar.luli_for_reddit.IlayActivity
 import com.bennybar.luli_for_reddit.R
 import com.bennybar.luli_for_reddit.app
 import com.bennybar.luli_for_reddit.core.storage.Prefs
@@ -67,7 +67,7 @@ object InboxNotifications {
         if (!nm.areNotificationsEnabled()) return
         createChannel(context)
         val id = item.fullname.hashCode() and 0x7fffffff
-        val intent = Intent(context, MainActivity::class.java).apply {
+        val intent = Intent(context, IlayActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
             when {
                 item.post != null -> {
@@ -90,7 +90,7 @@ object InboxNotifications {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher_monochrome)
+            .setSmallIcon(R.drawable.ic_icon_mono)
             .setContentTitle(item.title)
             .setContentText(item.body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(item.body))

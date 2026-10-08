@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ilay "Saturn" mark: the L with its orbit as a tilted ring (back half behind the L, front half over it) and the dot as a moon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Scaled to stay inside the adaptive-icon safe zone (moon included). -->
+    <group android:pivotX="54" android:pivotY="54" android:scaleX="0.9" android:scaleY="0.9">
+        <group android:pivotX="54" android:pivotY="56" android:rotation="-20">
+            <clip-path android:pathData="M0,0h108v56h-108z" />
+            <path android:pathData="M23,56 a31,10 0 1,0 62,0 a31,10 0 1,0 -62,0" android:fillColor="#00000000" android:strokeColor="#FFFFFF" android:strokeWidth="3" android:strokeAlpha="0.45" />
+        </group>
+        <path android:pathData="M46,38 V70 H64" android:fillColor="#00000000" android:strokeColor="#FFFFFF" android:strokeWidth="9" android:strokeLineCap="round" android:strokeLineJoin="round" />
+        <group android:pivotX="54" android:pivotY="56" android:rotation="-20">
+            <clip-path android:pathData="M0,56h108v52h-108z" />
+            <path android:pathData="M23,56 a31,10 0 1,0 62,0 a31,10 0 1,0 -62,0" android:fillColor="#00000000" android:strokeColor="#FFFFFF" android:strokeWidth="3" />
+        </group>
+        <path android:pathData="M77.6,45.4 a5.5,5.5 0 1,0 11,0 a5.5,5.5 0 1,0 -11,0" android:fillColor="#FF8A65" android:strokeColor="#101418" android:strokeWidth="2" />
+    </group>
+</vector>
