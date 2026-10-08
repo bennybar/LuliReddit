@@ -140,8 +140,7 @@ class RedditHomeLoader(private val context: Context) {
         v.settings.blockNetworkImage = true
         // Keep navigation inside the hidden view, and skip what the page
         // doesn't need to list its posts: autoplaying videos (dozens of
-        // streams), fonts and telemetry. They competed with the feed request
-        // for bandwidth and CPU. Reddit's own scripts and checks still load.
+        // streams) and fonts. Reddit's own scripts, checks and events load.
         v.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
                 val url = request?.url ?: return null
@@ -189,19 +188,19 @@ class RedditHomeLoader(private val context: Context) {
     companion object {
         private const val HOME = "https://www.reddit.com/"
 
-        private val SKIP_HOSTS = setOf(
-            "v.redd.it", "packaged-media.redd.it", "fonts.gstatic.com", "w3-reporting.reddit.com", "pi.reddit.com",
-        )
-        private val SKIP_EXT = listOf(".mp4", ".m3u8", ".mpd", ".m4s", ".ts", ".woff", ".woff2", ".ttf", ".gif", ".webm")
-        private val SKIP_PATHS = listOf("/svc/shreddit/events", "/svc/shreddit/perfMetrics", "/svc/events/")
+        // Only downloads that never change what the feed shows: autoplaying
+        // video and fonts. Reddit's own events must go through — Home learns
+        // from them which posts were seen, and without them a refresh kept
+        // serving the same feed.
+        private val SKIP_HOSTS = setOf("v.redd.it", "packaged-media.redd.it", "fonts.gstatic.com")
+        private val SKIP_EXT = listOf(".mp4", ".m3u8", ".mpd", ".m4s", ".ts", ".woff", ".woff2", ".ttf", ".webm")
 
-        /** Media, fonts and telemetry: not needed to read the feed's post ids. */
+        /** Video and fonts: not needed to read the feed's post ids. */
         internal fun isSkippable(url: android.net.Uri): Boolean {
             val host = url.host?.lowercase() ?: return false
             if (host in SKIP_HOSTS) return true
             val path = url.path?.lowercase() ?: return false
-            if (SKIP_EXT.any { path.endsWith(it) }) return true
-            return (host == "www.reddit.com" || host == "reddit.com") && SKIP_PATHS.any { path.startsWith(it) }
+            return SKIP_EXT.any { path.endsWith(it) }
         }
 
         @Suppress("FunctionName")
