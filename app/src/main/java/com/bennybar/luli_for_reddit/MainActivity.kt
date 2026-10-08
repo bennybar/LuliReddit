@@ -65,6 +65,11 @@ import com.bennybar.luli_for_reddit.nav.ViewerStack
 import com.bennybar.luli_for_reddit.ui.OverlayHost
 import com.bennybar.luli_for_reddit.ui.theme.IlayTheme
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import com.bennybar.luli_for_reddit.core.Analytics
+
+/** Once per process (the activity can be recreated). */
+private var appStartTracked = false
 
 class MainActivity : ComponentActivity() {
     /** The latest incoming deep link (VIEW intent), consumed by the UI. */
@@ -81,7 +86,12 @@ class MainActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
         )
-        if (savedInstanceState == null) handleIntent(intent)
+        if (savedInstanceState == null) {
+            trackAppStarted()
+            // Reopened from Recents after the process died: the launch intent is
+            // the old one (e.g. a notification tap) — don't replay it.
+            if (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY == 0) handleIntent(intent)
+        }
         setContent {
             val settings by app.settings.state.collectAsStateWithLifecycle()
             IlayTheme(settings) { AppRoot(pendingLink) }
@@ -92,6 +102,25 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleIntent(intent)
+    }
+
+    /**
+     * Anonymous: which login method this install uses. Sent from the activity,
+     * not Application.onCreate — that also runs for the background inbox poll,
+     * which would count as a launch every 15 minutes.
+     */
+    private fun trackAppStarted() {
+        if (appStartTracked) return
+        appStartTracked = true
+        app.scope.launch {
+            val username = app.secureStore.username()
+            val method = when {
+                username.isNullOrEmpty() -> "logged_out"
+                app.secureStore.authMode() == "web" -> "website"
+                else -> "api"
+            }
+            Analytics.track("app_started", mapOf("login_method" to method))
+        }
     }
 
     private fun handleIntent(intent: Intent?) {
@@ -157,7 +186,8 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
         val uri = link ?: return@LaunchedEffect
         if (!showHome) return@LaunchedEffect
         pendingLink.value = null
-        routeForRedditUrl(uri)?.let(navigator::push)
+        // An unsupported reddit.com link goes Home (as the Flutter router did).
+        routeForRedditUrl(uri)?.let(navigator::push) ?: navigator.resetTo(Route.Home)
     }
 
     CompositionLocalProvider(LocalNavigator provides navigator) {
