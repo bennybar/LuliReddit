@@ -341,7 +341,7 @@ class _SortBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final label = redditHome
-        ? 'Reddit Home · Experimental'
+        ? 'Home'
         : forYou
             ? 'For You · Beta'
             : (sort.needsTime ? '${sort.label} · ${time.label}' : sort.label);
@@ -385,8 +385,8 @@ class _SortBar extends StatelessWidget {
             if (isFrontpage && onRedditHome != null)
               ListTile(
                 leading: const Icon(Icons.home_rounded),
-                title: const Text('Reddit Home'),
-                subtitle: const Text('Your reddit.com Home · Experimental'),
+                title: const Text('Home'),
+                subtitle: const Text('Your reddit.com Home'),
                 trailing: redditHome ? const Icon(Icons.check_rounded) : null,
                 onTap: () {
                   Navigator.pop(ctx);
