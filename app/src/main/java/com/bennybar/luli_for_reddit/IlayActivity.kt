@@ -67,16 +67,16 @@ import com.bennybar.luli_for_reddit.ui.theme.IlayTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import com.bennybar.luli_for_reddit.core.Analytics
 import androidx.compose.animation.AnimatedContentScope
-import androidx.compose.animation.EnterExitState
-import androidx.compose.animation.core.Easing
-import androidx.compose.animation.core.animateDp
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.scaleOut
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraphBuilder
@@ -193,6 +193,14 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
         app.navigatorOrNull = navigator
         onDispose { if (app.navigatorOrNull === navigator) app.navigatorOrNull = null }
     }
+    // An app pop's motion is picked when it starts; clear the flag once it has
+    // played so the next back gesture peeks again.
+    LaunchedEffect(navigator) {
+        controller.currentBackStackEntryFlow.collectLatest {
+            delay(600)
+            navigator.buttonPop = false
+        }
+    }
     val session by app.session.state.collectAsStateWithLifecycle()
     val link by pendingLink.collectAsStateWithLifecycle()
 
@@ -225,13 +233,19 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
             NavHost(
                 navController = controller,
                 startDestination = start,
-                enterTransition = { fadeIn() },
-                exitTransition = { fadeOut() },
-                // Back (and the predictive back gesture, which scrubs these):
-                // the leaving screen shrinks into a rounded card and only fades
-                // at the very end; the screen underneath settles in behind it.
-                popEnterTransition = { fadeIn(tween(250)) + scaleIn(tween(250), initialScale = 0.94f) },
-                popExitTransition = { scaleOut(tween(250), targetScale = 0.88f) + fadeOut(tween(250, easing = LateFade)) },
+                // Scoops' motion: Android's "fade forwards" for pushes and app
+                // pops; the back gesture peeks (the page shrinks and fades over
+                // the previous one).
+                enterTransition = { slideInHorizontally(tween(450, easing = Emphasized)) { it / 4 } + fadeIn(tween(337)) },
+                exitTransition = { slideOutHorizontally(tween(450, easing = Emphasized)) { -it / 4 } + fadeOut(tween(112)) },
+                popEnterTransition = {
+                    if (navigator.buttonPop) slideInHorizontally(tween(450, easing = Emphasized)) { -it / 4 } + fadeIn(tween(337))
+                    else EnterTransition.None
+                },
+                popExitTransition = {
+                    if (navigator.buttonPop) slideOutHorizontally(tween(450, easing = Emphasized)) { it / 4 } + fadeOut(tween(112))
+                    else scaleOut(targetScale = 0.9f) + fadeOut()
+                },
             ) {
                 screen<Route.Login> { LoginScreen() }
                 screen<Route.WebLogin> { WebLoginScreen(it.toRoute<Route.WebLogin>().clearFirst) }
@@ -269,18 +283,13 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
 }
 
 
-/** Holds full opacity for most of the transition, then fades: a back preview stays solid. */
-private val LateFade = Easing { f -> if (f < 0.75f) 0f else (f - 0.75f) / 0.25f }
+private val Emphasized = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 
-/**
- * A destination whose corners round off as it animates out (or in), so the
- * predictive back gesture shows the screen as a shrinking card.
- */
+/** A destination drawn on an opaque surface, so sliding pages never show through. */
 private inline fun <reified T : Any> NavGraphBuilder.screen(
     noinline content: @Composable AnimatedContentScope.(NavBackStackEntry) -> Unit,
 ) = composable<T> { entry ->
-    val corner by transition.animateDp(label = "screenCorner") { if (it == EnterExitState.Visible) 0.dp else 32.dp }
-    Box(Modifier.fillMaxSize().clip(RoundedCornerShape(corner)).background(MaterialTheme.colorScheme.surface)) {
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
         content(entry)
     }
 }

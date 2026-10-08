@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonArray
 import kotlin.coroutines.resume
 
@@ -157,8 +158,13 @@ class RedditHomeLoader(private val context: Context) {
 
     private suspend fun eval(js: String): String? {
         val v = view ?: return null
-        return suspendCancellableCoroutine { cont ->
-            v.evaluateJavascript(js) { if (cont.isActive) cont.resume(it) }
+        // While the page is reloading, the WebView can drop a script's result
+        // callback entirely; without a timeout that hung a refresh forever on
+        // "Opening your Home…" (the deadline check never ran again).
+        return withTimeoutOrNull(2_000) {
+            suspendCancellableCoroutine { cont ->
+                v.evaluateJavascript(js) { if (cont.isActive) cont.resume(it) }
+            }
         }
     }
 
