@@ -59,6 +59,7 @@ import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.DoneAll
 import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.UnfoldLess
 import androidx.compose.material.icons.rounded.FontDownload
 import androidx.compose.material.icons.rounded.FormatSize
 import androidx.compose.material.icons.rounded.Gavel
@@ -81,7 +82,7 @@ import androidx.compose.material.icons.rounded.ViewHeadline
 import androidx.compose.material.icons.rounded.VpnKey
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material.icons.outlined.Dns
-import androidx.compose.material.icons.automirrored.outlined.LabelImportant
+import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -97,6 +98,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.SliderState
+import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.Label
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -198,6 +204,7 @@ private class Entry(val key: String, val search: String?, val content: @Composab
  * The settings list — reusable both as the full Settings screen and embedded
  * (e.g. inside the Account tab). Pass [embedded] when nesting in a scroll view.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsList(
     modifier: Modifier = Modifier,
@@ -262,14 +269,23 @@ fun SettingsList(
         add(Entry("accent", null) { AccentPicker(s) })
         tile("Font size", "${(s.textScale * 100).roundToInt()}% of normal", Icons.Rounded.FormatSize)
         add(Entry("fontSlider", null) {
+            val sliderInteraction = remember { MutableInteractionSource() }
+            val sliderState = remember { SliderState(s.textScale.toFloat(), 11, 0.8f..1.4f) }
+            LaunchedEffect(s.textScale) { sliderState.value = s.textScale.toFloat() }
             Row(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("A", fontSize = 13.sp)
                 Slider(
-                    value = s.textScale.toFloat(),
+                    state = sliderState,
                     onValueChange = { ctrl.setTextScale((it * 20).roundToInt() / 20.0) },
-                    valueRange = 0.8f..1.4f,
-                    steps = 11,
                     modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                    interactionSource = sliderInteraction,
+                    // The percentage floats over the thumb while dragging, as in Flutter.
+                    thumb = {
+                        Label(
+                            label = { PlainTooltip { Text("${(s.textScale * 100).roundToInt()}%") } },
+                            interactionSource = sliderInteraction,
+                        ) { SliderDefaults.Thumb(sliderInteraction) }
+                    },
                 )
                 Text("A", fontSize = 22.sp)
             }
@@ -287,7 +303,7 @@ fun SettingsList(
         })
         switch(
             "Bottom bar labels", "Show text labels under the navigation icons",
-            Icons.AutoMirrored.Outlined.LabelImportant, s.navLabels, ctrl::setNavLabels,
+            Icons.AutoMirrored.Outlined.Label, s.navLabels, ctrl::setNavLabels,
         )
         divider("appearance")
 
@@ -308,7 +324,7 @@ fun SettingsList(
         switch(
             "Tap a comment to collapse it",
             "Otherwise long-press. Comment text can't be selected while this is on",
-            Icons.Rounded.ExpandMore, s.tapToCollapse, ctrl::setTapToCollapse,
+            Icons.Rounded.UnfoldLess, s.tapToCollapse, ctrl::setTapToCollapse,
         )
         tile("Post display", s.postDisplay.label, s.postDisplay.icon, onClick = launch {
             pickOption(PostDisplay.entries.map { PickOption(it, it.label, icon = it.icon) }, s.postDisplay)

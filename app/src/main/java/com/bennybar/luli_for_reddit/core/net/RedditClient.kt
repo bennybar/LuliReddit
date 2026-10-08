@@ -155,7 +155,8 @@ class RedditClient(
             if (newToken != null) {
                 token = newToken
                 tokenExpiry = store.tokenExpiry()
-                return once()
+                // If the retry itself fails, fall through to the original answer.
+                return try { once() } catch (_: IOException) { first }
             }
         }
         return first

@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.settings
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -156,9 +157,14 @@ private fun FilterSection(title: String, hint: String, type: String, values: Lis
                 for (v in values) {
                     InputChip(
                         selected = false,
-                        onClick = { app.contentFilters.remove(type, v) },
+                        onClick = {}, // only the X removes (as Flutter's deletable chip)
                         label = { Text(v) },
-                        trailingIcon = { Icon(Icons.Rounded.Close, "Remove", Modifier.size(InputChipDefaults.IconSize)) },
+                        trailingIcon = {
+                            Icon(
+                                Icons.Rounded.Close, "Remove",
+                                Modifier.size(InputChipDefaults.IconSize).clickable { app.contentFilters.remove(type, v) },
+                            )
+                        },
                     )
                 }
             }
