@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Inbox notifications (Android 13+ runtime permission). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application
+        android:name=".IlayApp"
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:enableOnBackInvokedCallback="true"
+        android:theme="@style/Theme.Ilay">
+
+        <activity
+            android:name=".MainActivity"
+            android:theme="@style/Theme.Ilay.Starting"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Open reddit.com / redd.it links in Ilay -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="www.reddit.com" />
+                <data android:scheme="https" android:host="reddit.com" />
+                <data android:scheme="https" android:host="old.reddit.com" />
+                <data android:scheme="https" android:host="m.reddit.com" />
+                <data android:scheme="https" android:host="redd.it" />
+                <data android:scheme="http" android:host="www.reddit.com" />
+                <data android:scheme="http" android:host="reddit.com" />
+            </intent-filter>
+        </activity>
+
+        <!-- OAuth redirect (luli://oauth, or redreader://rr_oauth_redir for
+             RedReader-issued client IDs). Keep in sync with
+             RedditConstants.CALLBACK_SCHEMES. -->
+        <activity
+            android:name=".auth.OAuthRedirectActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="luli" />
+                <data android:scheme="redreader" />
+            </intent-filter>
+        </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.support.customtabs.action.CustomTabsService" />
+        </intent>
+    </queries>
+</manifest>

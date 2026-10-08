@@ -1,0 +1,2 @@
+- Home: a new loading animation, a shuffling deck of cards with a live count of posts found, then the posts are dealt into the feed.
+- AI summaries: gpt-6.1-sol added to the model list; the default model is now gpt-5.4-mini.

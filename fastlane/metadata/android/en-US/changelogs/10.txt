@@ -1,0 +1,5 @@
+- "Read" toggle on every post card (next to Save)
+- Inbox replies open the exact comment, not just the post
+- Bigger, higher video controls; "Open in browser" for unsupported formats
+- Tap the Posts tab again to scroll to top / refresh
+- Smoother bottom bar (no bounce) and lower position on iOS

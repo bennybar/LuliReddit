@@ -1,0 +1,9 @@
+- Fix: "Connection closed while receiving data" after resuming the app; stale
+  connections are retired and requests retry once.
+- Comments: media (images, GIFs, videos) now shows inline and opens in the
+  in-app viewer instead of an external browser.
+- Comments: tap a username to open that user's profile.
+- New setting: Default comment sort (Best/Top/New/Controversial/Old/Q&A).
+- Fix: links opened from the browser now open that link instead of the page
+  you last had open.
+- Share: new "Share with title" option.

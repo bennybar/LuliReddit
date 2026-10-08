@@ -1,0 +1,1 @@
+- New, experimental and off by default: Reddit Home shows your real reddit.com Home feed (website sign-in only). WARNING: it is against Reddit's terms and can get your Reddit account suspended. Read the warning in Settings before enabling it.

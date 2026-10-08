@@ -1,0 +1,5 @@
+- Fix: opening a reddit.com / redd.it link no longer shows "GoException: no
+  routes for location" — links now resolve to the right screen in-app (handled
+  via go_router onException as well as the redirect).
+- Fix: GIFs now play (reddit's mp4 variant, looping) instead of showing a
+  static frame; GIF posts show a GIF badge in the feed.

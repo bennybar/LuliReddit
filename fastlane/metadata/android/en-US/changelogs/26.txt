@@ -1,0 +1,2 @@
+- Fix: "Back up data" failed on iOS with a share-sheet error; the backup file
+  now shares correctly.

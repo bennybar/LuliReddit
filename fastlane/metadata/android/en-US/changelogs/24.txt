@@ -1,0 +1,3 @@
+- New: search within a post's comments. Tap the magnifier next to the comment
+  sort button to open a floating find bar — step through matches with up/down
+  and the current match is highlighted.

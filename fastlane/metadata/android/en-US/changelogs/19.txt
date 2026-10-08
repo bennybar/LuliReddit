@@ -1,0 +1,4 @@
+- Cleaner home screen by default: the top now shows just the title with a single
+  button that floats the toolbar (search, new post, profile) in over the feed,
+  then tucks away. Prefer the classic layout? Settings → Feed → Top bar → Full
+  top bar.

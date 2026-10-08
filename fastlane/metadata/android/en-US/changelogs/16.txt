@@ -1,0 +1,5 @@
+- New: attach images and videos to comment replies and private messages, and
+  paste images straight from the clipboard. Comment images post inline (hosted
+  by Reddit); videos and message attachments are uploaded to catbox.moe and
+  linked, since Reddit doesn't host those itself. Each composer tells you when
+  an attachment will become a public link.

@@ -1,0 +1,2 @@
+- Build: drop the Google-encrypted dependency-metadata blob from the APK
+  signing block, so the app passes IzzyOnDroid/F-Droid signing checks.

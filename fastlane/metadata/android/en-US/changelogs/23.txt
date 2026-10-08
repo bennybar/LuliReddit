@@ -1,0 +1,10 @@
+- Settings: a search box at the top, plus tidier grouping.
+- New: hide the bottom-bar text labels (icons-only) — Settings → Appearance.
+- For You tuning (More/Less/Mute) is now also in the post ⋯ menu, and each
+  confirmation has a "Manage" link to review/undo it.
+- Inbox: quick filters (Replies/Mentions/Messages) and per-tab "mark read".
+- Explore: filter, favorites-only, sort, and a "Recently visited" row.
+- History: search, subreddit filter, and clear-older-than 7/30 days.
+- Compose: drafts now restore the post type and warn before discarding an
+  unsaved attachment, with a "Draft saved" indicator.
+- Fixed action sheets occasionally triggering an item as they opened.

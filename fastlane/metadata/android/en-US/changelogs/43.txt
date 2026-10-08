@@ -1,0 +1,5 @@
+- For You rebuilt: "Less like this" really works, Hebrew titles learn topics, better variety, "Why am I seeing this?", a complete Manage screen.
+- New: browse without an account, Read later (offline), new-comments badges, share comments as an image.
+- New: hide read posts / mark read on scroll, configurable swipes, subreddit/NSFW/AutoMod filters, spoilers.
+- Links open in the app, clearer errors, search paging.
+- Many fixes: failed votes now revert, account data no longer leaks between accounts, comment votes stick, and more.

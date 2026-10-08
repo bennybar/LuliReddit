@@ -1,0 +1,1 @@
+- Home (Reddit Home) refreshes much faster, opens instantly with your last Home page, and no longer stops loading more posts after one empty batch.

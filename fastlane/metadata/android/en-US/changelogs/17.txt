@@ -1,0 +1,4 @@
+- For You (Beta): a visible "Less" button on each post makes it easy to see
+  less from a subreddit (it was previously hidden behind a long-press).
+- New: Settings → Manage "For You" subreddits — review and undo the subreddits
+  you've muted or told us to show less of (and reset learned favourites).
