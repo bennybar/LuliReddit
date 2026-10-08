@@ -62,10 +62,29 @@ class Post with _$Post {
   /// Parses a single listing child's `data` object.
   factory Post.fromData(Map<String, dynamic> d) {
     final preview = _firstPreviewImage(d);
-    final isVideo = d['is_video'] == true;
-    final media = _m(d['media']);
-    final redditVideo = _m(media?['reddit_video']);
-    final gallery = _parseGallery(d);
+    // A crosspost carries no media of its own (is_video false, media null):
+    // the video or gallery lives on the original post. Without this, crossposted
+    // v.redd.it videos showed up as plain links.
+    final parent = _m(_l(d['crosspost_parent_list'])?.firstOrNull);
+    Map<String, dynamic>? videoOf(Map<String, dynamic>? x) =>
+        _m(_m(x?['media'])?['reddit_video']) ??
+        _m(_m(x?['secure_media'])?['reddit_video']);
+    final redditVideo = videoOf(d) ?? videoOf(parent);
+    final ownGallery = _parseGallery(d);
+    final gallery = ownGallery.isNotEmpty || parent == null
+        ? ownGallery
+        : _parseGallery(parent);
+    // A bare v.redd.it link with no video metadata: its HLS stream sits at a
+    // fixed address under the video's id.
+    final url = d['url'] as String? ?? '';
+    final vreddit = Uri.tryParse(url);
+    final bareVreddit = redditVideo == null &&
+        vreddit?.host == 'v.redd.it' &&
+        vreddit!.pathSegments.isNotEmpty;
+    final isVideo = d['is_video'] == true ||
+        parent?['is_video'] == true ||
+        redditVideo != null ||
+        bareVreddit;
 
     return Post(
       id: d['id'] as String? ?? '',
@@ -105,7 +124,10 @@ class Post with _$Post {
       blurredPreviewUrl: _blurredPreviewUrl(d),
       previewWidth: preview?.width,
       previewHeight: preview?.height,
-      hlsUrl: redditVideo?['hls_url'] as String?,
+      hlsUrl: redditVideo?['hls_url'] as String? ??
+          (bareVreddit
+              ? 'https://v.redd.it/${vreddit.pathSegments.first}/HLSPlaylist.m3u8'
+              : null),
       fallbackVideoUrl: redditVideo?['fallback_url'] as String?,
       gifMp4Url:
           _m(_m(d['preview'])?['reddit_video_preview'])?['fallback_url']

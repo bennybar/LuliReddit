@@ -361,9 +361,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
           if (thread != null)
             IconButton(
               icon: const Icon(Icons.more_vert_rounded),
-              onPressed: () => showPostActionsSheet(context, ref, thread.post,
-                  onSummarize:
-                      hasAiKey ? () => _summarize(thread.post) : null),
+              onPressed: () => showPostActionsSheet(context, ref, thread.post),
             ),
           if (thread != null && thread.post.author == username)
             PopupMenuButton<String>(
@@ -414,6 +412,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
                   ref.read(forYouLearnerProvider).comment(thread.post);
                 }
               },
+              onSummarize: hasAiKey ? () => _summarize(thread.post) : null,
               onNext: _jumpNextTopLevel,
               onNextLongPress: () => _showJumpMenu(
                   thread.post.author, username,
@@ -874,7 +873,7 @@ Future<bool> _confirmDelete(BuildContext context, String what) async {
 
 /// Everything that moves through the thread in ONE compact floating pill
 /// (as in Scoops), instead of a stack of large buttons:
-/// [↑ N new ↓] [your comment] [comment] [● next top-level].
+/// [↑ N new ↓] [your comment] [summarize] [comment] [● next top-level].
 class _ThreadToolbar extends StatelessWidget {
   const _ThreadToolbar({
     required this.newCount,
@@ -884,6 +883,7 @@ class _ThreadToolbar extends StatelessWidget {
     required this.onNextNew,
     required this.onMine,
     required this.onComment,
+    this.onSummarize,
     required this.onNext,
     required this.onNextLongPress,
   });
@@ -892,6 +892,7 @@ class _ThreadToolbar extends StatelessWidget {
   final bool hasMine;
   final bool hasComments;
   final VoidCallback onPrevNew, onNextNew, onMine, onComment, onNext;
+  final VoidCallback? onSummarize; // only when AI summaries are set up
   final VoidCallback onNextLongPress;
 
   @override
@@ -933,6 +934,8 @@ class _ThreadToolbar extends StatelessWidget {
                 ]),
               ),
             if (hasMine) icon(Icons.person_rounded, 'Your comments', onMine),
+            if (onSummarize != null)
+              icon(Icons.auto_awesome_rounded, 'Summarize thread', onSummarize!),
             icon(Icons.add_comment_rounded, 'Comment', onComment),
             if (hasComments)
               // The main action: a filled accent circle. Long-press for the

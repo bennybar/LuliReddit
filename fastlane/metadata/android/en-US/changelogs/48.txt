@@ -1,0 +1,2 @@
+- Fix: crossposted videos (v.redd.it) and galleries now play/show instead of appearing as links.
+- Post screen: "Summarize thread" moved from the menu to the bottom toolbar (when AI summaries are set up).
