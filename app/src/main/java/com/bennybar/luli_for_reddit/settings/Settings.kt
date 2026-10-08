@@ -65,7 +65,7 @@ data class Settings(
     /** Default off so the Bloom palette shows out of the box. */
     val useDynamicColor: Boolean = false,
     val jakartaFont: Boolean = false, // legacy switch, mirrored from appFont (Flutter backups)
-    val appFont: AppFont = AppFont.ROBOTO, // the app's typeface
+    val appFont: AppFont = AppFont.GOOGLE_SANS, // the app's typeface (Google Sans by default from v2)
     val inAppBrowser: Boolean = false, // open web links in a Custom Tab, not the browser app
     val tapToCollapse: Boolean = false, // tap a comment to collapse it (else long-press)
     val hideReadPosts: Boolean = false, // skip already-read posts when feeds load
