@@ -106,6 +106,19 @@
             </intent-filter>
         </activity-alias>
 
+        <activity-alias
+            android:name=".IconWhite"
+            android:exported="true"
+            android:enabled="false"
+            android:icon="@mipmap/ic_launcher_white"
+            android:roundIcon="@mipmap/ic_launcher_white"
+            android:targetActivity=".IlayActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
         <!-- OAuth redirect (luli://oauth, or redreader://rr_oauth_redir for
              RedReader-issued client IDs). Keep in sync with
              RedditConstants.CALLBACK_SCHEMES. -->
