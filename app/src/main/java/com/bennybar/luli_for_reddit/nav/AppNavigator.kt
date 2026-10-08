@@ -53,7 +53,17 @@ class AppNavigator(
         controller.navigate(route) { launchSingleTop = route is Route.Home }
     }
 
-    fun pop(): Boolean = controller.popBackStack()
+    /**
+     * True while a pop started by the app (a back arrow, not the system back
+     * gesture) animates: it plays the full "fade backward" motion instead of
+     * the gesture's peek (see IlayActivity).
+     */
+    var buttonPop = false
+
+    fun pop(): Boolean {
+        buttonPop = true
+        return controller.popBackStack()
+    }
 
     /** Clears the back stack and shows [route] (login ↔ home). */
     fun resetTo(route: Route) {
