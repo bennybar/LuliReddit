@@ -64,14 +64,15 @@ private fun lerpPath(t: Float, start: Float, peak: Float, end: Float): Float = w
 }
 
 /**
- * Home's loading state: a small deck of post cards shuffling while a live
- * counter shows how many posts have been found. Shown when there's no saved
- * Home page to paint instead (first open, or switching to Home).
+ * Home's and For You's loading state: a small deck of post cards shuffling
+ * while a live counter shows how many posts have been found; the first cards
+ * are then dealt into the feed ([DealIn]).
  */
 @Composable
-fun HomeLoadingDeck() {
+fun HomeLoadingDeck(forYou: Boolean = false) {
     val cs = MaterialTheme.colorScheme
-    val found by app.forYou.redditHome.progress.collectAsStateWithLifecycle()
+    val found by (if (forYou) app.forYou.engine.progress else app.forYou.redditHome.progress)
+        .collectAsStateWithLifecycle()
     // Respect "remove animations": a still deck, the counter still counts.
     val still = animationsDisabled()
     val riffle = rememberInfiniteTransition(label = "riffle")
@@ -112,12 +113,12 @@ fun HomeLoadingDeck() {
             }
             Spacer(Modifier.height(18.dp))
             Text(
-                if (found == 0) buildAnnotatedString { append("Opening your Home…") }
+                if (found == 0) buildAnnotatedString { append(if (forYou) "Personalizing your feed…" else "Opening your Home…") }
                 else buildAnnotatedString {
                     append("Found ")
                     withStyle(SpanStyle(color = cs.primary, fontWeight = FontWeight.ExtraBold)) { append("$found") }
                     append(if (found == 1) " post" else " posts")
-                    append(" in your Home")
+                    append(if (forYou) " for you" else " in your Home")
                 },
                 fontSize = 13.5.sp,
                 fontWeight = FontWeight.SemiBold,

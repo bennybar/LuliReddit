@@ -80,11 +80,17 @@ class FeedController(val key: String) {
 
     private val current: FeedState? get() = (_ui.value as? FeedUi.Data)?.state
 
+    /**
+     * Home and For You open with the shuffling deck and deal their cards in,
+     * rather than painting the last saved page and then swapping it out.
+     */
+    val deckMode: Boolean get() = redditHome || forYou
+
     /** First use: builds the feed (Riverpod builds a provider on first watch). */
     fun start() {
         if (started) return
         started = true
-        rebuild(showLoading = false)
+        rebuild(showLoading = deckMode)
     }
 
     fun dispose() {
@@ -143,7 +149,8 @@ class FeedController(val key: String) {
         if (!cacheConsulted) {
             cacheConsulted = true
             cached = cachedFirstPage()
-            if (cached != null) {
+            // In deck mode the saved page is only a fallback for a failed load.
+            if (cached != null && !deckMode) {
                 showingCache = true
                 _ui.value = FeedUi.Data(FeedState(cached.items, sort, time, cached.after))
             }
@@ -229,7 +236,7 @@ class FeedController(val key: String) {
     /** Pull-to-refresh: reloads with the current list kept on screen. Returns when done. */
     suspend fun refresh() {
         started = true
-        rebuild(showLoading = current == null && _ui.value !is FeedUi.Error).join()
+        rebuild(showLoading = deckMode || (current == null && _ui.value !is FeedUi.Error)).join()
     }
 
     /** Retry from the error view. */
