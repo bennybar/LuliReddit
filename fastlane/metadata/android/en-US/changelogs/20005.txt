@@ -1,0 +1,4 @@
+- New "Calm" layout (⋯ menu or Settings → Post display): shorter cards, connected vote buttons, the For You reason in the card header, and one container per comment thread.
+- New White app icon.
+- Sign-in: Reddit website and API key are now equal choices.
+- For You opens faster, and shows Retry instead of an empty feed when Reddit can't be reached.

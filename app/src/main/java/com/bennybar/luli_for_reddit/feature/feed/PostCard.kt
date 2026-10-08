@@ -905,7 +905,8 @@ private fun CalmCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
 @Composable
 private fun CalmHeader(p: Post, a: PostActions) {
     val cs = MaterialTheme.colorScheme
-    val reason = p.feedReason
+    // The subreddit is already the line above: drop a trailing " · r/sub" from the reason.
+    val reason = p.feedReason?.removeSuffix(" · r/${p.subreddit}")?.removeSuffix(" · ${p.subredditPrefixed}")
     Row(verticalAlignment = Alignment.CenterVertically) {
         LetterAvatar(
             p.subreddit,
