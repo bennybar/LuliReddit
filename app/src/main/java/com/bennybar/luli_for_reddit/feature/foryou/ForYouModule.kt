@@ -12,6 +12,7 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.coroutineScope
@@ -216,9 +217,35 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
         for (p in page.listing.items) m.metrics.count("src.ranked.${page.meta[p.id]?.source ?: "other"}")
         val user = c.session.username
         if (firstPage && user.isNotEmpty()) {
-            saveForYouPage(c.context, user, page.listing.items, c.repository::rawPost)
+            // In the background: the page is ready; saving it shouldn't hold it up.
+            val items = page.listing.items
+            c.scope.launch(Dispatchers.IO) { saveForYouPage(c.context, user, items, c.repository::rawPost) }
         }
         return page.listing
+    }
+
+    private fun subsSnapshotFile(user: String) = java.io.File(c.context.filesDir, "fy_subs_${user.lowercase()}.json")
+
+    /** (favourites, subscribed), lowercase names, from the last fetched subscription list. */
+    private suspend fun loadSubsSnapshot(user: String): Pair<Set<String>, Set<String>>? = withContext(Dispatchers.IO) {
+        if (user.isEmpty()) return@withContext null
+        runCatching {
+            val o = com.bennybar.luli_for_reddit.core.AppJson.parseToJsonElement(subsSnapshotFile(user).readText()).jsonObject
+            fun set(k: String) = (o[k] as kotlinx.serialization.json.JsonArray).mapTo(LinkedHashSet()) { (it as JsonPrimitive).content }
+            set("fav") to set("sub")
+        }.getOrNull()
+    }
+
+    private suspend fun saveSubsSnapshot(user: String, subs: List<Subreddit>) = withContext(Dispatchers.IO) {
+        if (user.isEmpty()) return@withContext
+        fun arr(names: List<String>) = kotlinx.serialization.json.JsonArray(names.map { JsonPrimitive(it) })
+        val json = JsonObject(
+            mapOf(
+                "fav" to arr(subs.filter { it.userHasFavorited }.map { it.name.lowercase() }),
+                "sub" to arr(subs.map { it.name.lowercase() }),
+            ),
+        )
+        runCatching { subsSnapshotFile(user).writeText(json.toString()) }
     }
 
     /** The last saved first page minus posts opened since, to paint instantly. */
@@ -358,9 +385,19 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
         // Each source: its listing, or null if it failed / timed out. Secondary
         // sources get a short timeout so the slowest community doesn't decide how
         // long the page takes.
+        // The first real failure (not a timeout), to report if nothing at all loads.
+        var firstError: Exception? = null
         fun source(secondary: Boolean = true, f: suspend () -> Listing<Post>): Deferred<Listing<Post>?> = async {
-            orNull { if (secondary) withTimeout(2500) { f() } else f() }
-                ?.also { l -> if (firstPage) _progress.update { it + l.items.size } }
+            try {
+                if (secondary) withTimeout(2500) { f() } else f()
+            } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+                null
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (firstError == null) firstError = e
+                null
+            }?.also { l -> if (firstPage) _progress.update { it + l.items.size } }
         }
 
         // A cursor of "" means "start this source from the top" (its first
@@ -369,7 +406,17 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
         fun after(k: String): String? = prev[k]?.ifEmpty { null }
         val none = async<Listing<Post>?> { null }
 
-        val subsF = async { orNull { repo.getSubscribedSubreddits() } ?: emptyList<Subreddit>() }
+        // Favourites and subscriptions: from the last snapshot when there is one,
+        // so favourites go out with everything else instead of waiting ~2s for
+        // the subscription list; the live list refreshes the snapshot for next time.
+        val user = c.session.username
+        val snapshot = loadSubsSnapshot(user)
+        val subsF = if (snapshot == null) {
+            async { orNull { repo.getSubscribedSubreddits() } ?: emptyList<Subreddit>() }
+        } else {
+            c.scope.launch(Dispatchers.IO) { orNull { repo.getSubscribedSubreddits() }?.let { saveSubsSnapshot(user, it) } }
+            null
+        }
         val bestF = if (live("best")) {
             source(secondary = false) {
                 repo.getPosts(sort = PostSort.BEST, limit = if (firstPage) 100 else 50, after = after("best"))
@@ -390,9 +437,12 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
             source { repo.getPosts(subreddit = s, sort = PostSort.HOT, limit = 6) }
         } else emptyList()
 
-        val mySubs = subsF.await()
-        val favourites = mySubs.filter { it.userHasFavorited }.mapTo(LinkedHashSet()) { it.name.lowercase() }
-        val subscribed = mySubs.mapTo(HashSet()) { it.name.lowercase() }
+        val (favourites, subscribed) = snapshot ?: run {
+            val mySubs = subsF!!.await()
+            if (mySubs.isNotEmpty()) saveSubsSnapshot(user, mySubs)
+            mySubs.filter { it.userHasFavorited }.mapTo(LinkedHashSet()) { it.name.lowercase() } to
+                mySubs.mapTo(HashSet()) { it.name.lowercase() }
+        }
         // Favourites go out the moment the list is known, while the rest is still
         // in flight. One already fetched as a top interest isn't fetched twice.
         val favouriteF = if (firstPage) favourites.take(8)
@@ -417,6 +467,9 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
         for (l in interestF.awaitAll()) add(l, "interest")
         for (l in communityF.awaitAll()) add(l, "community")
 
+        // Every source failed (offline, rate-limited…): say so, rather than
+        // showing an empty feed that just ends.
+        if (pool.isEmpty()) firstError?.let { throw it }
         val result = withContext(Dispatchers.Default) {
             rankForYou(pool, inputs.withSubscriptions(favourites, subscribed))
         }
@@ -454,6 +507,6 @@ internal suspend fun <T> orNull(block: suspend () -> T): T? =
     } catch (e: CancellationException) {
         // A secondary source's timeout is a TimeoutCancellationException: a failure, not a cancel.
         if (e is kotlinx.coroutines.TimeoutCancellationException) null else throw e
-    } catch (_: Exception) {
+    } catch (e: Exception) {
         null
     }
