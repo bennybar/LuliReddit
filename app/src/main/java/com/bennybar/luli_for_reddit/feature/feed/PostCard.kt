@@ -862,14 +862,14 @@ internal fun calmCardColor(): Color {
     return if (cs.surface.luminance() > 0.5f) cs.surfaceContainerHigh else cs.surfaceContainerLow
 }
 
-/** True inside a Calm card: its controls go white (light mode) to stand out from the tinted card. */
+/** True inside a Calm card: its controls go a lighter tint (light mode) to stand out from the card. */
 internal val LocalCalmOnCard = staticCompositionLocalOf { false }
 
 @Composable
 internal fun calmControlColor(): Color {
     val cs = MaterialTheme.colorScheme
     val light = cs.surface.luminance() > 0.5f
-    return if (light && LocalCalmOnCard.current) cs.surfaceContainerLowest else cs.surfaceContainerHigh
+    return if (light && LocalCalmOnCard.current) cs.surfaceContainerLow else cs.surfaceContainerHigh
 }
 
 @Composable
