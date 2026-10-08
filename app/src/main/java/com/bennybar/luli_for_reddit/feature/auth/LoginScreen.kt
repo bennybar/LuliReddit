@@ -37,7 +37,6 @@ import androidx.compose.material.icons.rounded.GifBox
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Public
-import androidx.compose.material.icons.rounded.RocketLaunch
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.TravelExplore
 import androidx.compose.material3.AlertDialog
@@ -71,6 +70,8 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bennybar.luli_for_reddit.app
+import com.bennybar.luli_for_reddit.core.AppIcon
+import com.bennybar.luli_for_reddit.ui.AppIconPreview
 import com.bennybar.luli_for_reddit.auth.AuthException
 import com.bennybar.luli_for_reddit.core.RedditConstants
 import com.bennybar.luli_for_reddit.feature.media.openExternally
@@ -228,10 +229,7 @@ fun LoginScreen() {
             .padding(start = 24.dp, end = 24.dp, top = 32.dp, bottom = 32.dp),
     ) {
         // Brand
-        Box(
-            Modifier.size(72.dp).background(cs.primaryContainer, RoundedCornerShape(24.dp)),
-            contentAlignment = Alignment.Center,
-        ) { Icon(Icons.Rounded.RocketLaunch, null, Modifier.size(38.dp), tint = cs.onPrimaryContainer) }
+        AppIconPreview(AppIcon.parse(app.settings.value.appIcon), 72.dp)
         Spacer(Modifier.height(20.dp))
         Text("Ilay for Reddit", style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.ExtraBold))
         Spacer(Modifier.height(8.dp))

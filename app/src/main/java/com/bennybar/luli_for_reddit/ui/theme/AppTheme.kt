@@ -24,11 +24,14 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.ExperimentalTextApi
+import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bennybar.luli_for_reddit.R
+import com.bennybar.luli_for_reddit.settings.AppFont
 import com.bennybar.luli_for_reddit.settings.Settings
 import com.bennybar.luli_for_reddit.settings.ThemeMode
 import com.materialkolor.hct.Hct
@@ -141,9 +144,28 @@ object AppTheme {
      * Optional bundled font: Plus Jakarta Sans for text, Unbounded for
      * display/headline. Unbounded runs wide, so those sizes step down a little.
      */
-    fun typography(jakartaFont: Boolean): Typography {
+    /** Google Sans (OFL), one variable file subset to Latin/Greek/Cyrillic/Hebrew; weight axis 400–700. */
+    @OptIn(ExperimentalTextApi::class)
+    val googleSans = FontFamily(
+        listOf(FontWeight.Normal, FontWeight.Medium, FontWeight.SemiBold, FontWeight.Bold).map { w ->
+            Font(R.font.google_sans, w, variationSettings = FontVariation.Settings(FontVariation.weight(w.weight)))
+        },
+    )
+
+    fun typography(font: AppFont): Typography {
         val t = Typography()
-        if (!jakartaFont) return t
+        if (font == AppFont.ROBOTO) return t
+        if (font == AppFont.GOOGLE_SANS) {
+            // Material's type scale was drawn for Google Sans: keep its sizes and weights.
+            fun TextStyle.g() = copy(fontFamily = googleSans)
+            return t.copy(
+                displayLarge = t.displayLarge.g(), displayMedium = t.displayMedium.g(), displaySmall = t.displaySmall.g(),
+                headlineLarge = t.headlineLarge.g(), headlineMedium = t.headlineMedium.g(), headlineSmall = t.headlineSmall.g(),
+                titleLarge = t.titleLarge.g(), titleMedium = t.titleMedium.g(), titleSmall = t.titleSmall.g(),
+                bodyLarge = t.bodyLarge.g(), bodyMedium = t.bodyMedium.g(), bodySmall = t.bodySmall.g(),
+                labelLarge = t.labelLarge.g(), labelMedium = t.labelMedium.g(), labelSmall = t.labelSmall.g(),
+            )
+        }
         fun TextStyle.j() = copy(fontFamily = jakarta)
         fun wide(s: TextStyle, w: FontWeight, size: Int, height: Int) =
             s.copy(fontFamily = unbounded, fontWeight = w, fontSize = size.sp, lineHeight = height.sp)
@@ -218,7 +240,7 @@ fun IlayTheme(settings: Settings, content: @Composable () -> Unit) {
     val density = LocalDensity.current
     MaterialExpressiveTheme(
         colorScheme = scheme,
-        typography = remember(settings.jakartaFont) { AppTheme.typography(settings.jakartaFont) },
+        typography = remember(settings.appFont) { AppTheme.typography(settings.appFont) },
         shapes = AppTheme.shapes,
         motionScheme = MotionScheme.expressive(),
     ) {

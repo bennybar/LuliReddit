@@ -141,6 +141,7 @@ import com.bennybar.luli_for_reddit.feature.media.MediaFolderSettingRow
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.Route
 import com.bennybar.luli_for_reddit.settings.PostDisplay
+import com.bennybar.luli_for_reddit.settings.AppFont
 import com.bennybar.luli_for_reddit.settings.Settings
 import com.bennybar.luli_for_reddit.settings.SwipeAction
 import com.bennybar.luli_for_reddit.settings.ThemeMode
@@ -153,10 +154,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.math.roundToInt
 import com.bennybar.luli_for_reddit.core.AppIcon
-import androidx.compose.foundation.Image
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.graphics.graphicsLayer
+import com.bennybar.luli_for_reddit.ui.AppIconPreview
 import androidx.compose.ui.draw.clip
 
 private val ACCENT_SWATCHES = listOf(
@@ -267,10 +265,9 @@ fun SettingsList(
             pickOption(ThemeMode.entries.map { PickOption(it, themeLabel(it)) }, s.themeMode)?.let(ctrl::setThemeMode)
         })
         switch("AMOLED black", "Pure black surfaces in dark mode", Icons.Rounded.DarkMode, s.amoled, ctrl::setAmoled)
-        switch(
-            "Plus Jakarta Sans font", "Use the app's own font instead of the default (Roboto)",
-            Icons.Rounded.FontDownload, s.jakartaFont, ctrl::setJakartaFont,
-        )
+        tile("App font", s.appFont.label, Icons.Rounded.FontDownload, onClick = launch {
+            pickOption(AppFont.entries.map { PickOption(it, it.label, subtitle = it.description) }, s.appFont)?.let(ctrl::setAppFont)
+        })
         switch("Dynamic color", "Use colors from your wallpaper", Icons.Rounded.Palette, s.useDynamicColor, ctrl::setUseDynamicColor)
         add(Entry("accent", null) { AccentPicker(s) })
         add(Entry("appIcon", "App icon launcher home screen colour") {
@@ -524,9 +521,10 @@ fun SettingsList(
             Icons.Rounded.Link,
         )
         tile("Content & conduct policy", icon = Icons.Rounded.Gavel) { nav.push(Route.Policy) }
-        tile("Open-source licenses", "Fonts: Plus Jakarta Sans, Unbounded (SIL OFL 1.1)", Icons.Rounded.Description, onClick = launch {
+        tile("Open-source licenses", "Fonts: Google Sans, Plus Jakarta Sans, Unbounded (SIL OFL 1.1)", Icons.Rounded.Description, onClick = launch {
             val text = withContext(Dispatchers.IO) {
-                runCatching { context.assets.open("OFL.txt").bufferedReader().use { it.readText() } }.getOrDefault("")
+                fun read(f: String) = runCatching { context.assets.open(f).bufferedReader().use { it.readText() } }.getOrDefault("")
+                "Google Sans\n\n" + read("OFL-GoogleSans.txt") + "\n\nPlus Jakarta Sans, Unbounded\n\n" + read("OFL.txt")
             }
             infoDialog("Licenses", text)
         })
@@ -618,17 +616,6 @@ fun SettingsList(
             items(shown, key = { it.key }) { it.content() }
             if (q.isNotEmpty() && shown.isEmpty()) item(key = "none") { noResults() }
         }
-    }
-}
-
-/** The launcher icon as the home screen shows it: its colour layer under the Saturn mark, cropped to a circle. */
-@Composable
-internal fun AppIconPreview(icon: AppIcon, size: Dp) {
-    Box(Modifier.size(size).clip(CircleShape)) {
-        // Adaptive icons are 108 units with the visible area in the middle 72: scale to crop like a launcher.
-        val m = Modifier.fillMaxSize().graphicsLayer { scaleX = 1.5f; scaleY = 1.5f }
-        Image(painterResource(icon.background), null, m)
-        Image(painterResource(icon.foreground), null, m)
     }
 }
 

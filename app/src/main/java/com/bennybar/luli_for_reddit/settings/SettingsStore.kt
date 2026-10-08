@@ -22,6 +22,8 @@ class SettingsStore(private val p: Prefs) {
             amoled = b("amoled", d.amoled),
             useDynamicColor = b("useDynamicColor", d.useDynamicColor),
             jakartaFont = b("jakartaFont", d.jakartaFont),
+            // Before the picker there was only the Jakarta switch (Flutter's too).
+            appFont = AppFont.parse(p.getString("appFont"), if (b("jakartaFont", false)) AppFont.JAKARTA else AppFont.ROBOTO),
             inAppBrowser = b("inAppBrowser", d.inAppBrowser),
             tapToCollapse = b("tapToCollapse", d.tapToCollapse),
             hideReadPosts = b("hideReadPosts", d.hideReadPosts),
@@ -109,7 +111,11 @@ class SettingsStore(private val p: Prefs) {
     }
 
     fun setAutoHideReadForYou(v: Boolean) { p.setBool("autoHideReadForYou", v); set { it.copy(autoHideReadForYou = v) } }
-    fun setJakartaFont(v: Boolean) { p.setBool("jakartaFont", v); set { it.copy(jakartaFont = v) } }
+    fun setAppFont(v: AppFont) {
+        p.setString("appFont", v.key)
+        p.setBool("jakartaFont", v == AppFont.JAKARTA) // keeps backups readable by older builds
+        set { it.copy(appFont = v, jakartaFont = v == AppFont.JAKARTA) }
+    }
     fun setHideReadPosts(v: Boolean) { p.setBool("hideReadPosts", v); set { it.copy(hideReadPosts = v) } }
     fun setMarkReadOnScroll(v: Boolean) { p.setBool("markReadOnScroll", v); set { it.copy(markReadOnScroll = v) } }
 
