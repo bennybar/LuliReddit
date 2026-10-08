@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -15,6 +16,7 @@ import '../../core/providers.dart';
 import '../../core/reddit_constants.dart';
 import '../../data/reddit_repository.dart';
 import '../auth/auth_controller.dart';
+import '../media/media_folder.dart';
 import '../notifications/inbox_poller.dart';
 import '../notifications/notification_service.dart';
 import '../updates/update_checker.dart';
@@ -96,6 +98,14 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             subtitle: const Text('Pure black surfaces in dark mode'),
             value: s.amoled,
             onChanged: ctrl.setAmoled,
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.font_download_rounded),
+            title: const Text('Plus Jakarta Sans font'),
+            subtitle: const Text(
+                'Use the app\'s own font instead of the default (Roboto)'),
+            value: s.jakartaFont,
+            onChanged: ctrl.setJakartaFont,
           ),
           SwitchListTile(
             secondary: const Icon(Icons.palette_rounded),
@@ -270,6 +280,7 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             value: s.autoplayMedia,
             onChanged: ctrl.setAutoplayMedia,
           ),
+          if (Platform.isAndroid) const _MediaFolderTile(),
           const Divider(),
           _section(context, 'Power-user features'),
           SwitchListTile(
@@ -1011,6 +1022,52 @@ class _SettingsListState extends ConsumerState<SettingsList> {
       await ref.read(secureStoreProvider).clearAll();
       await ref.read(authControllerProvider.notifier).logout();
     }
+  }
+}
+
+/// "Save media to": the gallery's Ilay album, or a folder the user picks.
+class _MediaFolderTile extends ConsumerWidget {
+  const _MediaFolderTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final folder = ref.watch(mediaFolderProvider);
+    final ctrl = ref.read(mediaFolderProvider.notifier);
+    return ListTile(
+      leading: const Icon(Icons.folder_rounded),
+      title: const Text('Save media to'),
+      subtitle: Text(folder?.name ?? 'Gallery (Ilay album)'),
+      onTap: () => showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        builder: (sheet) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library_rounded),
+                title: const Text('Gallery (Ilay album)'),
+                trailing: folder == null ? const Icon(Icons.check) : null,
+                onTap: () {
+                  Navigator.pop(sheet);
+                  ctrl.useGallery();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.create_new_folder_rounded),
+                title: Text(folder == null ? 'Choose a folder…' : folder.name),
+                subtitle: folder == null ? null : const Text('Tap to change'),
+                trailing: folder != null ? const Icon(Icons.check) : null,
+                onTap: () {
+                  Navigator.pop(sheet);
+                  ctrl.pick();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

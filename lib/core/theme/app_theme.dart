@@ -136,13 +136,16 @@ class AppTheme {
     return ColorScheme.fromSeed(seedColor: seed, brightness: brightness);
   }
 
-  static ThemeData light(ColorScheme? dynamicScheme, {Color seed = AppTheme.seed}) =>
-      _build(_baseScheme(dynamicScheme, seed, Brightness.light), Brightness.light);
+  static ThemeData light(ColorScheme? dynamicScheme,
+          {Color seed = AppTheme.seed, bool jakarta = false}) =>
+      _build(_baseScheme(dynamicScheme, seed, Brightness.light),
+          Brightness.light, jakarta);
 
   static ThemeData dark(
     ColorScheme? dynamicScheme, {
     Color seed = AppTheme.seed,
     bool amoled = false,
+    bool jakarta = false,
   }) {
     var scheme = _baseScheme(dynamicScheme, seed, Brightness.dark);
     if (amoled) {
@@ -158,17 +161,42 @@ class AppTheme {
         surfaceContainerHighest: const Color(0xFF242428),
       );
     }
-    return _build(scheme, Brightness.dark);
+    return _build(scheme, Brightness.dark, jakarta);
   }
 
-  static ThemeData _build(ColorScheme scheme, Brightness brightness) {
-    final base = ThemeData(
+  static ThemeData _build(
+      ColorScheme scheme, Brightness brightness, bool jakarta) {
+    var base = ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
       brightness: brightness,
       scaffoldBackgroundColor: scheme.surface,
+      // Optional bundled font: Plus Jakarta Sans for text, Unbounded for
+      // display/headline styles (the RunnerSidekick pairing).
+      fontFamily: jakarta ? 'PlusJakartaSans' : null,
       extensions: [brightness == Brightness.light ? _voteLight : _voteDark],
     );
+    if (jakarta) {
+      // Unbounded runs wide, so display and headline sizes step down a little
+      // from the Material defaults.
+      final t = base.textTheme;
+      TextStyle? wide(TextStyle? s, FontWeight w, double size, double height) =>
+          s?.copyWith(
+              fontFamily: 'Unbounded',
+              fontWeight: w,
+              fontSize: size,
+              height: height / size);
+      base = base.copyWith(
+        textTheme: t.copyWith(
+          displayLarge: wide(t.displayLarge, FontWeight.w700, 52, 56),
+          displayMedium: wide(t.displayMedium, FontWeight.w700, 40, 46),
+          displaySmall: wide(t.displaySmall, FontWeight.w700, 32, 38),
+          headlineLarge: wide(t.headlineLarge, FontWeight.w600, 26, 32),
+          headlineMedium: wide(t.headlineMedium, FontWeight.w600, 22, 28),
+          headlineSmall: wide(t.headlineSmall, FontWeight.w600, 19, 26),
+        ),
+      );
+    }
 
     return base.copyWith(
       appBarTheme: AppBarTheme(
@@ -204,7 +232,9 @@ class AppTheme {
         style: FilledButton.styleFrom(
           minimumSize: const Size(0, 52),
           shape: const StadiumBorder(),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+          // From the theme's button style, so it follows the app font.
+          textStyle: base.textTheme.labelLarge
+              ?.copyWith(fontWeight: FontWeight.w600, fontSize: 16),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(

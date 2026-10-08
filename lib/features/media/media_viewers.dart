@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gal/gal.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:photo_view/photo_view.dart';
@@ -17,6 +18,7 @@ import '../../core/media_links.dart';
 import '../../core/redgifs.dart';
 import '../../core/share.dart';
 import '../../models/post.dart';
+import 'media_folder.dart';
 
 /// A left-edge swipe-to-go-back strip (iOS-style), safe to overlay on viewers
 /// without stealing PhotoView pan / gallery paging (only the left 24px).
@@ -106,10 +108,12 @@ String resolveVideoUrl(String url) {
   return url;
 }
 
-/// Downloads a media file to the device gallery/Photos, with a cancellable
-/// progress dialog showing downloaded / total size.
+/// Downloads a media file to the folder picked in Settings, else the device
+/// gallery/Photos, with a cancellable progress dialog showing downloaded /
+/// total size.
 Future<void> saveMediaToGallery(BuildContext context, String url,
     {required bool isVideo}) async {
+  final folder = ProviderScope.containerOf(context).read(mediaFolderProvider);
   final messenger = ScaffoldMessenger.of(context);
   final nav = Navigator.of(context, rootNavigator: true);
   final cancel = CancelToken();
@@ -145,14 +149,25 @@ Future<void> saveMediaToGallery(BuildContext context, String url,
       ),
       onReceiveProgress: (got, total) => progress.value = (got, total),
     );
+    if (folder != null &&
+        await saveToMediaFolder(
+            folder, path, 'ilay_$ts.$ext', _mimeFor(ext, isVideo))) {
+      nav.pop();
+      messenger.showSnackBar(
+          SnackBar(content: Text('Saved to ${folder.name}')));
+      return;
+    }
     if (isVideo) {
       await Gal.putVideo(path, album: 'Ilay');
     } else {
       await Gal.putImage(path, album: 'Ilay');
     }
     nav.pop();
-    messenger.showSnackBar(
-        const SnackBar(content: Text('Saved to your gallery')));
+    messenger.showSnackBar(SnackBar(
+        content: Text(folder == null
+            ? 'Saved to your gallery'
+            : "Couldn't open ${folder.name}, so saved to your gallery. "
+                'Pick the folder again in Settings.')));
   } on DioException catch (e) {
     nav.pop();
     if (CancelToken.isCancel(e)) {
@@ -167,6 +182,15 @@ Future<void> saveMediaToGallery(BuildContext context, String url,
         content: Text('Could not save: ${'$e'.replaceFirst('Exception: ', '')}')));
   }
 }
+
+String _mimeFor(String ext, bool isVideo) => switch (ext) {
+      'png' => 'image/png',
+      'gif' => 'image/gif',
+      'webp' => 'image/webp',
+      'jpg' || 'jpeg' => 'image/jpeg',
+      'mp4' => 'video/mp4',
+      _ => isVideo ? 'video/mp4' : 'image/jpeg',
+    };
 
 class _SavingDialog extends StatelessWidget {
   const _SavingDialog({required this.progress, required this.onCancel});

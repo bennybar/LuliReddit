@@ -47,6 +47,7 @@ class Settings {
     required this.themeMode,
     required this.amoled,
     required this.useDynamicColor,
+    required this.jakartaFont,
     required this.seedColor,
     required this.blurNsfw,
     required this.defaultSort,
@@ -77,6 +78,7 @@ class Settings {
   final ThemeMode themeMode;
   final bool amoled;
   final bool useDynamicColor;
+  final bool jakartaFont; // Plus Jakarta Sans + Unbounded instead of Roboto
   final int seedColor; // ARGB int
   final bool blurNsfw;
   final PostSort defaultSort;
@@ -107,6 +109,7 @@ class Settings {
     ThemeMode? themeMode,
     bool? amoled,
     bool? useDynamicColor,
+    bool? jakartaFont,
     int? seedColor,
     bool? blurNsfw,
     PostSort? defaultSort,
@@ -137,6 +140,7 @@ class Settings {
         themeMode: themeMode ?? this.themeMode,
         amoled: amoled ?? this.amoled,
         useDynamicColor: useDynamicColor ?? this.useDynamicColor,
+        jakartaFont: jakartaFont ?? this.jakartaFont,
         seedColor: seedColor ?? this.seedColor,
         blurNsfw: blurNsfw ?? this.blurNsfw,
         defaultSort: defaultSort ?? this.defaultSort,
@@ -177,6 +181,7 @@ class SettingsController extends Notifier<Settings> {
       // Default off so the Bloom palette shows out of the box; users can opt
       // into wallpaper-based dynamic color.
       useDynamicColor: p.getBool('useDynamicColor') ?? false,
+      jakartaFont: p.getBool('jakartaFont') ?? false,
       seedColor: p.getInt('seedColor') ?? AppTheme.seed.toARGB32(),
       blurNsfw: p.getBool('blurNsfw') ?? true,
       defaultSort: PostSort.values[p.getInt('defaultSort') ?? PostSort.best.index],
@@ -279,6 +284,11 @@ class SettingsController extends Notifier<Settings> {
   void setAutoHideReadForYou(bool v) {
     _prefs.setBool('autoHideReadForYou', v);
     state = state.copyWith(autoHideReadForYou: v);
+  }
+
+  void setJakartaFont(bool v) {
+    _prefs.setBool('jakartaFont', v);
+    state = state.copyWith(jakartaFont: v);
   }
 
   void setMidResThumbnails(bool v) {

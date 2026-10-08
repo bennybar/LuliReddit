@@ -1,0 +1,2 @@
+- New: Settings → "Save media to" lets you save images, GIFs and videos to a folder of your choice instead of the gallery.
+- New: optional "Plus Jakarta Sans" app font (Settings → Appearance).

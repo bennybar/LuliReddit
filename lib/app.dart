@@ -95,11 +95,13 @@ class _LuliAppState extends ConsumerState<LuliApp> with WidgetsBindingObserver {
           theme: AppTheme.light(
             useDynamic ? lightDynamic?.harmonized() : null,
             seed: seed,
+            jakarta: settings.jakartaFont,
           ),
           darkTheme: AppTheme.dark(
             useDynamic ? darkDynamic?.harmonized() : null,
             seed: seed,
             amoled: settings.amoled,
+            jakarta: settings.jakartaFont,
           ),
           themeMode: settings.themeMode,
           // Global font-size control (scales all text in the app).
