@@ -89,4 +89,19 @@ class RedditMarkdownTest {
         assertEquals(MdEdit("> a\n> b\nc", 7, 7), mdLinePrefix("a\nb\nc", 0, 3, "> "))
         assertEquals(MdEdit("a\n- b", 5, 5), mdLinePrefix("a\nb", 3, 3, "- "))
     }
+
+    @Test
+    fun `images render mid-paragraph, splitting the text around them`() {
+        val doc = RedditMarkdownParser.parseUncached("look ![cat](https://i.redd.it/a.png) here")
+        assertEquals(
+            listOf(
+                MdBlock.Paragraph(listOf(MdInline("look"))),
+                MdBlock.ImageBlock("https://i.redd.it/a.png", "cat"),
+                MdBlock.Paragraph(listOf(MdInline("here"))),
+            ),
+            doc.blocks,
+        )
+        val only = RedditMarkdownParser.parseUncached("![](https://a/x.png)\n![](https://a/y.png)")
+        assertEquals(listOf("https://a/x.png", "https://a/y.png"), only.blocks.map { (it as MdBlock.ImageBlock).url })
+    }
 }

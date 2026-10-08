@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.bennybar.luli_for_reddit.feature.markdown.IconTooltip
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -147,23 +148,29 @@ fun AttachmentControls(
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             leading()
-            IconButton(onClick = { pickImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) {
-                Icon(Icons.Outlined.Image, contentDescription = "Attach image")
-            }
-            IconButton(onClick = { pickVideo.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)) }) {
-                Icon(Icons.Outlined.Videocam, contentDescription = "Attach video")
-            }
-            IconButton(onClick = {
-                scope.launch {
-                    try {
-                        val m = pasteImageAttachment(context)
-                        if (m == null) onError("No image on the clipboard.") else onChanged(m)
-                    } catch (e: Exception) {
-                        onError((e.message ?: e.toString()).removePrefix("Exception: "))
-                    }
+            IconTooltip("Attach image") {
+                IconButton(onClick = { pickImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) {
+                    Icon(Icons.Outlined.Image, contentDescription = "Attach image")
                 }
-            }) {
-                Icon(Icons.Rounded.ContentPaste, contentDescription = "Paste image")
+            }
+            IconTooltip("Attach video") {
+                IconButton(onClick = { pickVideo.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)) }) {
+                    Icon(Icons.Outlined.Videocam, contentDescription = "Attach video")
+                }
+            }
+            IconTooltip("Paste image") {
+                IconButton(onClick = {
+                    scope.launch {
+                        try {
+                            val m = pasteImageAttachment(context)
+                            if (m == null) onError("No image on the clipboard.") else onChanged(m)
+                        } catch (e: Exception) {
+                            onError((e.message ?: e.toString()).removePrefix("Exception: "))
+                        }
+                    }
+                }) {
+                    Icon(Icons.Rounded.ContentPaste, contentDescription = "Paste image")
+                }
             }
         }
         if (media != null) {
@@ -204,6 +211,8 @@ fun AttachmentPreview(media: MediaAttachment, onRemove: () -> Unit, modifier: Mo
             Text(if (media.isVideo) "Video" else "Image", fontWeight = FontWeight.SemiBold)
             Text(media.sizeLabel, fontSize = 12.sp, color = cs.onSurfaceVariant)
         }
-        IconButton(onClick = onRemove) { Icon(Icons.Rounded.Close, contentDescription = "Remove") }
+        IconTooltip("Remove") {
+            IconButton(onClick = onRemove) { Icon(Icons.Rounded.Close, contentDescription = "Remove") }
+        }
     }
 }

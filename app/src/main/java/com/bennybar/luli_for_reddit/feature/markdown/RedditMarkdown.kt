@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -195,7 +196,7 @@ private fun Block(b: MdBlock, ctx: MdContext) {
         }
         is MdBlock.Heading -> {
             val style = ctx.headings[(b.level - 1).coerceIn(0, 5)].copy(color = ctx.textColor)
-            val s = remember(b, ctx.revealed, ctx.textColor, ctx.link) { ctx.annotate(b.inlines, style.fontSize) }
+            val s = remember(b, ctx.revealed, ctx.textColor, ctx.link, style.fontSize) { ctx.annotate(b.inlines, style.fontSize) }
             Text(s, style = style)
         }
         is MdBlock.Quote -> {
@@ -242,13 +243,27 @@ private fun Block(b: MdBlock, ctx: MdContext) {
         is MdBlock.Table -> Table(b, ctx)
         is MdBlock.ImageBlock -> {
             if (b.url.startsWith("http")) {
+                // At its own size, one image pixel per dp like Flutter's Image (an
+                // emote stays small), shrunk to fit the width.
+                var size by remember(b.url) { mutableStateOf<Size?>(null) }
+                val sz = size
                 AsyncImage(
                     model = b.url,
                     contentDescription = b.alt,
-                    contentScale = ContentScale.FillWidth,
+                    contentScale = ContentScale.Fit,
+                    onSuccess = { size = it.painter.intrinsicSize },
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 400.dp)
+                        .then(
+                            if (sz != null && sz.width > 0f && sz.height > 0f) {
+                                Modifier
+                                    .widthIn(max = sz.width.dp)
+                                    .fillMaxWidth()
+                                    .heightIn(max = 400.dp)
+                                    .aspectRatio(sz.width / sz.height)
+                            } else {
+                                Modifier.fillMaxWidth().heightIn(max = 400.dp)
+                            },
+                        )
                         .clip(RoundedCornerShape(12.dp))
                         .clickable { ctx.onLink(b.url) },
                 )
@@ -282,7 +297,7 @@ private fun Table(t: MdBlock.Table, ctx: MdContext) {
 
 @Composable
 private fun Cell(inlines: List<MdInline>, ctx: MdContext, header: Boolean, align: TextAlign) {
-    val s = remember(inlines, ctx.revealed, ctx.textColor) { ctx.annotate(inlines) }
+    val s = remember(inlines, ctx.revealed, ctx.textColor, ctx.link, ctx.fontSize) { ctx.annotate(inlines) }
     Text(
         s,
         Modifier
