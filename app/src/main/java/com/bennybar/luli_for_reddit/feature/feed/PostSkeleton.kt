@@ -23,10 +23,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -35,10 +38,9 @@ import androidx.compose.ui.unit.dp
 fun PostSkeleton(modifier: Modifier = Modifier) {
     val cs = MaterialTheme.colorScheme
     val transition = rememberInfiniteTransition(label = "shimmer")
-    // Sweeps a highlight band across the card, like the shimmer package.
     val progress by transition.animateFloat(
-        initialValue = -1f,
-        targetValue = 2f,
+        initialValue = 0f,
+        targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(1500, easing = LinearEasing), RepeatMode.Restart),
         label = "shimmer",
     )
@@ -50,24 +52,32 @@ fun PostSkeleton(modifier: Modifier = Modifier) {
         Box(
             (if (width == null) Modifier.fillMaxWidth() else Modifier.width(width))
                 .height(height)
-                .clip(shape)
-                .drawBehind {
-                    // Reading `progress` in the draw phase only: no recomposition per frame.
-                    val x = progress * 400f
-                    drawRect(
-                        Brush.linearGradient(
-                            listOf(base, highlight, base),
-                            start = Offset(x - 200f, 0f),
-                            end = Offset(x + 200f, size.height),
-                        ),
-                    )
-                },
+                .background(highlight, shape),
         )
     }
 
+    // Flutter's Shimmer.fromColors over the whole card: one gradient band
+    // sweeps left→right across the card, painted srcIn over everything the
+    // card draws (its background included), so it reads as one shimmering
+    // card. Offscreen so the blend only sees the card's own pixels;
+    // `progress` is read in the draw phase only (no recomposition per frame).
     Column(
         modifier
             .fillMaxWidth()
+            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            .drawWithContent {
+                drawContent()
+                val w = size.width
+                val left = -w + 2 * w * progress - w // the band's rect is 3 widths wide
+                drawRect(
+                    Brush.linearGradient(
+                        0f to base, 0.35f to base, 0.5f to highlight, 0.65f to base, 1f to base,
+                        start = Offset(left, 0f),
+                        end = Offset(left + 3 * w, size.height / 2),
+                    ),
+                    blendMode = BlendMode.SrcIn,
+                )
+            }
             .clip(BloomCardShape)
             .background(cs.surfaceContainerLow)
             .padding(16.dp),
