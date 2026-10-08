@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../data/reddit_repository.dart';
+import '../feed/swipe_actions.dart';
 
 /// Provided via override in main() after SharedPreferences is loaded.
 final sharedPrefsProvider = Provider<SharedPreferences>(
@@ -48,6 +49,14 @@ class Settings {
     required this.amoled,
     required this.useDynamicColor,
     required this.jakartaFont,
+    required this.inAppBrowser,
+    required this.tapToCollapse,
+    required this.hideReadPosts,
+    required this.markReadOnScroll,
+    required this.swipePostStart,
+    required this.swipePostEnd,
+    required this.swipeCommentStart,
+    required this.swipeCommentEnd,
     required this.seedColor,
     required this.blurNsfw,
     required this.defaultSort,
@@ -79,6 +88,13 @@ class Settings {
   final bool amoled;
   final bool useDynamicColor;
   final bool jakartaFont; // Plus Jakarta Sans + Unbounded instead of Roboto
+  final bool inAppBrowser; // open web links in a Custom Tab, not the browser app
+  final bool tapToCollapse; // tap a comment to collapse it (else long-press)
+  final bool hideReadPosts; // skip already-read posts when feeds load
+  final bool markReadOnScroll; // a post scrolled past counts as read
+  // What swiping does: "start" = from the start edge (rightward in LTR).
+  final SwipeAction swipePostStart, swipePostEnd;
+  final SwipeAction swipeCommentStart, swipeCommentEnd;
   final int seedColor; // ARGB int
   final bool blurNsfw;
   final PostSort defaultSort;
@@ -110,6 +126,14 @@ class Settings {
     bool? amoled,
     bool? useDynamicColor,
     bool? jakartaFont,
+    bool? inAppBrowser,
+    bool? tapToCollapse,
+    bool? hideReadPosts,
+    bool? markReadOnScroll,
+    SwipeAction? swipePostStart,
+    SwipeAction? swipePostEnd,
+    SwipeAction? swipeCommentStart,
+    SwipeAction? swipeCommentEnd,
     int? seedColor,
     bool? blurNsfw,
     PostSort? defaultSort,
@@ -141,6 +165,14 @@ class Settings {
         amoled: amoled ?? this.amoled,
         useDynamicColor: useDynamicColor ?? this.useDynamicColor,
         jakartaFont: jakartaFont ?? this.jakartaFont,
+        inAppBrowser: inAppBrowser ?? this.inAppBrowser,
+        tapToCollapse: tapToCollapse ?? this.tapToCollapse,
+        hideReadPosts: hideReadPosts ?? this.hideReadPosts,
+        markReadOnScroll: markReadOnScroll ?? this.markReadOnScroll,
+        swipePostStart: swipePostStart ?? this.swipePostStart,
+        swipePostEnd: swipePostEnd ?? this.swipePostEnd,
+        swipeCommentStart: swipeCommentStart ?? this.swipeCommentStart,
+        swipeCommentEnd: swipeCommentEnd ?? this.swipeCommentEnd,
         seedColor: seedColor ?? this.seedColor,
         blurNsfw: blurNsfw ?? this.blurNsfw,
         defaultSort: defaultSort ?? this.defaultSort,
@@ -182,6 +214,18 @@ class SettingsController extends Notifier<Settings> {
       // into wallpaper-based dynamic color.
       useDynamicColor: p.getBool('useDynamicColor') ?? false,
       jakartaFont: p.getBool('jakartaFont') ?? false,
+      inAppBrowser: p.getBool('inAppBrowser') ?? false,
+      tapToCollapse: p.getBool('tapToCollapse') ?? false,
+      hideReadPosts: p.getBool('hideReadPosts') ?? false,
+      markReadOnScroll: p.getBool('markReadOnScroll') ?? false,
+      swipePostStart:
+          SwipeAction.parse(p.getString('swipePostStart'), SwipeAction.upvote),
+      swipePostEnd:
+          SwipeAction.parse(p.getString('swipePostEnd'), SwipeAction.downvote),
+      swipeCommentStart: SwipeAction.parse(
+          p.getString('swipeCommentStart'), SwipeAction.upvote),
+      swipeCommentEnd: SwipeAction.parse(
+          p.getString('swipeCommentEnd'), SwipeAction.downvote),
       seedColor: p.getInt('seedColor') ?? AppTheme.seed.toARGB32(),
       blurNsfw: p.getBool('blurNsfw') ?? true,
       defaultSort: PostSort.values[p.getInt('defaultSort') ?? PostSort.best.index],
@@ -289,6 +333,38 @@ class SettingsController extends Notifier<Settings> {
   void setJakartaFont(bool v) {
     _prefs.setBool('jakartaFont', v);
     state = state.copyWith(jakartaFont: v);
+  }
+
+  void setHideReadPosts(bool v) {
+    _prefs.setBool('hideReadPosts', v);
+    state = state.copyWith(hideReadPosts: v);
+  }
+
+  void setMarkReadOnScroll(bool v) {
+    _prefs.setBool('markReadOnScroll', v);
+    state = state.copyWith(markReadOnScroll: v);
+  }
+
+  /// [key] is one of swipePostStart / swipePostEnd / swipeCommentStart /
+  /// swipeCommentEnd.
+  void setSwipeAction(String key, SwipeAction a) {
+    _prefs.setString(key, a.name);
+    state = switch (key) {
+      'swipePostStart' => state.copyWith(swipePostStart: a),
+      'swipePostEnd' => state.copyWith(swipePostEnd: a),
+      'swipeCommentStart' => state.copyWith(swipeCommentStart: a),
+      _ => state.copyWith(swipeCommentEnd: a),
+    };
+  }
+
+  void setTapToCollapse(bool v) {
+    _prefs.setBool('tapToCollapse', v);
+    state = state.copyWith(tapToCollapse: v);
+  }
+
+  void setInAppBrowser(bool v) {
+    _prefs.setBool('inAppBrowser', v);
+    state = state.copyWith(inAppBrowser: v);
   }
 
   void setMidResThumbnails(bool v) {

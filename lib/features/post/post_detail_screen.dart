@@ -4,18 +4,19 @@ import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
-import '../history/interest_store.dart';
+import '../foryou/for_you_learner.dart';
+import '../history/thread_visits.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/format.dart';
 import '../../core/providers.dart';
 import '../../core/route_observer.dart';
-import '../../core/deep_links.dart';
 import '../../core/media_links.dart';
+import '../../core/open_link.dart';
 import '../../core/share.dart';
 import '../../core/widgets/markdown_style.dart';
+import '../../core/widgets/reddit_markdown.dart';
 import '../../data/ai_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/comment.dart';
@@ -30,6 +31,8 @@ import '../settings/settings_controller.dart';
 import 'comments_controller.dart';
 import 'compose_sheet.dart';
 import 'post_actions.dart';
+import 'share_comment_image.dart';
+import '../../core/widgets/error_view.dart';
 
 class PostDetailScreen extends ConsumerStatefulWidget {
   const PostDetailScreen({
@@ -58,7 +61,10 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
   // In-post comment search.
   bool _searchOpen = false;
   final TextEditingController _searchCtrl = TextEditingController();
-  List<int> _matchIndices = []; // list indices (ci + 1) of matching comments
+  // Matching comments by fullname, not list position: collapsing or loading
+  // more replies shifts positions, which made stepping hit the wrong row or
+  // throw a RangeError.
+  List<String> _matchIds = [];
   int _matchPos = 0;
   String? _currentMatchId;
 
@@ -67,17 +73,41 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
   final Stopwatch _dwell = Stopwatch();
   final Set<String> _dwellAwarded = {};
   late final AppLifecycleListener _lifecycle;
-  late final InterestStore _interest;
-  late final KeywordStore _keywords;
+  late final ForYouLearner _learner;
   Post? _dwellPost;
+  DateTime? _since; // previous visit to this thread; null on the first
+
+  /// [c] and its parents up to the top-level comment, top first — the
+  /// chain a "Share as image" card shows. Visible rows include every
+  /// ancestor of a visible comment.
+  List<Comment> _chainTo(Comment c) {
+    final byName = {for (final x in _flat) x.fullname: x};
+    final chain = [c];
+    var parent = byName[c.parentId];
+    while (parent != null && chain.length < 8) {
+      chain.insert(0, parent);
+      parent = byName[parent.parentId];
+    }
+    return chain;
+  }
+
+  bool _isNew(Comment c, String me) =>
+      _since != null &&
+      !c.isMore &&
+      c.author != me &&
+      c.created.isAfter(_since!);
 
   @override
   void initState() {
     super.initState();
     // Captured up front: learning also runs from dispose(), where ref is off
     // limits.
-    _interest = ref.read(interestStoreProvider.notifier);
-    _keywords = ref.read(keywordStoreProvider.notifier);
+    _learner = ref.read(forYouLearnerProvider);
+    // Remember the previous visit before recording this one: comments posted
+    // since then are marked new.
+    final visits = ref.read(threadVisitsProvider.notifier);
+    _since = visits.lastVisit(widget.postId);
+    visits.record(widget.postId);
     _dwell.start();
     _lifecycle = AppLifecycleListener(
       onStateChange: (s) =>
@@ -112,17 +142,13 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
     final seconds = _dwell.elapsed.inSeconds.clamp(0, 600);
     if (seconds < 3) {
       if (_dwellAwarded.isEmpty && _dwellAwarded.add('bounce')) {
-        _interest.bump(post.subreddit, -0.5);
+        _learner.bounce(post);
       }
       return;
     }
-    if (seconds >= 30 && _dwellAwarded.add('read')) {
-      _interest.bump(post.subreddit, 1);
-      _keywords.bumpTitle(post.title, 0.5);
-    }
+    if (seconds >= 30 && _dwellAwarded.add('read')) _learner.read(post);
     if (seconds >= 120 && _dwellAwarded.add('longRead')) {
-      _interest.bump(post.subreddit, 1.5);
-      _keywords.bumpTitle(post.title, 1);
+      _learner.read(post, long: true);
     }
   }
 
@@ -141,7 +167,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
       _searchOpen = !_searchOpen;
       if (!_searchOpen) {
         _searchCtrl.clear();
-        _matchIndices = [];
+        _matchIds = [];
         _currentMatchId = null;
       }
     });
@@ -149,36 +175,38 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
 
   void _runSearch(String raw) {
     final q = raw.trim().toLowerCase();
-    final m = <int>[];
+    final m = <String>[];
     if (q.isNotEmpty) {
-      for (var ci = 0; ci < _flat.length; ci++) {
-        final c = _flat[ci];
-        if (!c.isMore && c.body.toLowerCase().contains(q)) m.add(ci + 1);
+      for (final c in _flat) {
+        if (!c.isMore && c.body.toLowerCase().contains(q)) m.add(c.fullname);
       }
     }
     setState(() {
-      _matchIndices = m;
+      _matchIds = m;
       _matchPos = 0;
-      _currentMatchId = m.isEmpty ? null : _flat[m.first - 1].fullname;
+      _currentMatchId = m.isEmpty ? null : m.first;
     });
     if (m.isNotEmpty) _scrollToMatch();
   }
 
   void _scrollToMatch() {
-    if (_matchIndices.isEmpty) return;
-    final li = _matchIndices[_matchPos];
-    _currentMatchId = _flat[li - 1].fullname;
+    if (_matchIds.isEmpty) return;
+    _currentMatchId = _matchIds[_matchPos];
+    // Resolve against the list as it is now; a match hidden inside a
+    // collapsed thread has no row to scroll to.
+    final ci = _flat.indexWhere((c) => c.fullname == _currentMatchId);
+    if (ci < 0) return;
     _itemScroll.scrollTo(
-        index: li,
+        index: ci + 1,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
         alignment: 0.12);
   }
 
   void _stepMatch(int delta) {
-    if (_matchIndices.isEmpty) return;
-    setState(() => _matchPos =
-        (_matchPos + delta + _matchIndices.length) % _matchIndices.length);
+    if (_matchIds.isEmpty) return;
+    setState(() =>
+        _matchPos = (_matchPos + delta + _matchIds.length) % _matchIds.length);
     _scrollToMatch();
   }
 
@@ -212,8 +240,52 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
   /// Jumps the comment list to the next top-level (depth 0) comment, cycling
   /// back to the first once past the last. List index 0 is the post header, so
   /// comment `ci` lives at list index `ci + 1`.
-  void _jumpNextTopLevel() {
-    if (_flat.isEmpty) return;
+  void _jumpNextTopLevel() => _jumpNext((c) => c.depth == 0);
+
+  /// Long-press on the ↓ button: jump by the original poster or your own
+  /// comments instead of top-level ones.
+  void _showJumpMenu(String opAuthor, String me, {bool hasNew = false}) {
+    HapticFeedback.selectionClick();
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheet) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final (label, icon, test) in [
+              ('Next top-level comment', Icons.keyboard_arrow_down_rounded,
+                  (Comment c) => c.depth == 0),
+              if (hasNew)
+                ('Next new comment', Icons.fiber_new_rounded,
+                    (Comment c) => _isNew(c, me)),
+              ('Next comment by OP', Icons.record_voice_over_rounded,
+                  (Comment c) => c.author == opAuthor),
+              if (me.isNotEmpty)
+                ('Next of your comments', Icons.person_rounded,
+                    (Comment c) => c.author == me),
+            ])
+              ListTile(
+                leading: Icon(icon),
+                title: Text(label),
+                onTap: () {
+                  Navigator.pop(sheet);
+                  if (!_jumpNext(test)) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('No such comment here')));
+                  }
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Scrolls to the next comment below the current top that passes [match],
+  /// wrapping to the first. False when none in the thread does.
+  bool _jumpNext(bool Function(Comment) match) {
+    if (_flat.isEmpty) return false;
 
     // Reference = the topmost item actually on screen (ignore the cached items
     // ScrollablePositionedList keeps just outside the viewport).
@@ -223,25 +295,25 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
         ? 0
         : onScreen.map((p) => p.index).reduce((a, b) => a < b ? a : b);
 
-    // First top-level comment strictly below the current top.
+    // First matching comment strictly below the current top.
     int? target;
     for (var ci = 0; ci < _flat.length; ci++) {
-      if (_flat[ci].depth != 0) continue;
+      if (_flat[ci].isMore || !match(_flat[ci])) continue;
       if (ci + 1 > topIndex) {
         target = ci + 1;
         break;
       }
     }
-    // Past the last one → wrap to the first top-level comment.
+    // Past the last one → wrap to the first match.
     if (target == null) {
       for (var ci = 0; ci < _flat.length; ci++) {
-        if (_flat[ci].depth == 0) {
+        if (!_flat[ci].isMore && match(_flat[ci])) {
           target = ci + 1;
           break;
         }
       }
     }
-    if (target == null) return;
+    if (target == null) return false;
 
     _itemScroll.scrollTo(
       index: target,
@@ -249,6 +321,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
       curve: Curves.easeOut,
       alignment: 0.0,
     );
+    return true;
   }
 
   @override
@@ -331,11 +404,17 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 if (thread.comments.isNotEmpty) ...[
-                  FloatingActionButton.small(
-                    heroTag: 'nextComment',
-                    tooltip: 'Next top-level comment',
-                    onPressed: _jumpNextTopLevel,
-                    child: const Icon(Icons.keyboard_arrow_down_rounded),
+                  GestureDetector(
+                    onLongPress: () => _showJumpMenu(
+                        thread.post.author, username,
+                        hasNew: _flat.any((c) => _isNew(c, username))),
+                    child: FloatingActionButton.small(
+                      heroTag: 'nextComment',
+                      tooltip:
+                          'Next top-level comment (long-press for more)',
+                      onPressed: _jumpNextTopLevel,
+                      child: const Icon(Icons.keyboard_arrow_down_rounded),
+                    ),
                   ),
                   const SizedBox(height: 12),
                 ],
@@ -350,12 +429,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
                           .read(postOverridesProvider.notifier)
                           .bumpComments(thread.post, 1);
                       // Commenting is the strongest engagement signal we have.
-                      ref
-                          .read(interestStoreProvider.notifier)
-                          .bump(thread.post.subreddit, 2.5);
-                      ref
-                          .read(keywordStoreProvider.notifier)
-                          .bumpTitle(thread.post.title, 1);
+                      ref.read(forYouLearnerProvider).comment(thread.post);
                     }
                   },
                   icon: const Icon(Icons.add_comment_rounded),
@@ -373,7 +447,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('Could not load this post.\n$e',
+                Text('Could not load this post.\n${friendlyError(e)}',
                     textAlign: TextAlign.center),
                 const SizedBox(height: 16),
                 FilledButton(
@@ -385,6 +459,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
         data: (thread) {
           final flat = _flatten(thread.comments, thread.collapsed);
           _flat = flat;
+          final newCount = flat.where((c) => _isNew(c, username)).length;
           final list = RefreshIndicator(
             onRefresh: notifier.refresh,
             child: ScrollablePositionedList.builder(
@@ -393,7 +468,27 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
               padding: const EdgeInsets.only(top: 6, bottom: 96),
               itemCount: 1 + (flat.isEmpty ? 1 : flat.length),
               itemBuilder: (context, index) {
-                if (index == 0) return _PostHeader(post: thread.post);
+                if (index == 0) {
+                  final header = _PostHeader(post: thread.post, fresh: true);
+                  if (newCount == 0) return header;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      header,
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+                        child: FilledButton.tonalIcon(
+                          icon: const Icon(Icons.fiber_new_rounded),
+                          label: Text(
+                              '$newCount new ${newCount == 1 ? 'comment' : 'comments'} '
+                              'since your last visit'),
+                          onPressed: () =>
+                              _jumpNext((c) => _isNew(c, username)),
+                        ),
+                      ),
+                    ],
+                  );
+                }
                 if (flat.isEmpty) {
                   return const Padding(
                     padding: EdgeInsets.all(40),
@@ -405,12 +500,25 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
                   key: ValueKey(c.fullname),
                   comment: c,
                   highlighted: _currentMatchId == c.fullname,
+                  isNew: _isNew(c, username),
                   isOwn: c.author == username,
                   opAuthor: thread.post.author,
                   collapsed: thread.collapsed.contains(c.id),
                   loadingMore: thread.loadingMore.contains(c.fullname),
                   onToggle: () => notifier.toggleCollapse(c.id),
-                  onLoadMore: () => notifier.loadMore(c),
+                  // A "more" stub with no children ids is Reddit's "continue
+                  // this thread": the replies are too deep to fetch here, so
+                  // open that branch in single-comment focus mode.
+                  onLoadMore: c.moreChildren.isEmpty &&
+                          c.parentId.startsWith('t1_')
+                      ? () => context.push(
+                          '/comments/${thread.post.subreddit}/${thread.post.id}'
+                          '?comment=${c.parentId.replaceFirst('t1_', '')}')
+                      : () => notifier.loadMore(c),
+                  onUpdate: (change) =>
+                      notifier.updateComment(c.fullname, change),
+                  onShareImage: () => showShareCommentImage(context,
+                      post: thread.post, chain: _chainTo(c)),
                   onReply: () async {
                     final reply = await showReplySheet(context, ref,
                         parentFullname: c.fullname,
@@ -421,9 +529,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
                       ref
                           .read(postOverridesProvider.notifier)
                           .bumpComments(thread.post, 1);
-                      ref
-                          .read(interestStoreProvider.notifier)
-                          .bump(thread.post.subreddit, 2.5);
+                      ref.read(forYouLearnerProvider).comment(thread.post);
                     }
                   },
                   onEdit: () async {
@@ -496,7 +602,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
 
   Widget _buildSearchBar(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final total = _matchIndices.length;
+    final total = _matchIds.length;
     final has = _searchCtrl.text.trim().isNotEmpty;
     return Material(
       elevation: 4,
@@ -553,26 +659,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
 
 /// Opens a link tapped inside a comment: media plays/shows in-app, reddit links
 /// route in-app, everything else goes to the browser.
-void _openCommentLink(BuildContext context, String? href) {
-  if (href == null || href.isEmpty) return;
-  final uri = Uri.tryParse(href);
-  if (uri == null) return;
-  if (isVideoUrl(uri)) {
-    openVideoViewer(context, resolveVideoUrl(href), externalUrl: href);
-    return;
-  }
-  if (isImageUrl(uri)) {
-    openImageViewer(context, href);
-    return;
-  }
-  final route = routeForRedditUrl(uri);
-  if (route != null) {
-    context.push(route);
-    return;
-  }
-  launchUrl(uri, mode: LaunchMode.externalApplication);
-}
-
 /// Inline previews for any media linked in a comment body (images, gifs,
 /// videos), so comments don't just show a bare URL that opens a browser.
 class _CommentMedia extends StatelessWidget {
@@ -596,7 +682,7 @@ class _CommentMedia extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: GestureDetector(
-                onTap: () => _openCommentLink(context, uri.toString()),
+                onTap: () => openLink(context, uri.toString()),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
                   child: Stack(
@@ -828,7 +914,7 @@ class _LoadingWithHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       children: [
-        if (post != null) _PostHeader(post: post!),
+        if (post != null) _PostHeader(post: post!, fresh: false),
         const Padding(
           padding: EdgeInsets.all(40),
           child: Center(child: CircularProgressIndicator()),
@@ -839,8 +925,11 @@ class _LoadingWithHeader extends StatelessWidget {
 }
 
 class _PostHeader extends ConsumerStatefulWidget {
-  const _PostHeader({required this.post});
+  const _PostHeader({required this.post, required this.fresh});
   final Post post;
+  // True for the post as just fetched with its comments. False for the feed's
+  // copy shown while loading, which can be stale and must not be synced.
+  final bool fresh;
   @override
   ConsumerState<_PostHeader> createState() => _PostHeaderState();
 }
@@ -849,8 +938,19 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
   @override
   void initState() {
     super.initState();
-    // Seed the shared overrides from this fresh fetch (esp. the comment count)
-    // so the feed card reflects it when you go back.
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(_PostHeader old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.post, widget.post)) _sync(); // e.g. pull-to-refresh
+  }
+
+  // Seed the shared overrides from a fresh fetch (score, vote, comment count)
+  // so the feed card reflects it when you go back.
+  void _sync() {
+    if (!widget.fresh) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         ref.read(postOverridesProvider.notifier).syncFromServer(widget.post);
@@ -864,15 +964,15 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
     final current = cur.likes == true ? 1 : (cur.likes == false ? -1 : 0);
     final target = current == dir ? 0 : dir;
     overrides.setVote(widget.post, target);
-    if (target == 1) {
-      ref.read(interestStoreProvider.notifier).bump(widget.post.subreddit, 2);
-    } else if (target == -1) {
-      ref.read(interestStoreProvider.notifier).bump(widget.post.subreddit, -1.5);
-    }
+    // Same learning as a vote on the card (this one used to skip keywords).
+    final learner = ref.read(forYouLearnerProvider)
+      ..vote(widget.post, current, target);
     try {
       await ref.read(redditRepositoryProvider).vote(widget.post.fullname, target);
-    } catch (_) {
+    } catch (e) {
+      learner.vote(widget.post, target, current);
       overrides.setVote(widget.post, current);
+      if (mounted) showActionError(context, 'vote', e);
     }
   }
 
@@ -893,7 +993,7 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
       case PostType.video:
         openPostVideo(context, p);
       case PostType.link:
-        launchUrl(Uri.parse(p.url), mode: LaunchMode.externalApplication);
+        openInBrowser(context, Uri.parse(p.url));
       case PostType.self:
         break;
     }
@@ -970,16 +1070,11 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
           // Gallery/image/link posts can carry a body too — show it whenever
           // there's selftext, not only for pure self-posts.
           if (p.selftext.isNotEmpty)
-            MarkdownBody(
+            RedditMarkdown(
               data: p.selftext,
               selectable: true,
               styleSheet: redditMarkdownStyle(context),
-              onTapLink: (_, href, __) {
-                if (href != null) {
-                  launchUrl(Uri.parse(href),
-                      mode: LaunchMode.externalApplication);
-                }
-              },
+              onTapLink: (_, href, __) => openLink(context, href),
             ),
           const SizedBox(height: 12),
           Builder(builder: (context) {
@@ -1008,12 +1103,19 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
                         ref.read(postOverridesProvider.notifier);
                     final next = !overrides.effective(p).saved;
                     overrides.setSaved(p, next);
+                    final learner = ref.read(forYouLearnerProvider)
+                      ..save(p, next);
                     try {
                       await ref
                           .read(redditRepositoryProvider)
                           .setSaved(p.fullname, next);
-                    } catch (_) {
+                    } catch (e) {
                       overrides.setSaved(p, !next);
+                      learner.save(p, !next);
+                      if (context.mounted) {
+                        showActionError(
+                            context, next ? 'save' : 'unsave', e);
+                      }
                     }
                   },
                   color: saved ? cs.primary : null,
@@ -1112,7 +1214,10 @@ class _CommentTile extends ConsumerStatefulWidget {
     required this.onReply,
     required this.onEdit,
     required this.onDelete,
+    required this.onUpdate,
+    required this.onShareImage,
     this.highlighted = false,
+    this.isNew = false,
   });
 
   final Comment comment;
@@ -1121,51 +1226,64 @@ class _CommentTile extends ConsumerStatefulWidget {
   final bool collapsed;
   final bool loadingMore;
   final bool highlighted; // current in-post search match
+  final bool isNew; // posted since the user's last visit to this thread
   final VoidCallback onToggle;
   final VoidCallback onLoadMore;
   final VoidCallback onReply;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  // Writes vote/save state into the comment tree (CommentsController).
+  final void Function(Comment Function(Comment)) onUpdate;
+  final VoidCallback onShareImage;
 
   @override
   ConsumerState<_CommentTile> createState() => _CommentTileState();
 }
 
 class _CommentTileState extends ConsumerState<_CommentTile> {
-  late bool? _likes = widget.comment.likes;
-  late int _score = widget.comment.score;
-  late bool _saved = widget.comment.saved;
-
   Future<void> _vote(int dir) async {
-    final current = _likes == true ? 1 : (_likes == false ? -1 : 0);
+    final before = widget.comment;
+    final current = before.likes == true ? 1 : (before.likes == false ? -1 : 0);
     final target = current == dir ? 0 : dir;
-    setState(() {
-      _score += target - current;
-      _likes = target == 1 ? true : (target == -1 ? false : null);
-    });
+    widget.onUpdate((c) => c.copyWith(
+        score: c.score + target - current,
+        likes: target == 1 ? true : (target == -1 ? false : null)));
     try {
-      await ref
-          .read(redditRepositoryProvider)
-          .vote(widget.comment.fullname, target);
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _score -= target - current;
-          _likes = current == 1 ? true : (current == -1 ? false : null);
-        });
-      }
+      await ref.read(redditRepositoryProvider).vote(before.fullname, target);
+    } catch (e) {
+      widget.onUpdate(
+          (c) => c.copyWith(score: before.score, likes: before.likes));
+      if (mounted) showActionError(context, 'vote', e);
     }
   }
 
+  /// What a swipe on this comment does, per Settings → Swipe actions.
+  SwipeSpec? _swipe(SwipeAction action) {
+    final votes = Theme.of(context).extension<VoteColors>()!;
+    final cs = Theme.of(context).colorScheme;
+    return switch (action) {
+      SwipeAction.upvote => SwipeSpec(action.icon, votes.up, () => _vote(1)),
+      SwipeAction.downvote =>
+        SwipeSpec(action.icon, votes.down, () => _vote(-1)),
+      SwipeAction.save => SwipeSpec(action.icon, cs.primary, _toggleSave),
+      SwipeAction.reply =>
+        SwipeSpec(action.icon, cs.tertiary, widget.onReply),
+      SwipeAction.collapse =>
+        SwipeSpec(action.icon, cs.secondary, widget.onToggle),
+      SwipeAction.hide || SwipeAction.none => null,
+    };
+  }
+
   Future<void> _toggleSave() async {
-    final next = !_saved;
-    setState(() => _saved = next);
+    final next = !widget.comment.saved;
+    widget.onUpdate((c) => c.copyWith(saved: next));
     try {
       await ref
           .read(redditRepositoryProvider)
           .setSaved(widget.comment.fullname, next);
-    } catch (_) {
-      if (mounted) setState(() => _saved = !next);
+    } catch (e) {
+      widget.onUpdate((c) => c.copyWith(saved: !next));
+      if (mounted) showActionError(context, next ? 'save' : 'unsave', e);
     }
   }
 
@@ -1173,6 +1291,8 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
   Widget build(BuildContext context) {
     final comment = widget.comment;
     final split = splitMediaRefs(comment.body, comment.media);
+    final tapToCollapse = ref.watch(
+        settingsControllerProvider.select((s) => s.tapToCollapse));
     final cs = Theme.of(context).colorScheme;
     final depth = comment.depth;
     final indent = depth.clamp(0, 6) * 12.0;
@@ -1205,10 +1325,11 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
         isMod ? Colors.green : (widget.isOwn ? cs.primary : cs.onSurface);
     final edge = _railColors[(depth - 1).clamp(0, _railColors.length - 1)];
 
+    final settings = ref.watch(settingsControllerProvider);
     return SwipeActions(
-      enabled: ref.watch(settingsControllerProvider).swipeActions,
-      onRight: () => _vote(1),
-      onLeft: () => _vote(-1),
+      enabled: settings.swipeActions,
+      start: _swipe(settings.swipeCommentStart),
+      end: _swipe(settings.swipeCommentEnd),
       child: Container(
         margin: EdgeInsets.fromLTRB(10 + indent, 0, 10, 8),
         decoration: BoxDecoration(
@@ -1241,7 +1362,7 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
                     // Long-press collapses the whole subtree; tap re-expands a
                     // collapsed comment (so a tap can't accidentally collapse).
                     InkWell(
-            onTap: widget.collapsed ? widget.onToggle : null,
+            onTap: widget.collapsed || tapToCollapse ? widget.onToggle : null,
             onLongPress: () {
               HapticFeedback.selectionClick();
               widget.onToggle();
@@ -1297,6 +1418,22 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
                   Text('· ${timeAgo(comment.created)}',
                       style:
                           TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
+                  if (widget.isNew) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: cs.tertiaryContainer,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text('NEW',
+                          style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                              color: cs.onTertiaryContainer)),
+                    ),
+                  ],
                   const Spacer(),
                   if (widget.collapsed)
                     Icon(Icons.unfold_more_rounded,
@@ -1306,20 +1443,26 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
             ),
           ),
           if (!widget.collapsed) ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  MarkdownBody(
-                    data: split.text,
-                    selectable: true,
-                    styleSheet: redditMarkdownStyle(context),
-                    onTapLink: (_, href, __) =>
-                        _openCommentLink(context, href),
-                  ),
-                  _CommentMedia(body: comment.body, extra: split.media),
-                ],
+            GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: tapToCollapse ? widget.onToggle : null,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    RedditMarkdown(
+                      data: split.text,
+                      // Selectable text swallows taps, so tap-to-collapse needs
+                      // plain text.
+                      selectable: !tapToCollapse,
+                      styleSheet: redditMarkdownStyle(context),
+                      onTapLink: (_, href, __) =>
+                          openLink(context, href),
+                    ),
+                    _CommentMedia(body: comment.body, extra: split.media),
+                  ],
+                ),
               ),
             ),
             _actions(cs),
@@ -1348,8 +1491,8 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
 
   Widget _actions(ColorScheme cs) {
     final votes = Theme.of(context).extension<VoteColors>()!;
-    final up = _likes == true;
-    final down = _likes == false;
+    final up = widget.comment.likes == true;
+    final down = widget.comment.likes == false;
     final scoreColor = up ? votes.up : (down ? votes.down : cs.onSurfaceVariant);
     return Row(
       children: [
@@ -1361,7 +1504,9 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
               color: up ? votes.up : cs.onSurfaceVariant),
         ),
         Text(
-          widget.comment.scoreHidden ? '–' : compactNumber(_score),
+          widget.comment.scoreHidden
+              ? '–'
+              : compactNumber(widget.comment.score),
           style: TextStyle(
               fontSize: 12, fontWeight: FontWeight.w700, color: scoreColor),
         ),
@@ -1390,8 +1535,8 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
           visualDensity: VisualDensity.compact,
           iconSize: 18,
           onPressed: _toggleSave,
-          color: _saved ? cs.primary : cs.onSurfaceVariant,
-          icon: Icon(_saved
+          color: widget.comment.saved ? cs.primary : cs.onSurfaceVariant,
+          icon: Icon(widget.comment.saved
               ? Icons.bookmark_rounded
               : Icons.bookmark_border_rounded),
         ),
@@ -1407,6 +1552,8 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
                     const SnackBar(content: Text('Copied')));
               case 'share':
                 shareUrl(context, 'https://reddit.com${widget.comment.permalink}');
+              case 'image':
+                widget.onShareImage();
               case 'edit':
                 widget.onEdit();
               case 'delete':
@@ -1419,6 +1566,7 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
             const PopupMenuItem(value: 'copy', child: Text('Copy text')),
             if (widget.comment.permalink.isNotEmpty)
               const PopupMenuItem(value: 'share', child: Text('Share')),
+            const PopupMenuItem(value: 'image', child: Text('Share as image')),
             if (widget.isOwn) ...[
               const PopupMenuItem(value: 'edit', child: Text('Edit')),
               const PopupMenuItem(value: 'delete', child: Text('Delete')),

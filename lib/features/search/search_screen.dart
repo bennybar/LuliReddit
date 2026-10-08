@@ -4,7 +4,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/format.dart';
 import '../../core/providers.dart';
+import '../../core/widgets/error_view.dart';
+import '../auth/auth_controller.dart';
 import '../settings/settings_controller.dart';
+import '../../models/listing.dart';
 import '../../models/post.dart';
 import '../../models/reddit_user.dart';
 import '../../models/subreddit.dart';
@@ -29,6 +32,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   List<Subreddit> _subs = [];
   List<RedditUser> _users = [];
   List<String> _recent = [];
+  Object? _error;
+  String? _postsAfter; // next page of post results
+  bool _loadingMore = false;
+  // Bumped per search: a slow earlier search (e.g. before a sort change) must
+  // not overwrite the results of a newer one.
+  int _request = 0;
 
   static const _sorts = {
     'relevance': 'Relevance',
@@ -45,12 +54,27 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     'year': 'Year',
     'all': 'All time',
   };
-  static const _recentKey = 'recent_searches';
+  static const _legacyRecentKey = 'recent_searches';
+  late final String _recentKey;
 
   @override
   void initState() {
     super.initState();
-    _recent = ref.read(sharedPrefsProvider).getStringList(_recentKey) ?? [];
+    // Per account, like the rest of the on-device history.
+    final user =
+        ref.read(authControllerProvider).valueOrNull?.username.toLowerCase();
+    _recentKey = user == null || user.isEmpty
+        ? _legacyRecentKey
+        : '${_legacyRecentKey}_$user';
+    final prefs = ref.read(sharedPrefsProvider);
+    if (_recentKey != _legacyRecentKey &&
+        !prefs.containsKey(_recentKey) &&
+        prefs.containsKey(_legacyRecentKey)) {
+      prefs.setStringList(
+          _recentKey, prefs.getStringList(_legacyRecentKey) ?? const []);
+      prefs.remove(_legacyRecentKey);
+    }
+    _recent = prefs.getStringList(_recentKey) ?? [];
     final q = widget.initialQuery?.trim() ?? '';
     if (q.isNotEmpty) {
       _controller.text = q;
@@ -60,6 +84,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   void _saveRecent(String q) {
+    // Recent searches are history: none kept while tracking is off.
+    if (!ref.read(settingsControllerProvider).trackHistory) return;
     final list = [q, ..._recent.where((e) => e != q)].take(12).toList();
     ref.read(sharedPrefsProvider).setStringList(_recentKey, list);
     setState(() => _recent = list);
@@ -75,6 +101,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     _controller.clear();
     setState(() {
       _query = '';
+      _error = null;
       _posts = [];
       _subs = [];
       _users = [];
@@ -87,8 +114,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (_controller.text != q) _controller.text = q;
     FocusScope.of(context).unfocus();
     if (saveRecent) _saveRecent(q);
+    final request = ++_request;
     setState(() {
       _loading = true;
+      _error = null;
       _query = q;
     });
     final repo = ref.read(redditRepositoryProvider);
@@ -105,15 +134,45 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         else
           Future.value(<RedditUser>[]),
       ]);
-      if (!mounted) return;
+      if (!mounted || request != _request) return;
+      final posts = results[0] as Listing<Post>;
       setState(() {
-        _posts = (results[0] as dynamic).items as List<Post>;
+        _posts = posts.items;
+        _postsAfter = posts.after;
         _subs = results[1] as List<Subreddit>;
         _users = results[2] as List<RedditUser>;
         _loading = false;
       });
+    } catch (e) {
+      if (!mounted || request != _request) return;
+      setState(() {
+        _loading = false;
+        _error = e; // shown instead of a misleading "No results"
+      });
+    }
+  }
+
+  Future<void> _loadMorePosts() async {
+    final after = _postsAfter;
+    if (after == null || after.isEmpty || _loadingMore) return;
+    final request = _request;
+    setState(() => _loadingMore = true);
+    try {
+      final page = await ref.read(redditRepositoryProvider).searchPosts(_query,
+          subreddit: widget.initialSubreddit,
+          sort: _sort,
+          time: _time,
+          after: after);
+      if (!mounted || request != _request) return;
+      final seen = {for (final p in _posts) p.id};
+      setState(() {
+        _posts = [..._posts, ...page.items.where((p) => !seen.contains(p.id))];
+        _postsAfter = page.after;
+      });
     } catch (_) {
-      if (mounted) setState(() => _loading = false);
+      // Keep the cursor: scrolling to the end again retries.
+    } finally {
+      if (mounted && request == _request) setState(() => _loadingMore = false);
     }
   }
 
@@ -171,15 +230,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         ),
         body: _loading
             ? const Center(child: CircularProgressIndicator())
-            : _query.isEmpty
-                ? _empty(cs)
-                : TabBarView(
-                    children: [
-                      _postsTab(),
-                      if (!restricted) _subsTab(),
-                      if (!restricted) _usersTab(),
-                    ],
-                  ),
+            : _error != null
+                ? ErrorView(
+                    message: _error,
+                    onRetry: () => _search(_query, saveRecent: false))
+                : _query.isEmpty
+                    ? _empty(cs)
+                    : TabBarView(
+                        children: [
+                          _postsTab(),
+                          if (!restricted) _subsTab(),
+                          if (!restricted) _usersTab(),
+                        ],
+                      ),
       ),
     );
   }
@@ -289,9 +352,22 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     ])
                   : ListView.separated(
                       padding: const EdgeInsets.fromLTRB(10, 6, 10, 130),
-                      itemCount: _posts.length,
+                      itemCount: _posts.length + (_loadingMore ? 1 : 0),
                       separatorBuilder: (_, __) => const SizedBox(height: 10),
-                      itemBuilder: (_, i) => PostCard(post: _posts[i]),
+                      itemBuilder: (_, i) {
+                        if (i >= _posts.length) {
+                          return const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Center(child: CircularProgressIndicator()),
+                          );
+                        }
+                        // Page in more results 5 cards from the end.
+                        if (i >= _posts.length - 5) {
+                          WidgetsBinding.instance.addPostFrameCallback(
+                              (_) => _loadMorePosts());
+                        }
+                        return PostCard(post: _posts[i]);
+                      },
                     ),
             ),
           ),

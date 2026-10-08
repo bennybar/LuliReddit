@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/deep_links.dart';
 import 'history_store.dart';
+import 'thread_visits.dart';
 
 class HistoryScreen extends ConsumerStatefulWidget {
   const HistoryScreen({super.key});
@@ -66,6 +67,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                     ctrl.clearOlderThan(const Duration(days: 30));
                   case 'all':
                     ctrl.clear();
+                    ref.read(threadVisitsProvider.notifier).clear();
                 }
               },
               itemBuilder: (_) => const [

@@ -4,11 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/network/reddit_client.dart';
 import '../../core/providers.dart';
 import '../../core/share.dart';
+import '../../core/widgets/error_view.dart';
 import '../../core/widgets/tap_guard.dart';
 import '../../models/post.dart';
-import '../history/interest_store.dart';
+import '../foryou/for_you_learner.dart';
+import '../foryou/tune_sheet.dart';
+import '../offline/offline_store.dart';
 
 /// Bottom sheet of secondary actions for a post: hide, report, crosspost, open.
 /// [onSummarize], when provided (post detail only, with an AI key configured),
@@ -42,8 +46,7 @@ void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post,
             onTap: () {
               Navigator.pop(ctx);
               // Sharing is a strong interest signal.
-              ref.read(interestStoreProvider.notifier).bump(post.subreddit, 1.5);
-              ref.read(keywordStoreProvider.notifier).bumpTitle(post.title, 0.75);
+              ref.read(forYouLearnerProvider).share(post);
               shareUrl(context, 'https://reddit.com${post.permalink}',
                   subject: post.title);
             },
@@ -54,8 +57,7 @@ void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post,
             subtitle: const Text('Includes the post title above the link'),
             onTap: () {
               Navigator.pop(ctx);
-              ref.read(interestStoreProvider.notifier).bump(post.subreddit, 1.5);
-              ref.read(keywordStoreProvider.notifier).bumpTitle(post.title, 0.75);
+              ref.read(forYouLearnerProvider).share(post);
               shareUrlWithTitle(
                   context, 'https://reddit.com${post.permalink}', post.title);
             },
@@ -63,29 +65,40 @@ void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post,
           ListTile(
             leading: const Icon(Icons.visibility_off_outlined),
             title: const Text('Hide'),
-            onTap: () async {
-              final messenger = ScaffoldMessenger.of(context);
-              final repo = ref.read(redditRepositoryProvider);
+            onTap: () {
               Navigator.pop(ctx);
-              try {
-                await repo.setHidden(post.fullname, true);
-                messenger.clearSnackBars();
-                messenger.showSnackBar(SnackBar(
-                  content: const Text('Post hidden'),
-                  action: SnackBarAction(
-                    label: 'Undo',
-                    onPressed: () async {
-                      try {
-                        await repo.setHidden(post.fullname, false);
-                      } catch (_) {/* best effort */}
-                    },
-                  ),
-                ));
-              } catch (e) {
-                _snack(messenger, 'Could not hide: $e');
-              }
+              hidePost(context, ref, post);
             },
           ),
+          Consumer(builder: (_, ref, __) {
+            final saved = ref.watch(offlineProvider).any((t) => t.id == post.id);
+            return ListTile(
+              leading: Icon(saved
+                  ? Icons.offline_pin_rounded
+                  : Icons.download_for_offline_outlined),
+              title: Text(saved ? 'Remove offline copy' : 'Save for offline'),
+              subtitle: saved
+                  ? null
+                  : const Text('Keep it with its comments in Read later'),
+              onTap: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                final offline = ref.read(offlineProvider.notifier);
+                Navigator.pop(ctx);
+                if (saved) {
+                  await offline.remove(post.id);
+                  _snack(messenger, 'Removed from Read later');
+                  return;
+                }
+                _snack(messenger, 'Saving for offline…');
+                try {
+                  await offline.save(context, post);
+                  _snack(messenger, 'Saved to Read later');
+                } catch (e) {
+                  _snack(messenger, "Couldn't save: ${friendlyError(e)}");
+                }
+              },
+            );
+          }),
           ListTile(
             leading: const Icon(Icons.content_copy_rounded),
             title: const Text('Copy text'),
@@ -156,53 +169,52 @@ void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post,
           ],
           const Divider(height: 8),
           ListTile(
-            leading: const Icon(Icons.thumb_up_alt_outlined),
-            title: const Text('More like this'),
-            subtitle: Text('Show more from r/${post.subreddit} in For You'),
+            leading: const Icon(Icons.auto_awesome_rounded),
+            title: const Text('Tune For You'),
+            subtitle: Text('Why it\'s here · more or less like it · mute '
+                'r/${post.subreddit}'),
             onTap: () {
               Navigator.pop(ctx);
-              ref.read(interestStoreProvider.notifier).bump(post.subreddit, 5);
-              ref.read(keywordStoreProvider.notifier).bumpTitle(post.title, 2);
-              _snackManage(context, "We'll show more like this");
+              showTuneSheet(context, ref, post);
             },
           ),
-          ListTile(
-            leading: const Icon(Icons.thumb_down_alt_outlined),
-            title: const Text('Less like this'),
-            subtitle: Text('Show less from r/${post.subreddit} in For You'),
-            onTap: () {
-              Navigator.pop(ctx);
-              ref.read(interestStoreProvider.notifier).bump(post.subreddit, -5);
-              ref.read(keywordStoreProvider.notifier).bumpTitle(post.title, -2);
-              _snackManage(context, "We'll show less like this");
-            },
-          ),
-          Builder(builder: (_) {
-            final muted =
-                ref.read(mutedSubsProvider.notifier).contains(post.subreddit);
-            return ListTile(
-              leading: Icon(
-                  muted ? Icons.volume_up_rounded : Icons.volume_off_rounded),
-              title: Text(muted
-                  ? 'Unmute r/${post.subreddit}'
-                  : 'Mute r/${post.subreddit} in For You'),
-              onTap: () {
-                Navigator.pop(ctx);
-                ref.read(mutedSubsProvider.notifier).toggle(post.subreddit);
-                _snackManage(
-                    context,
-                    muted
-                        ? 'r/${post.subreddit} unmuted'
-                        : 'r/${post.subreddit} muted from For You');
-              },
-            );
-          }),
         ],
         ),
       ),
     ),
     ),
   );
+}
+
+/// Posts hidden this session, filtered out of every feed straight away
+/// (hiding on Reddit only takes effect on the next fetch).
+final hiddenPostsProvider = StateProvider<Set<String>>((ref) => const {});
+
+/// Hides [post] on Reddit and in the open feeds, with Undo.
+Future<void> hidePost(BuildContext context, WidgetRef ref, Post post) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final repo = ref.read(redditRepositoryProvider);
+  final hidden = ref.read(hiddenPostsProvider.notifier);
+  hidden.state = {...hidden.state, post.id};
+  try {
+    await repo.setHidden(post.fullname, true);
+    messenger.clearSnackBars();
+    messenger.showSnackBar(SnackBar(
+      content: const Text('Post hidden'),
+      action: SnackBarAction(
+        label: 'Undo',
+        onPressed: () async {
+          hidden.state = {...hidden.state}..remove(post.id);
+          try {
+            await repo.setHidden(post.fullname, false);
+          } catch (_) {/* best effort */}
+        },
+      ),
+    ));
+  } catch (e) {
+    hidden.state = {...hidden.state}..remove(post.id);
+    _snack(messenger, "Couldn't hide: ${friendlyError(e)}");
+  }
 }
 
 Widget _modTile(WidgetRef ref, Post post, String label, IconData icon,
@@ -217,8 +229,16 @@ Widget _modTile(WidgetRef ref, Post post, String label, IconData icon,
         try {
           await action(ref.read(redditRepositoryProvider));
           _snack(messenger, done);
+        } on RedditApiException catch (e) {
+          _snack(
+              messenger,
+              e.statusCode == 403
+                  ? "Reddit refused that. If you moderate this community, "
+                      'sign out and back in so Ilay can request moderator '
+                      'permission.'
+                  : friendlyError(e));
         } catch (e) {
-          _snack(messenger, 'Failed: $e');
+          _snack(messenger, friendlyError(e));
         }
       },
     );
@@ -386,12 +406,3 @@ void _snack(ScaffoldMessengerState messenger, String msg) {
 
 /// Snackbar for a personalization change, with a "Manage" action that opens the
 /// Manage For You screen where it can be reviewed/undone.
-void _snackManage(BuildContext context, String msg) {
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-    content: Text(msg),
-    action: SnackBarAction(
-      label: 'Manage',
-      onPressed: () => context.push('/manage_for_you'),
-    ),
-  ));
-}

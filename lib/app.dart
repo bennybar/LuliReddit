@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/deep_links.dart';
 import 'core/theme/app_theme.dart';
+import 'features/auth/account_scope.dart';
 import 'features/auth/auth_controller.dart';
 import 'features/inbox/inbox_controller.dart';
 import 'features/notifications/notification_service.dart';
@@ -23,6 +24,10 @@ class LuliApp extends ConsumerStatefulWidget {
 
 class _LuliAppState extends ConsumerState<LuliApp> with WidgetsBindingObserver {
   final _appLinks = AppLinks();
+  // The last signed-in account, to tell a real account change (switch, or
+  // logout then login as someone else) from auth merely being re-read.
+  String? _accountUser;
+  DateTime _lastInboxSync = DateTime.now();
   StreamSubscription<Uri>? _linkSub;
   String? _lastLink; // last deep link we routed, to avoid handling it twice
 
@@ -30,6 +35,19 @@ class _LuliAppState extends ConsumerState<LuliApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Browsing without an account counts as its own identity, so signing in
+    // afterwards also clears the anonymous feeds.
+    String? identity(AuthSession? s) =>
+        s == null ? null : (s.anonymous ? '\u0000anon' : s.username);
+    _accountUser = identity(ref.read(authControllerProvider).valueOrNull);
+    ref.listenManual<String?>(
+        authControllerProvider.select((s) => identity(s.valueOrNull)),
+        (_, next) {
+      if (next == null || next.isEmpty) return; // logged out / still loading
+      final previous = _accountUser;
+      _accountUser = next;
+      if (previous != null && previous != next) resetAccountScopedState(ref);
+    });
     // The cold-start link is routed by the GoRouter redirect, so record it as
     // already handled — then the stream/resume checks below only act on links
     // that arrive later (which is what a warm launch from Google delivers).
@@ -63,8 +81,14 @@ class _LuliAppState extends ConsumerState<LuliApp> with WidgetsBindingObserver {
       // (fixes the transient sign-out), and re-sync the inbox so items read on
       // the official app show as read here.
       ref.invalidate(authControllerProvider);
-      ref.invalidate(inboxControllerProvider);
-      ref.invalidate(unreadCountProvider);
+      // Re-syncing every inbox tab on each resume was a burst of requests for
+      // a quick app switch; a couple of minutes' staleness is fine.
+      final now = DateTime.now();
+      if (now.difference(_lastInboxSync) > const Duration(minutes: 2)) {
+        _lastInboxSync = now;
+        ref.invalidate(inboxControllerProvider);
+        ref.invalidate(unreadCountProvider);
+      }
       // A link tapped in the browser can resume the app without the stream
       // firing, which used to just show whatever page we were last on.
       _appLinks.getLatestLink().then((uri) {

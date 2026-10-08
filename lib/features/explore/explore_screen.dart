@@ -7,7 +7,9 @@ import '../../core/deep_links.dart';
 import '../../core/format.dart';
 import '../../core/providers.dart';
 import '../../models/subreddit.dart';
+import '../auth/auth_controller.dart';
 import '../history/history_store.dart';
+import '../home/account_tab.dart' show SignInPrompt;
 import '../home/tab_signals.dart';
 import '../multireddit/multireddit_providers.dart';
 
@@ -175,6 +177,15 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                           child: Center(child: CircularProgressIndicator()))),
                 ],
                 error: (e, _) => [
+                  if (ref.watch(authControllerProvider).valueOrNull?.anonymous ??
+                      false)
+                    const SliverToBoxAdapter(
+                      child: SignInPrompt(
+                          message: 'Sign in to see the communities you\'ve '
+                              'joined. You can still search and open any '
+                              'subreddit.'),
+                    )
+                  else
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.all(32),

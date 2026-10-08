@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/deep_links.dart';
 import '../../core/format.dart';
 import '../../core/providers.dart';
+import '../../core/open_link.dart';
+import '../../core/widgets/error_view.dart';
 import '../../core/widgets/markdown_style.dart';
+import '../../core/widgets/reddit_markdown.dart';
 import '../../models/comment.dart';
 import '../../models/post.dart';
 import '../auth/auth_controller.dart';
@@ -163,7 +165,7 @@ class _SavedHubScreenState extends ConsumerState<SavedHubScreen> {
                         child: Padding(
                           padding: const EdgeInsets.all(32),
                           child: Column(mainAxisSize: MainAxisSize.min, children: [
-                            Text('Could not load saved.\n$_error',
+                            Text('Could not load saved.\n${friendlyError(_error)}',
                                 textAlign: TextAlign.center),
                             const SizedBox(height: 12),
                             FilledButton(
@@ -239,8 +241,10 @@ class _SavedComment extends StatelessWidget {
                 ),
               ]),
               const SizedBox(height: 6),
-              MarkdownBody(
-                  data: comment.body, styleSheet: redditMarkdownStyle(context)),
+              RedditMarkdown(
+                  data: comment.body,
+                  styleSheet: redditMarkdownStyle(context),
+                  onTapLink: (_, href, __) => openLink(context, href)),
             ],
           ),
         ),

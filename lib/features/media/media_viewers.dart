@@ -519,7 +519,11 @@ class _VideoViewer extends StatefulWidget {
 }
 
 class _VideoViewerState extends State<_VideoViewer> {
-  VideoPlayerController? _video;
+  VideoPlayerController? _video; // set once playing; drives the UI
+  // Owned from creation so dispose() always releases it, even if the viewer
+  // closes while it's still initializing (it used to leak, and could start
+  // playing with no screen).
+  VideoPlayerController? _controller;
   String? _error;
   bool _controls = true;
   Timer? _hideTimer;
@@ -532,12 +536,15 @@ class _VideoViewerState extends State<_VideoViewer> {
   }
 
   Future<void> _init() async {
+    final v = _controller =
+        VideoPlayerController.networkUrl(Uri.parse(widget.url));
     try {
-      final v = VideoPlayerController.networkUrl(Uri.parse(widget.url));
       await v.initialize();
       if (!mounted) return;
       await v.setLooping(true);
+      if (!mounted) return;
       await v.play();
+      if (!mounted) return;
       setState(() => _video = v);
       _scheduleHide();
     } catch (e) {
@@ -590,7 +597,7 @@ class _VideoViewerState extends State<_VideoViewer> {
   void dispose() {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _hideTimer?.cancel();
-    _video?.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 

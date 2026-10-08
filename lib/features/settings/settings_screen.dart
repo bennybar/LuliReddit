@@ -16,6 +16,7 @@ import '../../core/providers.dart';
 import '../../core/reddit_constants.dart';
 import '../../data/reddit_repository.dart';
 import '../auth/auth_controller.dart';
+import '../feed/swipe_actions.dart';
 import '../media/media_folder.dart';
 import '../notifications/inbox_poller.dart';
 import '../notifications/notification_service.dart';
@@ -217,6 +218,15 @@ class _SettingsListState extends ConsumerState<SettingsList> {
                 Text(commentSortLabels[s.defaultCommentSort] ?? s.defaultCommentSort),
             onTap: () => _pickCommentSort(context, ctrl, s.defaultCommentSort),
           ),
+          SwitchListTile(
+            secondary: const Icon(Icons.unfold_less_rounded),
+            title: const Text('Tap a comment to collapse it'),
+            subtitle: const Text(
+                'Otherwise long-press. Comment text can\'t be selected while '
+                'this is on'),
+            value: s.tapToCollapse,
+            onChanged: ctrl.setTapToCollapse,
+          ),
           ListTile(
             leading: Icon(s.postDisplay.icon),
             title: const Text('Post display'),
@@ -254,6 +264,23 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             value: s.autoHideReadForYou,
             onChanged: ctrl.setAutoHideReadForYou,
           ),
+          SwitchListTile(
+            secondary: const Icon(Icons.visibility_off_outlined),
+            title: const Text('Hide read posts'),
+            subtitle: const Text(
+                'Skip posts you\'ve already read when feeds load or refresh'),
+            value: s.hideReadPosts,
+            onChanged: ctrl.setHideReadPosts,
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.done_all_rounded),
+            title: const Text('Mark read as you scroll'),
+            subtitle: Text(s.trackHistory
+                ? 'A post you scroll past counts as read'
+                : 'Needs history tracking turned on'),
+            value: s.markReadOnScroll,
+            onChanged: s.trackHistory ? ctrl.setMarkReadOnScroll : null,
+          ),
           ListTile(
             leading: const Icon(Icons.tune_rounded),
             title: const Text('Manage "For You" subreddits'),
@@ -268,11 +295,25 @@ class _SettingsListState extends ConsumerState<SettingsList> {
           ),
           SwitchListTile(
             secondary: const Icon(Icons.swipe_rounded),
-            title: const Text('Swipe to vote'),
-            subtitle: const Text('Swipe posts/comments right=up, left=down'),
+            title: const Text('Swipe actions'),
+            subtitle: const Text('Swipe posts and comments sideways'),
             value: s.swipeActions,
             onChanged: ctrl.setSwipeActions,
           ),
+          if (s.swipeActions)
+            ListTile(
+              leading: const SizedBox(width: 24),
+              title: const Text('Customize swipes'),
+              subtitle: Text(
+                  'Posts: ${s.swipePostStart.label} / ${s.swipePostEnd.label} · '
+                  'Comments: ${s.swipeCommentStart.label} / '
+                  '${s.swipeCommentEnd.label}'),
+              onTap: () => showModalBottomSheet<void>(
+                context: context,
+                showDragHandle: true,
+                builder: (_) => const _SwipeSettingsSheet(),
+              ),
+            ),
           SwitchListTile(
             secondary: const Icon(Icons.play_circle_outline_rounded),
             title: const Text('Autoplay videos'),
@@ -281,6 +322,15 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             onChanged: ctrl.setAutoplayMedia,
           ),
           if (Platform.isAndroid) const _MediaFolderTile(),
+          SwitchListTile(
+            secondary: const Icon(Icons.open_in_browser_rounded),
+            title: const Text('Open links inside the app'),
+            subtitle: const Text(
+                'Web links open in an in-app browser tab instead of your '
+                'browser app'),
+            value: s.inAppBrowser,
+            onChanged: ctrl.setInAppBrowser,
+          ),
           const Divider(),
           _section(context, 'Power-user features'),
           SwitchListTile(
@@ -1020,8 +1070,74 @@ class _SettingsListState extends ConsumerState<SettingsList> {
     );
     if (ok == true) {
       await ref.read(secureStoreProvider).clearAll();
+      await ref.read(redditClientProvider).clearCache();
       await ref.read(authControllerProvider.notifier).logout();
     }
+  }
+}
+
+/// Picks what each swipe direction does, for posts and for comments.
+class _SwipeSettingsSheet extends ConsumerWidget {
+  const _SwipeSettingsSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(settingsControllerProvider);
+    final ctrl = ref.read(settingsControllerProvider.notifier);
+    // "Right"/"left" as the user sees them; mirrored in RTL languages.
+    final rtl = Directionality.of(context) == TextDirection.rtl;
+    final startLabel = rtl ? 'Swipe left' : 'Swipe right';
+    final endLabel = rtl ? 'Swipe right' : 'Swipe left';
+    Widget row(String label, String key, SwipeAction value, bool forPosts) {
+      final options = SwipeAction.values.where((a) =>
+          a != (forPosts ? SwipeAction.collapse : SwipeAction.hide));
+      return ListTile(
+        title: Text(label),
+        trailing: DropdownButton<SwipeAction>(
+          value: value,
+          underline: const SizedBox.shrink(),
+          items: [
+            for (final a in options)
+              DropdownMenuItem(
+                value: a,
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(a.icon, size: 18),
+                  const SizedBox(width: 8),
+                  Text(a.label),
+                ]),
+              ),
+          ],
+          onChanged: (a) {
+            if (a != null) ctrl.setSwipeAction(key, a);
+          },
+        ),
+      );
+    }
+
+    Widget header(String title) => Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: Text(title,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w700,
+                  )),
+        );
+
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          header('Posts'),
+          row(startLabel, 'swipePostStart', s.swipePostStart, true),
+          row(endLabel, 'swipePostEnd', s.swipePostEnd, true),
+          header('Comments'),
+          row(startLabel, 'swipeCommentStart', s.swipeCommentStart, false),
+          row(endLabel, 'swipeCommentEnd', s.swipeCommentEnd, false),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
   }
 }
 

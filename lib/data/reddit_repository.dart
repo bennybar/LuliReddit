@@ -5,7 +5,8 @@ import 'package:dio/dio.dart';
 
 import '../core/network/catbox.dart';
 import '../core/network/reddit_client.dart';
-import '../features/history/interest_store.dart' show titleKeywords;
+import '../features/foryou/for_you_ranker.dart';
+import '../features/foryou/for_you_stores.dart' show ForYouMeta;
 import '../models/comment.dart';
 import '../models/flair.dart';
 import '../models/inbox_item.dart';
@@ -69,271 +70,198 @@ class RedditRepository {
     for (final c in children) {
       final kind = (c as Map)['kind'];
       if (kind == 't3') {
-        posts.add(Post.fromData(c['data'] as Map<String, dynamic>));
+        final raw = c['data'] as Map<String, dynamic>;
+        final post = Post.fromData(raw);
+        posts.add(post);
+        _rawPosts.remove(post.id);
+        _rawPosts[post.id] = raw;
       }
+    }
+    while (_rawPosts.length > 800) {
+      _rawPosts.remove(_rawPosts.keys.first);
     }
     return Listing(items: posts, after: data?['after'] as String?);
   }
 
+  // The raw JSON of recently parsed posts (bounded), so a ranked For You
+  // page can be saved and painted instantly next time.
+  final _rawPosts = <String, Map<String, dynamic>>{};
+  Map<String, dynamic>? rawPost(String id) => _rawPosts[id];
+
   /// "For You (Beta)" — a transparent, client-side personalized feed.
   ///
   /// Reddit's real Home ranking is server-side ML and is NOT exposed to the
-  /// API, so this approximates it: candidate generation from /best (your
-  /// subscriptions) + r/popular, then a local score blending engagement
-  /// velocity, recency, your local affinity (subreddits you open), with a
-  /// penalty for already-seen posts, plus a per-subreddit diversity cap.
-  Future<Listing<Post>> getForYouFeed({
-    Map<String, double> interest = const {},
-    Set<String> seen = const {},
-    Set<String> muted = const {},
-    Map<String, int> impressions = const {},
-    double Function(String title)? titleScore,
-    String? Function(String title)? titleKeyword,
+  /// API, so this approximates it: fetch candidates from the sources that
+  /// matter to the user, then rank them on-device ([rankForYou]).
+  ///
+  /// Candidates: /best (subscriptions; paginated), rising and r/popular
+  /// (paginated), and on the first page hot posts from favourites, the most
+  /// engaged communities and a few [communities] the user has visited.
+  /// [carryOver] is the previous page's unplaced pool.
+  Future<ForYouPage> getForYouFeed({
+    required RankInputs inputs,
+    List<String> communities = const [],
     String? cursors, // JSON cursor bundle from a previous page's `after`
     Set<String> excludeIds = const {},
+    List<Candidate> carryOver = const [],
   }) async {
-    double interestOf(String sub) => interest[sub.toLowerCase()] ?? 0;
-
-    // Subreddits you engage with most (learned on-device), even if not
-    // favourited. Local data, so known before any request goes out.
-    final topInterest = (interest.entries.where((e) => e.value >= 2).toList()
-          ..sort((a, b) => b.value.compareTo(a.value)))
-        .take(5)
-        .map((e) => e.key)
-        .toList();
-
-    Future<Listing<Post>> safe(Future<Listing<Post>> f) =>
-        f.catchError((_) => const Listing<Post>(items: []));
-
-    // Candidate generation, multi-signal:
-    //  • /best       — your subscription frontpage (the bulk; paginated)
-    //  • favourites  — fresh hot from each (first page only)
-    //  • interests   — hot from your most-engaged communities (first page)
-    //  • rising      — what's heating up in your subscriptions (paginated)
-    //  • r/popular   — a small discovery slice (paginated)
     Map<String, dynamic> prev = const {};
     if (cursors != null && cursors.isNotEmpty) {
       try {
         prev = jsonDecode(cursors) as Map<String, dynamic>;
       } catch (_) {}
     }
-    final firstPage = prev.isEmpty;
-    final bestAfter = prev['best'] as String?;
-    final risingAfter = prev['rising'] as String?;
-    final popularAfter = prev['popular'] as String?;
+    ForYouPage? page;
+    // An empty page (everything failed, or all muted/seen) retries the next
+    // cursors once before ending the feed — it used to stop dead.
+    for (var attempt = 0; attempt < 2; attempt++) {
+      page = await _forYouPage(inputs, communities, prev, excludeIds,
+          attempt == 0 ? carryOver : const []);
+      if (page.listing.items.isNotEmpty || page.cursors.isEmpty) break;
+      prev = page.cursors;
+    }
+    return page!;
+  }
 
-    // Every request that doesn't need the subscription list starts now,
-    // alongside it. Awaiting the list first (up to five sequential pages)
-    // made a cold For You pay for an extra round of latency; only the
-    // favourite fetches actually depend on it.
+  Future<ForYouPage> _forYouPage(
+    RankInputs inputs,
+    List<String> communities,
+    Map<String, dynamic> prev,
+    Set<String> excludeIds,
+    List<Candidate> carryOver,
+  ) async {
+    final firstPage = prev.isEmpty;
+    final muted = inputs.muted;
+
+    // Subreddits you engage with most (learned on-device), even if not
+    // favourited. Local data, so known before any request goes out.
+    final topInterest = (inputs.interest.entries
+            .where((e) => e.value >= kEngagedInterest && !muted.contains(e.key))
+            .toList()
+          ..sort((a, b) => b.value.compareTo(a.value)))
+        .take(5)
+        .map((e) => e.key)
+        .toList();
+
+    // Each source: its listing, or null if it failed / timed out. Secondary
+    // sources get a short timeout so the slowest community doesn't decide how
+    // long the page takes.
+    Future<Listing<Post>?> source(Future<Listing<Post>> f,
+            {bool secondary = true}) =>
+        (secondary ? f.timeout(const Duration(milliseconds: 2500)) : f)
+            .then<Listing<Post>?>((l) => l)
+            .catchError((_) => null);
+
+    // A cursor of '' means "start this source from the top" (its first
+    // fetch failed); a missing key means the source is exhausted.
+    bool live(String k) => firstPage || prev.containsKey(k);
+    String? after(String k) {
+      final v = prev[k] as String?;
+      return (v == null || v.isEmpty) ? null : v;
+    }
+
     final subsF = getSubscribedSubreddits()
         .catchError((_) => const <Subreddit>[]);
-    final bestF = (firstPage || bestAfter != null)
-        ? safe(getPosts(
-            sort: PostSort.best, limit: firstPage ? 100 : 50, after: bestAfter))
-        : Future.value(const Listing<Post>(items: []));
-    final risingF = (firstPage || risingAfter != null)
-        ? safe(getPosts(
-            sort: PostSort.rising, limit: 25, after: risingAfter))
-        : Future.value(const Listing<Post>(items: []));
-    final popularF = (firstPage || popularAfter != null)
-        ? safe(getPosts(
+    final bestF = live('best')
+        ? source(
+            getPosts(
+                sort: PostSort.best,
+                limit: firstPage ? 100 : 50,
+                after: after('best')),
+            secondary: false)
+        : Future<Listing<Post>?>.value(null);
+    final risingF = live('rising')
+        ? source(getPosts(sort: PostSort.rising, limit: 25, after: after('rising')))
+        : Future<Listing<Post>?>.value(null);
+    final popularF = live('popular')
+        ? source(getPosts(
             subreddit: 'popular',
             sort: PostSort.hot,
             limit: firstPage ? 20 : 15,
-            after: popularAfter))
-        : Future.value(const Listing<Post>(items: []));
-    final interestF = <Future<Listing<Post>>>[
+            after: after('popular')))
+        : Future<Listing<Post>?>.value(null);
+    final interestF = [
       if (firstPage)
         for (final s in topInterest)
-          safe(getPosts(subreddit: s, sort: PostSort.hot, limit: 8)),
+          source(getPosts(subreddit: s, sort: PostSort.hot, limit: 8)),
+    ];
+    final communityF = [
+      if (firstPage)
+        for (final s in communities.where((c) => !muted.contains(c)))
+          source(getPosts(subreddit: s, sort: PostSort.hot, limit: 6)),
     ];
 
-    // Your communities are the backbone of the feed.
     final mySubs = await subsF;
     final favourites = {
       for (final s in mySubs)
         if (s.userHasFavorited) s.name.toLowerCase()
     };
     final subscribed = {for (final s in mySubs) s.name.toLowerCase()};
-
     // Favourites go out the moment the list is known, while the rest is still
     // in flight. One already fetched as a top interest isn't fetched twice.
-    final favouriteF = <Future<Listing<Post>>>[
+    final favouriteF = [
       if (firstPage)
         for (final f in favourites.take(8))
-          if (!topInterest.contains(f))
-            safe(getPosts(subreddit: f, sort: PostSort.hot, limit: 10)),
+          if (!topInterest.contains(f) && !muted.contains(f))
+            source(getPosts(subreddit: f, sort: PostSort.hot, limit: 10)),
     ];
 
-    final results = await Future.wait(
-        [bestF, risingF, popularF, ...favouriteF, ...interestF]);
-    final best = results[0], rising = results[1], popular = results[2];
-
+    final best = await bestF, rising = await risingF, popular = await popularF;
     final ids = <String>{...excludeIds};
-    final unique = <Post>[];
-    for (final listing in results) {
-      for (final p in listing.items) {
-        if (p.stickied) continue;
-        if (muted.contains(p.subreddit.toLowerCase())) continue;
-        if (ids.add(p.id)) unique.add(p);
+    final pool = <Candidate>[];
+    void add(Listing<Post>? l, String src) {
+      for (final p in l?.items ?? const <Post>[]) {
+        if (ids.add(p.id)) pool.add(Candidate(p, src));
       }
     }
 
-    // Per-sub velocity percentile, so small communities aren't drowned out by
-    // raw point counts ("a top post *for this sub*" is what matters).
-    final now = DateTime.now().toUtc();
-    double rawVelocity(Post p) {
-      final ageH = now.difference(p.created).inMinutes / 60.0;
-      return p.score / (ageH < 1 ? 1.0 : ageH);
+    for (final c in carryOver) {
+      if (ids.add(c.post.id)) pool.add(Candidate(c.post, 'carry'));
+    }
+    add(best, 'best');
+    add(rising, 'rising');
+    add(popular, 'popular');
+    for (final l in await Future.wait(favouriteF)) {
+      add(l, 'favourite');
+    }
+    for (final l in await Future.wait(interestF)) {
+      add(l, 'interest');
+    }
+    for (final l in await Future.wait(communityF)) {
+      add(l, 'community');
     }
 
-    final perSubVels = <String, List<double>>{};
-    for (final p in unique) {
-      perSubVels.putIfAbsent(p.subreddit, () => []).add(rawVelocity(p));
-    }
-    perSubVels.forEach((_, v) => v.sort());
-    double velocityPercentile(Post p) {
-      final v = perSubVels[p.subreddit]!;
-      if (v.length == 1) return 0.7;
-      var lo = 0, hi = v.length - 1;
-      final x = rawVelocity(p);
-      while (lo < hi) {
-        final mid = (lo + hi) >> 1;
-        if (v[mid] < x) {
-          lo = mid + 1;
-        } else {
-          hi = mid;
-        }
-      }
-      return lo / (v.length - 1);
-    }
+    final result = rankForYou(
+        pool, inputs.withSubscriptions(favourites, subscribed));
 
-    bool isPrimary(Post p) {
-      final sub = p.subreddit.toLowerCase();
-      return favourites.contains(sub) ||
-          subscribed.contains(sub) ||
-          interestOf(sub) >= 2;
-    }
-
-    double scoreOf(Post p) {
-      final sub = p.subreddit.toLowerCase();
-      final ageH = now.difference(p.created).inMinutes / 60.0;
-      final age = ageH < 1 ? 1.0 : ageH;
-      final recency = 1 / (1 + age / 24); // soft decay over a day
-      final quality = 0.5 + p.upvoteRatio; // 0.5–1.5
-      // Community weight dominates: favourites ≫ subscribed ≫ discovery,
-      // boosted by learned interest in that community.
-      final base = favourites.contains(sub)
-          ? 4.0
-          : subscribed.contains(sub)
-              ? 2.5
-              : 0.4;
-      final w = base + (interestOf(sub).clamp(0, 12)) * 0.35;
-      // Title-keyword affinity (on-device content model).
-      final kw = titleScore?.call(p.title) ?? 0;
-      // Opened posts and posts shown twice without being opened both demote.
-      final shown = impressions[p.id] ?? 0;
-      final penalty = seen.contains(p.id)
-          ? 0.3
-          : shown >= 2
-              ? 0.45
-              : 1.0;
-      return (velocityPercentile(p) * 30 + recency * 30 + 15 + kw * 4) *
-          w *
-          quality *
-          penalty;
-    }
-
-    // Per-post "why you're seeing this" label.
-    String reasonFor(Post p) {
-      final sub = p.subreddit.toLowerCase();
-      if (favourites.contains(sub)) return '★ Favourite · r/${p.subreddit}';
-      if (interestOf(sub) >= 4) {
-        return 'Because you engage with r/${p.subreddit}';
-      }
-      final kwWord = titleKeyword?.call(p.title);
-      if (kwWord != null && !subscribed.contains(sub)) {
-        return 'Because you read posts about “$kwWord”';
-      }
-      if (subscribed.contains(sub)) return 'From r/${p.subreddit}';
-      final ageH = now.difference(p.created).inMinutes / 60.0;
-      if (ageH < 6 && p.score > 1000) return '🔥 Trending on Reddit';
-      return 'Discover · r/${p.subreddit}';
-    }
-
-    int byScore(Post a, Post b) => scoreOf(b).compareTo(scoreOf(a));
-
-    List<Post> capPerSub(List<Post> posts, int cap) {
-      final perSub = <String, int>{};
-      final out = <Post>[];
-      for (final p in posts) {
-        final n = perSub[p.subreddit] ?? 0;
-        if (n < cap) {
-          out.add(p.copyWith(feedReason: reasonFor(p)));
-          perSub[p.subreddit] = n + 1;
-        }
-      }
-      return out;
-    }
-
-    final primary = capPerSub(unique.where(isPrimary).toList()..sort(byScore), 4);
-    final discovery =
-        capPerSub(unique.where((p) => !isPrimary(p)).toList()..sort(byScore), 2);
-
-    // Mostly your communities, with a light discovery sprinkle (~1 in 6,
-    // capped at 20% of the feed) for serendipity. Keyword-matched discovery
-    // posts rank ahead of generic popular ones via the kw score term.
-    final out = <Post>[];
-    final discoveryCap = (primary.length * 0.2).ceil();
-    var di = 0;
-    for (var i = 0; i < primary.length; i++) {
-      out.add(primary[i]);
-      if ((i + 1) % 5 == 0 && di < discovery.length && di < discoveryCap) {
-        out.add(discovery[di++]);
+    // Next cursors. A source that failed keeps its place (it used to be
+    // dropped for the rest of the session — one timeout on /best and the
+    // feed quietly became r/popular); an exhausted one is left out.
+    final next = <String, String>{};
+    for (final (key, listing) in [
+      ('best', best),
+      ('rising', rising),
+      ('popular', popular),
+    ]) {
+      if (!live(key)) continue;
+      if (listing == null) {
+        next[key] = (prev[key] as String?) ?? '';
+      } else if ((listing.after ?? '').isNotEmpty) {
+        next[key] = listing.after!;
       }
     }
-    if (out.isEmpty) out.addAll(discovery); // no subscriptions → discovery only
-
-    // Big news lands in a dozen subreddits at once, and the per-sub cap can't
-    // see that: five near-identical headlines from five communities would
-    // each pass it. Two titles count as the same story when they share at
-    // least three keywords and half their keywords overall. Repeats are
-    // deferred to the end rather than dropped — another community's thread
-    // on the same news can still be worth reading later.
-    final shownStories = <Set<String>>[];
-    final kept = <Post>[];
-    final deferred = <Post>[];
-    for (final p in out) {
-      final words = titleKeywords(p.title).toSet();
-      final isRepeat = words.length >= 3 &&
-          shownStories.any((story) {
-            final shared = story.intersection(words).length;
-            return shared >= 3 &&
-                shared / story.union(words).length >= 0.5;
-          });
-      if (isRepeat) {
-        deferred.add(p);
-      } else {
-        kept.add(p);
-        shownStories.add(words);
-      }
-    }
-    final ranked = [...kept, ...deferred];
-
-    // Encode the next-page cursors; null when every source is exhausted.
-    final nextCursors = <String, String>{
-      if (best.after != null && best.after!.isNotEmpty) 'best': best.after!,
-      if (rising.after != null && rising.after!.isNotEmpty)
-        'rising': rising.after!,
-      if (popular.after != null && popular.after!.isNotEmpty)
-        'popular': popular.after!,
-    };
-    return Listing(
-      items: ranked,
-      after: (ranked.isNotEmpty && nextCursors.isNotEmpty)
-          ? jsonEncode(nextCursors)
-          : null,
+    return ForYouPage(
+      listing: Listing(
+        items: result.ranked,
+        after: (result.ranked.isNotEmpty || result.leftovers.isNotEmpty) &&
+                next.isNotEmpty
+            ? jsonEncode(next)
+            : null,
+      ),
+      cursors: next,
+      leftovers: result.leftovers,
+      meta: result.meta,
+      candidateTitles: [for (final c in pool) c.post.title],
     );
   }
 
@@ -379,11 +307,27 @@ class RedditRepository {
   }
 
   /// Returns the post (refreshed) and its top-level comment tree.
-  Future<(Post, List<Comment>)> getComments({
+  /// Returns the post, its comment tree and the thread's suggested comment
+  /// sort (e.g. "qa" on AMAs), if the moderators set one.
+  Future<(Post, List<Comment>, String?)> getComments({
     required String subreddit,
     required String postId,
     String sort = 'confidence',
     String? focusCommentId,
+  }) async =>
+      parseThread(await getCommentsRaw(
+          subreddit: subreddit,
+          postId: postId,
+          sort: sort,
+          focusCommentId: focusCommentId));
+
+  /// The raw comments response — kept as-is for offline reading.
+  Future<List<dynamic>> getCommentsRaw({
+    required String subreddit,
+    required String postId,
+    String sort = 'confidence',
+    String? focusCommentId,
+    int limit = 100,
   }) async {
     // `_` (or empty) means the subreddit is unknown (e.g. a redd.it short link);
     // Reddit resolves the post from just the id.
@@ -394,7 +338,7 @@ class RedditRepository {
       path,
       query: {
         'sort': sort,
-        'limit': 100,
+        'limit': limit,
         // Focus on a single comment (from a permalink / inbox reply): Reddit
         // returns that comment's thread, with a few parents for context.
         if (focusCommentId != null) ...{
@@ -403,18 +347,24 @@ class RedditRepository {
         },
       },
     );
-    final body = res.data!;
+    return res.data!;
+  }
+
+  /// Parses a comments response (live or saved offline).
+  (Post, List<Comment>, String?) parseThread(List<dynamic> body) {
     final postChildren =
         (((body[0] as Map)['data'] as Map)['children'] as List);
-    final post = Post.fromData(
-        ((postChildren.first as Map)['data'] as Map).cast<String, dynamic>());
+    final postData =
+        ((postChildren.first as Map)['data'] as Map).cast<String, dynamic>();
+    final post = Post.fromData(postData);
+    final suggested = postData['suggested_sort'] as String?;
     final commentChildren =
         ((body[1] as Map)['data'] as Map)['children'] as List;
     final comments = [
       for (final c in commentChildren)
         if (c is Map) Comment.fromChild(c.cast<String, dynamic>(), 0)
     ];
-    return (post, comments);
+    return (post, comments, (suggested ?? '').isEmpty ? null : suggested);
   }
 
   /// Expands a "load more comments" node.
@@ -472,10 +422,10 @@ class RedditRepository {
 
   /// [where] ∈ submitted | upvoted | downvoted | hidden  (post listings)
   Future<Listing<Post>> getUserPosts(String username,
-      {String where = 'submitted', String? after}) async {
+      {String where = 'submitted', String? after, int limit = 25}) async {
     final res = await _client.get<Map<String, dynamic>>(
       '/user/$username/$where',
-      query: {'limit': 25, if (after != null) 'after': after},
+      query: {'limit': limit, if (after != null) 'after': after},
     );
     return _parsePostListing(res.data!);
   }
@@ -500,10 +450,11 @@ class RedditRepository {
 
   /// Saved items are mixed posts (t3) and comments (t1); items are [Post] or
   /// [Comment] in original order.
-  Future<Listing<Object>> getUserSaved(String username, {String? after}) async {
+  Future<Listing<Object>> getUserSaved(String username,
+      {String? after, int limit = 25}) async {
     final res = await _client.get<Map<String, dynamic>>(
       '/user/$username/saved',
-      query: {'limit': 25, if (after != null) 'after': after},
+      query: {'limit': limit, if (after != null) 'after': after},
     );
     final data = res.data?['data'] as Map<String, dynamic>?;
     final children = (data?['children'] as List?) ?? const [];
@@ -778,10 +729,10 @@ class RedditRepository {
 
   /// [where] ∈ inbox | unread | messages | sent | comments | mentions
   Future<Listing<InboxItem>> getInbox(
-      {String where = 'inbox', String? after}) async {
+      {String where = 'inbox', String? after, int limit = 25}) async {
     final res = await _client.get<Map<String, dynamic>>(
       '/message/$where',
-      query: {'limit': 25, if (after != null) 'after': after},
+      query: {'limit': limit, if (after != null) 'after': after},
     );
     final data = res.data?['data'] as Map<String, dynamic>?;
     final children = (data?['children'] as List?) ?? const [];
@@ -795,7 +746,9 @@ class RedditRepository {
   }
 
   Future<int> getUnreadCount() async {
-    final listing = await getInbox(where: 'unread');
+    // One page of 100 (Reddit's max): the badge shows "99+" beyond that, so
+    // the default page of 25 used to cap it at 25.
+    final listing = await getInbox(where: 'unread', limit: 100);
     return listing.items.length;
   }
 
@@ -1078,4 +1031,20 @@ class RedditRepository {
       String multipath, String subreddit) async {
     await _client.delete('/api/multi$multipath/r/$subreddit');
   }
+}
+
+/// One page of For You, plus what the next page and the UI need.
+class ForYouPage {
+  const ForYouPage({
+    required this.listing,
+    required this.cursors,
+    required this.leftovers,
+    required this.meta,
+    required this.candidateTitles,
+  });
+  final Listing<Post> listing;
+  final Map<String, String> cursors;
+  final List<Candidate> leftovers;
+  final Map<String, ForYouMeta> meta;
+  final List<String> candidateTitles; // for word rarity (IDF)
 }

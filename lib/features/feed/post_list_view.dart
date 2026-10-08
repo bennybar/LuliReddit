@@ -9,6 +9,7 @@ import '../../core/widgets/image_decode.dart';
 import '../../data/reddit_repository.dart';
 import '../../models/post.dart';
 import '../history/history_store.dart';
+import '../post/post_actions.dart' show hiddenPostsProvider;
 import '../settings/settings_controller.dart';
 import 'content_filters.dart';
 import 'feed_controller.dart';
@@ -149,10 +150,34 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
                 .where((p) => !(p.feedReason != null && seen.contains(p.id)))
                 .toList();
           }
+          // Posts hidden this session (Hide / swipe-to-hide).
+          final hiddenIds = ref.watch(hiddenPostsProvider);
+          if (hiddenIds.isNotEmpty) {
+            posts = posts.where((p) => !hiddenIds.contains(p.id)).toList();
+          }
           // User content filters (keywords / domains / flairs).
           final filters = ref.watch(contentFiltersProvider);
           if (!filters.isEmpty) {
-            posts = posts.where((p) => !filters.hides(p)).toList();
+            // A subreddit feed still shows that subreddit's own posts.
+            final viewing = widget.feedKey.isEmpty ||
+                    widget.feedKey.startsWith('m::')
+                ? null
+                : widget.feedKey;
+            posts = posts
+                .where((p) => !filters.hides(p, viewingSubreddit: viewing))
+                .toList();
+          }
+          final hidden = state.posts.length - posts.length;
+          // Paging is triggered by building post rows near the end. If the
+          // filters hide (almost) everything loaded, there are no rows to
+          // build and the list can't scroll, so the feed stalled blank. Keep
+          // fetching instead, up to a bound in case nothing ever matches.
+          if (posts.length < 10 &&
+              state.hasMore &&
+              !state.loadingMore &&
+              state.posts.length < 250) {
+            WidgetsBinding.instance
+                .addPostFrameCallback((_) => notifier.loadMore());
           }
           final itemCount = 1 + posts.length + 1; // sortbar + posts + footer
           return ListView.separated(
@@ -189,18 +214,25 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
                 return PostCard(post: posts[index]);
               }
               // footer
+              final muted = TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant);
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 24),
-                child: Center(
-                  child: state.loadingMore
-                      ? const CircularProgressIndicator()
-                      : state.hasMore
-                          ? const SizedBox.shrink()
-                          : Text('— end —',
-                              style: TextStyle(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant)),
+                child: Column(
+                  children: [
+                    state.loadingMore
+                        ? const CircularProgressIndicator()
+                        : state.hasMore
+                            ? const SizedBox.shrink()
+                            : Text('— end —', style: muted),
+                    if (hidden > 0)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                            '$hidden ${hidden == 1 ? 'post' : 'posts'} hidden',
+                            style: muted.copyWith(fontSize: 12.5)),
+                      ),
+                  ],
                 ),
               );
             },

@@ -3,26 +3,27 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 import '../../core/analytics.dart';
 import '../../core/format.dart';
+import '../../core/open_link.dart';
 import '../../core/providers.dart';
+import '../../core/widgets/error_view.dart';
 import '../../core/widgets/image_decode.dart';
-import '../../core/widgets/tap_guard.dart';
 import 'inline_video.dart';
 import 'post_overrides.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/post.dart';
 import '../history/history_store.dart';
-import '../history/interest_store.dart';
 import '../media/gallery_carousel.dart';
 import '../media/media_viewers.dart';
 import '../media/nsfw_blur.dart';
+import '../post/compose_sheet.dart';
+import '../foryou/for_you_learner.dart';
+import '../foryou/tune_sheet.dart';
 import '../post/post_actions.dart';
 import '../settings/settings_controller.dart';
 import 'swipe_actions.dart';
@@ -61,8 +62,15 @@ class _PostCardState extends ConsumerState<PostCard> {
     _impressionTimer?.cancel();
     if (info.visibleFraction < 0.6) return;
     _impressionTimer = Timer(const Duration(seconds: 1), () {
-      if (mounted) {
-        ref.read(impressionStoreProvider.notifier).record(widget.post.id);
+      if (!mounted) return;
+      if (widget.post.feedReason != null) {
+        ref.read(forYouLearnerProvider).impression(widget.post);
+      }
+      // "Mark read on scroll": a card actually seen counts as read (history
+      // only — no interest learning, which is for real engagement).
+      final s = ref.read(settingsControllerProvider);
+      if (s.markReadOnScroll && s.trackHistory) {
+        ref.read(historyControllerProvider.notifier).markViewed(widget.post);
       }
     });
   }
@@ -78,18 +86,14 @@ class _PostCardState extends ConsumerState<PostCard> {
     final current = _ov.likes == true ? 1 : (_ov.likes == false ? -1 : 0);
     final target = current == dir ? 0 : dir;
     overrides.setVote(widget.post, target);
-    // Learn: upvoting a community raises its affinity; downvoting lowers it.
-    if (target == 1) {
-      ref.read(interestStoreProvider.notifier).bump(widget.post.subreddit, 2);
-      ref.read(keywordStoreProvider.notifier).bumpTitle(widget.post.title, 1);
-    } else if (target == -1) {
-      ref.read(interestStoreProvider.notifier).bump(widget.post.subreddit, -1.5);
-      ref.read(keywordStoreProvider.notifier).bumpTitle(widget.post.title, -0.8);
-    }
+    final learner = ref.read(forYouLearnerProvider)
+      ..vote(widget.post, current, target);
     try {
       await ref.read(redditRepositoryProvider).vote(widget.post.fullname, target);
-    } catch (_) {
+    } catch (e) {
       overrides.setVote(widget.post, current); // revert
+      learner.vote(widget.post, target, current);
+      if (mounted) showActionError(context, 'vote', e);
     }
   }
 
@@ -97,14 +101,13 @@ class _PostCardState extends ConsumerState<PostCard> {
     final overrides = ref.read(postOverridesProvider.notifier);
     final next = !_ov.saved;
     overrides.setSaved(widget.post, next);
-    ref.read(interestStoreProvider.notifier).bump(widget.post.subreddit, next ? 3 : -3);
-    if (next) {
-      ref.read(keywordStoreProvider.notifier).bumpTitle(widget.post.title, 1.5);
-    }
+    final learner = ref.read(forYouLearnerProvider)..save(widget.post, next);
     try {
       await ref.read(redditRepositoryProvider).setSaved(widget.post.fullname, next);
-    } catch (_) {
+    } catch (e) {
       overrides.setSaved(widget.post, !next);
+      learner.save(widget.post, !next);
+      if (mounted) showActionError(context, next ? 'save' : 'unsave', e);
     }
   }
 
@@ -112,8 +115,8 @@ class _PostCardState extends ConsumerState<PostCard> {
     Analytics.track('post_opened');
     if (ref.read(settingsControllerProvider).trackHistory) {
       ref.read(historyControllerProvider.notifier).markViewed(widget.post);
-      ref.read(interestStoreProvider.notifier).bump(widget.post.subreddit, 0.5);
     }
+    ref.read(forYouLearnerProvider).open(widget.post);
     context.push(
       '/comments/${widget.post.subreddit}/${widget.post.id}',
       extra: widget.post,
@@ -123,10 +126,7 @@ class _PostCardState extends ConsumerState<PostCard> {
   void _openMedia() {
     final p = widget.post;
     // Viewing media is engagement too (slightly stronger than a plain open).
-    if (p.type != PostType.self &&
-        ref.read(settingsControllerProvider).trackHistory) {
-      ref.read(interestStoreProvider.notifier).bump(p.subreddit, 1);
-    }
+    if (p.type != PostType.self) ref.read(forYouLearnerProvider).viewMedia(p);
     switch (p.type) {
       case PostType.image:
         openImageViewer(context, p.previewUrl ?? p.url, title: p.title);
@@ -143,7 +143,7 @@ class _PostCardState extends ConsumerState<PostCard> {
       case PostType.video:
         openPostVideo(context, p);
       case PostType.link:
-        launchUrl(Uri.parse(p.url), mode: LaunchMode.externalApplication);
+        openInBrowser(context, Uri.parse(p.url));
       case PostType.self:
         _openDetail();
     }
@@ -225,7 +225,10 @@ class _PostCardState extends ConsumerState<PostCard> {
           card,
         ],
       );
-      // Shown-but-never-opened posts get demoted on the next feed build.
+    }
+    // For You impressions (shown-but-never-opened posts get demoted on the
+    // next build) and "mark read on scroll" both need to know what was seen.
+    if (reason != null || settings.markReadOnScroll) {
       card = VisibilityDetector(
         key: Key('impression_${widget.post.id}'),
         onVisibilityChanged: _onVisibility,
@@ -236,98 +239,38 @@ class _PostCardState extends ConsumerState<PostCard> {
       onLongPress: _showTuneSheet,
       child: SwipeActions(
         enabled: settings.swipeActions,
-        onRight: () => _vote(1),
-        onLeft: () => _vote(-1),
+        start: _swipe(settings.swipePostStart),
+        end: _swipe(settings.swipePostEnd),
         child: card,
       ),
     );
   }
 
-  /// Long-press → "tune your feed": teach the on-device model faster.
-  void _showTuneSheet() {
-    HapticFeedback.mediumImpact();
-    final sub = widget.post.subreddit;
-    final muted = ref.read(mutedSubsProvider.notifier).contains(sub);
-    final interest = ref.read(interestStoreProvider.notifier);
-    void toast(String msg) =>
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(msg),
-          action: SnackBarAction(
-            label: 'Manage',
-            onPressed: () => context.push('/manage_for_you'),
-          ),
-        ));
-
-    showModalBottomSheet(
-      context: context,
-      showDragHandle: true,
-      // Ignore taps briefly so the gesture that opened the sheet can't fall
-      // through onto an item (which fired More/Less directly with no sheet).
-      builder: (ctx) => TapGuard(
-        child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-              child: Row(
-                children: [
-                  Icon(Icons.auto_awesome_rounded,
-                      size: 18, color: Theme.of(ctx).colorScheme.primary),
-                  const SizedBox(width: 8),
-                  Text('Tune your feed',
-                      style: Theme.of(ctx)
-                          .textTheme
-                          .titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w700)),
-                ],
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.thumb_up_alt_outlined),
-              title: const Text('More like this'),
-              subtitle: Text('Show more from r/$sub and similar'),
-              onTap: () {
-                interest.bump(sub, 5);
-                ref
-                    .read(keywordStoreProvider.notifier)
-                    .bumpTitle(widget.post.title, 2);
-                Navigator.pop(ctx);
-                toast("We'll show more like this");
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.thumb_down_alt_outlined),
-              title: const Text('Less like this'),
-              subtitle: Text('Show less from r/$sub'),
-              onTap: () {
-                interest.bump(sub, -5);
-                ref
-                    .read(keywordStoreProvider.notifier)
-                    .bumpTitle(widget.post.title, -2);
-                Navigator.pop(ctx);
-                toast("We'll show less like this");
-              },
-            ),
-            ListTile(
-              leading: Icon(muted
-                  ? Icons.volume_up_rounded
-                  : Icons.volume_off_rounded),
-              title: Text(muted ? 'Unmute r/$sub' : 'Mute r/$sub in For You'),
-              onTap: () {
-                ref.read(mutedSubsProvider.notifier).toggle(sub);
-                Navigator.pop(ctx);
-                toast(muted
-                    ? 'r/$sub unmuted'
-                    : 'r/$sub muted from For You');
-              },
-            ),
-          ],
-        ),
-        ),
-      ),
-    );
+  /// What a swipe on this card does, per Settings → Swipe actions.
+  SwipeSpec? _swipe(SwipeAction action) {
+    final votes = Theme.of(context).extension<VoteColors>()!;
+    final cs = Theme.of(context).colorScheme;
+    final p = widget.post;
+    return switch (action) {
+      SwipeAction.upvote => SwipeSpec(action.icon, votes.up, () => _vote(1)),
+      SwipeAction.downvote =>
+        SwipeSpec(action.icon, votes.down, () => _vote(-1)),
+      SwipeAction.save => SwipeSpec(action.icon, cs.primary, _toggleSave),
+      SwipeAction.reply => SwipeSpec(action.icon, cs.tertiary, () async {
+          final reply = await showReplySheet(context, ref,
+              parentFullname: p.fullname, parentDepth: -1);
+          if (reply != null) {
+            ref.read(postOverridesProvider.notifier).bumpComments(p, 1);
+          }
+        }),
+      SwipeAction.hide =>
+        SwipeSpec(action.icon, cs.error, () => hidePost(context, ref, p)),
+      SwipeAction.collapse || SwipeAction.none => null,
+    };
   }
+
+  /// Long-press → "Tune For You": why it's here, and explicit More/Less.
+  void _showTuneSheet() => showTuneSheet(context, ref, widget.post);
 
   Widget _largeCard(BuildContext context) {
     final p = widget.post;

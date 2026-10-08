@@ -23,13 +23,29 @@ class WebLoginScreen extends StatefulWidget {
 class _WebLoginScreenState extends State<WebLoginScreen> {
   Timer? _poll;
   bool _done = false;
-  bool _cleared = false;
+  // With clearFirst, the old cookies must be gone before the page loads or the
+  // session check runs — otherwise it finds the *current* account's
+  // reddit_session straight away and adds that account again.
+  late bool _ready = !widget.clearFirst;
 
   @override
   void initState() {
     super.initState();
-    _poll = Timer.periodic(const Duration(milliseconds: 700), (_) => _check());
+    if (_ready) {
+      _startPolling();
+    } else {
+      CookieManager.instance().deleteAllCookies().whenComplete(() {
+        if (!mounted) return;
+        setState(() => _ready = true);
+        _startPolling();
+      });
+    }
   }
+
+  void _startPolling() => _poll = Timer.periodic(
+    const Duration(milliseconds: 700),
+    (_) => _check(),
+  );
 
   @override
   void dispose() {
@@ -61,21 +77,19 @@ class _WebLoginScreenState extends State<WebLoginScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: InAppWebView(
-        initialUrlRequest: URLRequest(url: WebUri(RedditConstants.webLoginUrl)),
-        initialSettings: InAppWebViewSettings(
-          userAgent: RedditConstants.webUserAgent,
-          javaScriptEnabled: true,
-          clearCache: widget.clearFirst,
-        ),
-        onWebViewCreated: (_) async {
-          if (widget.clearFirst && !_cleared) {
-            _cleared = true;
-            await CookieManager.instance().deleteAllCookies();
-          }
-        },
-        onLoadStop: (_, __) => _check(),
-      ),
+      body: !_ready
+          ? const Center(child: CircularProgressIndicator())
+          : InAppWebView(
+              initialUrlRequest: URLRequest(
+                url: WebUri(RedditConstants.webLoginUrl),
+              ),
+              initialSettings: InAppWebViewSettings(
+                userAgent: RedditConstants.webUserAgent,
+                javaScriptEnabled: true,
+                clearCache: widget.clearFirst,
+              ),
+              onLoadStop: (_, __) => _check(),
+            ),
     );
   }
 }

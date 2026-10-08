@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers.dart';
 import '../../models/inbox_item.dart';
 import '../../models/listing.dart';
+import '../auth/auth_controller.dart';
 
 class InboxState {
   const InboxState({
@@ -104,13 +105,22 @@ class InboxController extends FamilyAsyncNotifier<InboxState, String> {
     } catch (_) {/* keep optimistic removal */}
   }
 
+  /// Marks *everything* read — Reddit's read_all_messages has no per-tab
+  /// variant — so every tab is refreshed afterwards, not just this one.
+  /// Throws on failure (after restoring this tab) so the caller can say so.
   Future<void> markAllRead() async {
     final current = state.valueOrNull;
     if (current != null) {
       state = AsyncData(current.copyWith(
           items: [for (final i in current.items) i.copyWith(isNew: false)]));
     }
-    await ref.read(redditRepositoryProvider).markAllRead();
+    try {
+      await ref.read(redditRepositoryProvider).markAllRead();
+    } catch (_) {
+      if (current != null) state = AsyncData(current);
+      rethrow;
+    }
+    ref.invalidate(inboxControllerProvider);
     ref.invalidate(unreadCountProvider);
   }
 }
@@ -121,5 +131,9 @@ final inboxControllerProvider =
 
 /// Unread message count for the bottom-nav badge.
 final unreadCountProvider = FutureProvider.autoDispose<int>((ref) async {
+  // No inbox while browsing without an account.
+  if (ref.watch(authControllerProvider).valueOrNull?.anonymous ?? false) {
+    return 0;
+  }
   return ref.watch(redditRepositoryProvider).getUnreadCount();
 });

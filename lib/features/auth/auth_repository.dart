@@ -186,16 +186,25 @@ class AuthRepository {
       throw AuthException('Reddit did not return an access token.');
     }
 
+    // Resolve the account before saving anything: a login without a username
+    // used to be stored as a placeholder "redditor" account that broke on the
+    // next resume.
+    final username = await _fetchUsername(accessToken) ??
+        await _fetchUsername(accessToken);
+    if (username == null) {
+      throw AuthException(
+          "Signed in, but couldn't load your Reddit username. Check your "
+          'connection and try again.');
+    }
+
     await _store.saveTokens(
       accessToken: accessToken,
       refreshToken: refreshToken,
       expiry: DateTime.now().add(Duration(seconds: expiresIn - 60)),
     );
-
-    final username = await _fetchUsername(accessToken);
     await _store.saveUsername(username);
     await _store.saveCredentials(clientId: clientId, redirectUri: redirectUri);
-    return username ?? 'redditor';
+    return username;
   }
 
   /// Website-session login (no API key). The UI captures reddit.com cookies via
@@ -257,6 +266,55 @@ class AuthRepository {
 
   /// Refreshes the access token using the stored refresh token. Returns the new
   /// access token, or null if refresh is not possible (caller should re-login).
+  /// Starts browsing without an account, using [clientId]'s app-only token
+  /// (Reddit's "installed client" grant). Throws [AuthException] if refused.
+  Future<void> startAnonymous(String clientId) async {
+    clientId = clientId.trim();
+    final token = await _appOnlyToken(clientId);
+    if (token == null) {
+      throw AuthException(
+          "Reddit didn't accept this Client ID. Check it, and that the app "
+          'type is "installed app".');
+    }
+    await _store.saveAnonymousSession();
+    await _store.saveCredentials(
+        clientId: clientId, redirectUri: RedditConstants.defaultRedirectUri);
+  }
+
+  /// Fetches and stores an app-only access token for [clientId]; null if
+  /// Reddit refuses it or can't be reached.
+  Future<String?> _appOnlyToken(String clientId) async {
+    try {
+      final res = await _dio.post(
+        RedditConstants.accessTokenUrl,
+        data: {
+          'grant_type': RedditConstants.installedClientGrant,
+          'device_id': RedditConstants.validationDeviceId,
+        },
+        options: Options(
+          contentType: Headers.formUrlEncodedContentType,
+          headers: {
+            'Authorization': _basicAuth(clientId),
+            'User-Agent': RedditConstants.userAgent(null),
+          },
+          validateStatus: (_) => true,
+        ),
+      );
+      final data = res.data;
+      if (res.statusCode != 200 || data is! Map) return null;
+      final token = data['access_token'] as String?;
+      if (token == null) return null;
+      final expiresIn = (data['expires_in'] as num?)?.toInt() ?? 3600;
+      await _store.saveTokens(
+        accessToken: token,
+        expiry: DateTime.now().add(Duration(seconds: expiresIn - 60)),
+      );
+      return token;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<String?> refresh() {
     return _refreshing ??=
         _doRefresh().whenComplete(() => _refreshing = null);
@@ -265,6 +323,13 @@ class AuthRepository {
   Future<String?> _doRefresh() async {
     final refreshToken = await _store.refreshToken;
     final clientId = await _store.clientId;
+    // Browsing without an account: app-only tokens can't be refreshed, so
+    // mint a new one the same way.
+    if (refreshToken == null &&
+        clientId != null &&
+        await _store.authMode == 'anon') {
+      return _appOnlyToken(clientId);
+    }
     if (refreshToken == null || clientId == null) return null;
     try {
       final res = await _dio.post(

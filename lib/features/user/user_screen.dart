@@ -15,6 +15,7 @@ import '../auth/auth_controller.dart';
 import '../feed/paged_list.dart';
 import '../feed/post_card.dart';
 import '../post/post_actions.dart';
+import '../../core/widgets/error_view.dart';
 
 final userAboutProvider =
     FutureProvider.autoDispose.family<RedditUser, String>((ref, name) {
@@ -72,7 +73,7 @@ class UserScreen extends ConsumerWidget {
                   height: 96, child: Center(child: CircularProgressIndicator())),
               error: (e, _) => Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Text('Could not load profile: $e')),
+                  child: Text('Could not load profile: ${friendlyError(e)}')),
               data: (u) => _ProfileHeader(user: u),
             ),
             TabBar(isScrollable: true, tabAlignment: TabAlignment.start, tabs: tabs),

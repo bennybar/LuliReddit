@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/reddit_constants.dart';
+import '../../core/widgets/error_view.dart';
 import 'auth_controller.dart';
 import 'auth_repository.dart';
 import 'web_login_screen.dart';
@@ -275,6 +276,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               icon: const Icon(Icons.public_rounded),
               label: const Text("Can't get an API key? Sign in via website"),
             ),
+            TextButton.icon(
+              onPressed: _busy ? null : _browseAnonymously,
+              icon: const Icon(Icons.travel_explore_rounded),
+              label: const Text('Browse without signing in'),
+            ),
           ],
         ),
       ),
@@ -283,6 +289,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   /// Website-session login (no API key). Shows the risks first, then opens a
   /// Reddit login WebView and stores the session.
+  /// Read-only browsing with just a Client ID (Reddit refuses anonymous
+  /// requests without one). Voting, commenting and the inbox need an account.
+  Future<void> _browseAnonymously() async {
+    FocusScope.of(context).unfocus();
+    if (_clientId.text.trim().isEmpty) {
+      setState(() => _error =
+          'Browsing without an account still needs a Reddit Client ID — '
+          'enter it above.');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await ref
+          .read(authControllerProvider.notifier)
+          .browseAnonymously(_clientId.text);
+    } catch (e) {
+      if (mounted) setState(() => _error = friendlyError(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _webLogin() async {
     final ok = await showDialog<bool>(
       context: context,

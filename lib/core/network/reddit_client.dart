@@ -14,6 +14,19 @@ import 'response_cache.dart';
 /// a compliant User-Agent and `raw_json=1`, transparently refreshes the access
 /// token once on a 401, surfaces rate-limit headers, and (optionally) serves a
 /// disk cache fallback when offline.
+/// A non-2xx answer from Reddit. [reason] is Reddit's machine-readable cause
+/// when it sends one, e.g. "private", "banned" or "quarantined".
+class RedditApiException implements Exception {
+  RedditApiException(this.statusCode, {this.reason, this.message});
+  final int statusCode;
+  final String? reason;
+  final String? message;
+
+  @override
+  String toString() =>
+      'HTTP $statusCode${reason != null ? ' ($reason)' : ''}';
+}
+
 class RedditClient {
   RedditClient(
     this._store,
@@ -47,8 +60,8 @@ class RedditClient {
         } else {
           final token = await _validToken();
           options.headers['Authorization'] = 'bearer $token';
-          options.headers['User-Agent'] =
-              RedditConstants.userAgent(await _store.username);
+          options.headers['User-Agent'] = RedditConstants.userAgent(
+              _username.isEmpty ? null : _username);
           options.queryParameters['raw_json'] = 1;
         }
         handler.next(options);
@@ -60,6 +73,8 @@ class RedditClient {
             response.requestOptions.extra['retried'] != true) {
           final newToken = await _auth.refresh();
           if (newToken != null) {
+            _token = newToken;
+            _tokenExpiry = await _store.tokenExpiry;
             final req = response.requestOptions;
             req.extra['retried'] = true;
             req.headers['Authorization'] = 'bearer $newToken';
@@ -86,16 +101,31 @@ class RedditClient {
   String? _webCookie;
   String? _webModhash;
   bool _configured = false;
+  // Prefix for response-cache keys, so one account's cached pages are never
+  // served (or painted on a cold open) to another.
+  String _cacheUser = '';
+  // Held in memory rather than read from encrypted storage on every request
+  // (three Keystore reads each — ~45 for a cold For You). Reloaded whenever
+  // the auth config is invalidated (login, account switch, resume).
+  String _username = '';
+  String? _token;
+  DateTime? _tokenExpiry;
 
   /// Force a re-read of the auth mode on the next request (call after login or
   /// account switch).
-  void invalidateAuthConfig() => _configured = false;
+  void invalidateAuthConfig() {
+    _configured = false;
+    _token = null;
+    _tokenExpiry = null;
+  }
 
   Future<void> _ensureConfig() async {
     if (_configured) return;
     _webMode = (await _store.authMode) == 'web';
     _webCookie = _webMode ? await _store.webCookie : null;
     _webModhash = _webMode ? await _store.webModhash : null;
+    _username = await _store.username ?? '';
+    _cacheUser = _username.toLowerCase();
     _configured = true;
   }
 
@@ -121,25 +151,33 @@ class RedditClient {
   }
 
   Future<String> _validToken() async {
-    final token = await _store.accessToken;
-    final expiry = await _store.tokenExpiry;
-    final expired = expiry == null || DateTime.now().isAfter(expiry);
-    if (token == null || token.isEmpty || expired) {
-      final refreshed = await _auth.refresh();
-      if (refreshed != null) return refreshed;
+    if (_token == null) {
+      _token = await _store.accessToken;
+      _tokenExpiry = await _store.tokenExpiry;
     }
-    return token ?? '';
+    final expiry = _tokenExpiry;
+    final expired = expiry == null || DateTime.now().isAfter(expiry);
+    if (_token == null || _token!.isEmpty || expired) {
+      final refreshed = await _auth.refresh();
+      if (refreshed != null) {
+        _token = refreshed;
+        _tokenExpiry = await _store.tokenExpiry;
+        return refreshed;
+      }
+    }
+    return _token ?? '';
   }
 
   bool get _cacheOn => cacheEnabled?.call() ?? false;
   String _cacheKey(String path, Map<String, dynamic>? query) =>
-      '$path?${(query ?? {}).entries.map((e) => '${e.key}=${e.value}').join('&')}';
+      '$_cacheUser|$path?${(query ?? {}).entries.map((e) => '${e.key}=${e.value}').join('&')}';
 
   /// The last cached response for this exact request, without touching the
   /// network — so a feed can paint instantly and replace it when the network
   /// answers, instead of only falling back to the cache after a failure.
   Future<dynamic> cached(String path, {Map<String, dynamic>? query}) async {
     if (!_cacheOn) return null;
+    await _ensureConfig();
     return _cache.read(_cacheKey(path, query));
   }
 
@@ -156,6 +194,7 @@ class RedditClient {
         // with a content-type Dio doesn't auto-decode).
         final res = await _dio.get<dynamic>(url, queryParameters: query);
         final data = _coerce(res.data);
+        _throwIfError(res.statusCode, data);
         if (_cacheOn && res.statusCode == 200 && data != null) {
           _cache.write(_cacheKey(path, query), data);
         }
@@ -227,12 +266,25 @@ class RedditClient {
 
   Future<void> clearCache() => _cache.clear();
 
+  // 4xx answers are let through Dio (validateStatus) only so the interceptor
+  // can refresh the token on a 401. Anything still 4xx after that is a real
+  // failure: throw, so optimistic UI rolls back and screens show an error
+  // instead of treating the error body as an empty result.
+  void _throwIfError(int? status, dynamic body) {
+    if (status == null || status < 400) return;
+    final map = body is Map ? body : const {};
+    throw RedditApiException(status,
+        reason: map['reason'] as String?, message: map['message'] as String?);
+  }
+
   Future<Response<T>> post<T>(String path, {Map<String, dynamic>? data}) async {
     await _ensureConfig();
     final res = await _dio.post<dynamic>(_reqUrl(path, isGet: false),
         data: data,
         options: Options(contentType: Headers.formUrlEncodedContentType));
-    return _retype<T>(res, _coerce(res.data));
+    final body = _coerce(res.data);
+    _throwIfError(res.statusCode, body);
+    return _retype<T>(res, body);
   }
 
   /// POST with a JSON body (used by submit_gallery_post and multireddit APIs).
@@ -240,18 +292,25 @@ class RedditClient {
     await _ensureConfig();
     final res = await _dio.post<dynamic>(_reqUrl(path, isGet: false),
         data: data, options: Options(contentType: Headers.jsonContentType));
-    return _retype<T>(res, _coerce(res.data));
+    final body = _coerce(res.data);
+    _throwIfError(res.statusCode, body);
+    return _retype<T>(res, body);
   }
 
   Future<Response<T>> put<T>(String path, {Object? data}) async {
     await _ensureConfig();
-    return _dio.put<T>(_reqUrl(path, isGet: false),
+    final res = await _dio.put<T>(_reqUrl(path, isGet: false),
         data: data, options: Options(contentType: Headers.jsonContentType));
+    _throwIfError(res.statusCode, res.data);
+    return res;
   }
 
   Future<Response<T>> delete<T>(String path,
       {Map<String, dynamic>? query}) async {
     await _ensureConfig();
-    return _dio.delete<T>(_reqUrl(path, isGet: false), queryParameters: query);
+    final res =
+        await _dio.delete<T>(_reqUrl(path, isGet: false), queryParameters: query);
+    _throwIfError(res.statusCode, res.data);
+    return res;
   }
 }

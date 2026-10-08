@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers.dart';
 import '../../models/comment.dart';
 import '../../models/post.dart';
+import '../feed/content_filters.dart';
+import '../offline/offline_store.dart';
 import '../settings/settings_controller.dart';
 
 class PostThread {
@@ -50,6 +52,7 @@ class CommentsController extends AutoDisposeFamilyAsyncNotifier<PostThread, Stri
   // Empty until the first build seeds it from the user's default comment sort.
   String _sort = '';
   String get sort => _sort;
+  bool _sortChosen = false; // the user picked a sort for this thread
   bool get isFocused => _focusCommentId != null;
 
   @override
@@ -65,17 +68,52 @@ class CommentsController extends AutoDisposeFamilyAsyncNotifier<PostThread, Stri
     _focusCommentId = (parts.length > 2 && parts[2].startsWith('focus_'))
         ? parts[2].substring(6)
         : null;
-    final (post, comments) = await ref.read(redditRepositoryProvider).getComments(
-          subreddit: _subreddit,
-          postId: _postId,
-          sort: _sort,
-          focusCommentId: _focusCommentId,
-        );
-    return PostThread(post: post, comments: comments);
+    final repo = ref.read(redditRepositoryProvider);
+    Post post;
+    List<Comment> comments;
+    String? suggested;
+    try {
+      (post, comments, suggested) = await repo.getComments(
+        subreddit: _subreddit,
+        postId: _postId,
+        sort: _sort,
+        focusCommentId: _focusCommentId,
+      );
+    } catch (_) {
+      // Saved for offline (Read later)? Show that copy instead of an error.
+      final saved =
+          _focusCommentId == null ? await readOfflineThread(_postId) : null;
+      if (saved == null) rethrow;
+      (post, comments, _) = repo.parseThread(saved);
+      return PostThread(post: post, comments: comments);
+    }
+    // Threads like AMAs set a suggested sort (Q&A, New). Follow it unless the
+    // user picked a sort for this thread; it's only known once fetched.
+    if (!_sortChosen &&
+        suggested != null &&
+        suggested != _sort &&
+        commentSortLabels.containsKey(suggested)) {
+      _sort = suggested;
+      (post, comments, _) = await repo.getComments(
+        subreddit: _subreddit,
+        postId: _postId,
+        sort: _sort,
+        focusCommentId: _focusCommentId,
+      );
+    }
+    // "Collapse AutoModerator" filter: start its comments collapsed.
+    final collapsed = ref.read(contentFiltersProvider).collapseAutoMod
+        ? {
+            for (final c in comments)
+              if (c.author == 'AutoModerator') c.id
+          }
+        : const <String>{};
+    return PostThread(post: post, comments: comments, collapsed: collapsed);
   }
 
   Future<void> changeSort(String sort) async {
     _sort = sort;
+    _sortChosen = true;
     state = const AsyncLoading();
     state = await AsyncValue.guard(() => build(arg));
   }
@@ -128,12 +166,33 @@ class CommentsController extends AutoDisposeFamilyAsyncNotifier<PostThread, Stri
     state = AsyncData(s.copyWith(comments: walk(s.comments)));
   }
 
+  /// Applies [change] to one comment in the tree. Vote and save state live
+  /// here rather than in the comment's widget, which the list disposes as it
+  /// scrolls off-screen — so they survive scrolling away and back.
+  void updateComment(String fullname, Comment Function(Comment) change) {
+    final s = state.valueOrNull;
+    if (s == null) return;
+    List<Comment> walk(List<Comment> nodes) => [
+          for (final n in nodes)
+            n.fullname == fullname
+                ? change(n)
+                : (n.replies.isEmpty ? n : n.copyWith(replies: walk(n.replies))),
+        ];
+    state = AsyncData(s.copyWith(comments: walk(s.comments)));
+  }
+
+  /// After deleting a comment: drop it, or — if it has replies — keep the
+  /// replies under a "[deleted]" placeholder, as Reddit does.
   void removeComment(String fullname) {
     final s = state.valueOrNull;
     if (s == null) return;
     List<Comment> walk(List<Comment> nodes) => [
           for (final n in nodes)
-            if (n.fullname != fullname) n.copyWith(replies: walk(n.replies)),
+            if (n.fullname != fullname)
+              n.copyWith(replies: walk(n.replies))
+            else if (n.replies.isNotEmpty)
+              n.copyWith(
+                  author: '[deleted]', body: '[deleted]', media: const {}),
         ];
     state = AsyncData(s.copyWith(comments: walk(s.comments)));
   }
@@ -148,6 +207,7 @@ class CommentsController extends AutoDisposeFamilyAsyncNotifier<PostThread, Stri
       final flat = await ref.read(redditRepositoryProvider).getMoreComments(
             linkFullname: s.post.fullname,
             childrenIds: moreNode.moreChildren,
+            sort: _sort, // expanded replies follow the thread's sort
             depth: moreNode.depth,
           );
 

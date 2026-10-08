@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/providers.dart';
 import 'multireddit_providers.dart';
+import '../../core/widgets/error_view.dart';
 
 class ManageMultiredditScreen extends ConsumerWidget {
   const ManageMultiredditScreen({super.key, required this.name});
@@ -50,7 +51,7 @@ class ManageMultiredditScreen extends ConsumerWidget {
       ),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Could not load feed: $e')),
+        error: (e, _) => Center(child: Text('Could not load feed: ${friendlyError(e)}')),
         data: (multi) {
           if (multi == null) {
             return const Center(child: Text('Feed not found'));

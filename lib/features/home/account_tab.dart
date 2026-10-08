@@ -5,21 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../core/providers.dart';
 import '../auth/auth_controller.dart';
 import '../auth/web_login_screen.dart';
-import '../explore/explore_screen.dart';
-import '../feed/feed_controller.dart';
-import '../inbox/inbox_controller.dart';
 import '../multireddit/multireddit_providers.dart';
 import '../settings/settings_screen.dart';
-
-/// Refreshes all account-scoped data after switching/adding/removing an account.
-void _resetAccountData(WidgetRef ref) {
-  ref.read(redditRepositoryProvider).clearSubsCache();
-  ref.invalidate(feedControllerProvider);
-  ref.invalidate(inboxControllerProvider);
-  ref.invalidate(unreadCountProvider);
-  ref.invalidate(subscribedSubredditsProvider);
-  ref.invalidate(myMultiredditsProvider);
-}
 
 class AccountTab extends ConsumerWidget {
   const AccountTab({super.key});
@@ -27,14 +14,18 @@ class AccountTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
-    final username =
-        ref.watch(authControllerProvider).valueOrNull?.username ?? '';
+    final session = ref.watch(authControllerProvider).valueOrNull;
+    final username = session?.username ?? '';
+    final anonymous = session?.anonymous ?? false;
 
     return ListView(
       padding: EdgeInsets.zero,
       children: [
+        if (anonymous) const SignInPrompt(
+            message: 'You\'re browsing without an account. Sign in to vote, '
+                'comment, save, see your inbox and get your own frontpage.'),
         // Profile header
-        Padding(
+        if (!anonymous) Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: Row(
             children: [
@@ -92,53 +83,62 @@ class AccountTab extends ConsumerWidget {
           ),
         ),
 
+        ListTile(
+          leading: const Icon(Icons.offline_pin_rounded),
+          title: const Text('Read later'),
+          subtitle: const Text('Threads saved for offline reading'),
+          onTap: () => context.push('/offline'),
+        ),
+
         // Settings (primary)
         const SettingsList(embedded: true),
 
         const Divider(),
 
         // Custom feeds (secondary)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text('Custom feeds',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleSmall
-                        ?.copyWith(
-                            color: cs.primary, fontWeight: FontWeight.w700)),
-              ),
-              TextButton.icon(
-                onPressed: () => _createMulti(context, ref, username),
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('New'),
-              ),
-            ],
-          ),
-        ),
-        ref.watch(myMultiredditsProvider).when(
-              loading: () => const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Center(child: CircularProgressIndicator())),
-              error: (e, _) => const SizedBox.shrink(),
-              data: (multis) => Column(
-                children: [
-                  for (final m in multis)
-                    ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: cs.tertiaryContainer,
-                        foregroundColor: cs.onTertiaryContainer,
-                        child: const Icon(Icons.dynamic_feed_rounded, size: 20),
-                      ),
-                      title: Text(m.displayName),
-                      subtitle: Text('${m.subreddits.length} subreddits'),
-                      onTap: () => context.push('/m/$username/${m.name}'),
-                    ),
-                ],
-              ),
+        if (!anonymous) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text('Custom feeds',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleSmall
+                          ?.copyWith(
+                              color: cs.primary, fontWeight: FontWeight.w700)),
+                ),
+                TextButton.icon(
+                  onPressed: () => _createMulti(context, ref, username),
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('New'),
+                ),
+              ],
             ),
+          ),
+          ref.watch(myMultiredditsProvider).when(
+                loading: () => const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Center(child: CircularProgressIndicator())),
+                error: (e, _) => const SizedBox.shrink(),
+                data: (multis) => Column(
+                  children: [
+                    for (final m in multis)
+                      ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: cs.tertiaryContainer,
+                          foregroundColor: cs.onTertiaryContainer,
+                          child: const Icon(Icons.dynamic_feed_rounded, size: 20),
+                        ),
+                        title: Text(m.displayName),
+                        subtitle: Text('${m.subreddits.length} subreddits'),
+                        onTap: () => context.push('/m/$username/${m.name}'),
+                      ),
+                  ],
+                ),
+              ),
+        ],
         const SizedBox(height: 130),
       ],
     );
@@ -227,7 +227,6 @@ class AccountTab extends ConsumerWidget {
                             await ref
                                 .read(authControllerProvider.notifier)
                                 .switchAccount(a);
-                            _resetAccountData(ref);
                           },
                   ),
                 const Divider(height: 8),
@@ -272,7 +271,6 @@ class AccountTab extends ConsumerWidget {
       } else {
         await ref.read(authControllerProvider.notifier).addAccount();
       }
-      _resetAccountData(ref);
     } catch (e) {
       messenger.showSnackBar(SnackBar(
           content: Text(
@@ -301,7 +299,51 @@ class AccountTab extends ConsumerWidget {
     );
     if (ok == true) {
       await ref.read(authControllerProvider.notifier).removeAccount(username);
-      _resetAccountData(ref);
     }
+  }
+}
+
+/// Shown where an account is needed while browsing without one: explains it
+/// and offers to sign in (which goes back to the login screen).
+class SignInPrompt extends ConsumerWidget {
+  const SignInPrompt({super.key, required this.message});
+  final String message;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Icon(Icons.travel_explore_rounded, color: cs.primary),
+                const SizedBox(width: 10),
+                Text('Browsing without an account',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700)),
+              ]),
+              const SizedBox(height: 8),
+              Text(message),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                icon: const Icon(Icons.login_rounded),
+                label: const Text('Sign in'),
+                // Ends the anonymous session; the router then shows login
+                // (the Client ID stays filled in).
+                onPressed: () =>
+                    ref.read(authControllerProvider.notifier).logout(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

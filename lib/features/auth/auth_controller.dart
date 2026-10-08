@@ -33,8 +33,10 @@ final authModeProvider = FutureProvider.autoDispose<String>((ref) async {
 
 /// The signed-in session. `null` means no user → show the login screen.
 class AuthSession {
-  const AuthSession({required this.username});
-  final String username;
+  const AuthSession({required this.username, this.anonymous = false});
+  final String username; // '' when [anonymous]
+  /// Browsing without an account (app-only token): read-only.
+  final bool anonymous;
 }
 
 class AuthController extends AsyncNotifier<AuthSession?> {
@@ -61,8 +63,23 @@ class AuthController extends AsyncNotifier<AuthSession?> {
 
   @override
   Future<AuthSession?> build() async {
+    if (await _store.authMode == 'anon') {
+      if (await _readRetry(() => _store.clientId) == null) return null;
+      _setHasAccount(true);
+      return const AuthSession(username: '', anonymous: true);
+    }
     final username = await _readRetry(() => _store.username);
-    if (username == null) return null;
+    if (username == null) {
+      // The router keeps a known account signed in through a transient read
+      // failure (has_account). But if the store reads fine and simply holds
+      // no account — e.g. restored onto a new phone, where it isn't backed up
+      // — clear the flag so the router shows the login screen instead of an
+      // empty, signed-out Home.
+      try {
+        if (!await _store.hasUsername()) _setHasAccount(false);
+      } catch (_) {/* still unreadable: treat as transient */}
+      return null;
+    }
     final mode = await _store.authMode;
     if (mode == 'web') {
       final cookie = await _readRetry(() => _store.webCookie);
@@ -116,6 +133,13 @@ class AuthController extends AsyncNotifier<AuthSession?> {
     if (rt != null) await _store.upsertAccount(username, rt);
     _setHasAccount(true);
     state = AsyncData(AuthSession(username: username));
+  }
+
+  /// Starts browsing without an account (needs only a Client ID).
+  Future<void> browseAnonymously(String clientId) async {
+    await _repo.startAnonymous(clientId);
+    _setHasAccount(true);
+    state = const AsyncData(AuthSession(username: '', anonymous: true));
   }
 
   /// Adds another account, reusing the saved API credentials.

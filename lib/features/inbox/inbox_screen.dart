@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/format.dart';
+import '../../core/widgets/error_view.dart';
 import '../../models/inbox_item.dart';
+import '../auth/auth_controller.dart';
+import '../home/account_tab.dart' show SignInPrompt;
 import '../home/tab_signals.dart';
 import 'inbox_controller.dart';
 
@@ -19,6 +22,13 @@ class InboxScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (ref.watch(authControllerProvider).valueOrNull?.anonymous ?? false) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Inbox')),
+        body: const SignInPrompt(
+            message: 'Sign in to see your messages, replies and mentions.'),
+      );
+    }
     return DefaultTabController(
       length: _tabs.length,
       child: Scaffold(
@@ -27,13 +37,20 @@ class InboxScreen extends ConsumerWidget {
           actions: [
             Builder(builder: (ctx) {
               return IconButton(
-                tooltip: 'Mark this tab read',
+                tooltip: 'Mark all read',
                 icon: const Icon(Icons.mark_email_read_outlined),
-                onPressed: () {
+                onPressed: () async {
                   final i = DefaultTabController.of(ctx).index;
-                  ref
-                      .read(inboxControllerProvider(_tabs[i].$2).notifier)
-                      .markAllRead();
+                  final messenger = ScaffoldMessenger.of(ctx);
+                  try {
+                    await ref
+                        .read(inboxControllerProvider(_tabs[i].$2).notifier)
+                        .markAllRead();
+                  } catch (e) {
+                    messenger.showSnackBar(SnackBar(
+                        content: Text(
+                            "Couldn't mark all read: ${friendlyError(e)}")));
+                  }
                 },
               );
             }),
@@ -152,7 +169,7 @@ class _InboxListState extends ConsumerState<_InboxList>
         error: (e, _) => ListView(children: [
           Padding(
             padding: const EdgeInsets.all(32),
-            child: Center(child: Text('Could not load inbox.\n$e')),
+            child: Center(child: Text('Could not load inbox.\n${friendlyError(e)}')),
           ),
         ]),
         data: (state) {

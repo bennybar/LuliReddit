@@ -8,6 +8,7 @@ import '../../core/providers.dart';
 import '../../core/share.dart';
 import '../../models/subreddit.dart';
 import '../feed/post_list_view.dart';
+import '../../core/widgets/error_view.dart';
 
 final subredditAboutProvider =
     FutureProvider.autoDispose.family<Subreddit, String>((ref, name) {
@@ -236,8 +237,10 @@ class _SubredditScreenState extends ConsumerState<SubredditScreen> {
     setState(() => _subOverride = next);
     try {
       await ref.read(redditRepositoryProvider).setSubscribed(s.name, next);
-    } catch (_) {
-      if (mounted) setState(() => _subOverride = currentlySubscribed);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _subOverride = currentlySubscribed);
+      showActionError(context, next ? 'join' : 'leave', e);
     }
   }
 }

@@ -14,6 +14,7 @@ import 'features/inbox/compose_message_screen.dart';
 import 'features/inbox/message_thread_screen.dart';
 import 'features/multireddit/manage_multireddit_screen.dart';
 import 'features/multireddit/multireddit_feed_screen.dart';
+import 'features/offline/offline_screen.dart';
 import 'features/post/post_detail_screen.dart';
 import 'features/search/search_screen.dart';
 import 'features/settings/content_filters_screen.dart';
@@ -85,6 +86,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/policy', builder: (_, __) => const PolicyScreen()),
       GoRoute(path: '/history', builder: (_, __) => const HistoryScreen()),
       GoRoute(path: '/saved', builder: (_, __) => const SavedHubScreen()),
+      GoRoute(path: '/offline', builder: (_, __) => const OfflineScreen()),
       GoRoute(
         path: '/search',
         builder: (_, state) => SearchScreen(

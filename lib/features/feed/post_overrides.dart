@@ -47,11 +47,17 @@ class PostOverridesController extends Notifier<Map<String, PostOverride>> {
 
   void _set(String id, PostOverride o) => state = {...state, id: o};
 
+  // When the user last voted/saved each post. A fresh server copy wins
+  // otherwise, so scores don't freeze at whatever was first seen.
+  final _localAt = <String, DateTime>{};
+  void _touch(String id) => _localAt[id] = DateTime.now();
+
   /// Applies a vote (toggling off if the same direction is tapped again).
   void setVote(Post p, int targetDir) {
     final cur = effective(p);
     final curDir = cur.likes == true ? 1 : (cur.likes == false ? -1 : 0);
     if (targetDir == curDir) return;
+    _touch(p.id);
     _set(
       p.id,
       cur.copyWith(
@@ -62,24 +68,31 @@ class PostOverridesController extends Notifier<Map<String, PostOverride>> {
     );
   }
 
-  void setSaved(Post p, bool saved) =>
-      _set(p.id, effective(p).copyWith(saved: saved));
+  void setSaved(Post p, bool saved) {
+    _touch(p.id);
+    _set(p.id, effective(p).copyWith(saved: saved));
+  }
 
   void bumpComments(Post p, int delta) =>
       _set(p.id, effective(p).copyWith(numComments: effective(p).numComments + delta));
 
-  /// Refresh from a freshly-fetched post (e.g. when the detail opens): always
-  /// take the fresh comment count; seed vote/score/saved only if not already
-  /// tracking a local change, so we never clobber a pending user action.
+  /// Refresh from a freshly-fetched post (e.g. when the detail opens). The
+  /// server copy wins, except vote/score/saved the user changed in the last
+  /// couple of minutes — a request may still be in flight, or Reddit's copy
+  /// may not reflect it yet.
   void syncFromServer(Post p) {
     final existing = state[p.id];
+    final at = _localAt[p.id];
+    final recentLocal = existing != null &&
+        at != null &&
+        DateTime.now().difference(at) < const Duration(minutes: 2);
     _set(
       p.id,
       PostOverride(
-        likes: existing?.likes ?? p.likes,
-        score: existing?.score ?? p.score,
+        likes: recentLocal ? existing.likes : p.likes,
+        score: recentLocal ? existing.score : p.score,
         numComments: p.numComments,
-        saved: existing?.saved ?? p.saved,
+        saved: recentLocal ? existing.saved : p.saved,
       ),
     );
   }

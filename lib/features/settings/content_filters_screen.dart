@@ -45,12 +45,45 @@ class ContentFiltersScreen extends ConsumerWidget {
             onRemove: (v) => ctrl.remove('domain', v),
           ),
           _FilterSection(
+            title: 'Subreddits',
+            hint: 'e.g. politics',
+            type: 'subreddit',
+            values: filters.subreddits,
+            onAdd: (v) => ctrl.add('subreddit', v),
+            onRemove: (v) => ctrl.remove('subreddit', v),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 2, 16, 0),
+            child: Text(
+              'Hidden from the frontpage, For You, Popular and custom feeds. '
+              'Its own page still shows it.',
+              style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
+          ),
+          _FilterSection(
             title: 'Flairs',
             hint: 'e.g. Politics',
             type: 'flair',
             values: filters.flairs,
             onAdd: (v) => ctrl.add('flair', v),
             onRemove: (v) => ctrl.remove('flair', v),
+          ),
+          const SizedBox(height: 12),
+          SwitchListTile(
+            secondary: const Icon(Icons.no_adult_content_rounded),
+            title: const Text('Hide NSFW posts'),
+            subtitle: const Text('Remove them from feeds instead of blurring'),
+            value: filters.hideNsfw,
+            onChanged: ctrl.setHideNsfw,
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.smart_toy_outlined),
+            title: const Text('Collapse AutoModerator'),
+            subtitle: const Text('Start AutoModerator comments collapsed'),
+            value: filters.collapseAutoMod,
+            onChanged: ctrl.setCollapseAutoMod,
           ),
         ],
       ),

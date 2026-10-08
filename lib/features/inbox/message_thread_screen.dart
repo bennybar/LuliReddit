@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/drafts.dart';
 import '../../core/format.dart';
 import '../../core/network/catbox.dart';
 import '../../core/providers.dart';
+import '../../core/open_link.dart';
 import '../../core/widgets/markdown_style.dart';
+import '../../core/widgets/reddit_markdown.dart';
 import '../../models/inbox_item.dart';
 import '../auth/auth_controller.dart';
 import '../media/attachment.dart';
@@ -181,10 +182,11 @@ class _MessageThreadScreenState extends ConsumerState<MessageThreadScreen> {
                             style: TextStyle(
                                 fontSize: 11, color: cs.onSurfaceVariant)),
                         const SizedBox(height: 4),
-                        MarkdownBody(
+                        RedditMarkdown(
                           data: m.body,
                           selectable: true,
                           styleSheet: redditMarkdownStyle(context, fontSize: 14),
+                          onTapLink: (_, href, __) => openLink(context, href),
                         ),
                       ],
                     ),

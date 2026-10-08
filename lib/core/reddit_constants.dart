@@ -7,7 +7,7 @@ class RedditConstants {
   RedditConstants._();
 
   /// App version (keep in sync with pubspec) + GitHub repo for in-app updates.
-  static const String appVersion = '1.0.42';
+  static const String appVersion = '1.0.43';
   static const String githubRepo = 'bennybar/LuliReddit';
 
   // Hosts
@@ -48,9 +48,13 @@ class RedditConstants {
   /// Scopes requested. Mirrors Infinity's full scope set so every planned
   /// feature (browsing, voting, saving, subscribing, messaging, submitting)
   /// works without re-authorization later.
+  /// `modposts` covers approve / remove / lock / distinguish; without it those
+  /// calls 403 over OAuth. Logins from before it was added keep their old
+  /// scopes until the user signs in again.
   static const String scope =
       'identity edit flair history mysubreddits privatemessages read report '
-      'save submit subscribe vote wikiread account';
+      'save submit subscribe vote wikiread account modposts modflair '
+      'modcontributors';
 
   // Installed-app userless grant — used ONLY to validate that the entered
   // client id is a real, correctly-typed (installed app) credential before we
@@ -67,6 +71,6 @@ class RedditConstants {
   /// User-Agent. Reddit requires a unique, descriptive UA per its API rules.
   static String userAgent(String? username) {
     final who = (username == null || username.isEmpty) ? 'anonymous' : username;
-    return 'android:com.bennybar.luli_for_reddit:1.0.42 (by /u/$who)';
+    return 'android:com.bennybar.luli_for_reddit:1.0.43 (by /u/$who)';
   }
 }

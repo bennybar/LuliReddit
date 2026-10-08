@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/route_observer.dart';
 import '../../models/listing.dart';
+import '../../core/widgets/error_view.dart';
 
 /// Generic infinite-scroll list backed by a `fetch(after)` callback.
 class PagedList<T> extends StatefulWidget {
@@ -120,7 +121,8 @@ class _PagedListState<T> extends State<PagedList<T>> with RouteAware {
         Padding(
           padding: const EdgeInsets.all(32),
           child: Column(children: [
-            Text('Could not load.\n$_error', textAlign: TextAlign.center),
+            Text('Could not load.\n${friendlyError(_error)}',
+                textAlign: TextAlign.center),
             const SizedBox(height: 12),
             FilledButton(onPressed: _load, child: const Text('Retry')),
           ]),

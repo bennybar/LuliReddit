@@ -34,6 +34,11 @@ class SecureStore {
   static const _kWebModhash = 'web_modhash';
 
   Future<String?> read(String key) => _storage.read(key: key);
+
+  /// Whether a username is stored. Unlike [username], a read failure throws
+  /// rather than looking like "no account".
+  Future<bool> hasUsername() async =>
+      (await _storage.readAll()).containsKey(_kUsername);
   Future<void> _write(String key, String? value) => value == null
       ? _storage.delete(key: key)
       : _storage.write(key: key, value: value);
@@ -83,7 +88,7 @@ class SecureStore {
   Future<void> saveUsername(String? username) => _write(_kUsername, username);
 
   // --- Auth mode + website session (no-API-key fallback) ---
-  /// 'oauth' (default) or 'web'.
+  /// 'oauth' (default), 'web', or 'anon' (browsing without an account).
   Future<String> get authMode async => (await read(_kAuthMode)) ?? 'oauth';
   Future<String?> get webCookie => read(_kWebCookie);
   Future<String?> get webModhash => read(_kWebModhash);
@@ -101,6 +106,16 @@ class SecureStore {
     await _storage.delete(key: _kAccessToken);
     await _storage.delete(key: _kRefreshToken);
     await _storage.delete(key: _kTokenExpiry);
+  }
+
+  /// Browsing without an account: an app-only token from the user's client
+  /// id, with no user, refresh token or cookie.
+  Future<void> saveAnonymousSession() async {
+    await _write(_kAuthMode, 'anon');
+    await _storage.delete(key: _kRefreshToken);
+    await _storage.delete(key: _kUsername);
+    await _storage.delete(key: _kWebCookie);
+    await _storage.delete(key: _kWebModhash);
   }
 
   // --- Multi-account ---
