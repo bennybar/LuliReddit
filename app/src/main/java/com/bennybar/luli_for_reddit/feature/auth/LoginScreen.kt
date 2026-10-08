@@ -149,9 +149,10 @@ fun LoginScreen() {
                 error = check.message
                 return@launch
             }
-            // Persist credentials early so a retry keeps them.
-            app.secureStore.saveCredentials(clientId = id, redirectUri = uri, giphyKey = giphy.text.trim())
             try {
+                // Persist credentials early so a retry keeps them. (Inside the
+                // try: a keystore failure shows as an error, not a crash.)
+                app.secureStore.saveCredentials(clientId = id, redirectUri = uri, giphyKey = giphy.text.trim())
                 app.session.login(context, id, uri)
                 // The root navigates to Home automatically on success.
             } catch (e: CancellationException) {
@@ -212,7 +213,7 @@ fun LoginScreen() {
                     confirmButton = { Button(onClick = { done(true) }) { Text("Continue") } },
                 )
             }
-            if (ok == true) nav.push(Route.WebLogin)
+            if (ok == true) nav.push(Route.WebLogin())
         }
     }
 

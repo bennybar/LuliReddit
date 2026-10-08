@@ -1,6 +1,11 @@
 package com.bennybar.luli_for_reddit.feature.media
 
 import android.net.Uri
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -28,22 +33,25 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.SubcomposeAsyncImage
+import com.bennybar.luli_for_reddit.app
 import com.bennybar.luli_for_reddit.core.isVideoUrl
 import com.bennybar.luli_for_reddit.core.net.Redgifs
 import com.bennybar.luli_for_reddit.core.resolveVideoUrl
@@ -51,7 +59,8 @@ import com.bennybar.luli_for_reddit.model.GalleryImage
 import com.bennybar.luli_for_reddit.model.Post
 import com.bennybar.luli_for_reddit.nav.AppNavigator
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
-import com.bennybar.luli_for_reddit.nav.Route
+import com.bennybar.luli_for_reddit.nav.MediaViewer
+import com.bennybar.luli_for_reddit.nav.ViewerStack
 
 /**
  * A video post's playable URL, without any network lookup: Reddit's own
@@ -170,7 +179,9 @@ fun GalleryCarousel(images: List<GalleryImage>, modifier: Modifier = Modifier, t
  */
 @Composable
 fun NsfwBlur(blur: Boolean, modifier: Modifier = Modifier, blurredImageUrl: String? = null, label: String = "NSFW", content: @Composable () -> Unit) {
-    var revealed by rememberSaveable { mutableStateOf(false) }
+    // Plain remember (not saveable): like Flutter, an item scrolled away and
+    // back is blurred again.
+    var revealed by remember { mutableStateOf(false) }
     if (!blur || revealed) {
         Box(modifier) { content() }
         return
@@ -212,11 +223,41 @@ fun NsfwBlur(blur: Boolean, modifier: Modifier = Modifier, blurredImageUrl: Stri
 fun InlineVideo(url: String, height: Dp, onTap: () -> Unit, modifier: Modifier = Modifier, poster: String? = null) =
     InlineVideoImpl(url, height, onTap, modifier, poster)
 
-/** Full-screen image viewer (zoom, swipe-to-dismiss, save/share). */
-@Composable fun ImageViewerScreen(url: String, title: String?) = ImageViewer(url, title)
-
-/** Full-screen gallery viewer. */
-@Composable fun GalleryViewerScreen(route: Route.GalleryViewer) = GalleryViewer(route)
-
-/** Full-screen video player with sound. */
-@Composable fun VideoViewerScreen(route: Route.VideoViewer) = VideoViewer(route)
+/**
+ * The open media viewers, drawn over the current screen with a transparent
+ * background (the Flutter build pushed them as a non-opaque route), so
+ * swipe-to-dismiss fades to the feed underneath. Fades in over 220ms and out
+ * over 180ms; system back closes the top one.
+ */
+@Composable
+fun MediaViewerHost(stack: ViewerStack) {
+    val nav = LocalNavigator.current
+    val top = stack.entries.lastOrNull { !it.closing }
+    // Re-registered whenever a viewer opens, so it outranks any back handler
+    // the screen beneath added after app start.
+    key(top?.id) { BackHandler(enabled = top != null) { nav.closeViewer() } }
+    // The screen beneath stays composed, so pause its inline clip meanwhile.
+    val covered = stack.entries.isNotEmpty()
+    LaunchedEffect(covered) { app.media.inlinePlayer.setCovered(covered) }
+    for (entry in stack.entries) {
+        key(entry.id) {
+            AnimatedVisibility(
+                visibleState = entry.visibility,
+                enter = fadeIn(tween(220)),
+                exit = fadeOut(tween(180)),
+            ) {
+                // Swallows touches the viewer doesn't use, so they never reach the screen beneath.
+                Box(Modifier.fillMaxSize().pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } }) {
+                    when (val v = entry.viewer) {
+                        is MediaViewer.Image -> ImageViewer(v.url, v.title)
+                        is MediaViewer.Gallery -> GalleryViewer(v)
+                        is MediaViewer.Video -> VideoViewer(v)
+                    }
+                }
+            }
+            if (entry.closing && entry.visibility.isIdle) {
+                LaunchedEffect(Unit) { stack.entries.remove(entry) }
+            }
+        }
+    }
+}

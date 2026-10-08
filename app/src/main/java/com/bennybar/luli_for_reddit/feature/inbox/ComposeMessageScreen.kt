@@ -18,7 +18,6 @@ import androidx.compose.material.icons.rounded.FormatBold
 import androidx.compose.material.icons.rounded.FormatItalic
 import androidx.compose.material.icons.rounded.FormatQuote
 import androidx.compose.material.icons.rounded.FormatStrikethrough
-import androidx.compose.material.icons.rounded.GifBox
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.automirrored.rounded.Subject
@@ -53,7 +52,6 @@ import com.bennybar.luli_for_reddit.core.str
 import com.bennybar.luli_for_reddit.feature.auth.BloomTextField
 import com.bennybar.luli_for_reddit.feature.compose.AttachmentControls
 import com.bennybar.luli_for_reddit.feature.compose.MediaAttachment
-import com.bennybar.luli_for_reddit.feature.compose.showGiphyPicker
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.buildJsonObject
@@ -176,17 +174,6 @@ fun ComposeMessageScreen(to: String?) {
                     },
                     onError = { error = it },
                     catboxForImages = true,
-                    leading = {
-                        IconButton(onClick = {
-                            scope.launch {
-                                val gif = showGiphyPicker() ?: return@launch
-                                val t = body.text
-                                val next = if (t.isBlank()) gif else "${t.trimEnd()}\n\n$gif"
-                                body = TextFieldValue(next, TextRange(next.length))
-                                saveDraft()
-                            }
-                        }) { Icon(Icons.Rounded.GifBox, "GIF") }
-                    },
                 )
                 error?.let {
                     Spacer(Modifier.height(8.dp))
