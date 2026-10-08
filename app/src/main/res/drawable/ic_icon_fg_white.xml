@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ilay "Saturn" mark for the White icon: the mark in colour on a white ground (Google-app style). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <group android:pivotX="54" android:pivotY="54" android:scaleX="0.9" android:scaleY="0.9">
+        <group android:pivotX="54" android:pivotY="56" android:rotation="-20">
+            <clip-path android:pathData="M0,0h108v56h-108z" />
+            <path android:pathData="M23,56 a31,10 0 1,0 62,0 a31,10 0 1,0 -62,0" android:fillColor="#00000000" android:strokeColor="#8F72F5" android:strokeWidth="3" android:strokeAlpha="0.5" />
+        </group>
+        <path android:pathData="M46,38 V70 H64" android:fillColor="#00000000" android:strokeColor="#6750A4" android:strokeWidth="9" android:strokeLineCap="round" android:strokeLineJoin="round" />
+        <group android:pivotX="54" android:pivotY="56" android:rotation="-20">
+            <clip-path android:pathData="M0,56h108v52h-108z" />
+            <path android:pathData="M23,56 a31,10 0 1,0 62,0 a31,10 0 1,0 -62,0" android:fillColor="#00000000" android:strokeColor="#8F72F5" android:strokeWidth="3" />
+        </group>
+        <path android:pathData="M77.6,45.4 a5.5,5.5 0 1,0 11,0 a5.5,5.5 0 1,0 -11,0" android:fillColor="#FF7A59" android:strokeColor="#FFFFFF" android:strokeWidth="2" />
+    </group>
+</vector>

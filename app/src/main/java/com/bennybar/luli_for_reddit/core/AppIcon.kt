@@ -15,7 +15,9 @@ enum class AppIcon(val key: String, val label: String, val alias: String, val ba
     OCEAN("ocean", "Ocean", ".IconOcean", R.drawable.ic_icon_bg_ocean, R.drawable.ic_icon_fg_ocean),
     FOREST("forest", "Forest", ".IconForest", R.drawable.ic_icon_bg_forest, R.drawable.ic_icon_fg_forest),
     SUNSET("sunset", "Sunset", ".IconSunset", R.drawable.ic_icon_bg_sunset, R.drawable.ic_icon_fg_sunset),
-    MIDNIGHT("midnight", "Midnight", ".IconMidnight", R.drawable.ic_icon_bg_midnight, R.drawable.ic_icon_fg_midnight);
+    MIDNIGHT("midnight", "Midnight", ".IconMidnight", R.drawable.ic_icon_bg_midnight, R.drawable.ic_icon_fg_midnight),
+    /** The mark in colour on white, like Google's own app icons. */
+    WHITE("white", "White", ".IconWhite", R.drawable.ic_icon_bg_white, R.drawable.ic_icon_fg_white);
 
     companion object {
         fun parse(key: String?): AppIcon = entries.firstOrNull { it.key == key } ?: VIOLET
