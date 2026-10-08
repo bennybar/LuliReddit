@@ -30,26 +30,31 @@ class Prefs(context: Context) {
 
     fun contains(key: String): Boolean = sp.contains(key)
 
-    fun getBool(key: String): Boolean? = (sp.all[key] as? Boolean)
+    // Typed getters read the single key (sp.all copies the whole map on every
+    // call). A wrong-typed value throws ClassCastException → treated as absent.
+    fun getBool(key: String): Boolean? =
+        if (!sp.contains(key)) null else runCatching { sp.getBoolean(key, false) }.getOrNull()
 
     /** Ints are stored as Long (Dart ints are 64-bit; e.g. ARGB seed colours). */
-    fun getLong(key: String): Long? = when (val v = sp.all[key]) {
-        is Long -> v
-        is Int -> v.toLong()
-        else -> null
+    fun getLong(key: String): Long? {
+        if (!sp.contains(key)) return null
+        return runCatching { sp.getLong(key, 0) }.getOrNull()
+            ?: runCatching { sp.getInt(key, 0).toLong() }.getOrNull()
     }
 
     fun getInt(key: String): Int? = getLong(key)?.toInt()
 
+    private fun rawString(key: String): String? =
+        if (!sp.contains(key)) null else runCatching { sp.getString(key, null) }.getOrNull()
+
     fun getDouble(key: String): Double? =
-        (sp.all[key] as? String)?.takeIf { it.startsWith(DOUBLE_TAG) }
-            ?.removePrefix(DOUBLE_TAG)?.toDoubleOrNull()
+        rawString(key)?.takeIf { it.startsWith(DOUBLE_TAG) }?.removePrefix(DOUBLE_TAG)?.toDoubleOrNull()
 
     fun getString(key: String): String? =
-        (sp.all[key] as? String)?.takeIf { !it.startsWith(DOUBLE_TAG) && !it.startsWith(LIST_TAG) }
+        rawString(key)?.takeIf { !it.startsWith(DOUBLE_TAG) && !it.startsWith(LIST_TAG) }
 
     fun getStringList(key: String): List<String>? {
-        val raw = (sp.all[key] as? String)?.takeIf { it.startsWith(LIST_TAG) } ?: return null
+        val raw = rawString(key)?.takeIf { it.startsWith(LIST_TAG) } ?: return null
         return try {
             AppJson.parseToJsonElement(raw.removePrefix(LIST_TAG)).jsonArray.map { it.jsonPrimitive.content }
         } catch (_: Exception) {

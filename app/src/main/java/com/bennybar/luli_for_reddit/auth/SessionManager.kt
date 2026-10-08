@@ -4,6 +4,7 @@ import android.content.Context
 import com.bennybar.luli_for_reddit.core.storage.Prefs
 import com.bennybar.luli_for_reddit.core.storage.SecureStore
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -58,15 +59,28 @@ class SessionManager(
         scope.launch { lock.withLock { _state.value = load() } }
     }
 
+    /**
+     * The keystore can transiently return null (not just throw) on a cold
+     * start or resume, which used to bounce a signed-in user to the login
+     * screen. Retry the critical reads (3 × 150ms), as the Flutter build did.
+     */
+    private suspend fun readRetry(read: suspend () -> String?): String? {
+        repeat(3) {
+            runCatching { read() }.getOrNull()?.let { return it }
+            delay(150)
+        }
+        return runCatching { read() }.getOrNull()
+    }
+
     private suspend fun load(): SessionState {
         val out = SessionState.LoggedOut
         try {
             if (store.authMode() == "anon") {
-                if (store.clientId() == null) return out
+                if (readRetry { store.clientId() } == null) return out
                 setHasAccount(true)
                 return SessionState.LoggedIn(AuthSession("", anonymous = true))
             }
-            val username = store.username()
+            val username = readRetry { store.username() }
             if (username == null) {
                 // If the store reads fine and simply holds no account (e.g.
                 // restored onto a new phone, where it isn't backed up), clear
@@ -77,13 +91,13 @@ class SessionManager(
                 return out
             }
             if (store.authMode() == "web") {
-                val cookie = store.webCookie() ?: return out
+                val cookie = readRetry { store.webCookie() } ?: return out
                 if (username !in store.accounts()) store.upsertWebAccount(username, cookie, store.webModhash())
                 setHasAccount(true)
                 return SessionState.LoggedIn(AuthSession(username))
             }
             // OAuth (default).
-            val refresh = store.refreshToken()
+            val refresh = readRetry { store.refreshToken() }
             val token = store.accessToken()
             if (token == null && refresh == null) return out
             // Migrate pre-multi-account installs: ensure the current user is in the map.
