@@ -22,7 +22,10 @@ android {
         applicationId = "com.bennybar.luli_for_reddit"
         minSdk = 34
         targetSdk = 36
-        versionCode = 200
+        // Must exceed every Flutter build's code: its per-ABI APKs were
+        // abi*1000 + build (arm64 v1.0.51 = 2051, x86_64 = 4051). Scheme:
+        // 20000 + build, the same for every ABI.
+        versionCode = 20001
         versionName = "2.0.0-beta1"
     }
 
