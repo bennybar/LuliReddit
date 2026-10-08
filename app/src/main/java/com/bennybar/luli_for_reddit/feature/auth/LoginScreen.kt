@@ -39,14 +39,16 @@ import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.TravelExplore
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -77,7 +79,6 @@ import com.bennybar.luli_for_reddit.core.RedditConstants
 import com.bennybar.luli_for_reddit.feature.media.openExternally
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.Route
-import com.bennybar.luli_for_reddit.ui.Overlays
 import com.bennybar.luli_for_reddit.ui.friendlyError
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -105,11 +106,17 @@ fun LoginScreen() {
     var error by remember { mutableStateOf<String?>(null) }
     var checkResult by remember { mutableStateOf<String?>(null) }
     var checkOk by remember { mutableStateOf(false) }
+    // Two equal ways in. New users default to the website (Reddit no longer
+    // hands out new API keys); someone with a saved Client ID gets the API form.
+    var useApi by rememberSaveable { mutableStateOf(false) }
 
     // Prefill whatever was saved before (a retry, or after signing out).
     LaunchedEffect(Unit) {
         val store = app.secureStore
-        store.clientId()?.let { clientId = TextFieldValue(it, TextRange(it.length)) }
+        store.clientId()?.let {
+            clientId = TextFieldValue(it, TextRange(it.length))
+            if (it.isNotBlank()) useApi = true
+        }
         store.redirectUri()?.let { redirect = TextFieldValue(it, TextRange(it.length)) }
         store.giphyKey()?.let { giphy = TextFieldValue(it, TextRange(it.length)) }
     }
@@ -191,31 +198,10 @@ fun LoginScreen() {
         }
     }
 
-    // Website-session login (no API key). Shows the risks first, then opens a
-    // Reddit login WebView, which stores the session itself.
+    // Website-session login (no API key): a Reddit login page inside Ilay,
+    // which stores the session itself. Its caveat is shown in the panel.
     fun webLogin() {
-        scope.launch {
-            val ok = Overlays.show<Boolean> { done ->
-                AlertDialog(
-                    onDismissRequest = { done(false) },
-                    title = { Text("Sign in without an API key") },
-                    text = {
-                        Text(
-                            "This signs you in through the Reddit website instead of the API, so " +
-                                "you don't need to create an API key.\n\n" +
-                                "Important: this is not Reddit's official API path. It may stop " +
-                                "working at any time if Reddit changes their site, and Reddit could " +
-                                "consider it against their usage policy and restrict or ban accounts " +
-                                "that use it. Use it at your own risk.\n\n" +
-                                "The recommended method is still the API key above.",
-                        )
-                    },
-                    dismissButton = { TextButton(onClick = { done(false) }) { Text("Cancel") } },
-                    confirmButton = { Button(onClick = { done(true) }) { Text("Continue") } },
-                )
-            }
-            if (ok == true) nav.push(Route.WebLogin())
-        }
+        nav.push(Route.WebLogin())
     }
 
     Column(
@@ -234,117 +220,158 @@ fun LoginScreen() {
         Text("Ilay for Reddit", style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.ExtraBold))
         Spacer(Modifier.height(8.dp))
         Text(
-            "Connect your own Reddit API app to sign in. Ilay ships without any keys baked in — " +
-                "you provide them once, stored securely on this device.",
+            "Sign in with your Reddit account. Both ways work the same once you're in.",
             style = MaterialTheme.typography.bodyMedium,
             color = cs.onSurfaceVariant,
         )
         Spacer(Modifier.height(24.dp))
 
-        SetupCard(redirect.text)
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            SegmentedButton(
+                selected = !useApi,
+                onClick = { useApi = false; error = null },
+                shape = SegmentedButtonDefaults.itemShape(0, 2),
+                icon = { SegmentedButtonDefaults.Icon(!useApi) { Icon(Icons.Rounded.Public, null, Modifier.size(18.dp)) } },
+            ) { Text("Reddit website") }
+            SegmentedButton(
+                selected = useApi,
+                onClick = { useApi = true; error = null },
+                shape = SegmentedButtonDefaults.itemShape(1, 2),
+                icon = { SegmentedButtonDefaults.Icon(useApi) { Icon(Icons.Rounded.Key, null, Modifier.size(18.dp)) } },
+            ) { Text("API key") }
+        }
         Spacer(Modifier.height(20.dp))
 
-        BloomTextField(
-            value = clientId,
-            onValueChange = { clientId = it },
-            label = "Reddit Client ID",
-            placeholder = "e.g. AbCdEf123...",
-            leadingIcon = { Icon(Icons.Rounded.Key, null) },
-            trailingIcon = {
-                IconButton(onClick = {
-                    val txt = clipboard.getText()?.text?.trim()
-                    if (!txt.isNullOrEmpty()) clientId = TextFieldValue(txt, TextRange(txt.length))
-                }) { Icon(Icons.Rounded.ContentPaste, "Paste") }
-            },
-            plain = true,
-        )
-        Spacer(Modifier.height(12.dp))
-        BloomTextField(
-            value = redirect,
-            onValueChange = { redirect = it },
-            label = "Redirect URI",
-            placeholder = RedditConstants.DEFAULT_REDIRECT_URI,
-            supportingText = "Must match the redirect URI registered on your Reddit app.",
-            leadingIcon = { Icon(Icons.Rounded.Link, null) },
-            plain = true,
-        )
-        // A RedReader-issued client ID only redirects to RedReader's URI.
-        TextButton(onClick = {
-            val r = RedditConstants.REDREADER_REDIRECT_URI
-            redirect = TextFieldValue(r, TextRange(r.length))
-        }) {
-            Icon(Icons.Rounded.SwapHoriz, null, Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Using a RedReader client ID?")
-        }
-        if (redirect.text.trim().startsWith("redreader:")) {
-            Text(
-                "If RedReader is also installed, Android will ask which app should finish signing in. " +
-                    "Pick Ilay. This client ID was issued to RedReader, and Reddit could revoke it.",
-                Modifier.padding(start = 4.dp, end = 4.dp, bottom = 8.dp),
-                fontSize = 12.5.sp,
-                color = cs.onSurfaceVariant,
-            )
-        }
-        Spacer(Modifier.height(4.dp))
-        BloomTextField(
-            value = giphy,
-            onValueChange = { giphy = it },
-            label = "Giphy API Key (optional)",
-            placeholder = "Enables GIF picker",
-            leadingIcon = { Icon(Icons.Rounded.GifBox, null) },
-            plain = true,
-        )
-
-        checkResult?.let {
-            Spacer(Modifier.height(16.dp))
-            Banner(checkOk, it)
-        }
-        error?.let {
-            Spacer(Modifier.height(16.dp))
-            Banner(false, it)
-        }
-
-        Spacer(Modifier.height(24.dp))
-        OutlinedButton(
-            onClick = ::checkConfig,
-            enabled = !busy,
-            modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 52.dp),
-        ) {
-            Icon(Icons.Outlined.Verified, null, Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Test configuration")
-        }
-        Spacer(Modifier.height(12.dp))
-        Button(
-            onClick = ::login,
-            enabled = !busy,
-            modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 52.dp),
-        ) {
-            if (busy) {
-                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-            } else {
-                Icon(Icons.AutoMirrored.Rounded.Login, null, Modifier.size(18.dp))
+        if (!useApi) {
+            BloomCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(20.dp)) {
+                    Text("Sign in on reddit.com", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Reddit's own sign-in page opens inside Ilay. No API key needed, and your password " +
+                            "goes only to Reddit.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = cs.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "This uses the website rather than Reddit's official API. It can stop working if Reddit " +
+                            "changes its site, and Reddit could treat it as against its usage policy.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = cs.onSurfaceVariant,
+                    )
+                }
             }
-            Spacer(Modifier.width(8.dp))
-            Text(if (busy) "Working…" else "Connect Reddit account", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-        }
-        Spacer(Modifier.height(20.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            HorizontalDivider(Modifier.weight(1f), color = cs.outlineVariant.copy(alpha = 0.5f))
-            Text("or", Modifier.padding(horizontal = 10.dp))
-            HorizontalDivider(Modifier.weight(1f), color = cs.outlineVariant.copy(alpha = 0.5f))
-        }
-        Spacer(Modifier.height(8.dp))
-        TextButton(onClick = ::webLogin, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Rounded.Public, null, Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Can't get an API key? Sign in via website")
-        }
-        TextButton(onClick = ::browseAnonymously, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Rounded.TravelExplore, null, Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Browse without signing in")
+            error?.let {
+                Spacer(Modifier.height(16.dp))
+                Banner(false, it)
+            }
+            Spacer(Modifier.height(24.dp))
+            Button(
+                onClick = ::webLogin,
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 52.dp),
+            ) {
+                Icon(Icons.AutoMirrored.Rounded.Login, null, Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Sign in with Reddit", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            }
+        } else {
+            SetupCard(redirect.text)
+            Spacer(Modifier.height(20.dp))
+
+            BloomTextField(
+                value = clientId,
+                onValueChange = { clientId = it },
+                label = "Reddit Client ID",
+                placeholder = "e.g. AbCdEf123...",
+                leadingIcon = { Icon(Icons.Rounded.Key, null) },
+                trailingIcon = {
+                    IconButton(onClick = {
+                        val txt = clipboard.getText()?.text?.trim()
+                        if (!txt.isNullOrEmpty()) clientId = TextFieldValue(txt, TextRange(txt.length))
+                    }) { Icon(Icons.Rounded.ContentPaste, "Paste") }
+                },
+                plain = true,
+            )
+            Spacer(Modifier.height(12.dp))
+            BloomTextField(
+                value = redirect,
+                onValueChange = { redirect = it },
+                label = "Redirect URI",
+                placeholder = RedditConstants.DEFAULT_REDIRECT_URI,
+                supportingText = "Must match the redirect URI registered on your Reddit app.",
+                leadingIcon = { Icon(Icons.Rounded.Link, null) },
+                plain = true,
+            )
+            // A RedReader-issued client ID only redirects to RedReader's URI.
+            TextButton(onClick = {
+                val r = RedditConstants.REDREADER_REDIRECT_URI
+                redirect = TextFieldValue(r, TextRange(r.length))
+            }) {
+                Icon(Icons.Rounded.SwapHoriz, null, Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Using a RedReader client ID?")
+            }
+            if (redirect.text.trim().startsWith("redreader:")) {
+                Text(
+                    "If RedReader is also installed, Android will ask which app should finish signing in. " +
+                        "Pick Ilay. This client ID was issued to RedReader, and Reddit could revoke it.",
+                    Modifier.padding(start = 4.dp, end = 4.dp, bottom = 8.dp),
+                    fontSize = 12.5.sp,
+                    color = cs.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            BloomTextField(
+                value = giphy,
+                onValueChange = { giphy = it },
+                label = "Giphy API Key (optional)",
+                placeholder = "Enables GIF picker",
+                leadingIcon = { Icon(Icons.Rounded.GifBox, null) },
+                plain = true,
+            )
+
+            checkResult?.let {
+                Spacer(Modifier.height(16.dp))
+                Banner(checkOk, it)
+            }
+            error?.let {
+                Spacer(Modifier.height(16.dp))
+                Banner(false, it)
+            }
+
+            Spacer(Modifier.height(24.dp))
+            OutlinedButton(
+                onClick = ::checkConfig,
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 52.dp),
+            ) {
+                Icon(Icons.Outlined.Verified, null, Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Test configuration")
+            }
+            Spacer(Modifier.height(12.dp))
+            Button(
+                onClick = ::login,
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 52.dp),
+            ) {
+                if (busy) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(Icons.AutoMirrored.Rounded.Login, null, Modifier.size(18.dp))
+                }
+                Spacer(Modifier.width(8.dp))
+                Text(if (busy) "Working…" else "Connect Reddit account", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(Modifier.height(8.dp))
+            // Read-only browsing uses the same Client ID.
+            TextButton(onClick = ::browseAnonymously, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Rounded.TravelExplore, null, Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Browse without signing in")
+            }
         }
     }
 }
