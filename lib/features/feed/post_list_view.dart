@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -191,6 +192,9 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
           final itemCount = 1 + posts.length + 1; // sortbar + posts + footer
           return ListView.separated(
             controller: _scroll,
+            // Build cards about a screen ahead (the default is 250px), so
+            // they're laid out and their images decoding before they appear.
+            scrollCacheExtent: const ScrollCacheExtent.pixels(1200),
             padding: const EdgeInsets.fromLTRB(10, 0, 10, 130),
             itemCount: (widget.header != null ? 1 : 0) + itemCount,
             separatorBuilder: (_, __) => const SizedBox(height: 10),

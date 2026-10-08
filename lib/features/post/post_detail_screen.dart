@@ -284,7 +284,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
 
   /// Scrolls to the next comment below the current top that passes [match],
   /// wrapping to the first. False when none in the thread does.
-  bool _jumpNext(bool Function(Comment) match) {
+  bool _jumpNext(bool Function(Comment) match, {bool backwards = false}) {
     if (_flat.isEmpty) return false;
 
     // Reference = the topmost item actually on screen (ignore the cached items
@@ -295,25 +295,17 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
         ? 0
         : onScreen.map((p) => p.index).reduce((a, b) => a < b ? a : b);
 
-    // First matching comment strictly below the current top.
-    int? target;
-    for (var ci = 0; ci < _flat.length; ci++) {
-      if (_flat[ci].isMore || !match(_flat[ci])) continue;
-      if (ci + 1 > topIndex) {
-        target = ci + 1;
-        break;
-      }
-    }
-    // Past the last one → wrap to the first match.
-    if (target == null) {
-      for (var ci = 0; ci < _flat.length; ci++) {
-        if (!_flat[ci].isMore && match(_flat[ci])) {
-          target = ci + 1;
-          break;
-        }
-      }
-    }
-    if (target == null) return false;
+    // List index of every matching comment (comment ci is at ci + 1).
+    final hits = [
+      for (var ci = 0; ci < _flat.length; ci++)
+        if (!_flat[ci].isMore && match(_flat[ci])) ci + 1
+    ];
+    if (hits.isEmpty) return false;
+    // The nearest one below the current top (or above, going back), wrapping
+    // round at the ends.
+    final int target = backwards
+        ? hits.lastWhere((i) => i < topIndex, orElse: () => hits.last)
+        : hits.firstWhere((i) => i > topIndex, orElse: () => hits.first);
 
     _itemScroll.scrollTo(
       index: target,
@@ -335,6 +327,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
         ref.watch(authControllerProvider).valueOrNull?.username ?? '';
     final thread = async.valueOrNull;
     _dwellPost = thread?.post ?? widget.initialPost;
+    // Flattened up front: the bottom toolbar needs it before the list builds.
+    if (thread != null) _flat = _flatten(thread.comments, thread.collapsed);
     final hasAiKey =
         ref.watch(openAiKeyProvider).valueOrNull?.isNotEmpty ?? false;
 
@@ -399,43 +393,31 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
       ),
       floatingActionButton: thread == null
           ? null
-          : Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                if (thread.comments.isNotEmpty) ...[
-                  GestureDetector(
-                    onLongPress: () => _showJumpMenu(
-                        thread.post.author, username,
-                        hasNew: _flat.any((c) => _isNew(c, username))),
-                    child: FloatingActionButton.small(
-                      heroTag: 'nextComment',
-                      tooltip:
-                          'Next top-level comment (long-press for more)',
-                      onPressed: _jumpNextTopLevel,
-                      child: const Icon(Icons.keyboard_arrow_down_rounded),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                FloatingActionButton.extended(
-                  heroTag: 'comment',
-                  onPressed: () async {
-                    final reply = await showReplySheet(context, ref,
-                        parentFullname: thread.post.fullname, parentDepth: -1);
-                    if (reply != null) {
-                      notifier.insertReply(thread.post.fullname, reply);
-                      ref
-                          .read(postOverridesProvider.notifier)
-                          .bumpComments(thread.post, 1);
-                      // Commenting is the strongest engagement signal we have.
-                      ref.read(forYouLearnerProvider).comment(thread.post);
-                    }
-                  },
-                  icon: const Icon(Icons.add_comment_rounded),
-                  label: const Text('Comment'),
-                ),
-              ],
+          : _ThreadToolbar(
+              newCount: _flat.where((c) => _isNew(c, username)).length,
+              hasMine: username.isNotEmpty &&
+                  _flat.any((c) => c.author == username),
+              hasComments: thread.comments.isNotEmpty,
+              onPrevNew: () =>
+                  _jumpNext((c) => _isNew(c, username), backwards: true),
+              onNextNew: () => _jumpNext((c) => _isNew(c, username)),
+              onMine: () => _jumpNext((c) => c.author == username),
+              onComment: () async {
+                final reply = await showReplySheet(context, ref,
+                    parentFullname: thread.post.fullname, parentDepth: -1);
+                if (reply != null) {
+                  notifier.insertReply(thread.post.fullname, reply);
+                  ref
+                      .read(postOverridesProvider.notifier)
+                      .bumpComments(thread.post, 1);
+                  // Commenting is the strongest engagement signal we have.
+                  ref.read(forYouLearnerProvider).comment(thread.post);
+                }
+              },
+              onNext: _jumpNextTopLevel,
+              onNextLongPress: () => _showJumpMenu(
+                  thread.post.author, username,
+                  hasNew: _flat.any((c) => _isNew(c, username))),
             ),
       body: Stack(
         children: [
@@ -457,37 +439,20 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
           ),
         ),
         data: (thread) {
-          final flat = _flatten(thread.comments, thread.collapsed);
-          _flat = flat;
-          final newCount = flat.where((c) => _isNew(c, username)).length;
+          final flat = _flat; // flattened at the top of build()
           final list = RefreshIndicator(
             onRefresh: notifier.refresh,
             child: ScrollablePositionedList.builder(
               itemScrollController: _itemScroll,
               itemPositionsListener: _itemPositions,
+              // Build comments about a screen ahead, so scrolling shows
+              // ready-made rows instead of building them mid-frame.
+              minCacheExtent: 900,
               padding: const EdgeInsets.only(top: 6, bottom: 96),
               itemCount: 1 + (flat.isEmpty ? 1 : flat.length),
               itemBuilder: (context, index) {
                 if (index == 0) {
-                  final header = _PostHeader(post: thread.post, fresh: true);
-                  if (newCount == 0) return header;
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      header,
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
-                        child: FilledButton.tonalIcon(
-                          icon: const Icon(Icons.fiber_new_rounded),
-                          label: Text(
-                              '$newCount new ${newCount == 1 ? 'comment' : 'comments'} '
-                              'since your last visit'),
-                          onPressed: () =>
-                              _jumpNext((c) => _isNew(c, username)),
-                        ),
-                      ),
-                    ],
-                  );
+                  return _PostHeader(post: thread.post, fresh: true);
                 }
                 if (flat.isEmpty) {
                   return const Padding(
@@ -905,6 +870,98 @@ Future<bool> _confirmDelete(BuildContext context, String what) async {
     ),
   );
   return ok ?? false;
+}
+
+/// Everything that moves through the thread in ONE compact floating pill
+/// (as in Scoops), instead of a stack of large buttons:
+/// [↑ N new ↓] [your comment] [comment] [● next top-level].
+class _ThreadToolbar extends StatelessWidget {
+  const _ThreadToolbar({
+    required this.newCount,
+    required this.hasMine,
+    required this.hasComments,
+    required this.onPrevNew,
+    required this.onNextNew,
+    required this.onMine,
+    required this.onComment,
+    required this.onNext,
+    required this.onNextLongPress,
+  });
+
+  final int newCount;
+  final bool hasMine;
+  final bool hasComments;
+  final VoidCallback onPrevNew, onNextNew, onMine, onComment, onNext;
+  final VoidCallback onNextLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final on = cs.onPrimaryContainer;
+    Widget icon(IconData i, String tip, VoidCallback f) => IconButton(
+          tooltip: tip,
+          visualDensity: VisualDensity.compact,
+          color: on,
+          onPressed: f,
+          icon: Icon(i, size: 22),
+        );
+
+    return Material(
+      color: cs.primaryContainer,
+      elevation: 3,
+      shape: const StadiumBorder(),
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (newCount > 0)
+              // The new-comments stepper, on its own tonal segment.
+              Container(
+                height: 40,
+                decoration: ShapeDecoration(
+                    color: on.withValues(alpha: 0.08),
+                    shape: const StadiumBorder()),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  icon(Icons.keyboard_arrow_up_rounded, 'Previous new comment',
+                      onPrevNew),
+                  Text('$newCount new',
+                      style: TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w800, color: on)),
+                  icon(Icons.keyboard_arrow_down_rounded, 'Next new comment',
+                      onNextNew),
+                ]),
+              ),
+            if (hasMine) icon(Icons.person_rounded, 'Your comments', onMine),
+            icon(Icons.add_comment_rounded, 'Comment', onComment),
+            if (hasComments)
+              // The main action: a filled accent circle. Long-press for the
+              // jump menu (OP / yours / new).
+              GestureDetector(
+                onLongPress: onNextLongPress,
+                child: Material(
+                  color: cs.primary,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: onNext,
+                    child: Tooltip(
+                      message: 'Next top-level comment (long-press for more)',
+                      child: SizedBox(
+                        width: 40,
+                        height: 40,
+                        child: Icon(Icons.keyboard_arrow_down_rounded,
+                            color: cs.onPrimary),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _LoadingWithHeader extends StatelessWidget {
@@ -1348,14 +1405,13 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
           ],
         ),
         clipBehavior: Clip.antiAlias,
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Colored depth edge (only on replies).
-              if (depth > 0)
-                Container(width: 4, color: edge.withValues(alpha: 0.9)),
-              Expanded(
+        // A Stack, not IntrinsicHeight + Row: stretching the depth bar to the
+        // comment's height cost a second layout pass for every comment, every
+        // time one scrolled into view.
+        child: Stack(
+          children: [
+              Padding(
+                padding: EdgeInsetsDirectional.only(start: depth > 0 ? 4 : 0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1453,9 +1509,11 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
                   children: [
                     RedditMarkdown(
                       data: split.text,
-                      // Selectable text swallows taps, so tap-to-collapse needs
-                      // plain text.
-                      selectable: !tapToCollapse,
+                      // Plain text: a selectable paragraph is a full text
+                      // editor widget, far heavier to build while scrolling
+                      // through hundreds of comments (it also swallowed taps
+                      // for tap-to-collapse). "Copy text" is in the ⋯ menu.
+                      selectable: false,
                       styleSheet: redditMarkdownStyle(context),
                       onTapLink: (_, href, __) =>
                           openLink(context, href),
@@ -1482,8 +1540,16 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
                   ],
                 ),
               ),
-            ],
-          ),
+              // Colored depth edge (only on replies), full height.
+              if (depth > 0)
+                PositionedDirectional(
+                  start: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: 4,
+                  child: ColoredBox(color: edge.withValues(alpha: 0.9)),
+                ),
+          ],
         ),
       ),
     );
