@@ -105,9 +105,12 @@ class InboxModule(private val c: AppContainer) : UserScoped {
         return job
     }
 
-    /** Pull-to-refresh: suspends until the reload finishes. */
+    /**
+     * Pull-to-refresh: suspends until the reload finishes. The current list
+     * (or error) stays up meanwhile — clearing the error here flashed
+     * "Nothing here" — and is replaced by the result, as in Flutter.
+     */
     suspend fun refreshAndWait(where: String) {
-        tabs.getValue(where).update { it.copy(error = null) }
         refresh(where).join()
     }
 

@@ -30,7 +30,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import com.bennybar.luli_for_reddit.app
-import com.bennybar.luli_for_reddit.auth.SessionState
 import com.bennybar.luli_for_reddit.core.RedditConstants
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import kotlinx.coroutines.CancellationException
@@ -45,16 +44,16 @@ import kotlin.coroutines.resume
  * session" login — see docs/hydra-fallback.md. The user's password is only
  * ever entered into Reddit's own page inside the WebView.
  *
- * When an account is already signed in (adding another account), existing
- * cookies are wiped first — otherwise the session check finds the *current*
- * account's reddit_session straight away and adds that account again.
+ * With [clearFirst] (used by "add account") existing cookies are wiped first,
+ * so you can sign into a *different* account — otherwise the session check
+ * finds the *current* account's reddit_session straight away and adds that
+ * account again.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WebLoginScreen() {
+fun WebLoginScreen(clearFirst: Boolean = false) {
     val nav = LocalNavigator.current
     val scope = rememberCoroutineScope()
-    val clearFirst = remember { app.session.state.value is SessionState.LoggedIn }
     var ready by remember { mutableStateOf(!clearFirst) }
     var done by remember { mutableStateOf(false) }
     var signingIn by remember { mutableStateOf(false) }
@@ -82,7 +81,8 @@ fun WebLoginScreen() {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                nav.showSnackbar((e.message ?: e.toString()).removePrefix("Exception: "))
+                val msg = (e.message ?: e.toString()).removePrefix("Exception: ")
+                nav.showSnackbar(if (clearFirst) "Could not add account: $msg" else msg)
                 nav.pop()
             }
         }

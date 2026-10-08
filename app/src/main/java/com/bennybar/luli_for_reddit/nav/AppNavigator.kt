@@ -39,21 +39,33 @@ class AppNavigator(
     val context: Context,
     val controller: NavHostController,
     val scope: CoroutineScope,
+    /** Full-screen media viewers, drawn over the current screen (see MainActivity). */
+    val viewers: ViewerStack = ViewerStack(),
 ) {
     val snackbar = SnackbarHostState()
 
     /** Extra bottom padding for snackbars (the home shell's floating nav sets it). */
     var snackbarBottomPadding: Dp by mutableStateOf(0.dp)
 
-    fun push(route: Route) = controller.navigate(route) { launchSingleTop = route is Route.Home }
+    /** Opens a screen; an open media viewer would hide it, so it's closed first. */
+    fun push(route: Route) {
+        viewers.clear()
+        controller.navigate(route) { launchSingleTop = route is Route.Home }
+    }
 
     fun pop(): Boolean = controller.popBackStack()
 
     /** Clears the back stack and shows [route] (login ↔ home). */
-    fun resetTo(route: Route) = controller.navigate(route) {
-        popUpTo(0) { inclusive = true }
-        launchSingleTop = true
+    fun resetTo(route: Route) {
+        viewers.clear()
+        controller.navigate(route) {
+            popUpTo(0) { inclusive = true }
+            launchSingleTop = true
+        }
     }
+
+    /** Closes the top media viewer (fading out over the screen beneath). */
+    fun closeViewer(): Boolean = viewers.closeTop()
 
     /** Opens a post's thread; the already-loaded [post] paints instantly. */
     fun openPost(post: Post, focusCommentId: String? = null) {
@@ -64,12 +76,12 @@ class AppNavigator(
     fun openSubreddit(name: String) = push(Route.Subreddit(name))
     fun openUser(username: String) = push(Route.User(username))
 
-    fun openImage(url: String, title: String? = null) = push(Route.ImageViewer(url, title))
+    fun openImage(url: String, title: String? = null) = viewers.open(MediaViewer.Image(url, title))
 
     fun openGallery(images: List<GalleryImage>, title: String? = null, initialIndex: Int = 0) {
         if (images.isEmpty()) return
-        push(
-            Route.GalleryViewer(
+        viewers.open(
+            MediaViewer.Gallery(
                 urls = images.map { it.url },
                 widths = images.map { it.width ?: 0 },
                 heights = images.map { it.height ?: 0 },
@@ -80,7 +92,7 @@ class AppNavigator(
     }
 
     fun openVideo(url: String, title: String? = null, downloadUrl: String? = null, externalUrl: String? = null) =
-        push(Route.VideoViewer(url, title, downloadUrl, externalUrl))
+        viewers.open(MediaViewer.Video(url, title, downloadUrl, externalUrl))
 
     /** Opens a video post full-screen (resolving RedGifs to its HD file first). */
     fun openPostVideo(post: Post) {

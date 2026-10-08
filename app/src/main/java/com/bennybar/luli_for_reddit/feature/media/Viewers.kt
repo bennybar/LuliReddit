@@ -69,7 +69,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
-import com.bennybar.luli_for_reddit.nav.Route
+import com.bennybar.luli_for_reddit.nav.MediaViewer
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -108,6 +108,8 @@ internal fun openExternally(context: Context, url: String) {
 @Composable
 internal fun BoxScope.EdgeBack() {
     val nav = LocalNavigator.current
+    // The fling threshold is 80dp/s (Flutter's velocities are logical pixels).
+    val minVelocity = with(LocalDensity.current) { 80.dp.toPx() }
     Box(
         Modifier
             .align(Alignment.CenterStart)
@@ -116,7 +118,7 @@ internal fun BoxScope.EdgeBack() {
             .draggable(
                 orientation = Orientation.Horizontal,
                 state = rememberDraggableState {},
-                onDragStopped = { v -> if (v > 80f) nav.pop() },
+                onDragStopped = { v -> if (v > minVelocity) nav.closeViewer() },
             ),
     )
 }
@@ -166,7 +168,7 @@ internal fun ViewerControls(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (!enabled) return@Row
-            RoundBtn(Icons.Rounded.Close, "Close") { nav.pop() }
+            RoundBtn(Icons.Rounded.Close, "Close") { nav.closeViewer() }
             Spacer(Modifier.width(4.dp))
             Text(
                 center ?: title ?: "",
@@ -230,7 +232,7 @@ private fun DismissableViewer(
                     enabled = !state.zoomed,
                     state = rememberDraggableState { d -> state.drag += d },
                     onDragStopped = { v ->
-                        if (abs(state.drag) > dismissPx || abs(v) > flingPx) nav.pop() else state.drag = 0f
+                        if (abs(state.drag) > dismissPx || abs(v) > flingPx) nav.closeViewer() else state.drag = 0f
                     },
                 ),
             content = content,
@@ -259,7 +261,7 @@ internal fun ImageViewer(url: String, title: String?) {
 
 /** Full-screen gallery viewer: pager + "i / n" counter. */
 @Composable
-internal fun GalleryViewer(route: Route.GalleryViewer) {
+internal fun GalleryViewer(route: MediaViewer.Gallery) {
     val urls = route.urls
     if (urls.isEmpty()) return
     val state = remember { DismissState() }

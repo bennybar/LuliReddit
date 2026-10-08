@@ -24,6 +24,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -51,9 +52,7 @@ import com.bennybar.luli_for_reddit.feature.feed.UserScreen
 import com.bennybar.luli_for_reddit.feature.home.HomeScreen
 import com.bennybar.luli_for_reddit.feature.inbox.ComposeMessageScreen
 import com.bennybar.luli_for_reddit.feature.inbox.MessageThreadScreen
-import com.bennybar.luli_for_reddit.feature.media.GalleryViewerScreen
-import com.bennybar.luli_for_reddit.feature.media.ImageViewerScreen
-import com.bennybar.luli_for_reddit.feature.media.VideoViewerScreen
+import com.bennybar.luli_for_reddit.feature.media.MediaViewerHost
 import com.bennybar.luli_for_reddit.feature.post.PostDetailScreen
 import com.bennybar.luli_for_reddit.feature.settings.ContentFiltersScreen
 import com.bennybar.luli_for_reddit.feature.settings.ManageForYouScreen
@@ -62,6 +61,7 @@ import com.bennybar.luli_for_reddit.feature.settings.SettingsScreen
 import com.bennybar.luli_for_reddit.nav.AppNavigator
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.Route
+import com.bennybar.luli_for_reddit.nav.ViewerStack
 import com.bennybar.luli_for_reddit.ui.OverlayHost
 import com.bennybar.luli_for_reddit.ui.theme.IlayTheme
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -105,6 +105,11 @@ class MainActivity : ComponentActivity() {
         pendingLink.value = uri
     }
 
+    override fun onPause() {
+        super.onPause()
+        OAuthFlow.onAppPaused()
+    }
+
     override fun onResume() {
         super.onResume()
         OAuthFlow.onAppResumed()
@@ -124,7 +129,8 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
     val context = LocalContext.current
     val controller = rememberNavController()
     val scope = rememberCoroutineScope()
-    val navigator = remember(controller) { AppNavigator(context, controller, scope) }
+    val viewers = rememberSaveable(saver = ViewerStack.Saver) { ViewerStack() }
+    val navigator = remember(controller) { AppNavigator(context, controller, scope, viewers) }
     DisposableEffect(navigator) {
         app.navigatorOrNull = navigator
         onDispose { if (app.navigatorOrNull === navigator) app.navigatorOrNull = null }
@@ -164,7 +170,7 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
                 exitTransition = { fadeOut() },
             ) {
                 composable<Route.Login> { LoginScreen() }
-                composable<Route.WebLogin> { WebLoginScreen() }
+                composable<Route.WebLogin> { WebLoginScreen(it.toRoute<Route.WebLogin>().clearFirst) }
                 composable<Route.Home> { HomeScreen() }
                 composable<Route.Settings> { SettingsScreen() }
                 composable<Route.ManageForYou> { ManageForYouScreen() }
@@ -186,10 +192,9 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
                 composable<Route.Post> {
                     val r = it.toRoute<Route.Post>(); PostDetailScreen(r.subreddit, r.postId, r.focusCommentId)
                 }
-                composable<Route.ImageViewer> { val r = it.toRoute<Route.ImageViewer>(); ImageViewerScreen(r.url, r.title) }
-                composable<Route.GalleryViewer> { GalleryViewerScreen(it.toRoute<Route.GalleryViewer>()) }
-                composable<Route.VideoViewer> { VideoViewerScreen(it.toRoute<Route.VideoViewer>()) }
             }
+            // Media viewers: a transparent overlay above the current screen.
+            MediaViewerHost(viewers)
             OverlayHost()
             SnackbarHost(
                 navigator.snackbar,

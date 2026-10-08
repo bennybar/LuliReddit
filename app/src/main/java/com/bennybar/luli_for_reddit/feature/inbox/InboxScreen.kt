@@ -251,7 +251,9 @@ private fun InboxList(where: String, listState: LazyListState) {
                 state.loading && state.items.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
-                state.error != null && state.items.isEmpty() -> LazyColumn(Modifier.fillMaxSize()) {
+                // A failed (re)load shows the error even over loaded items, as in
+                // Flutter (its AsyncError replaced the list); pull to retry.
+                state.error != null -> LazyColumn(Modifier.fillMaxSize()) {
                     item {
                         Text(
                             "Could not load inbox.\n${friendlyError(state.error)}",

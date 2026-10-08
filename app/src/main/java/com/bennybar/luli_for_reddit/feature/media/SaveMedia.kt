@@ -55,8 +55,10 @@ private fun mimeFor(ext: String, isVideo: Boolean): String = when (ext) {
 
 /**
  * The download behind [saveMediaToGallery]: fetches [url] to a temp file,
- * then copies it into the picked folder, else the gallery's "Ilay" album
- * (Pictures/Ilay or Movies/Ilay). Runs on the app scope, so leaving the
+ * then copies it into the picked folder (as `ilay_<ts>`), else the gallery's
+ * "Ilay" album: Pictures/Ilay for images *and* videos, named `luli_<ts>`, as
+ * the Flutter build's gal plugin saved them, so existing users keep one
+ * album. Runs on the app scope, so leaving the
  * screen doesn't abort a save; the dialog's Cancel does.
  */
 internal suspend fun saveMedia(url: String, isVideo: Boolean) {
@@ -99,14 +101,13 @@ internal suspend fun saveMedia(url: String, isVideo: Boolean) {
                     }
                 }
             }
-            val name = "ilay_$ts.$ext"
             val mime = mimeFor(ext, isVideo)
-            if (folder != null && app.media.saveToFolder(folder, tmp, name, mime)) {
+            if (folder != null && app.media.saveToFolder(folder, tmp, "ilay_$ts.$ext", mime)) {
                 finished.value = true
                 nav.showSnackbar("Saved to ${folder.name}")
                 return@launch
             }
-            insertIntoGallery(tmp, name, mime, isVideo)
+            insertIntoGallery(tmp, tmp.name, mime, isVideo)
             finished.value = true
             nav.showSnackbar(
                 if (folder == null) "Saved to your gallery"
@@ -127,6 +128,12 @@ internal suspend fun saveMedia(url: String, isVideo: Boolean) {
         }
     }
 
+    // Cancelled before the download even started: the body never ran, so
+    // close the dialog (and report) from here.
+    job.invokeOnCompletion { cause ->
+        if (!finished.value && cause is CancellationException) nav.showSnackbar("Download cancelled")
+        finished.value = true
+    }
     app.scope.launch {
         Overlays.show<Unit> { done ->
             LaunchedEffect(Unit) {
@@ -139,7 +146,7 @@ internal suspend fun saveMedia(url: String, isVideo: Boolean) {
     job.join()
 }
 
-/** MediaStore insert into Pictures/Ilay or Movies/Ilay (no storage permission needed). */
+/** MediaStore insert into Pictures/Ilay — videos too, like gal did (no storage permission needed). */
 private fun insertIntoGallery(file: File, name: String, mime: String, isVideo: Boolean) {
     val resolver = app.context.contentResolver
     val collection = if (isVideo) {
@@ -150,10 +157,7 @@ private fun insertIntoGallery(file: File, name: String, mime: String, isVideo: B
     val values = ContentValues().apply {
         put(MediaStore.MediaColumns.DISPLAY_NAME, name)
         put(MediaStore.MediaColumns.MIME_TYPE, mime)
-        put(
-            MediaStore.MediaColumns.RELATIVE_PATH,
-            (if (isVideo) Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_PICTURES) + "/Ilay",
-        )
+        put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Ilay")
         put(MediaStore.MediaColumns.IS_PENDING, 1)
     }
     val uri = resolver.insert(collection, values) ?: throw IOException("The gallery refused the file")
