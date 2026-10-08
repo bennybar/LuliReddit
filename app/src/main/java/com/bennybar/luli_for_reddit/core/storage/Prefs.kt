@@ -95,7 +95,7 @@ class Prefs(context: Context) {
 
     companion object {
         const val FILE = "ilay_prefs"
-        const val DOUBLE_TAG = "\u0000d:"
-        const val LIST_TAG = "\u0000l:"
+        const val DOUBLE_TAG = "ilay.double:"
+        const val LIST_TAG = "ilay.list:"
     }
 }
