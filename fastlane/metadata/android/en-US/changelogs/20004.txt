@@ -1,0 +1,2 @@
+- Google Sans is now the app's font. Settings → Appearance → App font switches between Google Sans, Roboto and Plus Jakarta Sans.
+- The sign-in screen shows the new app icon.

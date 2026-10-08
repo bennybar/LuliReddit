@@ -22,8 +22,9 @@ class SettingsStore(private val p: Prefs) {
             amoled = b("amoled", d.amoled),
             useDynamicColor = b("useDynamicColor", d.useDynamicColor),
             jakartaFont = b("jakartaFont", d.jakartaFont),
-            // Before the picker there was only the Jakarta switch (Flutter's too).
-            appFont = AppFont.parse(p.getString("appFont"), if (b("jakartaFont", false)) AppFont.JAKARTA else AppFont.ROBOTO),
+            // Before the picker there was only the Jakarta switch (Flutter's too):
+            // keep Jakarta for those who chose it; everyone else gets the v2 default.
+            appFont = AppFont.parse(p.getString("appFont"), if (b("jakartaFont", false)) AppFont.JAKARTA else d.appFont),
             inAppBrowser = b("inAppBrowser", d.inAppBrowser),
             tapToCollapse = b("tapToCollapse", d.tapToCollapse),
             hideReadPosts = b("hideReadPosts", d.hideReadPosts),
