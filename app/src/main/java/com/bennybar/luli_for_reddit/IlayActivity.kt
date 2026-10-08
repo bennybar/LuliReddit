@@ -68,6 +68,18 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import com.bennybar.luli_for_reddit.core.Analytics
+import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.EnterExitState
+import androidx.compose.animation.core.Easing
+import androidx.compose.animation.core.animateDp
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.dp
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavGraphBuilder
 
 /** Once per process (the activity can be recreated). */
 private var appStartTracked = false
@@ -215,28 +227,33 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
                 startDestination = start,
                 enterTransition = { fadeIn() },
                 exitTransition = { fadeOut() },
+                // Back (and the predictive back gesture, which scrubs these):
+                // the leaving screen shrinks into a rounded card and only fades
+                // at the very end; the screen underneath settles in behind it.
+                popEnterTransition = { fadeIn(tween(250)) + scaleIn(tween(250), initialScale = 0.94f) },
+                popExitTransition = { scaleOut(tween(250), targetScale = 0.88f) + fadeOut(tween(250, easing = LateFade)) },
             ) {
-                composable<Route.Login> { LoginScreen() }
-                composable<Route.WebLogin> { WebLoginScreen(it.toRoute<Route.WebLogin>().clearFirst) }
-                composable<Route.Home> { HomeScreen() }
-                composable<Route.Settings> { SettingsScreen() }
-                composable<Route.ManageForYou> { ManageForYouScreen() }
-                composable<Route.ContentFilters> { ContentFiltersScreen() }
-                composable<Route.Policy> { PolicyScreen() }
-                composable<Route.History> { HistoryScreen() }
-                composable<Route.Saved> { SavedScreen() }
-                composable<Route.Offline> { OfflineScreen() }
-                composable<Route.Search> { val r = it.toRoute<Route.Search>(); SearchScreen(r.subreddit, r.query) }
-                composable<Route.Submit> { SubmitScreen(it.toRoute<Route.Submit>().subreddit) }
-                composable<Route.MessageThread> { MessageThreadScreen(it.toRoute<Route.MessageThread>().fullname) }
-                composable<Route.ComposeMessage> { ComposeMessageScreen(it.toRoute<Route.ComposeMessage>().to) }
-                composable<Route.Subreddit> { SubredditScreen(it.toRoute<Route.Subreddit>().name) }
-                composable<Route.User> { UserScreen(it.toRoute<Route.User>().username) }
-                composable<Route.Multireddit> { val r = it.toRoute<Route.Multireddit>(); MultiredditScreen(r.username, r.name) }
-                composable<Route.ManageMultireddit> {
+                screen<Route.Login> { LoginScreen() }
+                screen<Route.WebLogin> { WebLoginScreen(it.toRoute<Route.WebLogin>().clearFirst) }
+                screen<Route.Home> { HomeScreen() }
+                screen<Route.Settings> { SettingsScreen() }
+                screen<Route.ManageForYou> { ManageForYouScreen() }
+                screen<Route.ContentFilters> { ContentFiltersScreen() }
+                screen<Route.Policy> { PolicyScreen() }
+                screen<Route.History> { HistoryScreen() }
+                screen<Route.Saved> { SavedScreen() }
+                screen<Route.Offline> { OfflineScreen() }
+                screen<Route.Search> { val r = it.toRoute<Route.Search>(); SearchScreen(r.subreddit, r.query) }
+                screen<Route.Submit> { SubmitScreen(it.toRoute<Route.Submit>().subreddit) }
+                screen<Route.MessageThread> { MessageThreadScreen(it.toRoute<Route.MessageThread>().fullname) }
+                screen<Route.ComposeMessage> { ComposeMessageScreen(it.toRoute<Route.ComposeMessage>().to) }
+                screen<Route.Subreddit> { SubredditScreen(it.toRoute<Route.Subreddit>().name) }
+                screen<Route.User> { UserScreen(it.toRoute<Route.User>().username) }
+                screen<Route.Multireddit> { val r = it.toRoute<Route.Multireddit>(); MultiredditScreen(r.username, r.name) }
+                screen<Route.ManageMultireddit> {
                     val r = it.toRoute<Route.ManageMultireddit>(); ManageMultiredditScreen(r.username, r.name)
                 }
-                composable<Route.Post> {
+                screen<Route.Post> {
                     val r = it.toRoute<Route.Post>(); PostDetailScreen(r.subreddit, r.postId, r.focusCommentId)
                 }
             }
@@ -248,5 +265,22 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
                 Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = navigator.snackbarBottomPadding),
             )
         } }
+    }
+}
+
+
+/** Holds full opacity for most of the transition, then fades: a back preview stays solid. */
+private val LateFade = Easing { f -> if (f < 0.75f) 0f else (f - 0.75f) / 0.25f }
+
+/**
+ * A destination whose corners round off as it animates out (or in), so the
+ * predictive back gesture shows the screen as a shrinking card.
+ */
+private inline fun <reified T : Any> NavGraphBuilder.screen(
+    noinline content: @Composable AnimatedContentScope.(NavBackStackEntry) -> Unit,
+) = composable<T> { entry ->
+    val corner by transition.animateDp(label = "screenCorner") { if (it == EnterExitState.Visible) 0.dp else 32.dp }
+    Box(Modifier.fillMaxSize().clip(RoundedCornerShape(corner)).background(MaterialTheme.colorScheme.surface)) {
+        content(entry)
     }
 }

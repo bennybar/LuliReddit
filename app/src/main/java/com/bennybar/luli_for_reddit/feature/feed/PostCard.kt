@@ -60,6 +60,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -848,6 +851,27 @@ private val CalmMediaShape = RoundedCornerShape(18.dp)
  * You reason), a medium-weight title, a flair pill, 16:10 media and a
  * connected vote group. Mark-read lives in the ⋮ sheet.
  */
+/**
+ * Calm's surfaces. In light mode surfaceContainerLow is almost the page colour,
+ * so cards were lost in one off-white sheet: cards use a clearly tinted
+ * container and the controls on them are white. Dark mode already contrasts.
+ */
+@Composable
+internal fun calmCardColor(): Color {
+    val cs = MaterialTheme.colorScheme
+    return if (cs.surface.luminance() > 0.5f) cs.surfaceContainerHigh else cs.surfaceContainerLow
+}
+
+/** True inside a Calm card: its controls go white (light mode) to stand out from the tinted card. */
+internal val LocalCalmOnCard = staticCompositionLocalOf { false }
+
+@Composable
+internal fun calmControlColor(): Color {
+    val cs = MaterialTheme.colorScheme
+    val light = cs.surface.luminance() > 0.5f
+    return if (light && LocalCalmOnCard.current) cs.surfaceContainerLowest else cs.surfaceContainerHigh
+}
+
 @Composable
 private fun CalmCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
     val cs = MaterialTheme.colorScheme
@@ -857,7 +881,8 @@ private fun CalmCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
     val saved = ov?.saved ?: p.saved
     val numComments = ov?.numComments ?: p.numComments
     // The feed's side padding is 10dp; Calm cards sit 12dp in.
-    BloomCard(Modifier.padding(horizontal = 2.dp).then(dim), onClick = a::openDetail, onLongClick = a::tune, shape = CalmCardShape) {
+    CompositionLocalProvider(LocalCalmOnCard provides true) {
+    BloomCard(Modifier.padding(horizontal = 2.dp).then(dim), onClick = a::openDetail, onLongClick = a::tune, shape = CalmCardShape, color = calmCardColor()) {
         Column(Modifier.padding(start = 16.dp, top = 14.dp, end = 16.dp, bottom = 12.dp)) {
             CalmHeader(p, a)
             Text(
@@ -899,6 +924,7 @@ private fun CalmCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
                 )
             }
         }
+    }
     }
 }
 
@@ -981,7 +1007,7 @@ private fun CalmMedia(p: Post, a: PostActions, s: Settings) {
     val top = Modifier.padding(top = 10.dp)
     if (p.type == PostType.LINK) {
         val img = cardImg(p, s) ?: p.thumbnailUrl
-        Column(top.fillMaxWidth().clip(CalmMediaShape).background(cs.surfaceContainerHigh).clickable(onClick = a::openMedia)) {
+        Column(top.fillMaxWidth().clip(CalmMediaShape).background(calmControlColor()).clickable(onClick = a::openMedia)) {
             if (img != null) {
                 NsfwBlur(blur, blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, s)) {
                     Box(Modifier.fillMaxWidth().aspectRatio(2f).background(cs.surfaceContainerHighest)) {
@@ -1068,7 +1094,7 @@ fun CalmFlair(raw: String, modifier: Modifier = Modifier) {
     Row(
         modifier
             .height(26.dp)
-            .background(cs.surfaceContainerHigh, RoundedCornerShape(13.dp))
+            .background(calmControlColor(), RoundedCornerShape(13.dp))
             .padding(start = 8.dp, end = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -1142,7 +1168,8 @@ private fun CalmSegment(
     content: @Composable (Color) -> Unit,
 ) {
     val cs = MaterialTheme.colorScheme
-    val bg = if (tint != null) tint.copy(alpha = 0.22f).compositeOver(cs.surfaceContainerHigh) else cs.surfaceContainerHigh
+    val base = calmControlColor()
+    val bg = if (tint != null) tint.copy(alpha = 0.22f).compositeOver(base) else base
     val fg = tint ?: cs.onSurface
     Row(
         Modifier
