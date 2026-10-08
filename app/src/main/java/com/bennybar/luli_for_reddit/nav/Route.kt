@@ -10,7 +10,8 @@ import kotlinx.serialization.Serializable
 @Serializable
 sealed interface Route {
     @Serializable data object Login : Route
-    @Serializable data object WebLogin : Route
+    /** Website-session sign-in. [clearFirst] wipes existing cookies so you can sign into a *different* account (add account). */
+    @Serializable data class WebLogin(val clearFirst: Boolean = false) : Route
     @Serializable data object Home : Route
     @Serializable data object Settings : Route
     @Serializable data object ManageForYou : Route
@@ -30,22 +31,6 @@ sealed interface Route {
     @Serializable data class ManageMultireddit(val username: String, val name: String) : Route
     /** A post + comments. The already-loaded Post (if any) is in [NavCache] under [postId]. */
     @Serializable data class Post(val subreddit: String, val postId: String, val focusCommentId: String? = null) : Route
-
-    // Full-screen media viewers (drawn over everything, black background).
-    @Serializable data class ImageViewer(val url: String, val title: String? = null) : Route
-    @Serializable data class GalleryViewer(
-        val urls: List<String>,
-        val widths: List<Int> = emptyList(),
-        val heights: List<Int> = emptyList(),
-        val title: String? = null,
-        val initialIndex: Int = 0,
-    ) : Route
-    @Serializable data class VideoViewer(
-        val url: String,
-        val title: String? = null,
-        val downloadUrl: String? = null,
-        val externalUrl: String? = null,
-    ) : Route
 }
 
 /** Hands non-serializable objects (posts, inbox items) to the next screen. */

@@ -35,6 +35,7 @@ import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -60,11 +61,15 @@ internal fun ZoomableImage(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val density = LocalDensity.current.density
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     var container by remember { mutableStateOf(IntSize.Zero) }
     var intrinsic by remember { mutableStateOf<Size?>(null) }
     var state by remember { mutableStateOf<AsyncImagePainter.State>(AsyncImagePainter.State.Empty) }
+    // PhotoView's scale state: double-tap cycles initial → covering →
+    // original size → initial; after a pinch it goes back to initial.
+    var scaleState by remember { mutableStateOf(ScaleState.Initial) }
     val scope = rememberCoroutineScope()
 
     val zoomed = scale > 1.01f
@@ -88,6 +93,19 @@ internal fun ZoomableImage(
         return max(covered * 4f, 3f)
     }
 
+    // The scale (relative to fitted) for a PhotoView scale state, clamped to min/max.
+    fun scaleFor(s: ScaleState): Float {
+        val f = fitted()
+        if (f.width <= 0f || f.height <= 0f) return 1f
+        val raw = when (s) {
+            ScaleState.Initial, ScaleState.Zoomed -> 1f
+            ScaleState.Covering -> max(container.width / f.width, container.height / f.height)
+            // One image pixel per logical pixel (dp), like PhotoView's originalSize.
+            ScaleState.OriginalSize -> intrinsic?.let { it.width * density / f.width } ?: 1f
+        }
+        return raw.coerceIn(1f, maxScale())
+    }
+
     fun clamp(o: Offset, s: Float): Offset {
         val f = fitted()
         val mx = max((f.width * s - container.width) / 2f, 0f)
@@ -108,11 +126,31 @@ internal fun ZoomableImage(
             .pointerInput(url) {
                 detectTapGestures(
                     onTap = { onTap() },
-                    onDoubleTap = { p ->
+                    onDoubleTap = {
+                        // PhotoView's nextScaleState: step through the cycle,
+                        // skipping states that land on the current scale.
+                        fun same(a: Float, b: Float) = abs(a - b) < 0.001f
+                        val current = scaleState
+                        var next = current.next()
+                        var nextScale = scaleFor(next)
+                        if (current != ScaleState.Zoomed) {
+                            val original = scaleFor(current)
+                            var prevScale: Float
+                            nextScale = original
+                            next = current
+                            do {
+                                prevScale = nextScale
+                                next = next.next()
+                                nextScale = scaleFor(next)
+                            } while (same(prevScale, nextScale) && next != current)
+                            if (same(original, nextScale)) return@detectTapGestures
+                        }
+                        scaleState = next
                         val fromScale = scale
                         val fromOffset = offset
-                        val toScale = if (fromScale > 1.01f) 1f else min(2.5f, maxScale())
-                        val toOffset = if (toScale == 1f) Offset.Zero else clamp(offsetFor(p, fromScale, toScale, fromOffset), toScale)
+                        val toScale = nextScale
+                        // PhotoView re-centres on every scale-state change.
+                        val toOffset = Offset.Zero
                         scope.launch {
                             animate(0f, 1f, animationSpec = tween(220)) { t, _ ->
                                 scale = fromScale + (toScale - fromScale) * t
@@ -139,6 +177,7 @@ internal fun ZoomableImage(
                             // A one-finger horizontal pan pushing past the edge: let the pager page.
                             val atEdge = pressed == 1 && zoom == 1f && abs(pan.x) > abs(pan.y) &&
                                 abs(clamped.x - raw.x) > 0.5f
+                            if (zoom != 1f) scaleState = ScaleState.Zoomed
                             scale = newScale
                             offset = clamped
                             if (!atEdge) event.changes.forEach { if (it.positionChanged()) it.consume() }
@@ -147,6 +186,7 @@ internal fun ZoomableImage(
                     if (scale < 1.02f) {
                         scale = 1f
                         offset = Offset.Zero
+                        scaleState = ScaleState.Initial
                     }
                 }
             },
@@ -176,6 +216,16 @@ internal fun ZoomableImage(
                 Icon(Icons.Rounded.BrokenImage, null, Modifier.size(48.dp), tint = Color.White.copy(alpha = 0.6f))
             else -> {}
         }
+    }
+}
+
+private enum class ScaleState {
+    Initial, Covering, OriginalSize, Zoomed;
+
+    fun next() = when (this) {
+        Initial -> Covering
+        Covering -> OriginalSize
+        OriginalSize, Zoomed -> Initial
     }
 }
 

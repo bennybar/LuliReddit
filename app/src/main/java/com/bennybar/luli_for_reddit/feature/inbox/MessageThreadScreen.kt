@@ -1,6 +1,9 @@
 package com.bennybar.luli_for_reddit.feature.inbox
 
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -23,12 +26,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.outlined.AddPhotoAlternate
-import androidx.compose.material.icons.rounded.GifBox
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Videocam
+import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -44,9 +52,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -54,15 +64,19 @@ import com.bennybar.luli_for_reddit.app
 import com.bennybar.luli_for_reddit.core.net.uploadToCatbox
 import com.bennybar.luli_for_reddit.core.timeAgo
 import com.bennybar.luli_for_reddit.feature.auth.BloomTextField
-import com.bennybar.luli_for_reddit.feature.compose.AttachmentControls
+import com.bennybar.luli_for_reddit.feature.compose.AttachmentPreview
 import com.bennybar.luli_for_reddit.feature.compose.MediaAttachment
-import com.bennybar.luli_for_reddit.feature.compose.showGiphyPicker
+import com.bennybar.luli_for_reddit.feature.compose.pasteImageAttachment
+import com.bennybar.luli_for_reddit.feature.compose.readAttachment
+import com.bennybar.luli_for_reddit.feature.media.launchForResult
+import com.bennybar.luli_for_reddit.ui.Overlays
 import com.bennybar.luli_for_reddit.feature.markdown.RedditMarkdown
 import com.bennybar.luli_for_reddit.model.InboxItem
 import com.bennybar.luli_for_reddit.model.InboxKind
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.NavCache
 import com.bennybar.luli_for_reddit.ui.ErrorView
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 /** A private-message conversation. The root InboxItem is in NavCache under [fullname] (else fetched). */
@@ -117,15 +131,16 @@ fun MessageThreadScreen(fullname: String) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun Thread(root: InboxItem) {
     val nav = LocalNavigator.current
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val draftKey = "msgreply_${root.fullname}"
     val messages = remember(root) { mutableStateListOf<InboxItem>().apply { add(root); addAll(root.replies) } }
     var reply by remember { mutableStateOf(TextFieldValue(app.drafts.get(draftKey) ?: "")) }
     var media by remember { mutableStateOf<MediaAttachment?>(null) }
-    var attachOpen by remember { mutableStateOf(false) }
     var sending by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val me = app.session.username
@@ -169,11 +184,53 @@ private fun Thread(root: InboxItem) {
                 )
                 reply = TextFieldValue("")
                 media = null
-                attachOpen = false
             } catch (e: Exception) {
                 nav.showSnackbar((e.message ?: e.toString()).removePrefix("Exception: "))
             } finally {
                 sending = false
+            }
+        }
+    }
+
+    fun setMedia(emptyMsg: String? = null, pick: suspend () -> MediaAttachment?) {
+        scope.launch {
+            try {
+                val m = pick()
+                if (m == null) {
+                    if (emptyMsg != null) nav.showSnackbar(emptyMsg)
+                    return@launch
+                }
+                media = m
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                nav.showSnackbar((e.message ?: e.toString()).removePrefix("Exception: "))
+            }
+        }
+    }
+
+    suspend fun pick(isVideo: Boolean): MediaAttachment? {
+        val type = if (isVideo) ActivityResultContracts.PickVisualMedia.VideoOnly else ActivityResultContracts.PickVisualMedia.ImageOnly
+        val uri = launchForResult(ActivityResultContracts.PickVisualMedia(), PickVisualMediaRequest(type)) ?: return null
+        return readAttachment(context, uri, isVideo)
+    }
+
+    // The attach menu, as a bottom sheet (image / video / paste).
+    fun showAttachMenu() {
+        scope.launch {
+            val choice = Overlays.show<Int> { done ->
+                ModalBottomSheet(onDismissRequest = { done(null) }) {
+                    Column(Modifier.navigationBarsPadding()) {
+                        AttachOption(Icons.Outlined.Image, "Attach image") { done(0) }
+                        AttachOption(Icons.Outlined.Videocam, "Attach video") { done(1) }
+                        AttachOption(Icons.Rounded.ContentPaste, "Paste image") { done(2) }
+                    }
+                }
+            } ?: return@launch
+            when (choice) {
+                0 -> setMedia { pick(isVideo = false) }
+                1 -> setMedia { pick(isVideo = true) }
+                else -> setMedia(emptyMsg = "No image on the clipboard.") { pasteImageAttachment(context) }
             }
         }
     }
@@ -204,27 +261,12 @@ private fun Thread(root: InboxItem) {
             }
         }
         Column(Modifier.navigationBarsPadding().padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 12.dp)) {
-            if (attachOpen || media != null) {
-                AttachmentControls(
-                    media = media,
-                    onChanged = { media = it },
-                    onError = { nav.showSnackbar(it) },
-                    catboxForImages = true,
-                    leading = {
-                        IconButton(onClick = {
-                            scope.launch {
-                                val gif = showGiphyPicker() ?: return@launch
-                                val t = reply.text
-                                val next = if (t.isBlank()) gif else "${t.trimEnd()}\n\n$gif"
-                                setReply(TextFieldValue(next, TextRange(next.length)))
-                            }
-                        }) { Icon(Icons.Rounded.GifBox, "GIF") }
-                    },
-                )
+            media?.let { m ->
+                AttachmentPreview(m, onRemove = { media = null })
                 Spacer(Modifier.height(6.dp))
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { attachOpen = !attachOpen }, enabled = !sending) {
+                IconButton(onClick = ::showAttachMenu, enabled = !sending) {
                     Icon(Icons.Outlined.AddPhotoAlternate, "Attach")
                 }
                 BloomTextField(
@@ -244,4 +286,14 @@ private fun Thread(root: InboxItem) {
             }
         }
     }
+}
+
+@Composable
+private fun AttachOption(icon: ImageVector, label: String, onClick: () -> Unit) {
+    ListItem(
+        headlineContent = { Text(label) },
+        leadingContent = { Icon(icon, null) },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        modifier = Modifier.clickable(onClick = onClick),
+    )
 }

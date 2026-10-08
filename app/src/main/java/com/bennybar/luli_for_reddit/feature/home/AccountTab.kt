@@ -282,9 +282,10 @@ private sealed interface AccountAction {
 private suspend fun addAccount(context: android.content.Context) {
     try {
         if (app.session.authMode() == "web") {
-            // Match the current method: website-session add (the web login
-            // screen signs the new account in).
-            app.navigator.push(Route.WebLogin)
+            // Match the current method: website-session add with fresh cookies
+            // (the web login screen signs the new account in and reports
+            // "Could not add account: …" itself — this push returns at once).
+            app.navigator.push(Route.WebLogin(clearFirst = true))
         } else {
             app.session.addAccount(context)
         }
