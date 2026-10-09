@@ -135,12 +135,17 @@ fun PostListView(
         }
     }
 
-    // Returning to the feed after a pushed route (e.g. a post) is popped:
-    // pull in fresh posts if the feed has gone stale. (The first resume is
-    // this screen opening.)
+    // Returning to the feed after a pushed route (e.g. a post) is popped, or
+    // to the app: the frontpage keeps its posts for 30 minutes, then loads
+    // anew; other feeds stage fresh posts behind a "New posts" pill once
+    // stale. (The first resume is this screen opening.)
     var resumedOnce by rememberSaveable { mutableStateOf(false) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        if (resumedOnce) controller.refreshIfStale() else resumedOnce = true
+        when {
+            !resumedOnce -> resumedOnce = true
+            isFrontpage -> controller.refreshIfExpired()
+            else -> controller.refreshIfStale()
+        }
     }
 
     // A sort / feed change replaces the list: start the new one at the top.

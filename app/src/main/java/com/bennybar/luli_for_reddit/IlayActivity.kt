@@ -94,6 +94,9 @@ class IlayActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
         )
+        // Restored after Android killed the app in the background (a swipe
+        // away from Recents starts fresh, with no saved state).
+        if (savedInstanceState != null) app.restoredProcess = true
         if (savedInstanceState == null) {
             prestartFrontpage()
             trackAppStarted()

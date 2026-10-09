@@ -497,6 +497,10 @@ fun SettingsList(
             pickOption(listOf(5, 10, 30, 60).map { PickOption(it, "$it minutes") }, s.subsCacheMinutes)
                 ?.let(ctrl::setSubsCacheMinutes)
         })
+        tile("Keep feed for", "Home / For You: ${keepLabel(s.feedKeepMinutes)}, then a new feed (pull down to refresh anytime)", Icons.Outlined.Timer, onClick = launch {
+            pickOption(listOf(10, 30, 60, 180).map { PickOption(it, keepLabel(it)) }, s.feedKeepMinutes)
+                ?.let(ctrl::setFeedKeepMinutes)
+        })
         tile("Clear cache", icon = Icons.Rounded.Cached, onClick = launch {
             app.client.clearCache()
             nav.showSnackbar("Cache cleared")
@@ -929,4 +933,11 @@ internal fun reloadLocalData() {
         app.offline, app.feed, app.post, app.forYou, app.inbox, app.media,
     ).forEach { it.onUserChanged(user) }
     app.session.reload()
+}
+
+/** "Keep feed for" choices: how long Home / For You keep their posts before returning to them loads new ones. */
+private fun keepLabel(minutes: Int): String = when {
+    minutes < 60 -> "$minutes minutes"
+    minutes == 60 -> "1 hour"
+    else -> "${minutes / 60} hours"
 }
