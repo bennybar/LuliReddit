@@ -1504,7 +1504,7 @@ private fun CalmThreadRow(first: Boolean, last: Boolean, highlighted: Boolean, c
 /**
  * A Calm comment row inside its thread container: 2dp neutral rails per
  * depth (OP's own rail tinted primary), avatar 24 + name + OP + age, the
- * body, and a small ↑ score ↓ · Reply · ⋯ row (save / collapse in ⋯).
+ * body, and a small ↑ score ↓ · Reply · Collapse · ⋯ row (save in ⋯).
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -1611,7 +1611,7 @@ private fun CalmCommentRow(
                     Badge("NEW", cs.tertiaryContainer, cs.onTertiaryContainer, 10.5.sp)
                 }
                 Spacer(Modifier.weight(1f))
-                if (collapsed) Icon(Icons.Rounded.UnfoldMore, "Expand", Modifier.size(16.dp), tint = cs.onSurfaceVariant)
+                if (collapsed) CollapsePill(Icons.Rounded.UnfoldMore, "Expand", toggle)
             }
             if (collapsed) {
                 Text(
@@ -1635,7 +1635,7 @@ private fun CalmCommentRow(
                 if (split.first.isNotEmpty()) RedditMarkdown(split.first)
                 CommentMedia(comment.body, split.second, nav)
             }
-            // ↑ score ↓ · Reply · ⋯ — small, 36dp targets.
+            // ↑ score ↓ · Reply · Collapse · ⋯ — small, 32dp targets.
             Row(Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 val muted = cs.onSurfaceVariant
                 Box(Modifier.size(32.dp).clip(CircleShape).clickable { actions.vote(comment, 1) }, contentAlignment = Alignment.Center) {
@@ -1665,6 +1665,7 @@ private fun CalmCommentRow(
                 }
                 Spacer(Modifier.weight(1f))
                 if (comment.saved) Icon(Icons.Rounded.Bookmark, "Saved", Modifier.size(16.dp), tint = cs.primary)
+                CollapsePill(Icons.Rounded.UnfoldLess, "Collapse", toggle)
                 Box {
                     Box(Modifier.size(32.dp).clip(CircleShape).clickable { menu = true }, contentAlignment = Alignment.Center) {
                         Icon(Icons.Rounded.MoreHoriz, "More", Modifier.size(16.dp), tint = muted)
@@ -1678,12 +1679,31 @@ private fun CalmCommentRow(
                             text = { Text(if (comment.saved) "Unsave" else "Save") },
                             onClick = { pick { actions.toggleSave(comment) } },
                         )
-                        DropdownMenuItem(text = { Text("Collapse thread") }, onClick = { pick { toggle() } })
                         CommentMenuItems(comment, isOwn, actions, pick)
                     }
                 }
             }
         }
+    }
+}
+
+/** Calm thread's collapse / expand control: a labelled tonal pill, easy to spot and hit. */
+@Composable
+private fun CollapsePill(icon: ImageVector, label: String, onClick: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    Row(
+        Modifier
+            .padding(start = 4.dp)
+            .height(28.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(cs.secondaryContainer)
+            .clickable(onClickLabel = label, onClick = onClick)
+            .padding(start = 8.dp, end = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, Modifier.size(16.dp), tint = cs.onSecondaryContainer)
+        Spacer(Modifier.width(4.dp))
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = cs.onSecondaryContainer)
     }
 }
 
