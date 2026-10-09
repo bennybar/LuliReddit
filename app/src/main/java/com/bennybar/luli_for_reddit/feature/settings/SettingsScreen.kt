@@ -206,7 +206,7 @@ private class Entry(val key: String, val search: String?, val content: @Composab
 
 /**
  * The settings list — reusable both as the full Settings screen and embedded
- * (e.g. inside the Account tab). Pass [embedded] when nesting in a scroll view.
+ * (e.g. inside the You tab). Pass [embedded] when nesting in a scroll view.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -258,6 +258,57 @@ fun SettingsList(
         fun switch(title: String, subtitle: String?, icon: ImageVector, checked: Boolean, onChange: ((Boolean) -> Unit)?) =
             add(Entry("s:$title", "$title ${subtitle ?: ""}") { SwitchTile(title, subtitle, icon, checked, onChange = onChange) })
         fun launch(block: suspend CoroutineScope.() -> Unit): () -> Unit = { scope.launch(block = block) }
+
+        // ---------------------------------------------------------------- Feed
+        section("Feed")
+        tile("Post display", s.postDisplay.label, s.postDisplay.icon, onClick = launch {
+            pickOption(PostDisplay.entries.map { PickOption(it, it.label, icon = it.icon) }, s.postDisplay)
+                ?.let(ctrl::setPostDisplay)
+        })
+        tile("Default sort", s.defaultSort.label, Icons.AutoMirrored.Rounded.Sort, onClick = launch {
+            pickOption(PostSort.entries.map { PickOption(it, it.label) }, s.defaultSort)?.let(ctrl::setDefaultSort)
+        })
+        switch(
+            "\"For You\" feed (Beta)",
+            "Personalized frontpage built on-device. Reddit's own recommendations aren't available to third-party apps.",
+            Icons.Rounded.AutoAwesome, s.forYouFeed, ctrl::setForYouFeed,
+        )
+        switch(
+            "Auto-hide read items in \"For You\"", "Hide posts you've marked/opened as read",
+            Icons.Outlined.MarkEmailRead, s.autoHideReadForYou, ctrl::setAutoHideReadForYou,
+        )
+        tile("Manage \"For You\" subreddits", "Review and undo muted / show-less subreddits", Icons.Rounded.Tune) {
+            nav.push(Route.ManageForYou)
+        }
+        val homeSubtitle = if (web) "RISK TO YOUR ACCOUNT: against Reddit's terms. Shows your real reddit.com Home"
+        else "Needs website sign-in"
+        add(Entry("s:redditHome", "Reddit Home (experimental) $homeSubtitle") {
+            SwitchTile(
+                "Reddit Home (experimental)", homeSubtitle, Icons.Rounded.WarningAmber, s.redditHomeAllowed,
+                accent = cs.error, titleWeight = FontWeight.Bold,
+                onChange = if (!web && !s.redditHomeAllowed) null else { v ->
+                    if (!v) ctrl.setRedditHomeAllowed(false)
+                    else scope.launch { if (confirmRedditHome()) ctrl.setRedditHomeAllowed(true) }
+                },
+            )
+        })
+        tile("Keep feed for", "Home / For You: ${keepLabel(s.feedKeepMinutes)}, then a new feed (pull down to refresh anytime)", Icons.Outlined.Timer, onClick = launch {
+            pickOption(listOf(10, 30, 60, 180).map { PickOption(it, keepLabel(it)) }, s.feedKeepMinutes)
+                ?.let(ctrl::setFeedKeepMinutes)
+        })
+        switch(
+            "Hide read posts", "Skip posts you've already read when feeds load or refresh",
+            Icons.Outlined.VisibilityOff, s.hideReadPosts, ctrl::setHideReadPosts,
+        )
+        switch(
+            "Mark read as you scroll",
+            if (s.trackHistory) "A post you scroll past counts as read" else "Needs history tracking turned on",
+            Icons.Rounded.DoneAll, s.markReadOnScroll, if (s.trackHistory) ctrl::setMarkReadOnScroll else null,
+        )
+        tile("Content filters", "Hide posts by keyword, domain or flair", Icons.Outlined.FilterAlt) {
+            nav.push(Route.ContentFilters)
+        }
+        divider("feed")
 
         // ---------------------------------------------------------------- Appearance
         section("Appearance")
@@ -322,11 +373,8 @@ fun SettingsList(
         )
         divider("appearance")
 
-        // ---------------------------------------------------------------- Feed
-        section("Feed")
-        tile("Default sort", s.defaultSort.label, Icons.AutoMirrored.Rounded.Sort, onClick = launch {
-            pickOption(PostSort.entries.map { PickOption(it, it.label) }, s.defaultSort)?.let(ctrl::setDefaultSort)
-        })
+        // ---------------------------------------------------------------- Posts & comments
+        section("Posts & comments")
         tile(
             "Default comment sort",
             COMMENT_SORTS.firstOrNull { it.first == s.defaultCommentSort }?.second ?: s.defaultCommentSort,
@@ -341,51 +389,6 @@ fun SettingsList(
             "Otherwise long-press. Comment text can't be selected while this is on",
             Icons.Rounded.UnfoldLess, s.tapToCollapse, ctrl::setTapToCollapse,
         )
-        tile("Post display", s.postDisplay.label, s.postDisplay.icon, onClick = launch {
-            pickOption(PostDisplay.entries.map { PickOption(it, it.label, icon = it.icon) }, s.postDisplay)
-                ?.let(ctrl::setPostDisplay)
-        })
-        switch("Blur NSFW media", "Tap to reveal blurred images", Icons.Rounded.BlurOn, s.blurNsfw, ctrl::setBlurNsfw)
-        switch(
-            "Data-saver thumbnails", "Load smaller preview images in feeds (faster, less data)",
-            Icons.Outlined.Image, s.midResThumbnails, ctrl::setMidResThumbnails,
-        )
-        switch(
-            "\"For You\" feed (Beta)",
-            "Personalized frontpage built on-device. Reddit's own recommendations aren't available to third-party apps.",
-            Icons.Rounded.AutoAwesome, s.forYouFeed, ctrl::setForYouFeed,
-        )
-        switch(
-            "Auto-hide read items in \"For You\"", "Hide posts you've marked/opened as read",
-            Icons.Outlined.MarkEmailRead, s.autoHideReadForYou, ctrl::setAutoHideReadForYou,
-        )
-        val homeSubtitle = if (web) "RISK TO YOUR ACCOUNT: against Reddit's terms. Shows your real reddit.com Home"
-        else "Needs website sign-in"
-        add(Entry("s:redditHome", "Reddit Home (experimental) $homeSubtitle") {
-            SwitchTile(
-                "Reddit Home (experimental)", homeSubtitle, Icons.Rounded.WarningAmber, s.redditHomeAllowed,
-                accent = cs.error, titleWeight = FontWeight.Bold,
-                onChange = if (!web && !s.redditHomeAllowed) null else { v ->
-                    if (!v) ctrl.setRedditHomeAllowed(false)
-                    else scope.launch { if (confirmRedditHome()) ctrl.setRedditHomeAllowed(true) }
-                },
-            )
-        })
-        switch(
-            "Hide read posts", "Skip posts you've already read when feeds load or refresh",
-            Icons.Outlined.VisibilityOff, s.hideReadPosts, ctrl::setHideReadPosts,
-        )
-        switch(
-            "Mark read as you scroll",
-            if (s.trackHistory) "A post you scroll past counts as read" else "Needs history tracking turned on",
-            Icons.Rounded.DoneAll, s.markReadOnScroll, if (s.trackHistory) ctrl::setMarkReadOnScroll else null,
-        )
-        tile("Manage \"For You\" subreddits", "Review and undo muted / show-less subreddits", Icons.Rounded.Tune) {
-            nav.push(Route.ManageForYou)
-        }
-        tile("Content filters", "Hide posts by keyword, domain or flair", Icons.Outlined.FilterAlt) {
-            nav.push(Route.ContentFilters)
-        }
         switch("Swipe actions", "Swipe posts and comments sideways", Icons.Rounded.Swipe, s.swipeActions, ctrl::setSwipeActions)
         if (s.swipeActions) {
             tile(
@@ -396,26 +399,25 @@ fun SettingsList(
             ) { showSwipeSettings() }
         }
         switch(
-            "Autoplay videos", "Play videos muted as you scroll the feed",
-            Icons.Outlined.PlayCircleOutline, s.autoplayMedia, ctrl::setAutoplayMedia,
-        )
-        add(Entry("mediaFolder", "Save media to folder gallery") { MediaFolderSettingRow() })
-        switch(
             "Open links inside the app",
             "Web links open in an in-app browser tab instead of your browser app",
             Icons.Rounded.OpenInBrowser, s.inAppBrowser, ctrl::setInAppBrowser,
         )
-        divider("feed")
+        divider("posts")
 
-        // ---------------------------------------------------------------- Power-user
-        section("Power-user features")
+        // ---------------------------------------------------------------- Media
+        section("Media")
         switch(
-            "Show API usage instead of search",
-            "Replace the search bar on the Posts screen with your live Reddit API rate-limit usage",
-            Icons.Rounded.Speed, s.showApiUsage, ctrl::setShowApiUsage,
+            "Autoplay videos", "Play videos muted as you scroll the feed",
+            Icons.Outlined.PlayCircleOutline, s.autoplayMedia, ctrl::setAutoplayMedia,
         )
-        add(Entry("rateLimit", "API usage") { RateLimitTile() })
-        divider("power")
+        switch("Blur NSFW media", "Tap to reveal blurred images", Icons.Rounded.BlurOn, s.blurNsfw, ctrl::setBlurNsfw)
+        switch(
+            "Data-saver thumbnails", "Load smaller preview images in feeds (faster, less data)",
+            Icons.Outlined.Image, s.midResThumbnails, ctrl::setMidResThumbnails,
+        )
+        add(Entry("mediaFolder", "Save media to folder gallery") { MediaFolderSettingRow() })
+        divider("media")
 
         // ---------------------------------------------------------------- Notifications
         section("Notifications")
@@ -483,10 +485,8 @@ fun SettingsList(
         }
         divider("ai")
 
-        // ---------------------------------------------------------------- History & data
-        section("History & data")
-        tile("Saved", "Search your saved posts & comments", Icons.Outlined.BookmarkBorder) { nav.push(Route.Saved) }
-        tile("History", "Recently viewed (stored on this device)", Icons.Rounded.History) { nav.push(Route.History) }
+        // ---------------------------------------------------------------- Data & storage
+        section("Data & storage")
         switch("Track history", "Remember and dim viewed posts (local only)", Icons.Outlined.Visibility, s.trackHistory, ctrl::setTrackHistory)
         switch("Offline cache", "Show the last loaded content when offline", Icons.Rounded.CloudOff, s.offlineCache, ctrl::setOfflineCache)
         switch(
@@ -496,10 +496,6 @@ fun SettingsList(
         tile("Subscriptions cache time", "${s.subsCacheMinutes} minutes", Icons.Outlined.Timer, enabled = s.subsCacheEnabled, onClick = launch {
             pickOption(listOf(5, 10, 30, 60).map { PickOption(it, "$it minutes") }, s.subsCacheMinutes)
                 ?.let(ctrl::setSubsCacheMinutes)
-        })
-        tile("Keep feed for", "Home / For You: ${keepLabel(s.feedKeepMinutes)}, then a new feed (pull down to refresh anytime)", Icons.Outlined.Timer, onClick = launch {
-            pickOption(listOf(10, 30, 60, 180).map { PickOption(it, keepLabel(it)) }, s.feedKeepMinutes)
-                ?.let(ctrl::setFeedKeepMinutes)
         })
         tile("Clear cache", icon = Icons.Rounded.Cached, onClick = launch {
             app.client.clearCache()
@@ -514,29 +510,8 @@ fun SettingsList(
         }
         divider("data")
 
-        // ---------------------------------------------------------------- About
-        section("About")
-        switch("Check for updates", "Check GitHub releases on launch", Icons.Rounded.SystemUpdate, s.checkUpdates, ctrl::setCheckUpdates)
-        tile("Check now", icon = Icons.Rounded.Update, onClick = launch { checkUpdatesNow() })
-        tile(
-            "Open reddit links in Ilay",
-            "Already supported via the Android \"open with\" chooser. To make Ilay the verified default, " +
-                "enable it under system app settings › Open by default.",
-            Icons.Rounded.Link,
-        )
-        tile("Content & conduct policy", icon = Icons.Rounded.Gavel) { nav.push(Route.Policy) }
-        tile("Open-source licenses", "Fonts: Google Sans, Plus Jakarta Sans, Unbounded (SIL OFL 1.1)", Icons.Rounded.Description, onClick = launch {
-            val text = withContext(Dispatchers.IO) {
-                fun read(f: String) = runCatching { context.assets.open(f).bufferedReader().use { it.readText() } }.getOrDefault("")
-                "Google Sans\n\n" + read("OFL-GoogleSans.txt") + "\n\nPlus Jakarta Sans, Unbounded\n\n" + read("OFL.txt")
-            }
-            infoDialog("Licenses", text)
-        })
-        tile("Version", RedditConstants.APP_VERSION, Icons.Rounded.Info)
-        divider("about")
-
         // ---------------------------------------------------------------- Account
-        section("Account")
+        section("Account & keys")
         tile(
             "Login method",
             if (web) "Website session (no API key) — unofficial" else "Reddit API key (recommended)",
@@ -581,6 +556,37 @@ fun SettingsList(
                 }
             },
         )
+        divider("account")
+
+        // ---------------------------------------------------------------- Power-user
+        section("Power-user features")
+        switch(
+            "Show API usage instead of search",
+            "Replace the search bar on the Posts screen with your live Reddit API rate-limit usage",
+            Icons.Rounded.Speed, s.showApiUsage, ctrl::setShowApiUsage,
+        )
+        add(Entry("rateLimit", "API usage") { RateLimitTile() })
+        divider("power")
+
+        // ---------------------------------------------------------------- About
+        section("About")
+        switch("Check for updates", "Check GitHub releases on launch", Icons.Rounded.SystemUpdate, s.checkUpdates, ctrl::setCheckUpdates)
+        tile("Check now", icon = Icons.Rounded.Update, onClick = launch { checkUpdatesNow() })
+        tile(
+            "Open reddit links in Ilay",
+            "Already supported via the Android \"open with\" chooser. To make Ilay the verified default, " +
+                "enable it under system app settings › Open by default.",
+            Icons.Rounded.Link,
+        )
+        tile("Content & conduct policy", icon = Icons.Rounded.Gavel) { nav.push(Route.Policy) }
+        tile("Open-source licenses", "Fonts: Google Sans, Plus Jakarta Sans, Unbounded (SIL OFL 1.1)", Icons.Rounded.Description, onClick = launch {
+            val text = withContext(Dispatchers.IO) {
+                fun read(f: String) = runCatching { context.assets.open(f).bufferedReader().use { it.readText() } }.getOrDefault("")
+                "Google Sans\n\n" + read("OFL-GoogleSans.txt") + "\n\nPlus Jakarta Sans, Unbounded\n\n" + read("OFL.txt")
+            }
+            infoDialog("Licenses", text)
+        })
+        tile("Version", RedditConstants.APP_VERSION, Icons.Rounded.Info)
         add(Entry("bottom", null) { Spacer(Modifier.height(24.dp)) })
     }
 

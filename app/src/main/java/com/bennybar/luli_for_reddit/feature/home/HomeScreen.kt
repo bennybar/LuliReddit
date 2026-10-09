@@ -100,10 +100,10 @@ private val navItems = listOf(
     NavItem(Icons.Outlined.Home, Icons.Rounded.Home, "Posts"),
     NavItem(Icons.Outlined.Explore, Icons.Rounded.Explore, "Explore"),
     NavItem(Icons.Rounded.MailOutline, Icons.Rounded.Mail, "Inbox"),
-    NavItem(Icons.Outlined.AccountCircle, Icons.Rounded.AccountCircle, "Account"),
+    NavItem(Icons.Outlined.AccountCircle, Icons.Rounded.AccountCircle, "You"),
 )
 
-/** The home shell: Posts / Explore / Inbox / Account tabs with the floating "Pop" pill nav. */
+/** The home shell: Posts / Explore / Inbox / You tabs with the floating "Pop" pill nav. */
 @Composable
 fun HomeScreen() {
     val nav = LocalNavigator.current

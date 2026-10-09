@@ -20,7 +20,7 @@ sealed interface Async<out T> {
  * Feed/home singletons: one [FeedController] per feed key (the frontpage
  * lives for the whole session; other feeds are kept in a small LRU so going
  * back repaints instantly), tab re-select signals, and the custom-feed list
- * shared by the Explore and Account tabs.
+ * shared by the Explore and You tabs.
  */
 class FeedModule(private val c: AppContainer) : UserScoped {
     private var frontpage: FeedController? = null
