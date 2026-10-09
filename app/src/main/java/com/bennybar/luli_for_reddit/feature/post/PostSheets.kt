@@ -359,7 +359,7 @@ private fun PostActionsSheet(post: Post, done: () -> Unit) {
             }
             item(Icons.Outlined.VisibilityOff, "Hide") { hidePost(post) }
             // The Calm card has no read toggle of its own: it lives here.
-            if (app.settings.value.postDisplay == PostDisplay.CALM) {
+            if (app.settings.value.postDisplay.isCalm) {
                 val seen = app.history.contains(post.id)
                 item(
                     if (seen) Icons.Rounded.CheckCircle else Icons.Outlined.CheckCircleOutline,

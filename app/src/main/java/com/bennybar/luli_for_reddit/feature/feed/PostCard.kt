@@ -228,9 +228,13 @@ fun rememberSeen(postId: String): State<Boolean> {
     return flow.collectAsState(initial = app.history.contains(postId))
 }
 
-/** A post in a feed, in the layout chosen in Settings (Default / Cards / Mini cards). */
+/**
+ * A post in a feed, in the layout chosen in Settings (Default / Cards / Mini
+ * cards / Calm / Calm cards). Calm posts are segments of one connected list:
+ * [calmTop] / [calmBottom] are its corner radii (big at the list's ends).
+ */
 @Composable
-fun PostCard(post: Post, modifier: Modifier = Modifier) {
+fun PostCard(post: Post, modifier: Modifier = Modifier, calmTop: Dp = CalmOuter, calmBottom: Dp = CalmOuter) {
     val settings by app.settings.state.collectAsState()
     val nav = LocalNavigator.current
     val actions = remember(post, nav) { PostActions(post, nav) }
@@ -273,7 +277,7 @@ fun PostCard(post: Post, modifier: Modifier = Modifier) {
         Column {
             // "Why you're seeing this" banner (For You feed only). Calm shows
             // the reason in the card header instead.
-            if (reason != null && settings.postDisplay != PostDisplay.CALM) ReasonRow(reason, onTune = actions::tune)
+            if (reason != null && !settings.postDisplay.isCalm) ReasonRow(reason, onTune = actions::tune)
             // Dim already-viewed posts when history tracking is on. A
             // page-colour veil looks the same as 55% opacity — the card sits on
             // the page surface — without re-rendering the whole card, images
@@ -287,7 +291,8 @@ fun PostCard(post: Post, modifier: Modifier = Modifier) {
                 PostDisplay.LARGE -> LargeCard(post, actions, settings, dim)
                 PostDisplay.CARD -> CardsCard(post, actions, settings, dim)
                 PostDisplay.MINI -> MiniCard(post, actions, settings, dim)
-                PostDisplay.CALM -> CalmCard(post, actions, settings, dim)
+                PostDisplay.CALM -> CalmCard(post, actions, settings, dim, calmTop, calmBottom)
+                PostDisplay.CALM_CARDS -> CalmCardsCard(post, actions, settings, dim)
             }
         }
     }
@@ -843,18 +848,18 @@ private fun MediaPill(label: String, icon: ImageVector?, modifier: Modifier = Mo
 // Calm layout
 // ---------------------------------------------------------------------------
 
-private val CalmCardShape = RoundedCornerShape(24.dp)
-private val CalmMediaShape = RoundedCornerShape(18.dp)
+/** Outer corner of a Calm list's ends / a Calm card; segments meet at [CalmInner]. */
+val CalmOuter = 28.dp
+private val CalmInner = 6.dp
+/** Gap between connected segments (Calm posts; a Calm card's parts). */
+val CalmGap = 3.dp
+/** Expressive media: round corners with one tighter corner. */
+private val CalmExpressiveMedia = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomEnd = 24.dp, bottomStart = 8.dp)
 
-/**
- * "Calm" — a quieter card: two-line header (subreddit / author or the For
- * You reason), a medium-weight title, a flair pill, 16:10 media and a
- * connected vote group. Mark-read lives in the ⋮ sheet.
- */
 /**
  * Calm's surfaces. In light mode surfaceContainerLow is almost the page colour,
  * so cards were lost in one off-white sheet: cards use a clearly tinted
- * container and the controls on them are white. Dark mode already contrasts.
+ * container. Dark mode already contrasts.
  */
 @Composable
 internal fun calmCardColor(): Color {
@@ -872,59 +877,194 @@ internal fun calmControlColor(): Color {
     return if (light && LocalCalmOnCard.current) cs.surfaceContainerLow else cs.surfaceContainerHigh
 }
 
+/**
+ * The feed's Calm button groups: a solid secondary tone (deepened a touch in
+ * light mode, where secondaryContainer is close to the card).
+ */
 @Composable
-private fun CalmCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
+private fun calmButtonColor(): Color {
     val cs = MaterialTheme.colorScheme
+    return if (cs.surface.luminance() > 0.5f) cs.primary.copy(alpha = 0.10f).compositeOver(cs.secondaryContainer) else cs.secondaryContainer
+}
+
+/** Live vote / save / comment state of a post (optimistic overrides first). */
+private class CalmLive(val likes: Boolean?, val score: Int, val saved: Boolean, val numComments: Int)
+
+@Composable
+private fun rememberCalmLive(p: Post): CalmLive {
     val ov by rememberOverride(p)
-    val likes = if (ov != null) ov!!.likes else p.likes
-    val score = ov?.score ?: p.score
-    val saved = ov?.saved ?: p.saved
-    val numComments = ov?.numComments ?: p.numComments
-    // The feed's side padding is 10dp; Calm cards sit 12dp in.
+    val o = ov
+    return CalmLive(
+        likes = if (o != null) o.likes else p.likes,
+        score = o?.score ?: p.score,
+        saved = o?.saved ?: p.saved,
+        numComments = o?.numComments ?: p.numComments,
+    )
+}
+
+/**
+ * "Calm" — posts as segments of one connected list (3dp apart, big corners
+ * only at the list's ends): a rounded-square avatar header, a bold title, a
+ * flair pill, expressive media and a connected [↑ score][↓][comments] group.
+ * Mark-read lives in the ⋮ sheet.
+ */
+@Composable
+private fun CalmCard(p: Post, a: PostActions, s: Settings, dim: Modifier, top: Dp, bottom: Dp) {
+    val live = rememberCalmLive(p)
+    val shape = RoundedCornerShape(topStart = top, topEnd = top, bottomStart = bottom, bottomEnd = bottom)
     CompositionLocalProvider(LocalCalmOnCard provides true) {
-    BloomCard(Modifier.padding(horizontal = 2.dp).then(dim), onClick = a::openDetail, onLongClick = a::tune, shape = CalmCardShape, color = calmCardColor()) {
-        Column(Modifier.padding(start = 16.dp, top = 14.dp, end = 16.dp, bottom = 12.dp)) {
-            CalmHeader(p, a)
-            Text(
-                p.title,
-                Modifier.padding(top = 10.dp),
-                fontSize = 16.5.sp,
-                fontWeight = FontWeight.Medium,
-                lineHeight = 1.3.em,
-                color = cs.onSurface,
-            )
-            p.linkFlairText?.let { CalmFlair(it, Modifier.padding(top = 8.dp)) }
-            CrosspostLine(p)
-            CalmMedia(p, a, s)
-            if (p.pollOptions.isNotEmpty()) {
-                Spacer(Modifier.height(10.dp))
-                PollOptions(p)
-            }
-            if (p.selftext.isNotEmpty()) {
-                Text(
-                    p.selftext,
-                    Modifier.padding(top = 6.dp),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    fontSize = 14.sp,
-                    color = cs.onSurfaceVariant,
-                )
-            }
-            Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                CalmVoteGroup(score, likes, onUp = { a.vote(1) }, onDown = { a.vote(-1) })
-                Spacer(Modifier.width(8.dp))
-                CalmPill(Icons.Outlined.ModeComment, compactNumber(numComments), onClick = a::openDetail)
-                Spacer(Modifier.weight(1f))
-                CalmGhost(Icons.Rounded.Share, "Share", cs.onSurfaceVariant, a::share)
-                CalmGhost(
-                    if (saved) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
-                    if (saved) "Unsave" else "Save",
-                    if (saved) cs.primary else cs.onSurfaceVariant,
-                    a::toggleSave,
-                )
+        BloomCard(Modifier.padding(horizontal = 2.dp).then(dim), onClick = a::openDetail, onLongClick = a::tune, shape = shape, color = calmCardColor()) {
+            Column(Modifier.padding(start = 16.dp, top = 14.dp, end = 10.dp, bottom = 10.dp)) {
+                Column(Modifier.padding(end = 6.dp)) { CalmBody(p, a, s, CalmExpressiveMedia) }
+                Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    CalmActionGroup(live, a, withComments = true)
+                    Spacer(Modifier.weight(1f))
+                    CalmShareSave(live, a)
+                }
             }
         }
     }
+}
+
+/**
+ * "Calm cards" — each post its own connected group: the content, the media
+ * (edge to edge) and the actions as separate segments, 3dp apart.
+ */
+@Composable
+private fun CalmCardsCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
+    val live = rememberCalmLive(p)
+    val color = calmCardColor()
+    val hasMedia = p.type != PostType.SELF
+    CompositionLocalProvider(LocalCalmOnCard provides true) {
+        Column(Modifier.padding(horizontal = 2.dp).then(dim), verticalArrangement = Arrangement.spacedBy(CalmGap)) {
+            BloomCard(
+                onClick = a::openDetail,
+                onLongClick = a::tune,
+                shape = RoundedCornerShape(topStart = CalmOuter, topEnd = CalmOuter, bottomStart = CalmInner, bottomEnd = CalmInner),
+                color = color,
+            ) {
+                Column(Modifier.padding(start = 16.dp, top = 14.dp, end = 10.dp, bottom = 14.dp)) {
+                    Column(Modifier.padding(end = 6.dp)) { CalmBody(p, a, s, mediaShape = null) }
+                }
+            }
+            if (hasMedia) CalmMedia(p, a, s, RoundedCornerShape(CalmInner), topPad = 0.dp)
+            BloomCard(
+                onClick = a::openDetail,
+                onLongClick = a::tune,
+                shape = RoundedCornerShape(topStart = CalmInner, topEnd = CalmInner, bottomStart = CalmOuter, bottomEnd = CalmOuter),
+                color = color,
+            ) {
+                Row(Modifier.padding(start = 10.dp, top = 8.dp, end = 6.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    CalmActionGroup(live, a, withComments = false)
+                    Spacer(Modifier.width(8.dp))
+                    CalmButtonGroup(listOf(CalmButton(Icons.Outlined.ModeComment, compactNumber(live.numComments), null, null, a::openDetail)))
+                    Spacer(Modifier.weight(1f))
+                    CalmShareSave(live, a)
+                }
+            }
+        }
+    }
+}
+
+/** Header, title, flair, crosspost, media (when [mediaShape] is set), poll and selftext. */
+@Composable
+private fun CalmBody(p: Post, a: PostActions, s: Settings, mediaShape: androidx.compose.ui.graphics.Shape?) {
+    val cs = MaterialTheme.colorScheme
+    CalmHeader(p, a)
+    Text(
+        p.title,
+        Modifier.padding(top = 10.dp),
+        fontSize = 18.sp,
+        fontWeight = FontWeight.SemiBold,
+        lineHeight = 1.3.em,
+        letterSpacing = (-0.1).sp,
+        color = cs.onSurface,
+    )
+    p.linkFlairText?.let { CalmFlair(it, Modifier.padding(top = 8.dp)) }
+    CrosspostLine(p)
+    if (mediaShape != null) CalmMedia(p, a, s, mediaShape)
+    if (p.pollOptions.isNotEmpty()) {
+        Spacer(Modifier.height(10.dp))
+        PollOptions(p)
+    }
+    if (p.selftext.isNotEmpty()) {
+        Text(
+            p.selftext,
+            Modifier.padding(top = 6.dp),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            fontSize = 14.sp,
+            color = cs.onSurfaceVariant,
+        )
+    }
+}
+
+/** [↑ score][↓] (+ [comments] when [withComments]) as one connected button group. */
+@Composable
+private fun CalmActionGroup(live: CalmLive, a: PostActions, withComments: Boolean) {
+    val votes = LocalVoteColors.current
+    val up = live.likes == true
+    val down = live.likes == false
+    val buttons = buildList {
+        add(CalmButton(Icons.Rounded.ArrowUpward, compactNumber(live.score), "Upvote", if (up) votes.up else null, { a.vote(1) }, labelTint = if (down) votes.down else null))
+        add(CalmButton(Icons.Rounded.ArrowDownward, null, "Downvote", if (down) votes.down else null, { a.vote(-1) }))
+        if (withComments) add(CalmButton(Icons.Outlined.ModeComment, compactNumber(live.numComments), null, null, a::openDetail))
+    }
+    CalmButtonGroup(buttons)
+}
+
+@Composable
+private fun CalmShareSave(live: CalmLive, a: PostActions) {
+    val cs = MaterialTheme.colorScheme
+    CalmGhost(Icons.Rounded.Share, "Share", cs.onSurfaceVariant, a::share, size = 40.dp)
+    CalmGhost(
+        if (live.saved) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
+        if (live.saved) "Unsave" else "Save",
+        if (live.saved) cs.primary else cs.onSurfaceVariant,
+        a::toggleSave,
+        size = 40.dp,
+    )
+}
+
+private class CalmButton(
+    val icon: ImageVector,
+    val label: String?,
+    val clickLabel: String?,
+    /** A vote colour: fills the button at 22% and colours its content. */
+    val tint: Color?,
+    val onClick: () -> Unit,
+    val labelTint: Color? = null,
+)
+
+/** M3 Expressive connected button group: 40dp, outer corners round, inner 6dp, 3dp apart. */
+@Composable
+private fun CalmButtonGroup(buttons: List<CalmButton>) {
+    val cs = MaterialTheme.colorScheme
+    val base = calmButtonColor()
+    val height = 40.dp
+    val r = height / 2
+    Row(horizontalArrangement = Arrangement.spacedBy(CalmGap)) {
+        buttons.forEachIndexed { i, b ->
+            val start = if (i == 0) r else CalmInner
+            val end = if (i == buttons.lastIndex) r else CalmInner
+            val bg = if (b.tint != null) b.tint.copy(alpha = 0.22f).compositeOver(base) else base
+            val fg = b.tint ?: cs.onSecondaryContainer
+            Row(
+                Modifier
+                    .height(height)
+                    .clip(RoundedCornerShape(topStart = start, bottomStart = start, topEnd = end, bottomEnd = end))
+                    .background(bg)
+                    .clickable(onClickLabel = b.clickLabel, onClick = b.onClick)
+                    .padding(start = if (i == 0) 14.dp else 12.dp, end = if (i == buttons.lastIndex) 14.dp else 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(b.icon, null, Modifier.size(19.dp), tint = fg)
+                if (b.label != null) {
+                    Spacer(Modifier.width(6.dp))
+                    Text(b.label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = b.labelTint ?: fg)
+                }
+            }
+        }
     }
 }
 
@@ -934,12 +1074,20 @@ private fun CalmHeader(p: Post, a: PostActions) {
     // The subreddit is already the line above: drop a trailing " · r/sub" from the reason.
     val reason = p.feedReason?.removeSuffix(" · r/${p.subreddit}")?.removeSuffix(" · ${p.subredditPrefixed}")
     Row(verticalAlignment = Alignment.CenterVertically) {
+        // Expressive: a rounded-square avatar in one of three tonal pairs,
+        // picked per subreddit so a sub keeps its colour.
+        val (bg, fg) = when (Math.floorMod(p.subreddit.lowercase().hashCode(), 3)) {
+            0 -> cs.primaryContainer to cs.onPrimaryContainer
+            1 -> cs.secondaryContainer to cs.onSecondaryContainer
+            else -> cs.tertiaryContainer to cs.onTertiaryContainer
+        }
         LetterAvatar(
             p.subreddit,
-            size = 34.dp,
-            container = cs.secondaryContainer,
-            content = cs.onSecondaryContainer,
+            size = 36.dp,
+            container = bg,
+            content = fg,
             modifier = Modifier.clickable(onClick = a::openSubreddit),
+            shape = RoundedCornerShape(12.dp),
         )
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
@@ -947,7 +1095,7 @@ private fun CalmHeader(p: Post, a: PostActions) {
                 p.subredditPrefixed.ifEmpty { "r/${p.subreddit}" },
                 Modifier.clickable(onClick = a::openSubreddit),
                 fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
+                fontWeight = FontWeight.SemiBold,
                 color = cs.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -998,16 +1146,16 @@ private fun CalmHeader(p: Post, a: PostActions) {
     }
 }
 
-/** Calm media: 16:10 cover crop (radius 18), galleries, inline video, or a link block. */
+/** Calm media in [shape]: 16:10 cover crop, galleries, inline video, or a link block. */
 @Composable
-private fun CalmMedia(p: Post, a: PostActions, s: Settings) {
+private fun CalmMedia(p: Post, a: PostActions, s: Settings, shape: androidx.compose.ui.graphics.Shape, topPad: Dp = 10.dp) {
     val cs = MaterialTheme.colorScheme
     if (p.type == PostType.SELF) return
     val blur = blurOf(p, s)
-    val top = Modifier.padding(top = 10.dp)
+    val top = Modifier.padding(top = topPad)
     if (p.type == PostType.LINK) {
         val img = cardImg(p, s) ?: p.thumbnailUrl
-        Column(top.fillMaxWidth().clip(CalmMediaShape).background(calmControlColor()).clickable(onClick = a::openMedia)) {
+        Column(top.fillMaxWidth().clip(shape).background(calmControlColor()).clickable(onClick = a::openMedia)) {
             if (img != null) {
                 NsfwBlur(blur, blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, s)) {
                     Box(Modifier.fillMaxWidth().aspectRatio(2f).background(cs.surfaceContainerHighest)) {
@@ -1028,7 +1176,7 @@ private fun CalmMedia(p: Post, a: PostActions, s: Settings) {
         val height = maxWidth * 10f / 16f
         if (p.type == PostType.GALLERY && p.gallery.isNotEmpty()) {
             NsfwBlur(blur, label = blurLabel(p, s)) {
-                GalleryCarousel(p.gallery, Modifier.clip(CalmMediaShape), title = p.title, height = height)
+                GalleryCarousel(p.gallery, Modifier.clip(shape), title = p.title, height = height)
             }
             return@BoxWithConstraints
         }
@@ -1037,7 +1185,7 @@ private fun CalmMedia(p: Post, a: PostActions, s: Settings) {
         if (p.type == PostType.VIDEO && !blur && s.autoplayMedia) {
             val vurl = postVideoUrl(p)
             if (vurl.isNotEmpty() && !vurl.lowercase().endsWith(".gif")) {
-                Box(Modifier.clip(CalmMediaShape)) {
+                Box(Modifier.clip(shape)) {
                     androidx.compose.runtime.key(p.id) {
                         InlineVideo(vurl, height = height, onTap = a::openMedia, poster = url)
                     }
@@ -1050,7 +1198,7 @@ private fun CalmMedia(p: Post, a: PostActions, s: Settings) {
                 Modifier
                     .fillMaxWidth()
                     .height(height)
-                    .clip(CalmMediaShape)
+                    .clip(shape)
                     .background(cs.surfaceContainerHighest)
                     .clickable(onClick = a::openMedia),
             ) {
