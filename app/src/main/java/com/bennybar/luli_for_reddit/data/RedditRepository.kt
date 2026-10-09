@@ -121,8 +121,9 @@ class RedditRepository(val client: RedditClient) {
         postId: String,
         sort: String = "confidence",
         focusCommentId: String? = null,
+        limit: Int = 100,
     ): Thread {
-        val raw = getCommentsRaw(subreddit, postId, sort, focusCommentId)
+        val raw = getCommentsRaw(subreddit, postId, sort, focusCommentId, limit)
         return parse { parseThread(raw) }
     }
 

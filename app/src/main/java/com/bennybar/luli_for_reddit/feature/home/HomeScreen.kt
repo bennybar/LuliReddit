@@ -1,5 +1,12 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.BorderStroke
@@ -264,7 +271,8 @@ private fun KeepAliveTabs(
 /**
  * Compact floating nav: a centred pill of icon buttons; the current tab
  * expands into a filled primary pill with its label (when labels are on).
- * Outlined and lifted so it reads apart from the posts behind it.
+ * Outlined and lifted so it reads apart from the posts behind it. Dragging
+ * a finger along it moves the selection from tab to tab.
  */
 @Composable
 private fun FloatingNav(
@@ -277,6 +285,11 @@ private fun FloatingNav(
     val cs = MaterialTheme.colorScheme
     val dark = cs.surface.luminance() < 0.5f
     val shape = RoundedCornerShape(32.dp)
+    val haptic = LocalHapticFeedback.current
+    // Each tab's horizontal span in the row, for drag hit-testing.
+    val spans = remember { arrayOfNulls<ClosedFloatingPointRange<Float>>(navItems.size) }
+    val current by rememberUpdatedState(selected)
+    val select by rememberUpdatedState(onSelected)
     Box(modifier.navigationBarsPadding().padding(bottom = 20.dp)) {
         Surface(
             Modifier
@@ -288,7 +301,23 @@ private fun FloatingNav(
             border = BorderStroke(1.dp, cs.outlineVariant),
         ) {
             Row(
-                Modifier.padding(horizontal = 8.dp),
+                Modifier
+                    .pointerInput(Unit) {
+                        // Only switch once the finger is inside another tab, so a
+                        // tab growing under it can't bounce the selection back.
+                        fun pick(x: Float) {
+                            val i = spans.indexOfFirst { it != null && x in it }
+                            if (i >= 0 && i != current) {
+                                haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                select(i)
+                            }
+                        }
+                        detectHorizontalDragGestures(
+                            onDragStart = { pick(it.x) },
+                            onHorizontalDrag = { change, _ -> pick(change.position.x) },
+                        )
+                    }
+                    .padding(horizontal = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -299,6 +328,10 @@ private fun FloatingNav(
                         badge = if (i == 2) unread else 0,
                         showLabel = showLabels,
                         onClick = { onSelected(i) },
+                        modifier = Modifier.onPlaced { c ->
+                            val x = c.positionInParent().x
+                            spans[i] = x..(x + c.size.width)
+                        },
                     )
                 }
             }
@@ -313,12 +346,13 @@ private fun NavButton(
     badge: Int,
     showLabel: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val cs = MaterialTheme.colorScheme
     val contentColor by animateColorAsState(if (selected) cs.onPrimary else cs.onSurfaceVariant, tween(250), label = "navFg")
     val pillColor by animateColorAsState(if (selected) cs.primary else cs.primary.copy(alpha = 0f), tween(250), label = "navBg")
     Row(
-        Modifier
+        modifier
             .height(48.dp)
             .clip(CircleShape)
             .background(pillColor)
