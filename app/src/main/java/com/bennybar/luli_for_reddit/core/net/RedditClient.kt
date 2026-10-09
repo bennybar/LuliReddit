@@ -6,8 +6,11 @@ import com.bennybar.luli_for_reddit.core.RedditConstants
 import com.bennybar.luli_for_reddit.core.get
 import com.bennybar.luli_for_reddit.core.storage.SecureStore
 import com.bennybar.luli_for_reddit.core.str
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -48,6 +51,8 @@ class RedditClient(
     private val cacheEnabled: () -> Boolean,
 ) {
     private val http = Http.client
+    // Cache writes run here, off the request's path.
+    private val cacheScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     // Auth-mode config, lazily loaded and refreshed on login / switch / resume.
     private val configLock = Mutex()
@@ -203,9 +208,14 @@ class RedditClient(
         for (attempt in 0 until 2) {
             try {
                 val (status, text) = execute("GET", url, null)
-                val json = parseOrThrow(status, text)
+                // Big responses (a thread is ~250KB): parse off the main thread,
+                // and don't make the caller wait for the cache write.
+                val json = withContext(Dispatchers.Default) { parseOrThrow(status, text) }
                     ?: throw RedditApiException(status, message = "Unexpected response from Reddit (HTTP $status). Please try again.")
-                if (cacheOn && status == 200) cache.write(cacheKey(path, query), text)
+                if (cacheOn && status == 200) {
+                    val key = cacheKey(path, query)
+                    cacheScope.launch { cache.write(key, text) }
+                }
                 return ApiResult(json)
             } catch (e: IOException) {
                 lastError = e

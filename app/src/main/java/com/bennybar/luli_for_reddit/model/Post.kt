@@ -46,6 +46,8 @@ data class Post(
     val canModPost: Boolean = false,
     val linkFlairText: String? = null,
     val distinguished: String? = null,
+    /** The mods' suggested comment sort (e.g. "qa" on AMAs), when set. */
+    val suggestedSort: String? = null,
     val feedReason: String? = null, // "why you're seeing this" in For You (transient)
     val crosspostFrom: String? = null, // subreddit a crosspost originates from
     val pollOptions: List<String> = emptyList(),
@@ -106,6 +108,7 @@ data class Post(
                 over18 = d["over_18"].isTrue(),
                 spoiler = d["spoiler"].isTrue(),
                 stickied = d["stickied"].isTrue(),
+                suggestedSort = d["suggested_sort"].str()?.ifEmpty { null },
                 locked = d["locked"].isTrue(),
                 saved = d["saved"].isTrue(),
                 canModPost = d["can_mod_post"].isTrue(),
