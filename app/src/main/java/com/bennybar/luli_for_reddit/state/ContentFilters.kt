@@ -41,7 +41,7 @@ data class ContentFilters(
         if (hideNsfw && p.over18) return true
         val sub = p.subreddit.lowercase()
         if (sub in subreddits && viewingSubreddit?.lowercase() != sub) return true
-        if (keywords.any { it.isNotEmpty() && hasWord(p.title, it) }) return true
+        if (keywordRegex?.containsMatchIn(p.title) == true) return true
         val domain = p.domain.lowercase()
         if (domains.any { it.isNotEmpty() && domain.contains(it) }) return true
         val flair = (p.linkFlairText ?: "").lowercase()
@@ -49,11 +49,18 @@ data class ContentFilters(
         return false
     }
 
-    companion object {
-        /** Whole-word, any-script match: "cat" doesn't hide "vacation". */
-        fun hasWord(text: String, word: String): Boolean =
-            Regex("(?<![\\p{L}\\p{N}])${Regex.escape(word)}(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE) // Kotlin adds UNICODE_CASE itself
-                .containsMatchIn(text)
+    /**
+     * All keywords as one whole-word, any-script pattern ("cat" doesn't hide
+     * "vacation"), compiled once per filter set — it used to be compiled per
+     * keyword per post, each time a feed list was recomputed.
+     */
+    private val keywordRegex: Regex? by lazy {
+        val words = keywords.filter { it.isNotEmpty() }
+        if (words.isEmpty()) null
+        else Regex(
+            "(?<![\\p{L}\\p{N}])(?:${words.joinToString("|") { Regex.escape(it) }})(?![\\p{L}\\p{N}])",
+            RegexOption.IGNORE_CASE, // Kotlin adds UNICODE_CASE itself
+        )
     }
 }
 

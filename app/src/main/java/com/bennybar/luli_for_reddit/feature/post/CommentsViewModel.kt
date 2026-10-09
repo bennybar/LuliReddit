@@ -108,7 +108,12 @@ class CommentsViewModel(
         val collapsed = if (app.contentFilters.value.collapseAutoMod) {
             t.comments.filter { it.author == "AutoModerator" }.mapTo(HashSet()) { it.id }
         } else emptySet()
-        return withContext(Dispatchers.Default) { PostThread(t.post, t.comments, collapsed) } to paged
+        // Fetch the full page only when the first one was cut short (it ends in
+        // "load more" rows); a small thread is already complete.
+        return withContext(Dispatchers.Default) {
+            val thread = PostThread(t.post, t.comments, collapsed)
+            thread to (paged && CommentTree.flatten(t.comments, emptySet()).any { it.isMore })
+        }
     }
 
     /**
