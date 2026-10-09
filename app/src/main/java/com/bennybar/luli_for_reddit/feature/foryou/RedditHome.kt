@@ -294,6 +294,8 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
         return Listing(posts, after = null)
     }
 
+    suspend fun cachedFirstPageTime(): Long? = c.session.username.takeIf { it.isNotEmpty() }?.let { savedPageTime(c.context, it, "home") }
+
     /** Closes the hidden browser (the feed went away). */
     fun dispose() {
         val l = loader ?: return

@@ -44,6 +44,10 @@ suspend fun saveForYouPage(
     } catch (_: Exception) { /* best effort */ }
 }
 
+/** When the saved page was written, or null if there is none. */
+suspend fun savedPageTime(context: Context, user: String, feed: String = "foryou"): Long? =
+    withContext(Dispatchers.IO) { cacheFile(context, user, feed).takeIf { it.exists() }?.lastModified() }
+
 /** The saved page, minus posts opened since (they'd only be demoted now). */
 suspend fun loadForYouPage(context: Context, user: String, opened: Set<String>, feed: String = "foryou"): List<Post>? =
     try {

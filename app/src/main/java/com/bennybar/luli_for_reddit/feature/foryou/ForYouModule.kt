@@ -257,6 +257,8 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
         return Listing(posts, after = null)
     }
 
+    suspend fun cachedFirstPageTime(): Long? = c.session.username.takeIf { it.isNotEmpty() }?.let { savedPageTime(c.context, it, "foryou") }
+
     /** Snapshot of everything For You learned, for the ranker. */
     private fun rankInputs(firstPage: Boolean, loaded: List<Post>): RankInputs {
         val kw = m.keywords

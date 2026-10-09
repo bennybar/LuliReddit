@@ -69,6 +69,9 @@ class FeedController(val key: String) {
     }
 
     private val isFrontpage get() = key.isEmpty()
+
+    /** How long a loaded frontpage is kept before returning to it loads a new one (Settings → Keep feed for). */
+    private val keepMillis get() = app.settings.value.feedKeepMinutes * 60_000L
     private val forYou get() = isFrontpage && app.settings.value.forYouFeed
 
     /** Experimental Reddit Home (opt-in after a risk warning in Settings). */
@@ -90,6 +93,39 @@ class FeedController(val key: String) {
     fun start() {
         if (started) return
         started = true
+        if (app.restoredProcess && deckMode) restoreOrBuild() else rebuild(showLoading = deckMode)
+    }
+
+    /**
+     * Back after Android killed the app in the background: Home / For You show
+     * the page saved with the last load if it's younger than the "Keep feed for" time,
+     * exactly as if the app had stayed open; otherwise they load as usual.
+     */
+    private fun restoreOrBuild() {
+        _ui.value = FeedUi.Loading
+        buildJob = scope.launch {
+            val savedAt = runCatching {
+                if (redditHome) app.forYou.redditHome.cachedFirstPageTime() else app.forYou.engine.cachedFirstPageTime()
+            }.getOrNull()
+            val page = if (savedAt != null && System.currentTimeMillis() - savedAt < keepMillis) cachedFirstPage() else null
+            if (page != null) {
+                lastLoaded = savedAt!!
+                _ui.value = FeedUi.Data(FeedState(page.items, sort, time, page.after))
+            } else {
+                rebuild(showLoading = true)
+            }
+        }
+    }
+
+    /**
+     * Returning to the frontpage (from a post, or the app from the
+     * background): it keeps its posts for the "Keep feed for" time; after that it loads
+     * anew, as on a fresh launch. Pull-to-refresh is the way to replace it
+     * sooner.
+     */
+    fun refreshIfExpired() {
+        if (isBuilding || current == null) return
+        if (System.currentTimeMillis() - lastLoaded < keepMillis) return
         rebuild(showLoading = deckMode)
     }
 

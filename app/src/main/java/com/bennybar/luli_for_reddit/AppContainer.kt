@@ -38,6 +38,13 @@ class AppContainer(val context: Context) {
     /** Lives as long as the process (background work, stores). */
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
+    /**
+     * This process was started to restore the app after Android killed it in
+     * the background (not a fresh launch): feeds show their saved page if it's
+     * still fresh rather than loading anew.
+     */
+    @Volatile var restoredProcess = false
+
     val prefs = Prefs(context)
     val secureStore = SecureStore(context)
     val settings = SettingsStore(prefs)
