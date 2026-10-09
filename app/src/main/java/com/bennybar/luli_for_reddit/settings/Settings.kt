@@ -3,6 +3,7 @@ package com.bennybar.luli_for_reddit.settings
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Reply
 import androidx.compose.material.icons.automirrored.rounded.ViewList
+import androidx.compose.material.icons.outlined.Spa
 import androidx.compose.material.icons.outlined.ViewAgenda
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
@@ -42,6 +43,11 @@ enum class PostDisplay(val label: String, val icon: ImageVector) {
     CARD("Cards", Icons.Rounded.CalendarViewDay),
     MINI("Mini cards", Icons.AutoMirrored.Rounded.ViewList),
     CALM("Calm", Icons.Rounded.Spa),
+    CALM_CARDS("Calm cards", Icons.Outlined.Spa),
+    ;
+
+    /** Both Calm layouts share the Calm post view and the ⋮-sheet read toggle. */
+    val isCalm: Boolean get() = this == CALM || this == CALM_CARDS
 }
 
 /** What a swipe on a post or comment does. Persisted by [key] (Flutter's enum name). */

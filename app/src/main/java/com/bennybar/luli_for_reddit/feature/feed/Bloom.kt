@@ -177,9 +177,10 @@ fun LetterAvatar(
     modifier: Modifier = Modifier,
     imageUrl: String? = null,
     fontSize: androidx.compose.ui.unit.TextUnit = (size.value * 0.42f).sp,
+    shape: androidx.compose.ui.graphics.Shape = CircleShape,
 ) {
     Box(
-        modifier.size(size).clip(CircleShape).background(container),
+        modifier.size(size).clip(shape).background(container),
         contentAlignment = Alignment.Center,
     ) {
         if (imageUrl != null) {

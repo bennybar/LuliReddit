@@ -561,7 +561,7 @@ private fun CommentList(
             item(key = "empty", contentType = "empty") {
                 Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { Text("No comments yet") }
             }
-        } else if (settings.postDisplay == PostDisplay.CALM) {
+        } else if (settings.postDisplay.isCalm) {
             // Calm: one container per top-level thread, drawn as contiguous
             // rows (still one lazy item per comment) whose first / last
             // rows round the container's top / bottom.
@@ -884,7 +884,7 @@ private fun PostHeader(post: Post, fresh: Boolean) {
     }
 
     val settings by app.settings.state.collectAsState()
-    if (settings.postDisplay == PostDisplay.CALM) {
+    if (settings.postDisplay.isCalm) {
         CalmPostHeader(p, fresh, score, likes, saved, numComments, ::vote, ::toggleSave)
         return
     }
