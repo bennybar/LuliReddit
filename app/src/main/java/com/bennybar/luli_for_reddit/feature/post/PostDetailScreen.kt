@@ -1211,7 +1211,7 @@ private fun VotePill(score: Int, likes: Boolean?, onUp: () -> Unit, onDown: () -
 @Composable
 private fun MoreRow(c: Comment, loading: Boolean, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
-    val indent = (c.depth.coerceIn(0, 6) * 12).dp
+    val indent = (c.depth.coerceIn(0, 6) * 8).dp
     Box(Modifier.fillMaxWidth().padding(start = 10.dp + indent, end = 10.dp, bottom = 8.dp)) {
         TextButton(onClick = onClick, enabled = !loading) {
             if (loading) {
@@ -1243,7 +1243,7 @@ private fun CommentTile(
     val nav = LocalNavigator.current
     val tapToCollapse = settings.tapToCollapse
     val depth = comment.depth
-    val indent = (depth.coerceIn(0, 6) * 12).dp
+    val indent = (depth.coerceIn(0, 6) * 8).dp
     val isMod = comment.distinguished == "moderator"
     val nameColor = when {
         isMod -> Color(0xFF4CAF50)
@@ -1560,12 +1560,12 @@ private fun CalmCommentRow(
                     val top = 10.dp.toPx()
                     val bottom = size.height - 2.dp.toPx()
                     for (l in 0 until depth) {
-                        val x = (16 + l * 16 + 10).dp.toPx()
+                        val x = (16 + l * 10 + 4).dp.toPx()
                         val color = if (isOp && l == depth - 1) opRail else rail
                         drawRect(color, Offset(if (rtl) size.width - x - w else x, top), Size(w, (bottom - top).coerceAtLeast(0f)))
                     }
                 }
-                .padding(start = (16 + depth * 16).dp, top = 10.dp, end = 16.dp, bottom = 8.dp),
+                .padding(start = (16 + depth * 10).dp, top = 10.dp, end = 16.dp, bottom = 8.dp),
         ) {
             Row(
                 Modifier
