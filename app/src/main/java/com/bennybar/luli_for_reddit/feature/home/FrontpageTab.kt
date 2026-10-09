@@ -1,6 +1,13 @@
 package com.bennybar.luli_for_reddit.feature.home
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Surface
+import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.tween
@@ -270,28 +277,123 @@ private fun showFloatingToolbar(nav: AppNavigator, username: String) {
                 enter = fadeIn(tween(200)) + slideInVertically(tween(200)) { -it / 6 },
                 exit = fadeOut(tween(200)) + slideOutVertically(tween(200)) { -it / 6 },
             ) {
-                GlassSurface(color = cs.surfaceContainerHigh) {
-                    Row(Modifier.padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Row(
+                ToolbarPanel(
+                    username,
+                    onSearch = { close { nav.push(Route.Search()) } },
+                    onNewPost = { close { nav.push(Route.Submit()) } },
+                    onProfile = { close { nav.push(Route.User(username)) } },
+                )
+            }
+        }
+    }
+}
+
+private val PanelOuter = 26.dp
+private val PanelInner = 6.dp
+
+/**
+ * The expandable top bar's panel: connected segments 3dp apart — search
+ * (with the profile avatar), New post / Profile, the feed layout as one
+ * connected button group, and the autoplay switch. Layout and autoplay
+ * apply at once and leave the panel open, so the change is visible behind it.
+ */
+@Composable
+private fun ToolbarPanel(username: String, onSearch: () -> Unit, onNewPost: () -> Unit, onProfile: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val settings by app.settings.state.collectAsStateWithLifecycle()
+    val seg = cs.surfaceContainerHigh
+    Surface(shape = RoundedCornerShape(32.dp), color = cs.surfaceContainer, shadowElevation = 8.dp) {
+        Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(topStart = PanelOuter, topEnd = PanelOuter, bottomStart = PanelInner, bottomEnd = PanelInner))
+                    .background(seg)
+                    .clickable(onClick = onSearch)
+                    .padding(start = 16.dp, end = 8.dp)
+                    .height(60.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Rounded.Search, null, tint = cs.onSurfaceVariant)
+                Spacer(Modifier.width(12.dp))
+                Text("Search Reddit", Modifier.weight(1f), color = cs.onSurfaceVariant, maxLines = 1, fontSize = 16.sp)
+                ProfileAvatar(username, 44.dp, onProfile)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                PanelButton(EditSquareIcon, "New post", Modifier.weight(1f), onNewPost)
+                PanelButton(Icons.Outlined.AccountCircle, "Profile", Modifier.weight(1f), onProfile)
+            }
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .background(seg, RoundedCornerShape(PanelInner))
+                    .padding(start = 8.dp, end = 8.dp, bottom = 8.dp),
+            ) {
+                Text(
+                    "Layout",
+                    Modifier.padding(start = 6.dp, top = 12.dp, bottom = 8.dp),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = cs.primary,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    val all = PostDisplay.entries
+                    all.forEachIndexed { i, d ->
+                        val start = if (i == 0) 20.dp else PanelInner
+                        val end = if (i == all.lastIndex) 20.dp else PanelInner
+                        val on = d == settings.postDisplay
+                        Column(
                             Modifier
                                 .weight(1f)
-                                .clip(RoundedCornerShape(24.dp))
-                                .clickable { close { nav.push(Route.Search()) } }
-                                .padding(horizontal = 14.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
+                                .height(76.dp)
+                                .clip(RoundedCornerShape(topStart = start, bottomStart = start, topEnd = end, bottomEnd = end))
+                                .background(if (on) cs.primary else cs.surfaceContainerHighest)
+                                .clickable(onClickLabel = d.label) { app.settings.setPostDisplay(d) }
+                                .padding(horizontal = 2.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
                         ) {
-                            Icon(Icons.Rounded.Search, null, tint = cs.onSurfaceVariant)
-                            Spacer(Modifier.width(12.dp))
-                            Text("Search Reddit", color = cs.onSurfaceVariant, maxLines = 1)
+                            val fg = if (on) cs.onPrimary else cs.onSurface
+                            Icon(d.icon, null, Modifier.size(22.dp), tint = fg)
+                            Spacer(Modifier.height(6.dp))
+                            Text(d.label, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = fg, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
-                        Spacer(Modifier.width(4.dp))
-                        NewPostButton { close { nav.push(Route.Submit()) } }
-                        DisplayMenu()
-                        Spacer(Modifier.width(4.dp))
-                        ProfileAvatar(username, 40.dp) { close { nav.push(Route.User(username)) } }
                     }
                 }
             }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(topStart = PanelInner, topEnd = PanelInner, bottomStart = PanelOuter, bottomEnd = PanelOuter))
+                    .background(seg)
+                    .toggleable(value = settings.autoplayMedia, role = Role.Switch) { app.settings.setAutoplayMedia(it) }
+                    .padding(horizontal = 16.dp)
+                    .height(60.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Outlined.PlayCircleOutline, null, tint = cs.onSurfaceVariant)
+                Spacer(Modifier.width(14.dp))
+                Text("Autoplay media", Modifier.weight(1f), fontSize = 16.sp)
+                Switch(checked = settings.autoplayMedia, onCheckedChange = null)
+            }
         }
+    }
+}
+
+@Composable
+private fun PanelButton(icon: ImageVector, label: String, modifier: Modifier, onClick: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    Row(
+        modifier
+            .height(56.dp)
+            .clip(RoundedCornerShape(PanelInner))
+            .background(cs.surfaceContainerHigh)
+            .clickable(onClick = onClick),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, Modifier.size(20.dp), tint = cs.onSurface)
+        Spacer(Modifier.width(10.dp))
+        Text(label, fontSize = 15.sp, fontWeight = FontWeight.Medium)
     }
 }
