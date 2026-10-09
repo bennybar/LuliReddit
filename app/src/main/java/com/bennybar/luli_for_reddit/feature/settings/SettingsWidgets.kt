@@ -1,5 +1,9 @@
 package com.bennybar.luli_for_reddit.feature.settings
 
+import com.bennybar.luli_for_reddit.app
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -281,4 +285,27 @@ internal suspend fun textDialog(
         },
         confirmButton = { Button(onClick = { done(TextResult.Save(text)) }) { Text("Save") } },
     )
+}
+
+/** The subreddits hidden from Home / For You ("Hide r/… for 7 days"), each with Unhide. */
+internal fun showHiddenSubsDialog() {
+    Overlays.launch { done ->
+        val subs by app.hiddenHomeSubs.ids.collectAsStateWithLifecycle()
+        AlertDialog(
+            onDismissRequest = done,
+            title = { Text("Hidden subreddits") },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    if (subs.isEmpty()) Text("None. Hide one from a post's ⋮ menu or a swipe; it comes back after 7 days.")
+                    for (sub in subs.sorted()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("r/$sub", Modifier.weight(1f))
+                            TextButton(onClick = { app.hiddenHomeSubs.remove(sub) }) { Text("Unhide") }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = done) { Text("Done") } },
+        )
+    }
 }

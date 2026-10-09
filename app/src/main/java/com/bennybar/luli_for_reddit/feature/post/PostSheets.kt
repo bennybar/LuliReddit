@@ -78,6 +78,9 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
 import com.bennybar.luli_for_reddit.app
+import com.bennybar.luli_for_reddit.feature.feed.hideSubFromHome
+import androidx.compose.material.icons.rounded.DoNotDisturbOn
+import com.bennybar.luli_for_reddit.core.externalViewIntent
 import com.bennybar.luli_for_reddit.core.net.RedditApiException
 import com.bennybar.luli_for_reddit.core.net.uploadToCatbox
 import com.bennybar.luli_for_reddit.data.RedditRepository
@@ -358,6 +361,11 @@ private fun PostActionsSheet(post: Post, done: () -> Unit) {
                 app.navigator.shareWithTitle(link, post.title)
             }
             item(Icons.Outlined.VisibilityOff, "Hide") { hidePost(post) }
+            if (post.subreddit.isNotEmpty()) {
+                item(Icons.Rounded.DoNotDisturbOn, "Hide r/${post.subreddit} for 7 days", "From Home & For You only") {
+                    hideSubFromHome(post)
+                }
+            }
             // The Calm card has no read toggle of its own: it lives here.
             if (app.settings.value.postDisplay.isCalm) {
                 val seen = app.history.contains(post.id)
@@ -394,9 +402,7 @@ private fun PostActionsSheet(post: Post, done: () -> Unit) {
             item(Icons.Rounded.Repeat, "Crosspost") { showCrosspostDialog(post) }
             item(Icons.AutoMirrored.Rounded.OpenInNew, "Open in browser") {
                 runCatching {
-                    app.context.startActivity(
-                        Intent(Intent.ACTION_VIEW, Uri.parse(link)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                    )
+                    app.context.startActivity(externalViewIntent(app.context, Uri.parse(link)))
                 }.onFailure { snack("No app can open this link.") }
             }
             if (post.canModPost) {

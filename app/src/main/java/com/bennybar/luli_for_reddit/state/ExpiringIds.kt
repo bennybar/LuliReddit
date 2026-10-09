@@ -5,13 +5,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * Posts swiped away (the "Dismiss" swipe action) from Home / For You. Local
- * only — unlike Hide, nothing is sent to Reddit — and each one expires after
- * a day, so the list stays small and a post can come back tomorrow.
- * Persisted per account as "id:millis" strings.
+ * A per-account set of ids that each expire [ttlMillis] after being added,
+ * persisted as "id:millis" strings under [baseKey]. Local only — nothing is
+ * sent to Reddit. Used for posts swiped away ("Dismiss", a day) and
+ * subreddits hidden from Home / For You ("Hide r/… for 7 days").
  */
-class DismissedPosts(private val prefs: Prefs) : UserScoped {
-    private var key = "dismissedPosts"
+class ExpiringIds(private val prefs: Prefs, private val baseKey: String, private val ttlMillis: Long) : UserScoped {
+    private var key = baseKey
     private val since = HashMap<String, Long>()
     private val _ids = MutableStateFlow<Set<String>>(emptySet())
     val ids: StateFlow<Set<String>> = _ids
@@ -27,13 +27,13 @@ class DismissedPosts(private val prefs: Prefs) : UserScoped {
 
     private fun save() {
         val now = System.currentTimeMillis()
-        since.entries.removeAll { now - it.value > TTL }
+        since.entries.removeAll { now - it.value > ttlMillis }
         prefs.setStringList(key, since.map { "${it.key}:${it.value}" })
         _ids.value = since.keys.toSet()
     }
 
     override fun onUserChanged(username: String) {
-        key = userScopedKey(prefs, username, "dismissedPosts")
+        key = userScopedKey(prefs, username, baseKey)
         since.clear()
         for (row in prefs.getStringList(key).orEmpty()) {
             val i = row.lastIndexOf(':')
@@ -41,9 +41,5 @@ class DismissedPosts(private val prefs: Prefs) : UserScoped {
             if (i > 0) since[row.substring(0, i)] = t
         }
         save() // drops the expired ones
-    }
-
-    private companion object {
-        const val TTL = 24 * 60 * 60_000L
     }
 }

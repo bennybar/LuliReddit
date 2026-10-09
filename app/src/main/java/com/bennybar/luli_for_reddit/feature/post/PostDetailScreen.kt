@@ -1294,7 +1294,7 @@ private fun CommentTile(
         SwipeAction.SAVE -> SwipeSpec(a.icon, cs.primary) { actions.toggleSave(comment) }
         SwipeAction.REPLY -> SwipeSpec(a.icon, cs.tertiary) { actions.reply(comment) }
         SwipeAction.COLLAPSE -> SwipeSpec(a.icon, cs.secondary) { toggle() }
-        SwipeAction.HIDE, SwipeAction.DISMISS, SwipeAction.NONE -> null
+        SwipeAction.HIDE, SwipeAction.DISMISS, SwipeAction.HIDE_SUB, SwipeAction.NONE -> null
     }
 
     SwipeActions(
@@ -1573,7 +1573,7 @@ private fun CalmCommentRow(
         SwipeAction.SAVE -> SwipeSpec(a.icon, cs.primary) { actions.toggleSave(comment) }
         SwipeAction.REPLY -> SwipeSpec(a.icon, cs.tertiary) { actions.reply(comment) }
         SwipeAction.COLLAPSE -> SwipeSpec(a.icon, cs.secondary) { toggle() }
-        SwipeAction.HIDE, SwipeAction.DISMISS, SwipeAction.NONE -> null
+        SwipeAction.HIDE, SwipeAction.DISMISS, SwipeAction.HIDE_SUB, SwipeAction.NONE -> null
     }
 
     SwipeActions(
