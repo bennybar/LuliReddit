@@ -1,0 +1,73 @@
+package com.bennybar.luli_for_reddit.state
+
+import android.content.Context
+import com.bennybar.luli_for_reddit.core.AppJson
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
+import java.io.File
+
+/** One AI thread summary, kept with enough of its post to list it and open it again. */
+@Serializable
+data class SavedSummary(
+    val postId: String,
+    val subreddit: String,
+    val title: String,
+    val permalink: String,
+    val style: String,
+    val model: String,
+    val text: String,
+    val createdAt: Long,
+)
+
+/**
+ * The posts you've summarized (newest first), per account, on this device
+ * only — the "Summaries" list in the You tab. A post summarized again
+ * replaces its older entry. Kept to the last [MAX].
+ */
+class SummaryStore(private val context: Context) : UserScoped {
+    private val io = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var file = fileFor("")
+    private val _items = MutableStateFlow<List<SavedSummary>>(emptyList())
+    val items: StateFlow<List<SavedSummary>> = _items
+
+    fun add(s: SavedSummary) {
+        _items.value = (listOf(s) + _items.value.filter { it.postId != s.postId }).take(MAX)
+        save()
+    }
+
+    fun remove(postId: String) {
+        _items.value = _items.value.filter { it.postId != postId }
+        save()
+    }
+
+    private fun save() {
+        val f = file
+        val list = _items.value
+        io.launch { runCatching { f.writeText(AppJson.encodeToString(ListSerializer(SavedSummary.serializer()), list)) } }
+    }
+
+    override fun onUserChanged(username: String) {
+        file = fileFor(username)
+        _items.value = emptyList()
+        val f = file
+        io.launch {
+            val list = runCatching {
+                if (f.exists()) AppJson.decodeFromString(ListSerializer(SavedSummary.serializer()), f.readText()) else emptyList()
+            }.getOrDefault(emptyList())
+            if (file == f) _items.value = list
+        }
+    }
+
+    private fun fileFor(username: String) =
+        File(context.filesDir, if (username.isEmpty()) "summaries.json" else "summaries_${username.lowercase()}.json")
+
+    private companion object {
+        const val MAX = 200
+    }
+}

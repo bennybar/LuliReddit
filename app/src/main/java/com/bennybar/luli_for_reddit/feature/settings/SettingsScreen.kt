@@ -937,7 +937,7 @@ internal fun reloadLocalData() {
     AppIcon.apply(app.context, AppIcon.parse(app.settings.value.appIcon))
     val user = app.session.username
     listOf(
-        app.postOverrides, app.hiddenPosts, app.dismissedPosts, app.history, app.threadVisits, app.contentFilters,
+        app.postOverrides, app.hiddenPosts, app.dismissedPosts, app.summaries, app.history, app.threadVisits, app.contentFilters,
         app.offline, app.feed, app.post, app.forYou, app.inbox, app.media,
     ).forEach { it.onUserChanged(user) }
     app.session.reload()

@@ -18,6 +18,7 @@ sealed interface Route {
     @Serializable data object ContentFilters : Route
     @Serializable data object Policy : Route
     @Serializable data object History : Route
+    @Serializable data object Summaries : Route
     @Serializable data object Saved : Route
     @Serializable data object Offline : Route
     @Serializable data class Search(val subreddit: String? = null, val query: String? = null) : Route

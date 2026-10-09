@@ -81,6 +81,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bennybar.luli_for_reddit.app
+import com.bennybar.luli_for_reddit.state.SavedSummary
 import com.bennybar.luli_for_reddit.feature.markdown.IconTooltip
 import com.bennybar.luli_for_reddit.feature.markdown.RedditMarkdown
 import com.bennybar.luli_for_reddit.model.Comment
@@ -105,12 +106,12 @@ fun showSummarySheet(post: Post, comments: List<Comment>) {
     val style = SummaryStyle.entries[s.aiSummaryStyle.coerceIn(0, SummaryStyle.entries.size - 1)]
     val threadText = AiService.buildThreadText(post, comments, s.aiMaxChars)
     val baseUrl = aiBaseUrl()
-    Overlays.launch { done -> SummarySheet(baseUrl, key, s.aiModel, style, threadText, done) }
+    Overlays.launch { done -> SummarySheet(post, baseUrl, key, s.aiModel, style, threadText, done) }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SummarySheet(baseUrl: String, apiKey: String, model: String, style: SummaryStyle, threadText: String, done: () -> Unit) {
+private fun SummarySheet(post: Post, baseUrl: String, apiKey: String, model: String, style: SummaryStyle, threadText: String, done: () -> Unit) {
     var loading by remember { mutableStateOf(true) }
     var result by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -121,7 +122,21 @@ private fun SummarySheet(baseUrl: String, apiKey: String, model: String, style: 
         loading = true
         error = null
         try {
-            result = AiService.summarize(baseUrl, apiKey, model, style, threadText)
+            result = AiService.summarize(baseUrl, apiKey, model, style, threadText).also {
+                // Kept in You → Summaries, with a link back to the post.
+                app.summaries.add(
+                    SavedSummary(
+                        postId = post.id,
+                        subreddit = post.subreddit,
+                        title = post.title,
+                        permalink = post.permalink,
+                        style = style.label,
+                        model = model,
+                        text = it,
+                        createdAt = System.currentTimeMillis(),
+                    ),
+                )
+            }
         } catch (e: CancellationException) {
             throw e // the sheet closed
         } catch (e: Exception) {

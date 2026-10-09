@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.rounded.Login
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
@@ -147,6 +148,9 @@ internal fun AccountTab() {
         }
         item(key = "offline") {
             NavTile(Icons.Rounded.OfflinePin, "Read later", "Threads saved for offline reading") { nav.push(Route.Offline) }
+        }
+        item(key = "summaries") {
+            NavTile(Icons.Rounded.AutoAwesome, "Summaries", "Posts you summarized with AI, and their summaries") { nav.push(Route.Summaries) }
         }
         // Custom feeds
         if (!anonymous) {
