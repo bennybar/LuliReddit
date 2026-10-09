@@ -26,18 +26,30 @@
             android:taskAffinity=""
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:windowSoftInputMode="adjustResize">
-            <!-- Open reddit.com / redd.it links in Ilay -->
+            <!-- Open reddit.com / redd.it links in Ilay. Reddit's domains can't be
+                 verified for a third-party app, so Android opens these in the
+                 browser until the user ticks them under App info → Open by
+                 default → Add links: every host Ilay handles must be listed
+                 here to show up there. (Schemes × hosts combine in one filter.) -->
             <intent-filter android:autoVerify="false">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="www.reddit.com" />
-                <data android:scheme="https" android:host="reddit.com" />
-                <data android:scheme="https" android:host="old.reddit.com" />
-                <data android:scheme="https" android:host="m.reddit.com" />
-                <data android:scheme="https" android:host="redd.it" />
-                <data android:scheme="http" android:host="www.reddit.com" />
-                <data android:scheme="http" android:host="reddit.com" />
+                <data android:scheme="https" />
+                <data android:scheme="http" />
+                <data android:host="reddit.com" />
+                <data android:host="www.reddit.com" />
+                <data android:host="old.reddit.com" />
+                <data android:host="new.reddit.com" />
+                <data android:host="np.reddit.com" />
+                <data android:host="m.reddit.com" />
+                <data android:host="i.reddit.com" />
+                <data android:host="sh.reddit.com" />
+                <data android:host="amp.reddit.com" />
+                <data android:host="redd.it" />
+                <data android:host="i.redd.it" />
+                <data android:host="v.redd.it" />
+                <data android:host="preview.redd.it" />
             </intent-filter>
         </activity>
 

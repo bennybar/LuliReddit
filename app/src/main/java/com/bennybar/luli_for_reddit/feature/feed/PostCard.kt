@@ -361,10 +361,10 @@ private fun LargeCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
             Spacer(Modifier.height(12.dp))
             Media(p, a, s)
             PollOptions(p)
-            if (p.selftext.isNotEmpty()) {
+            if (p.snippet.isNotEmpty()) {
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    p.selftext,
+                    p.snippet,
                         maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium,
@@ -399,10 +399,10 @@ private fun CardsCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
             Spacer(Modifier.height(12.dp))
             BannerMedia(p, a, s, 180.dp)
             PollOptions(p)
-            if (p.selftext.isNotEmpty()) {
+            if (p.snippet.isNotEmpty()) {
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    p.selftext,
+                    p.snippet,
                         maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium,
@@ -994,9 +994,9 @@ private fun CalmBody(p: Post, a: PostActions, s: Settings, mediaShape: androidx.
         Spacer(Modifier.height(10.dp))
         PollOptions(p)
     }
-    if (p.selftext.isNotEmpty()) {
+    if (p.snippet.isNotEmpty()) {
         Text(
-            p.selftext,
+            p.snippet,
             Modifier.padding(top = 6.dp),
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,

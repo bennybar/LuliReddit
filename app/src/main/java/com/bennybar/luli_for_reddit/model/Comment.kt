@@ -98,7 +98,7 @@ data class Comment(
          * Resolves `media_metadata` (GIFs from Reddit's GIF picker, uploaded
          * images) to one URL per id. Emotes are left out: they sit inline in text.
          */
-        private fun mediaUrls(raw: JsonElement?): Map<String, String> {
+        internal fun mediaUrls(raw: JsonElement?): Map<String, String> {
             val m = raw.obj() ?: return emptyMap()
             val out = LinkedHashMap<String, String>()
             for ((key, value) in m) {

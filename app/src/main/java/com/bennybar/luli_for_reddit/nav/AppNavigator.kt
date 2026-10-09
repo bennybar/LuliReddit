@@ -20,6 +20,9 @@ import com.bennybar.luli_for_reddit.core.isImageUrl
 import com.bennybar.luli_for_reddit.core.isVideoUrl
 import com.bennybar.luli_for_reddit.core.resolveVideoUrl
 import com.bennybar.luli_for_reddit.core.routeForRedditUrl
+import com.bennybar.luli_for_reddit.core.isRedditHost
+import com.bennybar.luli_for_reddit.core.resolveShareLink
+import com.bennybar.luli_for_reddit.core.isShareLink
 import com.bennybar.luli_for_reddit.feature.media.openPostVideo
 import com.bennybar.luli_for_reddit.model.GalleryImage
 import com.bennybar.luli_for_reddit.model.Post
@@ -110,11 +113,23 @@ class AppNavigator(
         if (raw.startsWith("/")) raw = "https://www.reddit.com$raw"
         else if (Regex("^(r|u|user)/").containsMatchIn(raw)) raw = "https://www.reddit.com/$raw"
         val uri = runCatching { Uri.parse(raw) }.getOrNull() ?: return
+        if (isShareLink(uri)) {
+            scope.launch { resolveShareLink(uri)?.let { openLink(it.toString()) } ?: openInBrowser(uri) }
+            return
+        }
         when {
             isVideoUrl(uri) -> openVideo(resolveVideoUrl(raw), externalUrl = raw)
             isImageUrl(uri) -> openImage(raw)
             else -> routeForRedditUrl(uri)?.let(::push) ?: openInBrowser(uri)
         }
+    }
+
+    /** The default web browser's package (what opens an ordinary https link), never Ilay itself. */
+    private fun browserPackage(): String? {
+        val pm = context.packageManager
+        val probe = Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com"))
+        return pm.resolveActivity(probe, 0)?.activityInfo?.packageName?.takeIf { it != context.packageName && it != "android" }
+            ?: pm.queryIntentActivities(probe, 0).map { it.activityInfo.packageName }.firstOrNull { it != context.packageName }
     }
 
     /** A browser: an in-app Custom Tab when enabled in Settings, else the default browser app. */
@@ -123,7 +138,12 @@ class AppNavigator(
             if (app.settings.value.inAppBrowser) {
                 CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(context, uri)
             } else {
-                context.startActivity(Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                val intent = Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                // If Ilay opens reddit links by default, a plain VIEW of a reddit
+                // page we can't show would come straight back here: send it to
+                // the browser explicitly.
+                if (isRedditHost(uri.host)) browserPackage()?.let(intent::setPackage)
+                context.startActivity(intent)
             }
         } catch (_: ActivityNotFoundException) {
             showSnackbar("No app can open this link.")
