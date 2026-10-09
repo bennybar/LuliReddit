@@ -45,10 +45,14 @@ fun isShareLink(uri: Uri): Boolean {
 suspend fun resolveShareLink(uri: Uri): Uri? = withContext(Dispatchers.IO) {
     val client = Http.client.newBuilder().followRedirects(false).followSslRedirects(false).build()
     var url = uri.toString()
+    fun location(head: Boolean): String? = runCatching {
+        val req = Request.Builder().url(url).header("User-Agent", RedditConstants.WEB_USER_AGENT)
+            .apply { if (head) head() }.build()
+        client.newCall(req).execute().use { it.header("location") }
+    }.getOrNull()
     repeat(3) {
-        val next = runCatching {
-            client.newCall(Request.Builder().url(url).head().build()).execute().use { it.header("location") }
-        }.getOrNull() ?: return@withContext null
+        // HEAD first (no body); some servers only redirect a GET.
+        val next = location(head = true) ?: location(head = false) ?: return@withContext null
         val target = if (next.startsWith("/")) "https://www.reddit.com$next" else next
         val u = Uri.parse(target)
         if (!isShareLink(u)) return@withContext u

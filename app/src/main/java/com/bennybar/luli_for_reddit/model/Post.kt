@@ -110,7 +110,9 @@ data class Post(
                 url = url,
                 domain = content["domain"].str() ?: d["domain"].str() ?: "",
                 type = detectType(content, isVideo, gallery.isNotEmpty()),
-                isSelf = content["is_self"].isTrue(),
+                // The crosspost itself is a link post (it can't be edited as text),
+                // even when it shows the original's text.
+                isSelf = d["is_self"].isTrue(),
                 selftext = d["selftext"].str()?.ifEmpty { null } ?: content["selftext"].str() ?: "",
                 over18 = d["over_18"].isTrue(),
                 spoiler = d["spoiler"].isTrue(),
