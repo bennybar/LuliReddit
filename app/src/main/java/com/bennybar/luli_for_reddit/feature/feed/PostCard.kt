@@ -249,7 +249,7 @@ fun rememberSeen(postId: String): State<Boolean> {
 
 /** A post in a feed, in the layout chosen in Settings (Default / Cards / Mini cards / Calm / Calm cards). */
 @Composable
-fun PostCard(post: Post, modifier: Modifier = Modifier) {
+fun PostCard(post: Post, modifier: Modifier = Modifier, swipeOverride: Pair<SwipeSpec?, SwipeSpec?>? = null) {
     val settings by app.settings.state.collectAsState()
     val nav = LocalNavigator.current
     val actions = remember(post, nav) { PostActions(post, nav) }
@@ -288,8 +288,9 @@ fun PostCard(post: Post, modifier: Modifier = Modifier) {
         SwipeAction.HIDE_SUB -> if (dismissible) SwipeSpec(action.icon, cs.tertiary) { hideSubFromHome(post) } else null
         SwipeAction.COLLAPSE, SwipeAction.NONE -> null
     }
-    val startSpec = remember(settings.swipePostStart, actions, votes, cs, dismissible) { swipe(settings.swipePostStart) }
-    val endSpec = remember(settings.swipePostEnd, actions, votes, cs, dismissible) { swipe(settings.swipePostEnd) }
+    // A screen can replace the swipe actions (Saved: both sides unsave).
+    val startSpec = swipeOverride?.first ?: remember(settings.swipePostStart, actions, votes, cs, dismissible) { swipe(settings.swipePostStart) }
+    val endSpec = swipeOverride?.second ?: remember(settings.swipePostEnd, actions, votes, cs, dismissible) { swipe(settings.swipePostEnd) }
 
     // The whole card, "why" banner included, is the swipe target (as Flutter).
     SwipeActions(start = startSpec, end = endSpec, modifier = outer, enabled = settings.swipeActions) {

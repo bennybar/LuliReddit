@@ -68,6 +68,8 @@ class InboxModule(private val c: AppContainer) : UserScoped {
         unreadJob?.cancel()
         unreadJob = c.scope.launch {
             try {
+                // Coalesce bursts (marking several items quickly) into one request.
+                delay(700)
                 _unread.value = c.repository.getUnreadCount()
             } catch (e: CancellationException) {
                 throw e
@@ -146,8 +148,15 @@ class InboxModule(private val c: AppContainer) : UserScoped {
         }
     }
 
+    /** Whether the loaded item is unread (null if it isn't loaded). */
+    private fun isNew(fullname: String): Boolean? =
+        tabs.values.firstNotNullOfOrNull { f -> f.value.items.firstOrNull { it.fullname == fullname }?.isNew }
+
     /** Optimistically marks one item read locally and on the server. */
     fun markRead(fullname: String) {
+        // Already read: nothing to send (a repeated swipe used to fire again and
+        // again, hitting Reddit's rate limit).
+        if (isNew(fullname) == false) return
         mapItem(fullname) { it.copy(isNew = false) }
         c.scope.launch {
             try {
@@ -159,6 +168,7 @@ class InboxModule(private val c: AppContainer) : UserScoped {
 
     /** Optimistically marks one item unread locally and on the server. */
     fun markUnread(fullname: String) {
+        if (isNew(fullname) == true) return
         mapItem(fullname) { it.copy(isNew = true) }
         c.scope.launch {
             try {
