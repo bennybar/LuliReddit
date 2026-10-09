@@ -5,6 +5,7 @@ import androidx.compose.material.icons.automirrored.rounded.Reply
 import androidx.compose.material.icons.automirrored.rounded.ViewList
 import androidx.compose.material.icons.outlined.Spa
 import androidx.compose.material.icons.outlined.ViewAgenda
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Block
@@ -58,6 +59,7 @@ enum class SwipeAction(val key: String, val label: String, val icon: ImageVector
     SAVE("save", "Save", Icons.Rounded.Bookmark),
     REPLY("reply", "Reply", Icons.AutoMirrored.Rounded.Reply),
     HIDE("hide", "Hide", Icons.Rounded.VisibilityOff), // posts only
+    DISMISS("dismiss", "Dismiss (Home / For You)", Icons.Rounded.Close), // posts only; local, 24h
     COLLAPSE("collapse", "Collapse", Icons.Rounded.UnfoldLess); // comments only
 
     companion object {
