@@ -43,6 +43,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -258,6 +259,9 @@ private fun FeedList(
 ) {
     val settings by app.settings.state.collectAsStateWithLifecycle()
     val hiddenIds by app.hiddenPosts.ids.collectAsStateWithLifecycle()
+    // Home / For You: posts dismissed with the "Dismiss" swipe (kept a day).
+    val dismissible = feedKey.isEmpty() && deckMode
+    val dismissedIds = if (dismissible) app.dismissedPosts.ids.collectAsStateWithLifecycle().value else emptySet()
     val filters by app.contentFilters.state.collectAsStateWithLifecycle()
     // Auto-hide already-read items in the For You feed (live: updates when
     // history changes). Only watched while the option is on.
@@ -265,11 +269,12 @@ private fun FeedList(
     // A subreddit feed still shows that subreddit's own posts.
     val viewing = if (feedKey.isEmpty() || feedKey.startsWith("m::")) null else feedKey
 
-    val posts = remember(state.posts, seen, hiddenIds, filters, viewing) {
+    val posts = remember(state.posts, seen, hiddenIds, dismissedIds, filters, viewing) {
         var list = state.posts
         if (seen != null) list = list.filter { !(it.feedReason != null && it.id in seen) }
         // Posts hidden this session (Hide / swipe-to-hide).
         if (hiddenIds.isNotEmpty()) list = list.filter { it.id !in hiddenIds }
+        if (dismissedIds.isNotEmpty()) list = list.filter { it.id !in dismissedIds }
         // User content filters (keywords / domains / flairs / subreddits).
         if (!filters.isEmpty) list = list.filter { !filters.hides(it, viewingSubreddit = viewing) }
         // A page boundary can repeat a post that moved up meanwhile; the list
@@ -342,9 +347,9 @@ private fun FeedList(
             if (deckMode && i < 3) {
                 // The first cards after the loading deck are dealt in.
                 if (i == 2) LaunchedEffect(Unit) { onDealt() }
-                DealIn(i, animate = dealHome) { PostCard(p) }
+                DealIn(i, animate = dealHome) { CompositionLocalProvider(LocalDismissible provides dismissible) { PostCard(p) } }
             } else {
-                PostCard(p)
+                CompositionLocalProvider(LocalDismissible provides dismissible) { PostCard(p) }
             }
         }
         item(key = "footer", contentType = "footer") {

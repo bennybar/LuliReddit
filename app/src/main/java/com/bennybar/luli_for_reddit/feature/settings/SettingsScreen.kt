@@ -720,7 +720,9 @@ private fun showSwipeSettings() {
 
             @Composable
             fun SwipeRow(label: String, key: String, value: SwipeAction, forPosts: Boolean) {
-                val options = SwipeAction.entries.filter { it != (if (forPosts) SwipeAction.COLLAPSE else SwipeAction.HIDE) }
+                val options = SwipeAction.entries.filter {
+                    if (forPosts) it != SwipeAction.COLLAPSE else it != SwipeAction.HIDE && it != SwipeAction.DISMISS
+                }
                 var open by remember { mutableStateOf(false) }
                 SettingTile(label, trailing = {
                     Box {
@@ -929,7 +931,7 @@ internal fun reloadLocalData() {
     AppIcon.apply(app.context, AppIcon.parse(app.settings.value.appIcon))
     val user = app.session.username
     listOf(
-        app.postOverrides, app.hiddenPosts, app.history, app.threadVisits, app.contentFilters,
+        app.postOverrides, app.hiddenPosts, app.dismissedPosts, app.history, app.threadVisits, app.contentFilters,
         app.offline, app.feed, app.post, app.forYou, app.inbox, app.media,
     ).forEach { it.onUserChanged(user) }
     app.session.reload()

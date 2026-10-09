@@ -214,6 +214,15 @@ private class PostActions(val post: Post, val nav: AppNavigator) {
     }
 }
 
+/** True in Home / For You, where the "Dismiss" swipe action applies (set by PostListView). */
+val LocalDismissible = staticCompositionLocalOf { false }
+
+/** Removes [post] from Home / For You for a day (local only), with Undo. */
+private fun dismissPost(post: Post) {
+    app.dismissedPosts.add(post.id)
+    app.navigator.showSnackbar("Dismissed for today", actionLabel = "Undo") { app.dismissedPosts.remove(post.id) }
+}
+
 /** The live override for one post: only this card recomposes when it changes. */
 @Composable
 private fun rememberOverride(post: Post): State<PostOverride?> {
@@ -256,6 +265,7 @@ fun PostCard(post: Post, modifier: Modifier = Modifier) {
         }
     }
 
+    val dismissible = LocalDismissible.current
     // What a swipe on this card does, per Settings → Swipe actions.
     fun swipe(action: SwipeAction): SwipeSpec? = when (action) {
         SwipeAction.UPVOTE -> SwipeSpec(action.icon, votes.up) { actions.vote(1) }
@@ -263,10 +273,12 @@ fun PostCard(post: Post, modifier: Modifier = Modifier) {
         SwipeAction.SAVE -> SwipeSpec(action.icon, cs.primary) { actions.toggleSave() }
         SwipeAction.REPLY -> SwipeSpec(action.icon, cs.tertiary) { actions.reply() }
         SwipeAction.HIDE -> SwipeSpec(action.icon, cs.error) { actions.hide() }
+        // Only Home / For You can dismiss; elsewhere this side does nothing.
+        SwipeAction.DISMISS -> if (dismissible) SwipeSpec(action.icon, cs.secondary) { dismissPost(post) } else null
         SwipeAction.COLLAPSE, SwipeAction.NONE -> null
     }
-    val startSpec = remember(settings.swipePostStart, actions, votes, cs) { swipe(settings.swipePostStart) }
-    val endSpec = remember(settings.swipePostEnd, actions, votes, cs) { swipe(settings.swipePostEnd) }
+    val startSpec = remember(settings.swipePostStart, actions, votes, cs, dismissible) { swipe(settings.swipePostStart) }
+    val endSpec = remember(settings.swipePostEnd, actions, votes, cs, dismissible) { swipe(settings.swipePostEnd) }
 
     // The whole card, "why" banner included, is the swipe target (as Flutter).
     SwipeActions(start = startSpec, end = endSpec, modifier = outer, enabled = settings.swipeActions) {
