@@ -257,7 +257,13 @@ class AuthRepository(private val store: SecureStore) {
         return job.await()
     }
 
+    /** Drops a refresh in flight (an account switch): its token belongs to the old account. */
+    fun forgetRefresh() {
+        refreshing = null
+    }
+
     private suspend fun doRefresh(): String? {
+        val forUser = store.username()
         val refreshToken = store.refreshToken()
         val clientId = store.clientId()
         // Browsing without an account: app-only tokens can't be refreshed,
@@ -272,6 +278,9 @@ class AuthRepository(private val store: SecureStore) {
             )
             if (code != 200) return null
             val accessToken = data["access_token"].str() ?: return null
+            // The account was switched while this was in flight: the token is
+            // the old account's — storing it would act as them under the new one.
+            if (store.username() != forUser || store.refreshToken() != refreshToken) return null
             val expiresIn = data["expires_in"].int() ?: 3600
             store.saveTokens(accessToken, null, System.currentTimeMillis() + (expiresIn - 60) * 1000L)
             accessToken

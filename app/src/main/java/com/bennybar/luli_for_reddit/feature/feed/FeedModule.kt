@@ -26,9 +26,10 @@ class FeedModule(private val c: AppContainer) : UserScoped {
     private var frontpage: FeedController? = null
     private val feeds = object : LinkedHashMap<String, FeedController>(16, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, FeedController>?): Boolean {
-            if (size <= MAX_FEEDS) return false
-            eldest?.value?.dispose()
-            return true
+            // Dropped from the cache but not disposed: a screen deeper in the
+            // back stack may still hold it, and a disposed (cancelled) one would
+            // leave that screen stuck loading. It's collected once unused.
+            return size > MAX_FEEDS
         }
     }
 

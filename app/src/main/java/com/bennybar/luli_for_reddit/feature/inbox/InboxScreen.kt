@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.inbox
 
+import com.bennybar.luli_for_reddit.feature.feed.LoadMoreNearEnd
 import com.bennybar.luli_for_reddit.feature.feed.SwipeSpec
 import com.bennybar.luli_for_reddit.feature.feed.SwipeActions
 import androidx.compose.foundation.background
@@ -60,7 +61,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -82,8 +82,6 @@ import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.NavCache
 import com.bennybar.luli_for_reddit.nav.Route
 import com.bennybar.luli_for_reddit.ui.friendlyError
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 
 /** The Inbox tab. [reselect] bumps when the tab is re-tapped (scroll to top). */
@@ -203,13 +201,15 @@ private fun InboxList(where: String, listState: LazyListState) {
         }
     }
 
-    // Load the next page as the end comes into view.
-    LaunchedEffect(listState, where) {
-        snapshotFlow {
-            val info = listState.layoutInfo
-            val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
-            info.totalItemsCount > 0 && last >= info.totalItemsCount - 4
-        }.distinctUntilChanged().filter { it }.collect { app.inbox.loadMore(where) }
+    // Load the next page as the end comes into view (asking again whenever a
+    // page lands, so a filter showing few rows doesn't stall).
+    LoadMoreNearEnd(listState, 4, page = state.items.size to state.after) { app.inbox.loadMore(where) }
+    // A kind filter can leave too few rows to scroll (or none, and no list):
+    // keep fetching, within a bound, until there's a screenful.
+    LaunchedEffect(items.size, state.items.size, state.after, state.loadingMore, state.loading) {
+        if (items.size < 10 && state.hasMore && !state.loading && !state.loadingMore && state.items.size < 500) {
+            app.inbox.loadMore(where)
+        }
     }
 
     Column(Modifier.fillMaxSize()) {

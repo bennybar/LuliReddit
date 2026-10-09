@@ -110,12 +110,20 @@ fun bodySegments(body: String, media: Map<String, String>, maxMedia: Int): List<
         val ref = m.groupValues[1]
         (media[ref] ?: giphyUrl(ref))?.let { "\n\n$it\n\n" } ?: m.value
     }
+    // No media at all (most bodies): the text exactly as written. Splitting it
+    // into paragraphs could only lose markdown structure (indented code, nested
+    // list paragraphs, blank lines inside fenced code).
+    if (expanded == body && extractMediaLinks(body).isEmpty()) {
+        return if (body.isBlank()) emptyList() else listOf(BodySegment.Text(body))
+    }
     val out = mutableListOf<BodySegment>()
     val text = StringBuilder()
     val seen = mutableSetOf<String>()
     var count = 0
     fun flush() {
-        if (text.isNotBlank()) out.add(BodySegment.Text(text.toString().trim()))
+        // Only surrounding blank lines go: leading spaces are markdown (an
+        // indented code block's first line).
+        if (text.isNotBlank()) out.add(BodySegment.Text(text.toString().trim('\n', '\r').trimEnd()))
         text.clear()
     }
     fun addMedia(u: Uri) {
@@ -134,7 +142,7 @@ fun bodySegments(body: String, media: Map<String, String>, maxMedia: Int): List<
             continue
         }
         if (text.isNotEmpty()) text.append("\n\n")
-        text.append(p)
+        text.append(para.trim('\n', '\r').let { if (it.startsWith("    ") || it.startsWith("\t")) it else it.trimStart() })
         val inline = extractMediaLinks(p)
         if (inline.isNotEmpty()) {
             flush()

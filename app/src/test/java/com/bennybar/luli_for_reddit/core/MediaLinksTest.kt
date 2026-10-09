@@ -68,4 +68,16 @@ class MediaLinksTest {
         assertNull(giphyUrl("abc123"))
         assertEquals("https://media.giphy.com/media/x1/giphy.webp", giphyUrl("giphy|x1|downsized"))
     }
+
+    @Test
+    fun `bodies keep their markdown structure`() {
+        val code = "Try:\n\n    val x = 1\n    val y = 2"
+        assertEquals(listOf("T:$code"), texts(bodySegments(code, emptyMap(), 3)))
+        // With media present, indentation of other paragraphs survives too.
+        val mixed = "Try:\n\n    code here\n\nhttps://i.redd.it/a.jpg"
+        assertEquals(
+            listOf("T:Try:\n\n    code here", "M:https://i.redd.it/a.jpg"),
+            texts(bodySegments(mixed, emptyMap(), 3)),
+        )
+    }
 }

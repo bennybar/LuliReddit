@@ -127,9 +127,7 @@ private const val DRAFT_KEY = "compose_post"
 private fun picked(context: Context, uri: Uri, fallbackName: String): Picked =
     Picked(uri, displayName(context, uri)?.ifEmpty { null } ?: fallbackName, context.contentResolver.getType(uri))
 
-private suspend fun readBytes(context: Context, uri: Uri): ByteArray = withContext(Dispatchers.IO) {
-    context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: throw Exception("Couldn't read the file.")
-}
+private suspend fun readBytes(context: Context, uri: Uri): ByteArray = readUriBytes(context, uri)
 
 /** A JPEG poster frame for a video (Reddit needs one for video posts). */
 private suspend fun posterFrame(context: Context, uri: Uri): ByteArray? = withContext(Dispatchers.IO) {

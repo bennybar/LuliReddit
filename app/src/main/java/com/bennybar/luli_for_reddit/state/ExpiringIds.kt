@@ -1,8 +1,14 @@
 package com.bennybar.luli_for_reddit.state
 
 import com.bennybar.luli_for_reddit.core.storage.Prefs
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 
 /**
  * A per-account set of ids that each expire [ttlMillis] after being added,
@@ -14,6 +20,9 @@ class ExpiringIds(private val prefs: Prefs, private val baseKey: String, private
     private var key = baseKey
     private val since = HashMap<String, Long>()
     private val _ids = MutableStateFlow<Set<String>>(emptySet())
+    // Wakes up when the next entry expires, so it un-hides while the app stays open.
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var expiryJob: Job? = null
     val ids: StateFlow<Set<String>> = _ids
 
     fun add(id: String) {
@@ -30,6 +39,12 @@ class ExpiringIds(private val prefs: Prefs, private val baseKey: String, private
         since.entries.removeAll { now - it.value > ttlMillis }
         prefs.setStringList(key, since.map { "${it.key}:${it.value}" })
         _ids.value = since.keys.toSet()
+        expiryJob?.cancel()
+        val next = since.values.minOrNull() ?: return
+        expiryJob = scope.launch {
+            delay((next + ttlMillis - System.currentTimeMillis()).coerceAtLeast(0) + 1_000)
+            save()
+        }
     }
 
     override fun onUserChanged(username: String) {

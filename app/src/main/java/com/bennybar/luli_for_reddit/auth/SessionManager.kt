@@ -112,17 +112,22 @@ class SessionManager(
     /** Website-session login (no API key). [cookie] is captured by the WebView. */
     suspend fun loginWithWebSession(cookie: String) {
         val (username, modhash) = repo.completeWebLogin(cookie)
-        store.upsertWebAccount(username, cookie, modhash)
-        setHasAccount(true)
-        _state.value = SessionState.LoggedIn(AuthSession(username))
+        lock.withLock {
+            store.upsertWebAccount(username, cookie, modhash)
+            repo.forgetRefresh()
+            setHasAccount(true)
+            _state.value = SessionState.LoggedIn(AuthSession(username))
+        }
     }
 
     /** The full interactive login (first account or another one). */
     suspend fun login(context: Context, clientId: String, redirectUri: String, ephemeral: Boolean = false) {
         val username = repo.login(context, clientId, redirectUri, ephemeral)
-        store.refreshToken()?.let { store.upsertAccount(username, it) }
-        setHasAccount(true)
-        _state.value = SessionState.LoggedIn(AuthSession(username))
+        lock.withLock {
+            store.refreshToken()?.let { store.upsertAccount(username, it) }
+            setHasAccount(true)
+            _state.value = SessionState.LoggedIn(AuthSession(username))
+        }
     }
 
     /** Starts browsing without an account (needs only a Client ID). */
@@ -140,19 +145,22 @@ class SessionManager(
         login(context, clientId, redirectUri, ephemeral = true)
     }
 
-    suspend fun switchAccount(username: String) {
-        if (username == session?.username) return
-        if (!store.activateAccount(username)) return
+    // Account changes hold [lock], like reload(): a resume's reload reading the
+    // old account mid-switch could otherwise publish it over the new one.
+    suspend fun switchAccount(username: String) = lock.withLock {
+        if (username == session?.username) return@withLock
+        if (!store.activateAccount(username)) return@withLock
+        repo.forgetRefresh()
         _state.value = SessionState.LoggedIn(AuthSession(username))
     }
 
     /** Signs out one account; switches to another if any remain. */
-    suspend fun removeAccount(username: String) {
+    suspend fun removeAccount(username: String) = lock.withLock {
         store.removeAccountEntry(username)
         if (username != session?.username) {
             _state.value = _state.value // accounts list changed; screens re-query
             _accountsVersion.value++
-            return
+            return@withLock
         }
         val remaining = store.accounts()
         if (remaining.isEmpty()) {
@@ -162,15 +170,17 @@ class SessionManager(
             _state.value = SessionState.LoggedOut
         } else {
             store.activateAccount(remaining.first())
+            repo.forgetRefresh()
             _state.value = SessionState.LoggedIn(AuthSession(remaining.first()))
         }
         _accountsVersion.value++
     }
 
     /** Full sign-out of every account. */
-    suspend fun logout() {
+    suspend fun logout() = lock.withLock {
         store.clearSession()
         store.clearAccounts()
+        repo.forgetRefresh()
         setHasAccount(false)
         _state.value = SessionState.LoggedOut
         _accountsVersion.value++
