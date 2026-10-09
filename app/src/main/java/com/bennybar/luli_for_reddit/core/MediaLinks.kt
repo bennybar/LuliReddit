@@ -60,6 +60,17 @@ fun extractMediaLinks(markdown: String): List<Uri> {
     return out
 }
 
+/**
+ * Giphy's animated WebP for a GIF-picker reference (`giphy|<id>` or
+ * `giphy|<id>|downsized`) — for when Reddit's `media_metadata` has no usable
+ * URL for it. Null for anything else.
+ */
+fun giphyUrl(ref: String): String? {
+    if (!ref.startsWith("giphy|")) return null
+    val id = ref.split('|').getOrNull(1)?.takeIf { it.isNotEmpty() && it.all(Char::isLetterOrDigit) } ?: return null
+    return "https://media.giphy.com/media/$id/giphy.webp"
+}
+
 /** An uploaded image / picker GIF in a body: `![gif](giphy|id|downsized)` / `![img](id)`; its URL is in `media_metadata`. */
 private val mediaRefRe = Regex("""!\[[^\]]*]\(([^)\s]+)\)""")
 
@@ -95,8 +106,9 @@ private val loneLinkRe = Regex("""^!?\[[^\]]*]\((\S+?)\)$|^<?(https?://\S+?)>?$"
  */
 fun bodySegments(body: String, media: Map<String, String>, maxMedia: Int): List<BodySegment> {
     // Uploaded media refs become their own paragraphs holding the real URL.
-    val expanded = if (media.isEmpty()) body else mediaRefRe.replace(body) { m ->
-        media[m.groupValues[1]]?.let { "\n\n$it\n\n" } ?: m.value
+    val expanded = mediaRefRe.replace(body) { m ->
+        val ref = m.groupValues[1]
+        (media[ref] ?: giphyUrl(ref))?.let { "\n\n$it\n\n" } ?: m.value
     }
     val out = mutableListOf<BodySegment>()
     val text = StringBuilder()
