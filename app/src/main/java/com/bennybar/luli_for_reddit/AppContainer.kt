@@ -20,6 +20,7 @@ import com.bennybar.luli_for_reddit.settings.SettingsStore
 import com.bennybar.luli_for_reddit.state.ContentFiltersStore
 import com.bennybar.luli_for_reddit.state.Drafts
 import com.bennybar.luli_for_reddit.state.DismissedPosts
+import com.bennybar.luli_for_reddit.state.SummaryStore
 import com.bennybar.luli_for_reddit.state.HiddenPosts
 import com.bennybar.luli_for_reddit.state.HistoryStore
 import com.bennybar.luli_for_reddit.state.OfflineStore
@@ -68,6 +69,7 @@ class AppContainer(val context: Context) {
     val postOverrides = PostOverrides()
     val hiddenPosts = HiddenPosts()
     val dismissedPosts = DismissedPosts(prefs)
+    val summaries = SummaryStore(context)
     val history = HistoryStore(prefs)
     val threadVisits = ThreadVisits(prefs, settings)
     val contentFilters = ContentFiltersStore(prefs)
@@ -89,7 +91,7 @@ class AppContainer(val context: Context) {
     val navigator: AppNavigator get() = navigatorOrNull ?: error("No activity")
 
     private val userScoped: List<UserScoped>
-        get() = listOf(postOverrides, hiddenPosts, dismissedPosts, history, threadVisits, contentFilters, offline, feed, post, forYou, inbox, media)
+        get() = listOf(postOverrides, hiddenPosts, dismissedPosts, summaries, history, threadVisits, contentFilters, offline, feed, post, forYou, inbox, media)
 
     /** Called once by [IlayApp] after [app] is assigned (modules may use it). */
     fun start() {

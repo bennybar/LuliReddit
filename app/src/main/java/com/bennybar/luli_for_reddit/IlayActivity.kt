@@ -40,6 +40,7 @@ import com.bennybar.luli_for_reddit.feature.auth.LoginScreen
 import com.bennybar.luli_for_reddit.feature.auth.WebLoginScreen
 import com.bennybar.luli_for_reddit.feature.compose.SubmitScreen
 import com.bennybar.luli_for_reddit.feature.feed.HistoryScreen
+import com.bennybar.luli_for_reddit.feature.post.SummariesScreen
 import com.bennybar.luli_for_reddit.feature.feed.ManageMultiredditScreen
 import com.bennybar.luli_for_reddit.feature.feed.MultiredditScreen
 import com.bennybar.luli_for_reddit.feature.feed.OfflineScreen
@@ -241,6 +242,7 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
                 screen<Route.ContentFilters> { ContentFiltersScreen() }
                 screen<Route.Policy> { PolicyScreen() }
                 screen<Route.History> { HistoryScreen() }
+                screen<Route.Summaries> { SummariesScreen() }
                 screen<Route.Saved> { SavedScreen() }
                 screen<Route.Offline> { OfflineScreen() }
                 screen<Route.Search> { val r = it.toRoute<Route.Search>(); SearchScreen(r.subreddit, r.query) }
