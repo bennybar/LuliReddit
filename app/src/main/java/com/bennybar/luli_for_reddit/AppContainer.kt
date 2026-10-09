@@ -71,7 +71,7 @@ class AppContainer(val context: Context) {
      * Home's id-fetched posts and saved first pages don't honour Reddit's
      * hidden flag, so a session-only set let them reappear after a restart.
      */
-    val hiddenPosts = ExpiringIds(prefs, "hiddenPostIds", 90L * 24 * 60 * 60_000L)
+    val hiddenPosts = ExpiringIds(prefs, "hiddenPostIds", 7L * 24 * 60 * 60_000L)
     /** Posts swiped away from Home / For You ("Dismiss"), for a day. */
     val dismissedPosts = ExpiringIds(prefs, "dismissedPosts", 24 * 60 * 60_000L)
     /** Subreddits hidden from Home / For You for a week (lowercase names). */
