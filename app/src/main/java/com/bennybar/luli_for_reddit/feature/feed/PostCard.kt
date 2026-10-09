@@ -228,13 +228,9 @@ fun rememberSeen(postId: String): State<Boolean> {
     return flow.collectAsState(initial = app.history.contains(postId))
 }
 
-/**
- * A post in a feed, in the layout chosen in Settings (Default / Cards / Mini
- * cards / Calm / Calm cards). Calm posts are segments of one connected list:
- * [calmTop] / [calmBottom] are its corner radii (big at the list's ends).
- */
+/** A post in a feed, in the layout chosen in Settings (Default / Cards / Mini cards / Calm / Calm cards). */
 @Composable
-fun PostCard(post: Post, modifier: Modifier = Modifier, calmTop: Dp = CalmOuter, calmBottom: Dp = CalmOuter) {
+fun PostCard(post: Post, modifier: Modifier = Modifier) {
     val settings by app.settings.state.collectAsState()
     val nav = LocalNavigator.current
     val actions = remember(post, nav) { PostActions(post, nav) }
@@ -291,7 +287,7 @@ fun PostCard(post: Post, modifier: Modifier = Modifier, calmTop: Dp = CalmOuter,
                 PostDisplay.LARGE -> LargeCard(post, actions, settings, dim)
                 PostDisplay.CARD -> CardsCard(post, actions, settings, dim)
                 PostDisplay.MINI -> MiniCard(post, actions, settings, dim)
-                PostDisplay.CALM -> CalmCard(post, actions, settings, dim, calmTop, calmBottom)
+                PostDisplay.CALM -> CalmCard(post, actions, settings, dim)
                 PostDisplay.CALM_CARDS -> CalmCardsCard(post, actions, settings, dim)
             }
         }
@@ -848,11 +844,11 @@ private fun MediaPill(label: String, icon: ImageVector?, modifier: Modifier = Mo
 // Calm layout
 // ---------------------------------------------------------------------------
 
-/** Outer corner of a Calm list's ends / a Calm card; segments meet at [CalmInner]. */
-val CalmOuter = 28.dp
+/** Outer corner of a Calm card; a Calm cards post's segments meet at [CalmInner]. */
+private val CalmOuter = 28.dp
 private val CalmInner = 6.dp
-/** Gap between connected segments (Calm posts; a Calm card's parts). */
-val CalmGap = 3.dp
+/** Gap between a Calm cards post's connected segments. */
+private val CalmGap = 3.dp
 /** Expressive media: round corners with one tighter corner. */
 private val CalmExpressiveMedia = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomEnd = 24.dp, bottomStart = 8.dp)
 
@@ -903,19 +899,18 @@ private fun rememberCalmLive(p: Post): CalmLive {
 }
 
 /**
- * "Calm" — posts as segments of one connected list (3dp apart, big corners
- * only at the list's ends): a rounded-square avatar header, a bold title, a
- * flair pill, expressive media and a connected [↑ score][↓][comments] group.
+ * "Calm" — one card per post (Calm cards' corners and padding): a
+ * rounded-square avatar header, a bold title, a flair pill, media at its full
+ * aspect ratio (not cropped) and a connected [↑ score][↓][comments] group.
  * Mark-read lives in the ⋮ sheet.
  */
 @Composable
-private fun CalmCard(p: Post, a: PostActions, s: Settings, dim: Modifier, top: Dp, bottom: Dp) {
+private fun CalmCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
     val live = rememberCalmLive(p)
-    val shape = RoundedCornerShape(topStart = top, topEnd = top, bottomStart = bottom, bottomEnd = bottom)
     CompositionLocalProvider(LocalCalmOnCard provides true) {
-        BloomCard(Modifier.padding(horizontal = 2.dp).then(dim), onClick = a::openDetail, onLongClick = a::tune, shape = shape, color = calmCardColor()) {
+        BloomCard(Modifier.padding(horizontal = 2.dp).then(dim), onClick = a::openDetail, onLongClick = a::tune, shape = RoundedCornerShape(CalmOuter), color = calmCardColor()) {
             Column(Modifier.padding(start = 16.dp, top = 14.dp, end = 10.dp, bottom = 10.dp)) {
-                Column(Modifier.padding(end = 6.dp)) { CalmBody(p, a, s, CalmExpressiveMedia) }
+                Column(Modifier.padding(end = 6.dp)) { CalmBody(p, a, s, CalmExpressiveMedia, fullMedia = true) }
                 Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     CalmActionGroup(live, a, withComments = true)
                     Spacer(Modifier.weight(1f))
@@ -968,7 +963,7 @@ private fun CalmCardsCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
 
 /** Header, title, flair, crosspost, media (when [mediaShape] is set), poll and selftext. */
 @Composable
-private fun CalmBody(p: Post, a: PostActions, s: Settings, mediaShape: androidx.compose.ui.graphics.Shape?) {
+private fun CalmBody(p: Post, a: PostActions, s: Settings, mediaShape: androidx.compose.ui.graphics.Shape?, fullMedia: Boolean = false) {
     val cs = MaterialTheme.colorScheme
     CalmHeader(p, a)
     Text(
@@ -982,7 +977,7 @@ private fun CalmBody(p: Post, a: PostActions, s: Settings, mediaShape: androidx.
     )
     p.linkFlairText?.let { CalmFlair(it, Modifier.padding(top = 8.dp)) }
     CrosspostLine(p)
-    if (mediaShape != null) CalmMedia(p, a, s, mediaShape)
+    if (mediaShape != null) CalmMedia(p, a, s, mediaShape, full = fullMedia)
     if (p.pollOptions.isNotEmpty()) {
         Spacer(Modifier.height(10.dp))
         PollOptions(p)
@@ -1146,9 +1141,13 @@ private fun CalmHeader(p: Post, a: PostActions) {
     }
 }
 
-/** Calm media in [shape]: 16:10 cover crop, galleries, inline video, or a link block. */
+/**
+ * Calm media in [shape]: a 16:10 cover crop — or, when [full], the preview's
+ * own aspect ratio (as Default; clamped 1:2 … 2:1) — galleries, inline video,
+ * or a link block.
+ */
 @Composable
-private fun CalmMedia(p: Post, a: PostActions, s: Settings, shape: androidx.compose.ui.graphics.Shape, topPad: Dp = 10.dp) {
+private fun CalmMedia(p: Post, a: PostActions, s: Settings, shape: androidx.compose.ui.graphics.Shape, topPad: Dp = 10.dp, full: Boolean = false) {
     val cs = MaterialTheme.colorScheme
     if (p.type == PostType.SELF) return
     val blur = blurOf(p, s)
@@ -1173,7 +1172,10 @@ private fun CalmMedia(p: Post, a: PostActions, s: Settings, shape: androidx.comp
         return
     }
     BoxWithConstraints(top.fillMaxWidth()) {
-        val height = maxWidth * 10f / 16f
+        val w = p.previewWidth
+        val h = p.previewHeight
+        val aspect = if (full && w != null && h != null && h > 0) (w.toFloat() / h).coerceIn(0.5f, 2f) else 16f / 10f
+        val height = maxWidth / aspect
         if (p.type == PostType.GALLERY && p.gallery.isNotEmpty()) {
             NsfwBlur(blur, label = blurLabel(p, s)) {
                 GalleryCarousel(p.gallery, Modifier.clip(shape), title = p.title, height = height)
