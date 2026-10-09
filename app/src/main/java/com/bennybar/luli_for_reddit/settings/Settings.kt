@@ -106,6 +106,7 @@ data class Settings(
     val subsCacheEnabled: Boolean = true, // cache subscription list in memory
     val subsCacheMinutes: Int = 10, // how long to keep the subs cache
     val feedKeepMinutes: Int = 30, // how long the frontpage keeps its posts before returning to it reloads
+    val hiddenPostDays: Int = 7, // how long Ilay keeps posts you hid out of every feed (Reddit hides them too)
     val textScale: Double = 1.0, // global text size multiplier (0.8–1.4)
     val autoplayMedia: Boolean = true, // autoplay videos/GIFs in feeds
     val showApiUsage: Boolean = false, // show API usage instead of search on Posts screen

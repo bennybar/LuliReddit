@@ -50,6 +50,7 @@ class SettingsStore(private val p: Prefs) {
             subsCacheEnabled = b("subsCacheEnabled", d.subsCacheEnabled),
             subsCacheMinutes = p.getInt("subsCacheMinutes") ?: d.subsCacheMinutes,
             feedKeepMinutes = p.getInt("feedKeepMinutes") ?: d.feedKeepMinutes,
+            hiddenPostDays = p.getInt("hiddenPostDays") ?: d.hiddenPostDays,
             textScale = p.getDouble("textScale") ?: d.textScale,
             autoplayMedia = b("autoplayMedia", d.autoplayMedia),
             showApiUsage = b("showApiUsage", d.showApiUsage),
@@ -140,6 +141,7 @@ class SettingsStore(private val p: Prefs) {
     fun setSubsCacheEnabled(v: Boolean) { p.setBool("subsCacheEnabled", v); set { it.copy(subsCacheEnabled = v) } }
     fun setSubsCacheMinutes(v: Int) { p.setInt("subsCacheMinutes", v); set { it.copy(subsCacheMinutes = v) } }
     fun setFeedKeepMinutes(v: Int) { p.setInt("feedKeepMinutes", v); set { it.copy(feedKeepMinutes = v) } }
+    fun setHiddenPostDays(v: Int) { p.setInt("hiddenPostDays", v); set { it.copy(hiddenPostDays = v) } }
     fun setTextScale(v: Double) { p.setDouble("textScale", v); set { it.copy(textScale = v) } }
     fun setAutoplayMedia(v: Boolean) { p.setBool("autoplayMedia", v); set { it.copy(autoplayMedia = v) } }
     fun setShowApiUsage(v: Boolean) { p.setBool("showApiUsage", v); set { it.copy(showApiUsage = v) } }

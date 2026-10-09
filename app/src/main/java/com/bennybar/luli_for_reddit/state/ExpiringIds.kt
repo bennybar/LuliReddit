@@ -11,12 +11,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 /**
- * A per-account set of ids that each expire [ttlMillis] after being added,
+ * A per-account set of ids that each expire [ttl] (read each time, so a
+ * setting can change it) after being added,
  * persisted as "id:millis" strings under [baseKey]. Local only — nothing is
  * sent to Reddit. Used for posts swiped away ("Dismiss", a day) and
  * subreddits hidden from Home / For You ("Hide r/… for 7 days").
  */
-class ExpiringIds(private val prefs: Prefs, private val baseKey: String, private val ttlMillis: Long) : UserScoped {
+class ExpiringIds(private val prefs: Prefs, private val baseKey: String, private val ttl: () -> Long) : UserScoped {
     private var key = baseKey
     private val since = HashMap<String, Long>()
     private val _ids = MutableStateFlow<Set<String>>(emptySet())
@@ -34,8 +35,12 @@ class ExpiringIds(private val prefs: Prefs, private val baseKey: String, private
         if (since.remove(id) != null) save()
     }
 
+    /** Re-applies the expiry (the time-to-live setting changed). */
+    fun refresh() = save()
+
     private fun save() {
         val now = System.currentTimeMillis()
+        val ttlMillis = ttl()
         since.entries.removeAll { now - it.value > ttlMillis }
         prefs.setStringList(key, since.map { "${it.key}:${it.value}" })
         _ids.value = since.keys.toSet()

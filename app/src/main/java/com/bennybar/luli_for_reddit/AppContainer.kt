@@ -31,6 +31,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -71,11 +72,11 @@ class AppContainer(val context: Context) {
      * Home's id-fetched posts and saved first pages don't honour Reddit's
      * hidden flag, so a session-only set let them reappear after a restart.
      */
-    val hiddenPosts = ExpiringIds(prefs, "hiddenPostIds", 7L * 24 * 60 * 60_000L)
+    val hiddenPosts = ExpiringIds(prefs, "hiddenPostIds") { settings.value.hiddenPostDays * 24L * 60 * 60_000L }
     /** Posts swiped away from Home / For You ("Dismiss"), for a day. */
-    val dismissedPosts = ExpiringIds(prefs, "dismissedPosts", 24 * 60 * 60_000L)
+    val dismissedPosts = ExpiringIds(prefs, "dismissedPosts") { 24 * 60 * 60_000L }
     /** Subreddits hidden from Home / For You for a week (lowercase names). */
-    val hiddenHomeSubs = ExpiringIds(prefs, "hiddenHomeSubs", 7 * 24 * 60 * 60_000L)
+    val hiddenHomeSubs = ExpiringIds(prefs, "hiddenHomeSubs") { 7 * 24 * 60 * 60_000L }
     val summaries = SummaryStore(context)
     val history = HistoryStore(prefs)
     val threadVisits = ThreadVisits(prefs, settings)
@@ -113,7 +114,9 @@ class AppContainer(val context: Context) {
                 }
             }
         }
-        // On any account change (switch, or logout then login as someone else):
+        // A new "Hide posts for" time applies at once (a shorter one un-hides now).
+        scope.launch { settings.state.map { it.hiddenPostDays }.distinctUntilChanged().drop(1).collect { hiddenPosts.refresh() } }
+                // On any account change (switch, or logout then login as someone else):
         // re-read auth config and reload everything that belongs to an account.
         scope.launch {
             var previous: String? = null
