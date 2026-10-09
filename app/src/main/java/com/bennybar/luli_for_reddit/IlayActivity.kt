@@ -36,6 +36,9 @@ import com.bennybar.luli_for_reddit.auth.OAuthFlow
 import com.bennybar.luli_for_reddit.auth.SessionState
 import com.bennybar.luli_for_reddit.core.isRedditHost
 import com.bennybar.luli_for_reddit.core.routeForRedditUrl
+import com.bennybar.luli_for_reddit.core.isShareLink
+import com.bennybar.luli_for_reddit.core.resolveShareLink
+import com.bennybar.luli_for_reddit.core.isRedditMediaHost
 import com.bennybar.luli_for_reddit.feature.auth.LoginScreen
 import com.bennybar.luli_for_reddit.feature.auth.WebLoginScreen
 import com.bennybar.luli_for_reddit.feature.compose.SubmitScreen
@@ -214,8 +217,14 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
         val uri = link ?: return@LaunchedEffect
         if (!showHome) return@LaunchedEffect
         pendingLink.value = null
-        // An unsupported reddit.com link goes Home (as the Flutter router did).
-        routeForRedditUrl(uri)?.let(navigator::push) ?: navigator.resetTo(Route.Home)
+        // Share links (/r/<sub>/s/<code>) redirect to the real post first.
+        val target = if (isShareLink(uri)) resolveShareLink(uri) ?: uri else uri
+        when {
+            // i.redd.it / v.redd.it / preview.redd.it: straight into the viewer.
+            isRedditMediaHost(target.host) -> navigator.openLink(target.toString())
+            // An unsupported reddit.com link goes Home (as the Flutter router did).
+            else -> routeForRedditUrl(target)?.let(navigator::push) ?: navigator.resetTo(Route.Home)
+        }
     }
 
     CompositionLocalProvider(LocalNavigator provides navigator) {

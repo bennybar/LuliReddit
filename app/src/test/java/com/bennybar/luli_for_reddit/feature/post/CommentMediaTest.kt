@@ -3,7 +3,8 @@ package com.bennybar.luli_for_reddit.feature.post
 import com.bennybar.luli_for_reddit.core.AppJson
 import com.bennybar.luli_for_reddit.core.isGifUrl
 import com.bennybar.luli_for_reddit.core.isImageUrl
-import com.bennybar.luli_for_reddit.core.splitMediaRefs
+import com.bennybar.luli_for_reddit.core.BodySegment
+import com.bennybar.luli_for_reddit.core.bodySegments
 import com.bennybar.luli_for_reddit.model.Comment
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -41,8 +42,9 @@ class CommentMediaTest {
         )
 
         assertEquals(listOf("giphy|3o7btPCcdNniyf0ArS|downsized"), c.media.keys.toList())
-        val (text, media) = splitMediaRefs(c.body, c.media)
-        assertTrue(text.isEmpty())
+        val segs = bodySegments(c.body, c.media, 3)
+        val media = segs.filterIsInstance<BodySegment.Media>().map { it.uri }
+        assertTrue(segs.none { it is BodySegment.Text })
         assertEquals("https://external-preview.redd.it/abc.gif?width=200&height=200&s=x", media.single().toString())
         assertTrue(isImageUrl(media.single()))
         assertTrue(isGifUrl(media.single()))
@@ -50,11 +52,14 @@ class CommentMediaTest {
 
     @Test
     fun `text around a media ref is kept, unknown refs are left alone`() {
-        val (text, media) = splitMediaRefs(
+        val segs = bodySegments(
             "lol ![gif](giphy|a) and ![img](missing)",
             mapOf("giphy|a" to "https://i.redd.it/a.gif"),
+            3,
         )
-        assertEquals("lol  and ![img](missing)", text)
-        assertEquals("https://i.redd.it/a.gif", media.single().toString())
+        assertEquals(
+            listOf("lol", "https://i.redd.it/a.gif", "and ![img](missing)"),
+            segs.map { if (it is BodySegment.Text) it.markdown else (it as BodySegment.Media).uri.toString() },
+        )
     }
 }

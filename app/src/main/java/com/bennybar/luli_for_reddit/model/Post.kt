@@ -1,6 +1,7 @@
 package com.bennybar.luli_for_reddit.model
 
 import android.net.Uri
+import com.bennybar.luli_for_reddit.core.textWithoutMedia
 import androidx.compose.runtime.Immutable
 import com.bennybar.luli_for_reddit.core.arr
 import com.bennybar.luli_for_reddit.core.bool
@@ -50,6 +51,8 @@ data class Post(
     val suggestedSort: String? = null,
     val feedReason: String? = null, // "why you're seeing this" in For You (transient)
     val crosspostFrom: String? = null, // subreddit a crosspost originates from
+    /** Images / GIFs referenced inside the body (`media_metadata`), by id — shown inline, not as links. */
+    val bodyMedia: Map<String, String> = emptyMap(),
     val pollOptions: List<String> = emptyList(),
     // media
     val thumbnailUrl: String? = null,
@@ -67,13 +70,17 @@ data class Post(
 ) {
     val hasMedia: Boolean get() = previewUrl != null || gallery.isNotEmpty() || type == PostType.VIDEO
 
+    /** The body as a feed card previews it: without image / video links that the post view shows as media. */
+    val snippet: String by lazy { if (bodyMedia.isEmpty() && "http" !in selftext) selftext else textWithoutMedia(selftext) }
+
     companion object {
         /** Parses a single listing child's `data` object. */
         fun fromData(d: JsonElement): Post {
-            val preview = firstPreviewImage(d)
-            // A crosspost carries no media of its own: the video or gallery
-            // lives on the original post.
+            // A crosspost carries no content of its own: its text, media and
+            // link live on the original post (its own url just points there).
             val parent = d["crosspost_parent_list"].arr()?.firstOrNull()?.obj()
+            val content: JsonElement = parent ?: d
+            val preview = firstPreviewImage(d) ?: firstPreviewImage(content)
             fun videoOf(x: JsonElement?): JsonObject? =
                 x["media"]["reddit_video"].obj() ?: x["secure_media"]["reddit_video"].obj()
             val redditVideo = videoOf(d) ?: videoOf(parent)
@@ -81,7 +88,7 @@ data class Post(
             val gallery = if (ownGallery.isNotEmpty() || parent == null) ownGallery else parseGallery(parent)
             // A bare v.redd.it link with no video metadata: its HLS stream sits
             // at a fixed address under the video's id.
-            val url = d["url"].str() ?: ""
+            val url = content["url"].str() ?: d["url"].str() ?: ""
             val vreddit = runCatching { Uri.parse(url) }.getOrNull()
             val bareVreddit = redditVideo == null && vreddit?.host == "v.redd.it" &&
                 vreddit.pathSegments.isNotEmpty()
@@ -101,10 +108,10 @@ data class Post(
                 createdUtc = (d["created_utc"].long() ?: 0L) * 1000,
                 permalink = d["permalink"].str() ?: "",
                 url = url,
-                domain = d["domain"].str() ?: "",
-                type = detectType(d, isVideo, gallery.isNotEmpty()),
-                isSelf = d["is_self"].isTrue(),
-                selftext = d["selftext"].str() ?: "",
+                domain = content["domain"].str() ?: d["domain"].str() ?: "",
+                type = detectType(content, isVideo, gallery.isNotEmpty()),
+                isSelf = content["is_self"].isTrue(),
+                selftext = d["selftext"].str()?.ifEmpty { null } ?: content["selftext"].str() ?: "",
                 over18 = d["over_18"].isTrue(),
                 spoiler = d["spoiler"].isTrue(),
                 stickied = d["stickied"].isTrue(),
@@ -115,18 +122,19 @@ data class Post(
                 linkFlairText = if (flair.isNullOrBlank()) null else flair,
                 distinguished = d["distinguished"].str(),
                 crosspostFrom = parent?.get("subreddit").str(),
-                pollOptions = d["poll_data"]["options"].arr()?.mapNotNull { it["text"].str()?.ifEmpty { null } }
+                bodyMedia = Comment.mediaUrls(content["media_metadata"]),
+                pollOptions = content["poll_data"]["options"].arr()?.mapNotNull { it["text"].str()?.ifEmpty { null } }
                     ?: emptyList(),
-                thumbnailUrl = validThumb(d["thumbnail"].str()),
+                thumbnailUrl = validThumb(d["thumbnail"].str()) ?: validThumb(content["thumbnail"].str()),
                 previewUrl = preview?.url,
-                previewMedUrl = medPreviewUrl(d) ?: preview?.url,
-                blurredPreviewUrl = blurredPreviewUrl(d),
+                previewMedUrl = medPreviewUrl(d) ?: medPreviewUrl(content) ?: preview?.url,
+                blurredPreviewUrl = blurredPreviewUrl(d) ?: blurredPreviewUrl(content),
                 previewWidth = preview?.width,
                 previewHeight = preview?.height,
                 hlsUrl = redditVideo?.get("hls_url").str()
                     ?: if (bareVreddit) "https://v.redd.it/${vreddit!!.pathSegments.first()}/HLSPlaylist.m3u8" else null,
                 fallbackVideoUrl = redditVideo?.get("fallback_url").str(),
-                gifMp4Url = d["preview"]["reddit_video_preview"]["fallback_url"].str(),
+                gifMp4Url = content["preview"]["reddit_video_preview"]["fallback_url"].str(),
                 gallery = gallery,
                 likes = d["likes"].bool(),
             )

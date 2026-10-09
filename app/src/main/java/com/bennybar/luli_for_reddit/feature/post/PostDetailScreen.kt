@@ -128,9 +128,10 @@ import coil3.compose.AsyncImage
 import com.bennybar.luli_for_reddit.app
 import com.bennybar.luli_for_reddit.core.compactNumber
 import com.bennybar.luli_for_reddit.core.extractMediaLinks
+import com.bennybar.luli_for_reddit.core.bodySegments
+import com.bennybar.luli_for_reddit.core.BodySegment
 import com.bennybar.luli_for_reddit.core.isGifUrl
 import com.bennybar.luli_for_reddit.core.isVideoUrl
-import com.bennybar.luli_for_reddit.core.splitMediaRefs
 import com.bennybar.luli_for_reddit.core.timeAgo
 import com.bennybar.luli_for_reddit.data.COMMENT_SORTS
 import com.bennybar.luli_for_reddit.feature.markdown.IconTooltip
@@ -972,7 +973,7 @@ private fun PostHeader(post: Post, fresh: Boolean) {
         }
         // Gallery/image/link posts can carry a body too — show it whenever
         // there's selftext, not only for pure self-posts.
-        if (p.selftext.isNotEmpty()) RedditMarkdown(p.selftext, selectable = true)
+        PostBody(p)
         Spacer(Modifier.height(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             VotePill(score, likes, onUp = { vote(1) }, onDown = { vote(-1) })
@@ -1118,7 +1119,7 @@ private fun CalmPostHeader(
             }
             Text("Vote in the official app", fontSize = 12.sp, color = cs.onSurfaceVariant)
         }
-        if (p.selftext.isNotEmpty()) RedditMarkdown(p.selftext, selectable = true)
+        PostBody(p)
         Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             CalmVoteGroup(score, likes, onUp = { vote(1) }, onDown = { vote(-1) }, height = 40.dp, iconSize = 19.dp, hPad = 14.dp)
             Spacer(Modifier.width(8.dp))
@@ -1370,7 +1371,6 @@ private fun CommentTile(
                 if (collapsed) Icon(Icons.Rounded.UnfoldMore, "Expand", Modifier.size(16.dp), tint = cs.onSurfaceVariant)
             }
             if (!collapsed) {
-                val split = remember(comment.body, comment.media) { splitMediaRefs(comment.body, comment.media) }
                 Column(
                     Modifier
                         .fillMaxWidth()
@@ -1381,8 +1381,7 @@ private fun CommentTile(
                     // heavier to build while scrolling through hundreds of
                     // comments (and swallows taps for tap-to-collapse).
                     // "Copy text" is in the ⋯ menu.
-                    if (split.first.isNotEmpty()) RedditMarkdown(split.first)
-                    CommentMedia(comment.body, split.second, nav)
+                    BodyWithMedia(comment.body, comment.media, nav, maxMedia = 3)
                 }
                 CommentActionsRow(comment, isOwn, actions)
             } else {
@@ -1656,15 +1655,13 @@ private fun CalmCommentRow(
                 )
                 return@Column
             }
-            val split = remember(comment.body, comment.media) { splitMediaRefs(comment.body, comment.media) }
             Column(
                 Modifier
                     .fillMaxWidth()
                     .padding(top = 4.dp)
                     .then(if (tapToCollapse) Modifier.clickable(indication = null, interactionSource = null, onClick = toggle) else Modifier),
             ) {
-                if (split.first.isNotEmpty()) RedditMarkdown(split.first)
-                CommentMedia(comment.body, split.second, nav)
+                BodyWithMedia(comment.body, comment.media, nav, maxMedia = 3)
             }
             // ↑ score ↓ · Reply · Collapse · ⋯ — small, 32dp targets.
             Row(Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1739,13 +1736,40 @@ private fun CollapsePill(icon: ImageVector, label: String, onClick: () -> Unit) 
 }
 
 /**
- * Inline previews for any media linked in a comment body (images, gifs,
- * videos), so comments don't just show a bare URL that opens a browser.
- * [extra]: media resolved from media_metadata (see splitMediaRefs), shown first.
+ * A post's text with the images / GIFs / videos in it shown inline (uploaded
+ * ones via `media_metadata`, and linked i.redd.it / preview.redd.it /
+ * v.redd.it / imgur …), as comments do — they used to show as bare links.
  */
 @Composable
-private fun CommentMedia(body: String, extra: List<android.net.Uri>, nav: AppNavigator) {
-    val links = remember(body, extra) { (extra + extractMediaLinks(body)).take(3) } // capped: link-heavy comments can't blow up the list
+private fun PostBody(p: Post) {
+    if (p.selftext.isEmpty()) return
+    BodyWithMedia(p.selftext, p.bodyMedia, LocalNavigator.current, maxMedia = 10, selectable = true)
+}
+
+/**
+ * A post / comment body in reading order: markdown text, with each image,
+ * GIF or video drawn where it appears (a paragraph that's only a media link
+ * shows as that media, not as the link).
+ */
+@Composable
+private fun BodyWithMedia(body: String, media: Map<String, String>, nav: AppNavigator, maxMedia: Int, selectable: Boolean = false) {
+    val segments = remember(body, media) { bodySegments(body, media, maxMedia) }
+    for (seg in segments) {
+        when (seg) {
+            is BodySegment.Text -> RedditMarkdown(seg.markdown, selectable = selectable)
+            is BodySegment.Media -> CommentMedia("", listOf(seg.uri), nav, max = 1)
+        }
+    }
+}
+
+/**
+ * Inline previews for any media linked in a comment body (images, gifs,
+ * videos), so comments don't just show a bare URL that opens a browser.
+ * [extra]: media resolved from media_metadata, shown first.
+ */
+@Composable
+private fun CommentMedia(body: String, extra: List<android.net.Uri>, nav: AppNavigator, max: Int = 3) {
+    val links = remember(body, extra) { (extra + extractMediaLinks(body)).distinct().take(max) } // capped: link-heavy comments can't blow up the list
     if (links.isEmpty()) return
     val cs = MaterialTheme.colorScheme
     Column(Modifier.padding(top = 8.dp)) {
