@@ -50,9 +50,14 @@ data class Comment(
 
             if (kind == "more") {
                 val children = d["children"].arr()?.mapNotNull { it.str() } ?: emptyList()
+                // "Continue this thread" stubs all come as id "_" / name "t1__":
+                // give each a unique id from its parent, or two in one thread
+                // would share a list key (a crash).
+                val stub = d["id"].str() == "_"
+                val parent = d["parent_id"].str() ?: ""
                 return Comment(
-                    id = d["id"].str() ?: "more",
-                    fullname = d["name"].str() ?: "more_${d["id"].str()}",
+                    id = if (stub) "more_$parent" else d["id"].str() ?: "more",
+                    fullname = if (stub) "more_$parent" else d["name"].str() ?: "more_${d["id"].str()}",
                     parentId = d["parent_id"].str() ?: "",
                     author = "",
                     body = "",

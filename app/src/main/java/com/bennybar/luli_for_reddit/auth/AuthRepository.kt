@@ -105,10 +105,14 @@ class AuthRepository(private val store: SecureStore) {
             )
         }
 
+        // A fresh random state per login: the redirect is accepted only if it
+        // carries this login's value (a fixed one let any page complete a
+        // pending login with someone else's code).
+        val state = java.util.UUID.randomUUID().toString()
         val authUri = Uri.parse(RedditConstants.AUTHORIZE_URL).buildUpon()
             .appendQueryParameter("client_id", cid)
             .appendQueryParameter("response_type", RedditConstants.RESPONSE_TYPE)
-            .appendQueryParameter("state", STATE)
+            .appendQueryParameter("state", state)
             .appendQueryParameter("redirect_uri", redirect)
             .appendQueryParameter("duration", RedditConstants.DURATION)
             .appendQueryParameter("scope", RedditConstants.SCOPE)
@@ -129,7 +133,7 @@ class AuthRepository(private val store: SecureStore) {
                     "It must be exactly: $redirect",
             )
         }
-        if (returned.getQueryParameter("state") != STATE) {
+        if (returned.getQueryParameter("state") != state) {
             throw AuthException("Security check failed (state mismatch). Try again.")
         }
         val code = returned.getQueryParameter("code")
@@ -277,8 +281,6 @@ class AuthRepository(private val store: SecureStore) {
     }
 
     companion object {
-        // A fixed, opaque CSRF state value checked on the redirect.
-        private const val STATE = "luli_oauth_state"
     }
 }
 

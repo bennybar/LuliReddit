@@ -204,6 +204,9 @@ class RedditClient(
     suspend fun getResult(path: String, query: Map<String, Any?> = emptyMap()): ApiResult {
         ensureConfig()
         val url = buildUrl(path, isGet = true, query)
+        // The cache key for the account that made the request: an account
+        // switch while it's in flight must not file it under the new one.
+        val key = cacheKey(path, query)
         var lastError: IOException? = null
         for (attempt in 0 until 2) {
             try {
@@ -212,8 +215,7 @@ class RedditClient(
                 // and don't make the caller wait for the cache write.
                 val json = withContext(Dispatchers.Default) { parseOrThrow(status, text) }
                     ?: throw RedditApiException(status, message = "Unexpected response from Reddit (HTTP $status). Please try again.")
-                if (cacheOn && status == 200) {
-                    val key = cacheKey(path, query)
+                if (cacheOn && status == 200 && key == cacheKey(path, query)) {
                     cacheScope.launch { cache.write(key, text) }
                 }
                 return ApiResult(json)

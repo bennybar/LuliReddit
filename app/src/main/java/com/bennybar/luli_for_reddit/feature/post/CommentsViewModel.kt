@@ -128,17 +128,22 @@ class CommentsViewModel(
         }
         val cur = _state.value.thread ?: return
         if (touched) return
-        val next = withContext(Dispatchers.Default) {
-            // New AutoModerator comments start collapsed, as on first load.
-            val autoMod = if (app.contentFilters.value.collapseAutoMod) {
+        // New AutoModerator comments start collapsed, as on first load.
+        val autoMod = withContext(Dispatchers.Default) {
+            if (app.contentFilters.value.collapseAutoMod) {
                 val known = CommentTree.flatten(cur.comments, emptySet()).mapTo(HashSet()) { it.id }
                 CommentTree.flatten(full.comments, emptySet())
                     .filter { it.author == "AutoModerator" && it.id !in known }
                     .mapTo(HashSet()) { it.id }
             } else emptySet()
-            PostThread(full.post, full.comments, cur.collapsed + autoMod)
         }
-        if (!touched) _state.update { it.copy(thread = next) }
+        if (touched) return
+        // Collapse state from the latest thread: a toggle made while the full
+        // page was being prepared must survive the swap.
+        _state.update { s ->
+            val latest = s.thread ?: return@update s
+            s.copy(thread = PostThread(full.post, full.comments, latest.collapsed + autoMod))
+        }
     }
 
     private fun load(showLoading: Boolean) {

@@ -31,7 +31,9 @@ data class SavedSummary(
  * replaces its older entry. Kept to the last [MAX].
  */
 class SummaryStore(private val context: Context) : UserScoped {
-    private val io = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    // One writer at a time, in order: parallel writes could land out of order
+    // or interleave and corrupt the file (which then loads as empty).
+    private val io = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
     private var file = fileFor("")
     private val _items = MutableStateFlow<List<SavedSummary>>(emptyList())
     val items: StateFlow<List<SavedSummary>> = _items
@@ -49,7 +51,14 @@ class SummaryStore(private val context: Context) : UserScoped {
     private fun save() {
         val f = file
         val list = _items.value
-        io.launch { runCatching { f.writeText(AppJson.encodeToString(ListSerializer(SavedSummary.serializer()), list)) } }
+        io.launch {
+            runCatching {
+                // Write a temp file and swap it in, so a crash mid-write can't truncate it.
+                val tmp = File(f.parentFile, f.name + ".tmp")
+                tmp.writeText(AppJson.encodeToString(ListSerializer(SavedSummary.serializer()), list))
+                if (!tmp.renameTo(f)) { f.delete(); tmp.renameTo(f) }
+            }
+        }
     }
 
     override fun onUserChanged(username: String) {

@@ -36,6 +36,9 @@ sealed interface FeedUi {
     data class Data(val state: FeedState) : FeedUi
 }
 
+/** Paging cursor of a page restored from disk (it has no real cursor). */
+private const val RESTORED_PAGE = "restored"
+
 /**
  * Feed for the frontpage (key == ""), a subreddit (key == name) or a
  * multireddit (key == "m::username::multiname"). Owned by [FeedModule], so it
@@ -93,7 +96,12 @@ class FeedController(val key: String) {
     fun start() {
         if (started) return
         started = true
-        if (app.restoredProcess && deckMode) restoreOrBuild() else rebuild(showLoading = deckMode)
+        if (app.restoredProcess && deckMode) {
+            app.restoredProcess = false // once; a later frontpage (account switch) loads normally
+            restoreOrBuild()
+        } else {
+            rebuild(showLoading = deckMode)
+        }
     }
 
     /**
@@ -110,7 +118,9 @@ class FeedController(val key: String) {
             val page = if (savedAt != null && System.currentTimeMillis() - savedAt < keepMillis) cachedFirstPage() else null
             if (page != null) {
                 lastLoaded = savedAt!!
-                _ui.value = FeedUi.Data(FeedState(page.items, sort, time, page.after))
+                // The saved page has no paging cursor: mark it so reaching its
+                // end fetches more (see loadMore) instead of stopping there.
+                _ui.value = FeedUi.Data(FeedState(page.items, sort, time, page.after ?: RESTORED_PAGE))
             } else {
                 rebuild(showLoading = true)
             }
@@ -210,6 +220,10 @@ class FeedController(val key: String) {
             if (cached == null && deckMode) cached = cachedFirstPage()
             if (cached == null) throw e
             showingCache = false
+            // Count the attempt as a load: otherwise every return to the feed
+            // (refreshIfExpired) retried at once, swapping in the loading deck
+            // and losing the scroll position each time while offline.
+            lastLoaded = System.currentTimeMillis()
             return FeedState(cached.items, sort, time, cached.after)
         }
         showingCache = false
@@ -342,11 +356,16 @@ class FeedController(val key: String) {
         _ui.value = FeedUi.Data(cur.copy(loadingMore = true))
         scope.launch {
             try {
-                val listing = fetch(after = cur.after)
+                // A restored page (no cursor): fetch a first page and continue
+                // from it, skipping posts already shown.
+                val restored = cur.after == RESTORED_PAGE
+                val listing = fetch(after = if (restored) null else cur.after)
                 if (gen != generation) return@launch // the list was replaced meanwhile
                 // Append to the latest state, which may carry a staged "New posts" page.
                 val latest = current ?: cur
-                _ui.value = FeedUi.Data(latest.copy(posts = latest.posts + listing.items, after = listing.after, loadingMore = false))
+                val shown = if (restored) latest.posts.mapTo(HashSet()) { it.id } else emptySet()
+                val more = if (restored) listing.items.filter { it.id !in shown } else listing.items
+                _ui.value = FeedUi.Data(latest.copy(posts = latest.posts + more, after = listing.after, loadingMore = false))
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {

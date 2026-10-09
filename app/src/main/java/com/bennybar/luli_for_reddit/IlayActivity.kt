@@ -83,10 +83,14 @@ import androidx.navigation.NavGraphBuilder
 /** Once per process (the activity can be recreated). */
 private var appStartTracked = false
 
+/** Set once the first IlayActivity of this process has been created. */
+private var activityCreatedInProcess = false
+
 class IlayActivity : ComponentActivity() {
     /** The latest incoming deep link (VIEW intent), consumed by the UI. */
     private val pendingLink = MutableStateFlow<Uri?>(null)
     private var lastLink: String? = null
+    private var lastLinkAt = 0L
     private var lastInboxSync = System.currentTimeMillis()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -100,7 +104,10 @@ class IlayActivity : ComponentActivity() {
         )
         // Restored after Android killed the app in the background (a swipe
         // away from Recents starts fresh, with no saved state).
-        if (savedInstanceState != null) app.restoredProcess = true
+        // (Only the first activity of the process: a later recreation, e.g. a
+        // configuration change, also has saved state but a live process.)
+        if (savedInstanceState != null && !activityCreatedInProcess) app.restoredProcess = true
+        activityCreatedInProcess = true
         if (savedInstanceState == null) {
             prestartFrontpage()
             trackAppStarted()
@@ -159,9 +166,12 @@ class IlayActivity : ComponentActivity() {
         if (app.inbox.handleLaunchIntent(intent)) return
         val uri = intent.data ?: return
         if (intent.action != Intent.ACTION_VIEW || !isRedditHost(uri.host)) return
-        // Dedupe: the same link can arrive twice (cold start + resume).
-        if (uri.toString() == lastLink) return
+        // Dedupe: the same link can arrive twice in a row (cold start +
+        // resume) — but tapping it again later must still open it.
+        val now = System.currentTimeMillis()
+        if (uri.toString() == lastLink && now - lastLinkAt < 2_000) return
         lastLink = uri.toString()
+        lastLinkAt = now
         pendingLink.value = uri
     }
 
@@ -216,14 +226,20 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
     LaunchedEffect(link, showHome) {
         val uri = link ?: return@LaunchedEffect
         if (!showHome) return@LaunchedEffect
+        // Clearing the link re-keys this effect, so the work (a share link
+        // resolves over the network) runs on the navigator's scope, not here.
         pendingLink.value = null
-        // Share links (/r/<sub>/s/<code>) redirect to the real post first.
-        val target = if (isShareLink(uri)) resolveShareLink(uri) ?: uri else uri
-        when {
-            // i.redd.it / v.redd.it / preview.redd.it: straight into the viewer.
-            isRedditMediaHost(target.host) -> navigator.openLink(target.toString())
-            // An unsupported reddit.com link goes Home (as the Flutter router did).
-            else -> routeForRedditUrl(target)?.let(navigator::push) ?: navigator.resetTo(Route.Home)
+        navigator.scope.launch {
+            // Share links (/r/<sub>/s/<code>) redirect to the real post first.
+            val target = if (isShareLink(uri)) resolveShareLink(uri) ?: uri else uri
+            when {
+                // i.redd.it / v.redd.it / preview.redd.it: straight into the viewer.
+                isRedditMediaHost(target.host) -> navigator.openLink(target.toString())
+                else -> routeForRedditUrl(target)?.let(navigator::push)
+                    // A reddit page Ilay can't show (wiki, settings…): the browser,
+                    // keeping whatever was open here.
+                    ?: navigator.openInBrowser(target)
+            }
         }
     }
 
