@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.inbox
 
+import com.bennybar.luli_for_reddit.feature.feed.SwipeSpec
+import com.bennybar.luli_for_reddit.feature.feed.SwipeActions
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -45,14 +47,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -309,63 +308,18 @@ private fun open(nav: AppNavigator, item: InboxItem) {
  */
 @Composable
 private fun SwipeableInboxCard(item: InboxItem, onOpen: () -> Unit) {
-    val state = rememberSwipeToDismissBoxState()
-    val scope = rememberCoroutineScope()
-    SwipeToDismissBox(
-        state = state,
-        enableDismissFromStartToEnd = true,
-        enableDismissFromEndToStart = item.isMessage,
-        onDismiss = { value ->
-            if (value == SwipeToDismissBoxValue.StartToEnd) {
-                if (item.isNew) app.inbox.markRead(item.fullname) else app.inbox.markUnread(item.fullname)
-                scope.launch { state.reset() } // keep the row; we just toggled state
-            } else if (value == SwipeToDismissBoxValue.EndToStart) {
-                app.inbox.deleteMessage(item.fullname) // removes the row
-            }
-        },
-        backgroundContent = {
-            when (state.dismissDirection) {
-                SwipeToDismissBoxValue.StartToEnd -> SwipeBackground(
-                    color = Color(0xFF2E7D32),
-                    icon = if (item.isNew) Icons.Outlined.MarkEmailRead else Icons.Outlined.MarkEmailUnread,
-                    label = if (item.isNew) "Mark read" else "Mark unread",
-                    start = true,
-                )
-                SwipeToDismissBoxValue.EndToStart -> SwipeBackground(
-                    color = MaterialTheme.colorScheme.error,
-                    icon = Icons.Outlined.DeleteOutline,
-                    label = "Delete",
-                    start = false,
-                )
-                else -> {}
-            }
-        },
-    ) {
-        InboxCard(item, onOpen)
-    }
-}
-
-@Composable
-private fun SwipeBackground(color: Color, icon: ImageVector, label: String, start: Boolean) {
-    Row(
-        Modifier
-            .fillMaxSize()
-            .padding(vertical = 4.dp)
-            .background(color, RoundedCornerShape(16.dp))
-            .padding(horizontal = 24.dp),
-        horizontalArrangement = if (start) Arrangement.Start else Arrangement.End,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (start) {
-            Icon(icon, null, tint = Color.White)
-            Spacer(Modifier.width(8.dp))
-            Text(label, color = Color.White, fontWeight = FontWeight.SemiBold)
-        } else {
-            Text(label, color = Color.White, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.width(8.dp))
-            Icon(icon, null, tint = Color.White)
+    // The feed's swipe (fires once on release, then springs back). The Material
+    // dismiss box left rows stuck half-way and could fire repeatedly.
+    val cs = MaterialTheme.colorScheme
+    val start = remember(item.fullname, item.isNew) {
+        SwipeSpec(if (item.isNew) Icons.Outlined.MarkEmailRead else Icons.Outlined.MarkEmailUnread, Color(0xFF2E7D32)) {
+            if (item.isNew) app.inbox.markRead(item.fullname) else app.inbox.markUnread(item.fullname)
         }
     }
+    val end = remember(item.fullname, item.isMessage, cs.error) {
+        if (item.isMessage) SwipeSpec(Icons.Outlined.DeleteOutline, cs.error) { app.inbox.deleteMessage(item.fullname) } else null
+    }
+    SwipeActions(start = start, end = end) { InboxCard(item, onOpen) }
 }
 
 @Composable

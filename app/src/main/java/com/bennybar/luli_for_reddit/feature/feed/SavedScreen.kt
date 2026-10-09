@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import kotlinx.coroutines.launch
+import androidx.compose.material.icons.rounded.BookmarkRemove
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -65,9 +67,32 @@ fun SavedScreen() {
     var query by rememberSaveable { mutableStateOf("") }
     var type by rememberSaveable { mutableStateOf("all") } // all | posts | comments
 
-    val filtered = remember(state.items, query, type) {
+    // Unsaved here (swipe either way): gone from the list at once, Undo restores.
+    var removed by remember { mutableStateOf(emptySet<String>()) }
+    val unsaveColor = cs.tertiary
+    fun unsave(fullname: String, post: Post?) {
+        removed = removed + fullname
+        post?.let { app.postOverrides.setSaved(it, false) }
+        app.scope.launch {
+            try {
+                app.repository.setSaved(fullname, false)
+                app.navigator.showSnackbar("Removed from Saved", actionLabel = "Undo") {
+                    removed = removed - fullname
+                    post?.let { app.postOverrides.setSaved(it, true) }
+                    app.scope.launch { runCatching { app.repository.setSaved(fullname, true) } }
+                }
+            } catch (e: Exception) {
+                removed = removed - fullname
+                post?.let { app.postOverrides.setSaved(it, true) }
+                app.navigator.showActionError("unsave", e)
+            }
+        }
+    }
+
+    val filtered = remember(state.items, query, type, removed) {
         val q = query.trim().lowercase()
         state.items.filter {
+            (if (it is Post) it.fullname else (it as Comment).fullname) !in removed &&
             (type == "all" || (type == "posts" && it is Post) || (type == "comments" && it is Comment)) &&
                 (q.isEmpty() || (it is Post && it.title.lowercase().contains(q)) || (it is Comment && it.body.lowercase().contains(q)))
         }.distinctBy { if (it is Post) it.fullname else (it as Comment).fullname }
@@ -108,7 +133,7 @@ fun SavedScreen() {
                         Button(onClick = { source.load() }) { Text("Retry") }
                     }
                     filtered.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(if (state.items.isEmpty()) "Nothing saved" else "No matches")
+                        Text(if (state.items.isEmpty() || (query.isBlank() && type == "all")) "Nothing saved" else "No matches")
                     }
                     else -> {
                         val listState = rememberLazyListState()
@@ -128,7 +153,16 @@ fun SavedScreen() {
                                 filtered,
                                 key = { if (it is Post) it.fullname else (it as Comment).fullname },
                                 contentType = { if (it is Post) "post" else "comment" },
-                            ) { item -> if (item is Post) PostCard(item) else SavedComment(item as Comment) }
+                            ) { item ->
+                                if (item is Post) {
+                                    val spec = remember(item.fullname) { SwipeSpec(Icons.Rounded.BookmarkRemove, unsaveColor) { unsave(item.fullname, item) } }
+                                    PostCard(item, swipeOverride = spec to spec)
+                                } else {
+                                    val c = item as Comment
+                                    val spec = remember(c.fullname) { SwipeSpec(Icons.Rounded.BookmarkRemove, unsaveColor) { unsave(c.fullname, null) } }
+                                    SwipeActions(start = spec, end = spec) { SavedComment(c) }
+                                }
+                            }
                             item(key = "__footer") {
                                 if (state.loadingMore) {
                                     Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
