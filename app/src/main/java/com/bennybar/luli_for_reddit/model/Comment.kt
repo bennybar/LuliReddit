@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.model
 
+import com.bennybar.luli_for_reddit.core.giphyUrl
 import androidx.compose.runtime.Immutable
 import com.bennybar.luli_for_reddit.core.arr
 import com.bennybar.luli_for_reddit.core.bool
@@ -108,7 +109,12 @@ data class Comment(
             val out = LinkedHashMap<String, String>()
             for ((key, value) in m) {
                 if (key.startsWith("emote|") || value.obj() == null) continue
-                if (value["status"].str() != "valid") continue
+                if (value["status"].str() != "valid") {
+                    // Reddit often sends GIF-picker GIFs as "invalid" with no URL
+                    // (its own apps still show them): use Giphy's copy by id.
+                    giphyUrl(key)?.let { out[key] = it }
+                    continue
+                }
                 val s = value["s"].obj() ?: continue
                 val url = s["gif"].str() ?: s["u"].str() ?: s["mp4"].str() ?: continue
                 out[key] = url.replace("&amp;", "&")

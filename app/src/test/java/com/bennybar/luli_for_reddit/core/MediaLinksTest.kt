@@ -57,4 +57,15 @@ class MediaLinksTest {
         assertEquals("https://v.redd.it/abc/HLSPlaylist.m3u8", resolveVideoUrl("https://v.redd.it/abc"))
         assertEquals("https://i.imgur.com/a.mp4", resolveVideoUrl("https://i.imgur.com/a.gifv"))
     }
+
+    @Test
+    fun `an invalid or missing giphy entry falls back to giphy's own copy`() {
+        val segs = texts(bodySegments("I could've taken him down!\n![gif](giphy|7AoJzTRD1WzOU)", emptyMap(), 3))
+        assertEquals(
+            listOf("T:I could've taken him down!", "M:https://media.giphy.com/media/7AoJzTRD1WzOU/giphy.webp"),
+            segs,
+        )
+        assertNull(giphyUrl("abc123"))
+        assertEquals("https://media.giphy.com/media/x1/giphy.webp", giphyUrl("giphy|x1|downsized"))
+    }
 }
