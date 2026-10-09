@@ -1,5 +1,9 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.animateContentSize
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.animateColorAsState
@@ -200,6 +204,18 @@ fun HomeScreen() {
                 else -> AccountTab()
             }
         }
+        // A fade from the page colour behind the nav, so the pill never sits
+        // directly on a post of the same tone; it hides with the nav.
+        val scrim = MaterialTheme.colorScheme.surface
+        Box(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .graphicsLayer { alpha = (1f - navOffset).coerceIn(0f, 1f) }
+                .background(Brush.verticalGradient(listOf(scrim.copy(alpha = 0f), scrim.copy(alpha = 0.92f))))
+                .navigationBarsPadding()
+                .height(130.dp),
+        )
         FloatingNav(
             selected = index,
             unread = unread,
@@ -245,7 +261,11 @@ private fun KeepAliveTabs(
     }
 }
 
-/** "Pop" floating pill navigation (Android: Material pills under the icons). */
+/**
+ * Compact floating nav: a centred pill of icon buttons; the current tab
+ * expands into a filled primary pill with its label (when labels are on).
+ * Outlined and lifted so it reads apart from the posts behind it.
+ */
 @Composable
 private fun FloatingNav(
     selected: Int,
@@ -254,19 +274,24 @@ private fun FloatingNav(
     onSelected: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val shape = RoundedCornerShape(40.dp)
-    Box(modifier.navigationBarsPadding().padding(start = 18.dp, end = 18.dp, bottom = 16.dp)) {
+    val cs = MaterialTheme.colorScheme
+    val dark = cs.surface.luminance() < 0.5f
+    val shape = RoundedCornerShape(32.dp)
+    Box(modifier.navigationBarsPadding().padding(bottom = 20.dp)) {
         Surface(
             Modifier
-                .fillMaxWidth()
-                .height(70.dp)
-                .shadow(16.dp, shape, ambientColor = Color.Black.copy(alpha = 0.22f), spotColor = Color.Black.copy(alpha = 0.22f)),
+                .height(64.dp)
+                .shadow(14.dp, shape, ambientColor = Color.Black.copy(alpha = 0.25f), spotColor = Color.Black.copy(alpha = 0.25f)),
             shape = shape,
-            // Nav sits over scrolling content (incl. dark images): fully solid
-            // so labels are always legible.
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            // Fully solid so it stays legible over images.
+            color = if (dark) cs.surfaceContainerHigh else cs.surfaceContainer,
+            border = BorderStroke(1.dp, cs.outlineVariant),
         ) {
-            Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier.padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 navItems.forEachIndexed { i, item ->
                     NavButton(
                         item = item,
@@ -274,7 +299,6 @@ private fun FloatingNav(
                         badge = if (i == 2) unread else 0,
                         showLabel = showLabels,
                         onClick = { onSelected(i) },
-                        modifier = Modifier.weight(1f),
                     )
                 }
             }
@@ -289,44 +313,32 @@ private fun NavButton(
     badge: Int,
     showLabel: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     val cs = MaterialTheme.colorScheme
-    val contentColor by animateColorAsState(if (selected) cs.onSecondaryContainer else cs.onSurfaceVariant, tween(300), label = "navFg")
-    val pillColor by animateColorAsState(if (selected) cs.secondaryContainer else cs.secondaryContainer.copy(alpha = 0f), tween(300), label = "navBg")
-    // The pill grows out from the icon with a little overshoot (easeOutBack).
-    val pillWidth by animateDpAsState(
-        if (selected) 56.dp else 32.dp,
-        spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow),
-        label = "navPill",
-    )
-    Column(
-        modifier.fillMaxHeight().clip(CircleShape).clickable(onClick = onClick),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
+    val contentColor by animateColorAsState(if (selected) cs.onPrimary else cs.onSurfaceVariant, tween(250), label = "navFg")
+    val pillColor by animateColorAsState(if (selected) cs.primary else cs.primary.copy(alpha = 0f), tween(250), label = "navBg")
+    Row(
+        Modifier
+            .height(48.dp)
+            .clip(CircleShape)
+            .background(pillColor)
+            .clickable(onClickLabel = item.label, onClick = onClick)
+            // The selected pill grows to fit its label with a little bounce.
+            .animateContentSize(spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow))
+            .padding(horizontal = if (selected && showLabel) 18.dp else 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            Modifier.width(56.dp).height(30.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Box(Modifier.width(pillWidth).height(30.dp).background(pillColor, CircleShape))
-            val icon: @Composable () -> Unit = {
-                Icon(
-                    if (selected) item.on else item.off,
-                    item.label,
-                    Modifier.size(if (showLabel) 24.dp else 28.dp),
-                    tint = contentColor,
-                )
-            }
-            if (badge > 0) {
-                BadgedBox(badge = { Badge { Text(if (badge > 99) "99+" else "$badge") } }) { icon() }
-            } else {
-                icon()
-            }
+        val icon: @Composable () -> Unit = {
+            Icon(if (selected) item.on else item.off, item.label, Modifier.size(24.dp), tint = contentColor)
         }
-        if (showLabel) {
-            Spacer(Modifier.height(4.dp))
-            Text(item.label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = contentColor)
+        if (badge > 0) {
+            BadgedBox(badge = { Badge { Text(if (badge > 99) "99+" else "$badge") } }) { icon() }
+        } else {
+            icon()
+        }
+        if (selected && showLabel) {
+            Spacer(Modifier.width(8.dp))
+            Text(item.label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = contentColor, maxLines = 1)
         }
     }
 }
