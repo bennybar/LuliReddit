@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.core
 
+import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import com.bennybar.luli_for_reddit.core.net.Http
 import com.bennybar.luli_for_reddit.nav.Route
@@ -11,6 +13,22 @@ import okhttp3.Request
 fun isRedditHost(host: String?): Boolean {
     val h = host?.lowercase() ?: return false
     return h == "redd.it" || h.endsWith(".redd.it") || h == "reddit.com" || h.endsWith(".reddit.com")
+}
+
+/**
+ * A VIEW intent for [uri] outside Ilay. When Ilay is set to open Reddit links
+ * by default, a plain VIEW of a reddit.com / redd.it URL would land straight
+ * back in Ilay, so those go to the default web browser explicitly.
+ */
+fun externalViewIntent(context: Context, uri: Uri): Intent {
+    val intent = Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    if (!isRedditHost(uri.host)) return intent
+    val pm = context.packageManager
+    val probe = Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com"))
+    val browser = pm.resolveActivity(probe, 0)?.activityInfo?.packageName?.takeIf { it != context.packageName && it != "android" }
+        ?: pm.queryIntentActivities(probe, 0).map { it.activityInfo.packageName }.firstOrNull { it != context.packageName }
+    browser?.let(intent::setPackage)
+    return intent
 }
 
 /** Reddit's media hosts (i.redd.it, v.redd.it, preview.redd.it…): open in the image / video viewer. */

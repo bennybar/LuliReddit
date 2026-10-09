@@ -223,6 +223,16 @@ private fun dismissPost(post: Post) {
     app.navigator.showSnackbar("Dismissed for today", actionLabel = "Undo") { app.dismissedPosts.remove(post.id) }
 }
 
+/** Hides [post]'s subreddit from Home / For You for 7 days (local only), with Undo. */
+fun hideSubFromHome(post: Post) {
+    val sub = post.subreddit.lowercase()
+    if (sub.isEmpty()) return
+    app.hiddenHomeSubs.add(sub)
+    app.navigator.showSnackbar("r/${post.subreddit} hidden from Home & For You for 7 days", actionLabel = "Undo") {
+        app.hiddenHomeSubs.remove(sub)
+    }
+}
+
 /** The live override for one post: only this card recomposes when it changes. */
 @Composable
 private fun rememberOverride(post: Post): State<PostOverride?> {
@@ -275,6 +285,7 @@ fun PostCard(post: Post, modifier: Modifier = Modifier) {
         SwipeAction.HIDE -> SwipeSpec(action.icon, cs.error) { actions.hide() }
         // Only Home / For You can dismiss; elsewhere this side does nothing.
         SwipeAction.DISMISS -> if (dismissible) SwipeSpec(action.icon, cs.secondary) { dismissPost(post) } else null
+        SwipeAction.HIDE_SUB -> if (dismissible) SwipeSpec(action.icon, cs.tertiary) { hideSubFromHome(post) } else null
         SwipeAction.COLLAPSE, SwipeAction.NONE -> null
     }
     val startSpec = remember(settings.swipePostStart, actions, votes, cs, dismissible) { swipe(settings.swipePostStart) }

@@ -95,7 +95,7 @@ internal fun ImmersiveMode() {
 /** Opens [url] in another app (browser / Reddit / player), not a Custom Tab. */
 internal fun openExternally(context: Context, url: String) {
     try {
-        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        context.startActivity(com.bennybar.luli_for_reddit.core.externalViewIntent(context, Uri.parse(url)))
     } catch (_: ActivityNotFoundException) {
         com.bennybar.luli_for_reddit.app.navigatorOrNull?.showSnackbar("No app can open this link.")
     }

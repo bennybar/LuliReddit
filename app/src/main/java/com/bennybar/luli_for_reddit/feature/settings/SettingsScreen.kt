@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.DoNotDisturbOn
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.outlined.BookmarkBorder
@@ -235,6 +236,7 @@ fun SettingsList(
         authMode = runCatching { app.secureStore.authMode() }.getOrNull()
     }
     val web = authMode == "web"
+    val hiddenSubs by app.hiddenHomeSubs.ids.collectAsStateWithLifecycle()
 
     val pickBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch { restoreData(context, uri) }
@@ -308,6 +310,11 @@ fun SettingsList(
         tile("Content filters", "Hide posts by keyword, domain or flair", Icons.Outlined.FilterAlt) {
             nav.push(Route.ContentFilters)
         }
+        tile(
+            "Hidden subreddits",
+            "Hidden from Home & For You for 7 days" + (if (hiddenSubs.isEmpty()) " · none now" else " · ${hiddenSubs.size} now"),
+            Icons.Rounded.DoNotDisturbOn,
+        ) { showHiddenSubsDialog() }
         divider("feed")
 
         // ---------------------------------------------------------------- Appearance
@@ -727,7 +734,8 @@ private fun showSwipeSettings() {
             @Composable
             fun SwipeRow(label: String, key: String, value: SwipeAction, forPosts: Boolean) {
                 val options = SwipeAction.entries.filter {
-                    if (forPosts) it != SwipeAction.COLLAPSE else it != SwipeAction.HIDE && it != SwipeAction.DISMISS
+                    if (forPosts) it != SwipeAction.COLLAPSE
+                    else it != SwipeAction.HIDE && it != SwipeAction.DISMISS && it != SwipeAction.HIDE_SUB
                 }
                 var open by remember { mutableStateOf(false) }
                 SettingTile(label, trailing = {
@@ -937,7 +945,7 @@ internal fun reloadLocalData() {
     AppIcon.apply(app.context, AppIcon.parse(app.settings.value.appIcon))
     val user = app.session.username
     listOf(
-        app.postOverrides, app.hiddenPosts, app.dismissedPosts, app.summaries, app.history, app.threadVisits, app.contentFilters,
+        app.postOverrides, app.hiddenPosts, app.dismissedPosts, app.hiddenHomeSubs, app.summaries, app.history, app.threadVisits, app.contentFilters,
         app.offline, app.feed, app.post, app.forYou, app.inbox, app.media,
     ).forEach { it.onUserChanged(user) }
     app.session.reload()
