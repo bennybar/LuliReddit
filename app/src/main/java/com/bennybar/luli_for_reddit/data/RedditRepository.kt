@@ -4,6 +4,7 @@ import com.bennybar.luli_for_reddit.app
 import com.bennybar.luli_for_reddit.core.arr
 import com.bennybar.luli_for_reddit.core.get
 import com.bennybar.luli_for_reddit.core.net.Http
+import com.bennybar.luli_for_reddit.core.net.RedditApiException
 import com.bennybar.luli_for_reddit.core.net.RedditClient
 import com.bennybar.luli_for_reddit.core.net.await
 import com.bennybar.luli_for_reddit.core.net.uploadToCatbox
@@ -350,6 +351,12 @@ class RedditRepository(val client: RedditClient) {
         )
     }
 
+    /** Reddit's answer when a subreddit doesn't allow images in comments. */
+    private fun isImageRefusal(message: String?): Boolean {
+        val m = message?.lowercase() ?: return false
+        return "image" in m || "media" in m || "richtext" in m || "not allowed" in m
+    }
+
     /**
      * A comment reply with an inline image hosted by Reddit via the richtext
      * API (as the official app does). Subreddits that disallow comment images
@@ -363,8 +370,19 @@ class RedditRepository(val client: RedditClient) {
         mimeType: String,
         depth: Int = 0,
     ): Comment {
+        suspend fun viaCatbox(): Comment {
+            val url = uploadToCatbox(bytes, filename)
+            return reply(parentFullname, if (text.isEmpty()) url else "$text\n\n$url", depth = depth)
+        }
+        // Reddit wouldn't take the image (upload failed): host it on Catbox.
+        val asset = try {
+            uploadMediaAsset(bytes, filename, mimeType)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            return viaCatbox()
+        }
         return try {
-            val asset = uploadMediaAsset(bytes, filename, mimeType)
             val doc = buildJsonObject {
                 putJsonArray("document") {
                     if (text.isNotEmpty()) {
@@ -377,9 +395,18 @@ class RedditRepository(val client: RedditClient) {
                 }
             }
             reply(parentFullname, text, richtextJson = doc.toString(), depth = depth)
-        } catch (_: Exception) {
-            val url = uploadToCatbox(bytes, filename)
-            reply(parentFullname, if (text.isEmpty()) url else "$text\n\n$url", depth = depth)
+        } catch (e: RedditApiException) {
+            // Only when the subreddit refuses images in comments. Anything else
+            // (rate limit, locked thread, a network error after Reddit may have
+            // accepted it) is reported as-is: falling back then published the
+            // image on Catbox and could post the comment twice.
+            if (!isImageRefusal(e.message)) throw e
+            viaCatbox()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            if (e is java.io.IOException || !isImageRefusal(e.message)) throw e
+            viaCatbox()
         }
     }
 
@@ -421,7 +448,12 @@ class RedditRepository(val client: RedditClient) {
         data["sendreplies"] = "$sendReplies"
         val res = client.post("/api/submit", data)
         throwIfErrors(res)
-        return res["json"]["data"]["id"].str() ?: throw Exception("Reddit did not return the new post.")
+        val id = res["json"]["data"]["id"].str()
+        // Image posts are created asynchronously: Reddit answers with a
+        // websocket URL, not the id. No errors means it was posted (treating it
+        // as a failure invited a duplicate post).
+        if (id == null && kind == "image") return ""
+        return id ?: throw Exception("Reddit did not return the new post.")
     }
 
     // --- Inbox / messages ---

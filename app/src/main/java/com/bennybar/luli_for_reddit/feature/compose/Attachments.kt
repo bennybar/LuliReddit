@@ -76,10 +76,33 @@ fun displayName(context: Context, uri: Uri): String? = runCatching {
     }
 }.getOrNull()
 
+/**
+ * A picked file's bytes, for uploading. Files are held in memory to upload, so
+ * one too big for that (a long phone video) is refused with a clear message
+ * up front — reading it used to crash the app (OutOfMemoryError).
+ */
+suspend fun readUriBytes(context: Context, uri: Uri): ByteArray = withContext(Dispatchers.IO) {
+    val cr = context.contentResolver
+    val size = runCatching {
+        cr.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { c ->
+            if (c.moveToFirst() && !c.isNull(0)) c.getLong(0) else null
+        }
+    }.getOrNull()
+    val limit = minOf(150L * 1024 * 1024, Runtime.getRuntime().maxMemory() / 3)
+    if (size != null && size > limit) {
+        throw Exception("This file is ${size / (1024 * 1024)} MB; the most Ilay can upload is ${limit / (1024 * 1024)} MB.")
+    }
+    try {
+        cr.openInputStream(uri)?.use { it.readBytes() } ?: throw Exception("Couldn't read the file.")
+    } catch (_: OutOfMemoryError) {
+        throw Exception("This file is too large to upload.")
+    }
+}
+
 /** Reads a picked image/video into memory. */
 suspend fun readAttachment(context: Context, uri: Uri, isVideo: Boolean): MediaAttachment = withContext(Dispatchers.IO) {
     val cr = context.contentResolver
-    val bytes = cr.openInputStream(uri)?.use { it.readBytes() } ?: throw Exception("Couldn't read the file.")
+    val bytes = readUriBytes(context, uri)
     val name = displayName(context, uri)?.ifEmpty { null } ?: if (isVideo) "video.mp4" else "image.jpg"
     val mime = cr.getType(uri) ?: if (isVideo) "video/mp4" else mimeForImage(name)
     MediaAttachment(bytes, name, mime, isVideo)

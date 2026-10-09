@@ -37,9 +37,14 @@ class SummaryStore(private val context: Context) : UserScoped {
     private var file = fileFor("")
     private val _items = MutableStateFlow<List<SavedSummary>>(emptyList())
     val items: StateFlow<List<SavedSummary>> = _items
+    // The account's file hasn't loaded yet: summaries made meanwhile wait here,
+    // so they're merged into it instead of overwriting it.
+    @Volatile private var loaded = false
+    private val early = mutableListOf<SavedSummary>()
 
     fun add(s: SavedSummary) {
         _items.value = (listOf(s) + _items.value.filter { it.postId != s.postId }).take(MAX)
+        synchronized(early) { if (!loaded) { early.add(s); return } }
         save()
     }
 
@@ -64,12 +69,18 @@ class SummaryStore(private val context: Context) : UserScoped {
     override fun onUserChanged(username: String) {
         file = fileFor(username)
         _items.value = emptyList()
+        synchronized(early) { loaded = false; early.clear() }
         val f = file
         io.launch {
             val list = runCatching {
                 if (f.exists()) AppJson.decodeFromString(ListSerializer(SavedSummary.serializer()), f.readText()) else emptyList()
             }.getOrDefault(emptyList())
-            if (file == f) _items.value = list
+            if (file != f) return@launch
+            val pending = synchronized(early) { loaded = true; early.toList().also { early.clear() } }
+            var merged = list
+            for (s in pending) merged = (listOf(s) + merged.filter { it.postId != s.postId }).take(MAX)
+            _items.value = merged
+            if (pending.isNotEmpty()) save()
         }
     }
 

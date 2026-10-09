@@ -37,7 +37,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -52,7 +51,6 @@ import com.bennybar.luli_for_reddit.model.Comment
 import com.bennybar.luli_for_reddit.model.Post
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.ui.friendlyError
-import kotlinx.coroutines.flow.distinctUntilChanged
 
 /**
  * A dedicated, searchable hub for the user's Saved items, with a type filter
@@ -98,6 +96,14 @@ fun SavedScreen() {
         }.distinctBy { if (it is Post) it.fullname else (it as Comment).fullname }
     }
 
+    // A type filter or unsaving can leave too few rows to scroll (or none):
+    // keep fetching, within a bound, until there's a screenful.
+    LaunchedEffect(filtered.size, state.items.size, state.after, state.loadingMore, state.loading) {
+        if (filtered.size < 10 && state.hasMore && !state.loading && !state.loadingMore && state.items.size < 500) {
+            source.loadMore()
+        }
+    }
+
     Scaffold(topBar = { BloomTopBar("Saved") }, containerColor = cs.surface) { padding ->
         Column(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
             PillTextField(
@@ -137,12 +143,7 @@ fun SavedScreen() {
                     }
                     else -> {
                         val listState = rememberLazyListState()
-                        LaunchedEffect(listState, source) {
-                            snapshotFlow {
-                                val info = listState.layoutInfo
-                                (info.visibleItemsInfo.lastOrNull()?.index ?: 0) >= info.totalItemsCount - 4
-                            }.distinctUntilChanged().collect { if (it) source.loadMore() }
-                        }
+                        LoadMoreNearEnd(listState, 4, page = state.items.size to state.after) { source.loadMore() }
                         LazyColumn(
                             Modifier.fillMaxSize(),
                             state = listState,

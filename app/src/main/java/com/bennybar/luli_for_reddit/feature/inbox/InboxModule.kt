@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.inbox
 
+import com.bennybar.luli_for_reddit.state.userScopedKey
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -291,16 +292,22 @@ class InboxModule(private val c: AppContainer) : UserScoped {
      */
     suspend fun pollInbox(notify: Boolean) {
         val items = fetchUnread() ?: return // not logged in / network error
-        val seen = (c.prefs.getStringList(SEEN_IDS_PREF) ?: emptyList()).toSet()
+        // Per account: the polled inbox is the active account's, so one shared
+        // list made every switch notify for all of the other account's unread.
+        // An account's first poll only primes its list (no burst of old items).
+        val user = runCatching { c.secureStore.username() }.getOrNull().orEmpty()
+        val key = userScopedKey(c.prefs, user, SEEN_IDS_PREF)
+        val primed = c.prefs.contains(key)
+        val seen = (c.prefs.getStringList(key) ?: emptyList()).toSet()
         val fresh = items.filter { it.fullname !in seen }
-        if (notify) {
+        if (notify && primed) {
             for (item in fresh) InboxNotifications.show(c.context, item)
         }
         // Remember everything currently unread so we never re-notify, capped so
         // the list can't grow without bound.
         val current = items.mapTo(HashSet()) { it.fullname }
         val updated = items.map { it.fullname } + seen.filter { it !in current }
-        c.prefs.setStringList(SEEN_IDS_PREF, updated.take(200))
+        c.prefs.setStringList(key, updated.take(200))
         if (fresh.isNotEmpty()) c.scope.launch { refreshUnread() }
     }
 
