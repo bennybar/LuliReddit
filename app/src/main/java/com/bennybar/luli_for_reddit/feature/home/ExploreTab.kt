@@ -133,7 +133,7 @@ internal fun ExploreTab() {
             vm.loadedFor = version
             vm.load(force = true)
         }
-        // Custom feeds row (shared with the Account tab).
+        // Custom feeds row (shared with the You tab).
         app.feed.loadMultireddits()
     }
     val multis by app.feed.multireddits.collectAsStateWithLifecycle()

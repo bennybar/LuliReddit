@@ -22,7 +22,9 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Login
 import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DynamicFeed
@@ -77,7 +79,7 @@ import com.bennybar.luli_for_reddit.nav.Route
 import com.bennybar.luli_for_reddit.ui.Overlays
 import kotlinx.coroutines.launch
 
-/** The Account tab: profile + account switcher, Read later, settings, custom feeds. */
+/** The "You" tab: profile + account switcher, your stuff (saved, history, read later, custom feeds), then settings. */
 @Composable
 internal fun AccountTab() {
     val cs = MaterialTheme.colorScheme
@@ -133,14 +135,20 @@ internal fun AccountTab() {
                 }
             }
         }
+        // Your stuff: what's yours on Reddit and on this device, before the settings.
+        item(key = "yours_header") { SectionHeader("Your stuff", Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp)) }
+        if (!anonymous) {
+            item(key = "saved") {
+                NavTile(Icons.Outlined.BookmarkBorder, "Saved", "Search your saved posts & comments") { nav.push(Route.Saved) }
+            }
+        }
+        item(key = "history") {
+            NavTile(Icons.Rounded.History, "History", "Recently viewed (stored on this device)") { nav.push(Route.History) }
+        }
         item(key = "offline") {
             NavTile(Icons.Rounded.OfflinePin, "Read later", "Threads saved for offline reading") { nav.push(Route.Offline) }
         }
-        // Settings (primary), inline as in the Flutter build.
-        item(key = "settings", contentType = "settings") { SettingsList(embedded = true) }
-        item(key = "div") { HorizontalDivider(Modifier.padding(vertical = 8.dp), color = cs.outlineVariant.copy(alpha = 0.5f)) }
-
-        // Custom feeds (secondary)
+        // Custom feeds
         if (!anonymous) {
             item(key = "feeds_header") {
                 Row(Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -174,6 +182,9 @@ internal fun AccountTab() {
                 }
             }
         }
+        item(key = "div") { HorizontalDivider(Modifier.padding(vertical = 8.dp), color = cs.outlineVariant.copy(alpha = 0.5f)) }
+        // Settings, inline as in the Flutter build.
+        item(key = "settings", contentType = "settings") { SettingsList(embedded = true) }
     }
 }
 
