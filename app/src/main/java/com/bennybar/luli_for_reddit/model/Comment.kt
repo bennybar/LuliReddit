@@ -71,8 +71,10 @@ data class Comment(
                 ?: emptyList()
 
             return Comment(
-                id = d["id"].str() ?: "",
-                fullname = d["name"].str() ?: "t1_${d["id"].str()}",
+                // Some responses (a website-session /api/comment) give the id
+                // already prefixed ("t1_abc") and no name.
+                id = d["id"].str()?.removePrefix("t1_") ?: "",
+                fullname = d["name"].str() ?: "t1_${d["id"].str()?.removePrefix("t1_")}",
                 parentId = d["parent_id"].str() ?: "",
                 author = d["author"].str() ?: "[deleted]",
                 body = d["body"].str() ?: "",

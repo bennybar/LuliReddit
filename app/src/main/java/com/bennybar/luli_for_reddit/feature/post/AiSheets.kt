@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
@@ -129,14 +130,15 @@ private fun SummarySheet(baseUrl: String, apiKey: String, model: String, style: 
         loading = false
     }
 
-    // Flutter's DraggableScrollableSheet (opens at 60%, drags up to 92%): the
-    // sheet is 92% tall and opens partially expanded; dragging up reveals the rest.
+    // Opens fully, at most 92% tall, and scrolls inside. (It used to open half
+    // way with a 92%-tall body, so the end of a long summary sat off-screen
+    // where scrolling couldn't bring it into view.)
     val maxHeight = LocalConfiguration.current.screenHeightDp.dp * 0.92f
-    ModalBottomSheet(onDismissRequest = done, sheetState = rememberModalBottomSheetState()) {
+    ModalBottomSheet(onDismissRequest = done, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .height(maxHeight)
+                .heightIn(max = maxHeight)
                 .verticalScroll(rememberScrollState())
                 .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 28.dp)
                 .navigationBarsPadding(),

@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.data
 
+import com.bennybar.luli_for_reddit.app
 import com.bennybar.luli_for_reddit.core.arr
 import com.bennybar.luli_for_reddit.core.get
 import com.bennybar.luli_for_reddit.core.net.Http
@@ -334,7 +335,19 @@ class RedditRepository(val client: RedditClient) {
         val res = client.post("/api/comment", data)
         throwIfErrors(res)
         val thing = res["json"]["data"]["things"][0] ?: throw Exception("Reddit did not return the new comment.")
-        return Comment.fromChild(thing, depth)
+        val c = Comment.fromChild(thing, depth)
+        // A website session gets the legacy reply format: id + rendered HTML,
+        // no author, body or timestamp. Fill those in from what was sent, or
+        // the new comment shows up blank (it looked like the reply vanished).
+        if (c.body.isNotEmpty() && c.author != "[deleted]") return c
+        return c.copy(
+            author = app.session.username,
+            body = text,
+            parentId = c.parentId.ifEmpty { parentFullname },
+            createdUtc = System.currentTimeMillis(),
+            score = 1,
+            likes = true,
+        )
     }
 
     /**

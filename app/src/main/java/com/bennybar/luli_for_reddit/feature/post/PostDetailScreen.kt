@@ -158,6 +158,11 @@ import com.bennybar.luli_for_reddit.ui.Overlays
 import com.bennybar.luli_for_reddit.ui.friendlyError
 import com.bennybar.luli_for_reddit.ui.theme.LocalVoteColors
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.flow.first
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.rememberUpdatedState
 import kotlinx.coroutines.launch
 
 /** Depth-edge colors (rotate by nesting level). */
@@ -265,6 +270,26 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
     val actions = remember(vm, nav) { ThreadActions(vm, nav, scope) }
     actions.post = thread?.post
     actions.flat = flat
+
+    // A reply just posted: once it's in the list, scroll to it and highlight
+    // it for a moment (the search highlight).
+    var revealId by remember { mutableStateOf<String?>(null) }
+    actions.reveal = { revealId = it }
+    val latestFlat by rememberUpdatedState(flat)
+    LaunchedEffect(revealId) {
+        val id = revealId ?: return@LaunchedEffect
+        // Keyed on the id only (clearing it at the start would cancel this
+        // before it scrolls); wait for the row to appear in the list.
+        val ci = withTimeoutOrNull(2_000) {
+            snapshotFlow { latestFlat.indexOfFirst { it.fullname == id } }.first { it >= 0 }
+        } ?: return@LaunchedEffect
+        currentMatchId = id
+        val h = listState.layoutInfo.viewportSize.height
+        listState.animateScrollToItem(ci + 1, -(h * 0.25f).toInt())
+        delay(1800)
+        if (currentMatchId == id && !searchOpen) currentMatchId = null
+        revealId = null
+    }
 
     Scaffold(
         topBar = {
@@ -458,9 +483,15 @@ private class ThreadActions(val vm: CommentsViewModel, val nav: AppNavigator, va
         }
     }
 
+    /** Set by the screen: scroll to and briefly highlight a comment (a reply just posted). */
+    var reveal: (String) -> Unit = {}
+
     private fun onReplied(parent: String, reply: Comment) {
         val p = post ?: return
         vm.insertReply(parent, reply)
+        // The new comment lands at the top of the thread or under its parent —
+        // often off-screen, so it looked like nothing happened. Bring it in.
+        reveal(reply.fullname)
         app.postOverrides.bumpComments(p, 1)
         // Commenting is the strongest engagement signal we have.
         app.forYou.learner.comment(p)
