@@ -311,6 +311,15 @@ fun SettingsList(
             nav.push(Route.ContentFilters)
         }
         tile(
+            "Hide posts for",
+            "Posts you hide stay out of every feed for ${dayLabel(s.hiddenPostDays)}",
+            Icons.Outlined.VisibilityOff,
+            onClick = launch {
+                pickOption(listOf(1, 3, 7, 30, 90).map { PickOption(it, dayLabel(it)) }, s.hiddenPostDays)
+                    ?.let(ctrl::setHiddenPostDays)
+            },
+        )
+        tile(
             "Hidden subreddits",
             "Hidden from Home & For You for 7 days" + (if (hiddenSubs.isEmpty()) " · none now" else " · ${hiddenSubs.size} now"),
             Icons.Rounded.DoNotDisturbOn,
@@ -957,3 +966,5 @@ private fun keepLabel(minutes: Int): String = when {
     minutes == 60 -> "1 hour"
     else -> "${minutes / 60} hours"
 }
+
+private fun dayLabel(days: Int): String = if (days == 1) "1 day" else "$days days"
