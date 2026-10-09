@@ -313,13 +313,11 @@ private fun FeedList(
     }
 
     val isFrontpage = feedKey.isEmpty()
-    val connected = settings.postDisplay == PostDisplay.CALM
     LazyColumn(
         Modifier.fillMaxSize(),
         state = listState,
         contentPadding = FeedPadding,
-        // Calm: the posts are segments of one connected list.
-        verticalArrangement = Arrangement.spacedBy(if (connected) CalmGap else 10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         if (header != null) item(key = "header", contentType = "header") { header() }
         item(key = "sortbar", contentType = "sortbar") {
@@ -336,17 +334,12 @@ private fun FeedList(
         }
         items(posts.size, key = { posts[it].id }, contentType = { "post_${posts[it].type}" }) { i ->
             val p = posts[i]
-            // Calm: big corners only where the connected list starts and ends.
-            val last = i == posts.lastIndex && !state.hasMore
-            val top = if (!connected || i == 0) CalmOuter else 8.dp
-            val bottom = if (!connected || last) CalmOuter else 8.dp
-            val m = if (connected && i == 0) Modifier.padding(top = 7.dp) else Modifier
             if (deckMode && i < 3) {
                 // The first cards after the loading deck are dealt in.
                 if (i == 2) LaunchedEffect(Unit) { onDealt() }
-                DealIn(i, animate = dealHome) { PostCard(p, m, top, bottom) }
+                DealIn(i, animate = dealHome) { PostCard(p) }
             } else {
-                PostCard(p, m, top, bottom)
+                PostCard(p)
             }
         }
         item(key = "footer", contentType = "footer") {
