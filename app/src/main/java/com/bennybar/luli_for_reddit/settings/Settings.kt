@@ -112,6 +112,7 @@ data class Settings(
     val autoplayMedia: Boolean = true, // autoplay videos/GIFs in feeds
     val showApiUsage: Boolean = false, // show API usage instead of search on Posts screen
     val notifyInbox: Boolean = false, // background-poll the inbox + local notifications
+    val redditAppNotifications: Boolean = false, // take over the Reddit app's notifications (needs notification access)
     val topBarMode: TopBarMode = TopBarMode.EXPANDABLE, // Posts-screen action layout
     val navLabels: Boolean = true, // show text labels on the bottom nav bar
     val aiModel: String = "gpt-5.4-mini", // OpenAI(-compatible) model id for summaries

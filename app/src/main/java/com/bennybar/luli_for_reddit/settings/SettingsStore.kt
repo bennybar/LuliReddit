@@ -56,6 +56,7 @@ class SettingsStore(private val p: Prefs) {
             autoplayMedia = b("autoplayMedia", d.autoplayMedia),
             showApiUsage = b("showApiUsage", d.showApiUsage),
             notifyInbox = b("notifyInbox", d.notifyInbox),
+            redditAppNotifications = b("redditAppNotifications", d.redditAppNotifications),
             // Old installs may have stored the removed "compact" (1) or the old
             // expandable index (2); clamping maps both safely.
             topBarMode = p.getInt("topBarMode")?.let {
@@ -149,6 +150,7 @@ class SettingsStore(private val p: Prefs) {
     fun setAutoplayMedia(v: Boolean) { p.setBool("autoplayMedia", v); set { it.copy(autoplayMedia = v) } }
     fun setShowApiUsage(v: Boolean) { p.setBool("showApiUsage", v); set { it.copy(showApiUsage = v) } }
     fun setNotifyInbox(v: Boolean) { p.setBool("notifyInbox", v); set { it.copy(notifyInbox = v) } }
+    fun setRedditAppNotifications(v: Boolean) { p.setBool("redditAppNotifications", v); set { it.copy(redditAppNotifications = v) } }
     fun setTopBarMode(v: TopBarMode) { p.setInt("topBarMode", v.ordinal); set { it.copy(topBarMode = v) } }
     fun setNavLabels(v: Boolean) { p.setBool("navLabels", v); set { it.copy(navLabels = v) } }
     fun setAiModel(v: String) { p.setString("aiModel", v); set { it.copy(aiModel = v) } }

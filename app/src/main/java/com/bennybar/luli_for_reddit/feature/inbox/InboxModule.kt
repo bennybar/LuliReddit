@@ -252,6 +252,15 @@ class InboxModule(private val c: AppContainer) : UserScoped {
             }
             InboxNotifications.TARGET_MESSAGE ->
                 intent.getStringExtra(InboxNotifications.EXTRA_MESSAGE)?.let { Route.MessageThread(it) }
+            // A Reddit app notification Ilay took over: find its post / comment first.
+            RedditAppNotifications.TARGET -> {
+                val title = intent.getStringExtra(RedditAppNotifications.EXTRA_TITLE).orEmpty()
+                val text = intent.getStringExtra(RedditAppNotifications.EXTRA_TEXT).orEmpty()
+                c.scope.launch {
+                    runCatching { RedditAppNotifications.resolve(title, text) }.getOrNull()?.let(::navigateWhenReady)
+                }
+                null
+            }
             else -> null // just open the app
         }
         // Consumed: don't route it again if the activity re-delivers this intent.
@@ -289,9 +298,10 @@ class InboxModule(private val c: AppContainer) : UserScoped {
      * notification for each one not already seen. When [notify] is false it
      * only "primes" the seen set (used when the user first turns the feature
      * on, so we don't dump a notification for every pre-existing unread item).
+     * Returns how many notifications it posted.
      */
-    suspend fun pollInbox(notify: Boolean) {
-        val items = fetchUnread() ?: return // not logged in / network error
+    suspend fun pollInbox(notify: Boolean): Int {
+        val items = fetchUnread() ?: return 0 // not logged in / network error
         // Per account: the polled inbox is the active account's, so one shared
         // list made every switch notify for all of the other account's unread.
         // An account's first poll only primes its list (no burst of old items).
@@ -300,15 +310,14 @@ class InboxModule(private val c: AppContainer) : UserScoped {
         val primed = c.prefs.contains(key)
         val seen = (c.prefs.getStringList(key) ?: emptyList()).toSet()
         val fresh = items.filter { it.fullname !in seen }
-        if (notify && primed) {
-            for (item in fresh) InboxNotifications.show(c.context, item)
-        }
+        val shown = if (notify && primed) fresh.onEach { InboxNotifications.show(c.context, it) }.size else 0
         // Remember everything currently unread so we never re-notify, capped so
         // the list can't grow without bound.
         val current = items.mapTo(HashSet()) { it.fullname }
         val updated = items.map { it.fullname } + seen.filter { it !in current }
         c.prefs.setStringList(key, updated.take(200))
         if (fresh.isNotEmpty()) c.scope.launch { refreshUnread() }
+        return shown
     }
 
     /** The current unread items, or null if we can't authenticate / reach Reddit. */

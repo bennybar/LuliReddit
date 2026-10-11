@@ -133,7 +133,10 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.bennybar.luli_for_reddit.feature.inbox.RedditAppNotifications
 import com.bennybar.luli_for_reddit.app
 import com.bennybar.luli_for_reddit.core.Backup
 import com.bennybar.luli_for_reddit.core.RedditConstants
@@ -255,6 +258,9 @@ fun SettingsList(
         authMode = runCatching { app.secureStore.authMode() }.getOrNull()
     }
     val web = authMode == "web"
+    // Notification access is granted in Android's settings: re-check on return.
+    var redditAccess by remember { mutableStateOf(RedditAppNotifications.hasAccess(context)) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { redditAccess = RedditAppNotifications.hasAccess(context) }
     val hiddenSubs by app.hiddenHomeSubs.ids.collectAsStateWithLifecycle()
 
     val pickBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -465,6 +471,15 @@ fun SettingsList(
             "Check for replies & messages in the background (~every 15 min) and notify you. No Firebase — polling only.",
             Icons.Outlined.NotificationsActive, s.notifyInbox,
         ) { v -> scope.launch { toggleInboxNotifications(v) } }
+        switch(
+            "Open Reddit app notifications in Ilay",
+            when {
+                !s.redditAppNotifications -> "Replaces the official Reddit app's notifications with Ilay's, which open here. Needs notification access."
+                redditAccess -> "Reddit app notifications now open in Ilay"
+                else -> "Needs notification access: turn on Ilay in the next screen. If Android says \"Restricted setting\", open Ilay's App info → ⋮ → Allow restricted settings, then try again."
+            },
+            Icons.Outlined.NotificationsActive, s.redditAppNotifications && redditAccess,
+        ) { v -> scope.launch { toggleRedditAppNotifications(v) } }
         divider("notifications")
 
         // ---------------------------------------------------------------- AI
@@ -895,6 +910,18 @@ private suspend fun showLoginMethodInfo(isWeb: Boolean) = infoDialog(
             "screen, but that unofficial method carries account risk."
     },
 )
+
+private suspend fun toggleRedditAppNotifications(enable: Boolean) {
+    app.settings.setRedditAppNotifications(enable)
+    if (!enable) return
+    if (!app.inbox.requestPermission()) {
+        app.navigatorOrNull?.showSnackbar("Notification permission denied. Enable it in system settings.")
+        app.settings.setRedditAppNotifications(false)
+        return
+    }
+    val ctx = app.context
+    if (!RedditAppNotifications.hasAccess(ctx)) ctx.startActivity(RedditAppNotifications.accessSettingsIntent(ctx))
+}
 
 private suspend fun toggleInboxNotifications(enable: Boolean) {
     val nav = app.navigatorOrNull
