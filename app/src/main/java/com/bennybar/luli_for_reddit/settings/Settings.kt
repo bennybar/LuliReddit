@@ -115,6 +115,7 @@ data class Settings(
     val navLabels: Boolean = true, // show text labels on the bottom nav bar
     val aiModel: String = "gpt-5.4-mini", // OpenAI(-compatible) model id for summaries
     val aiSummaryStyle: Int = 1, // index into SummaryStyle (Key points)
+    val aiSummaryLanguage: String = "", // English name of the language summaries are written in; "" = the thread's own
     val aiMaxChars: Int = 100_000, // max thread text sent to the model
     val aiUseCustomUrl: Boolean = false, // use a custom API base URL
     val aiBaseUrl: String = "https://api.openai.com", // custom base URL (when enabled)

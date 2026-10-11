@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.DoNotDisturbOn
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Sort
@@ -168,6 +169,23 @@ private val ACCENT_SWATCHES = listOf(
     0xFF1E88E5L, // blue
     0xFF8E24AAL, // purple
     0xFFD81B60L, // pink
+)
+
+/** Summary languages: the English name (what the AI is told) to its label. "" = the thread's own. */
+private val SUMMARY_LANGUAGES = listOf(
+    "" to "Same as the thread",
+    "English" to "English",
+    "Hebrew" to "Hebrew · עברית",
+    "Spanish" to "Spanish · Español",
+    "French" to "French · Français",
+    "German" to "German · Deutsch",
+    "Portuguese" to "Portuguese · Português",
+    "Italian" to "Italian · Italiano",
+    "Russian" to "Russian · Русский",
+    "Arabic" to "Arabic · العربية",
+    "Simplified Chinese" to "Chinese · 中文",
+    "Japanese" to "Japanese · 日本語",
+    "Hindi" to "Hindi · हिन्दी",
 )
 
 /** AI summary styles, by persisted index (`aiSummaryStyle`). */
@@ -472,6 +490,15 @@ fun SettingsList(
             onClick = launch {
                 pickOption(SUMMARY_STYLE_LABELS.mapIndexed { i, l -> PickOption(i, l) }, s.aiSummaryStyle, radio = false)
                     ?.let(ctrl::setAiSummaryStyle)
+            },
+        )
+        tile(
+            "Summary language",
+            SUMMARY_LANGUAGES.firstOrNull { it.first == s.aiSummaryLanguage }?.second ?: s.aiSummaryLanguage,
+            Icons.Rounded.Translate, enabled = aiKeySet,
+            onClick = launch {
+                pickOption(SUMMARY_LANGUAGES.map { PickOption(it.first, it.second) }, s.aiSummaryLanguage, radio = false)
+                    ?.let(ctrl::setAiSummaryLanguage)
             },
         )
         tile(

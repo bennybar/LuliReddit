@@ -59,8 +59,11 @@ object AiService {
     }
 
     /** Returns the assistant's summary text, or throws with a readable message. */
-    suspend fun summarize(baseUrl: String, apiKey: String, model: String, style: SummaryStyle, threadText: String): String {
-        val system = "You summarize Reddit threads accurately and neutrally. Do not invent details. ${style.instruction}"
+    suspend fun summarize(baseUrl: String, apiKey: String, model: String, style: SummaryStyle, threadText: String, language: String = ""): String {
+        // Settings → AI summaries → Summary language ("" = the thread's own).
+        val lang = if (language.isEmpty()) "Write the summary in the same language as the thread."
+        else "Write the summary in $language, whatever language the thread is in."
+        val system = "You summarize Reddit threads accurately and neutrally. Do not invent details. ${style.instruction} $lang"
         return chat(baseUrl, apiKey, model, listOf("system" to system, "user" to threadText))
     }
 

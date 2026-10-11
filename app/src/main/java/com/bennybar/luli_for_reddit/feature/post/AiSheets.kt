@@ -106,12 +106,12 @@ fun showSummarySheet(post: Post, comments: List<Comment>) {
     val style = SummaryStyle.entries[s.aiSummaryStyle.coerceIn(0, SummaryStyle.entries.size - 1)]
     val threadText = AiService.buildThreadText(post, comments, s.aiMaxChars)
     val baseUrl = aiBaseUrl()
-    Overlays.launch { done -> SummarySheet(post, baseUrl, key, s.aiModel, style, threadText, done) }
+    Overlays.launch { done -> SummarySheet(post, baseUrl, key, s.aiModel, style, s.aiSummaryLanguage, threadText, done) }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SummarySheet(post: Post, baseUrl: String, apiKey: String, model: String, style: SummaryStyle, threadText: String, done: () -> Unit) {
+private fun SummarySheet(post: Post, baseUrl: String, apiKey: String, model: String, style: SummaryStyle, language: String, threadText: String, done: () -> Unit) {
     var loading by remember { mutableStateOf(true) }
     var result by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -122,7 +122,7 @@ private fun SummarySheet(post: Post, baseUrl: String, apiKey: String, model: Str
         loading = true
         error = null
         try {
-            result = AiService.summarize(baseUrl, apiKey, model, style, threadText).also {
+            result = AiService.summarize(baseUrl, apiKey, model, style, threadText, language).also {
                 // Kept in You → Summaries, with a link back to the post.
                 app.summaries.add(
                     SavedSummary(

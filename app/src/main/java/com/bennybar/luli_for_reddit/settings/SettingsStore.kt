@@ -63,6 +63,7 @@ class SettingsStore(private val p: Prefs) {
             navLabels = b("navLabels", d.navLabels),
             aiModel = p.getString("aiModel") ?: d.aiModel,
             aiSummaryStyle = p.getInt("aiSummaryStyle") ?: d.aiSummaryStyle,
+            aiSummaryLanguage = p.getString("aiSummaryLanguage") ?: d.aiSummaryLanguage,
             aiMaxChars = p.getInt("aiMaxChars") ?: d.aiMaxChars,
             aiUseCustomUrl = b("aiUseCustomUrl", d.aiUseCustomUrl),
             aiBaseUrl = p.getString("aiBaseUrl") ?: d.aiBaseUrl,
@@ -150,6 +151,7 @@ class SettingsStore(private val p: Prefs) {
     fun setNavLabels(v: Boolean) { p.setBool("navLabels", v); set { it.copy(navLabels = v) } }
     fun setAiModel(v: String) { p.setString("aiModel", v); set { it.copy(aiModel = v) } }
     fun setAiSummaryStyle(v: Int) { p.setInt("aiSummaryStyle", v); set { it.copy(aiSummaryStyle = v) } }
+    fun setAiSummaryLanguage(v: String) { p.setString("aiSummaryLanguage", v); set { it.copy(aiSummaryLanguage = v) } }
     fun setAiMaxChars(v: Int) { p.setInt("aiMaxChars", v); set { it.copy(aiMaxChars = v) } }
     fun setAiUseCustomUrl(v: Boolean) { p.setBool("aiUseCustomUrl", v); set { it.copy(aiUseCustomUrl = v) } }
     fun setAiBaseUrl(v: String) { p.setString("aiBaseUrl", v); set { it.copy(aiBaseUrl = v) } }
