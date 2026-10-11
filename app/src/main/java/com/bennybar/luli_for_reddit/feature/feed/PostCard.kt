@@ -943,7 +943,7 @@ private fun rememberCalmLive(p: Post): CalmLive {
 private fun CalmCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
     val live = rememberCalmLive(p)
     CompositionLocalProvider(LocalCalmOnCard provides true) {
-        BloomCard(Modifier.padding(horizontal = 2.dp).then(dim), onClick = a::openDetail, onLongClick = a::tune, shape = RoundedCornerShape(CalmOuter), color = calmCardColor()) {
+        BloomCard(dim, onClick = a::openDetail, onLongClick = a::tune, shape = RoundedCornerShape(CalmOuter), color = calmCardColor()) {
             Column(Modifier.padding(start = 16.dp, top = 14.dp, end = 10.dp, bottom = 10.dp)) {
                 Column(Modifier.padding(end = 6.dp)) { CalmBody(p, a, s, CalmExpressiveMedia, fullMedia = true) }
                 Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {

@@ -91,7 +91,7 @@ data class Settings(
     val blurNsfw: Boolean = true,
     val defaultSort: PostSort = PostSort.BEST,
     val defaultCommentSort: String = "confidence", // reddit comment sort id
-    val postDisplay: PostDisplay = PostDisplay.LARGE,
+    val postDisplay: PostDisplay = PostDisplay.CALM,
     val swipeActions: Boolean = true,
     val trackHistory: Boolean = true,
     val offlineCache: Boolean = true,
