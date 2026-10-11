@@ -36,6 +36,7 @@ import java.io.File
 import java.io.IOException
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.coroutineContext
 
 // Reddit's CDN (v.redd.it) closes the connection mid-stream for requests
 // without a real User-Agent, so set one and allow a generous timeout.
@@ -44,13 +45,46 @@ private const val DOWNLOAD_UA =
 
 private val downloadClient by lazy { Http.client.newBuilder().readTimeout(90, TimeUnit.SECONDS).build() }
 
-private fun mimeFor(ext: String, isVideo: Boolean): String = when (ext) {
+internal fun mimeFor(ext: String, isVideo: Boolean): String = when (ext) {
     "png" -> "image/png"
     "gif" -> "image/gif"
     "webp" -> "image/webp"
     "jpg", "jpeg" -> "image/jpeg"
     "mp4" -> "video/mp4"
     else -> if (isVideo) "video/mp4" else "image/jpeg"
+}
+
+/**
+ * Downloads [url] into [dest], reporting (received, total) every 128 KB.
+ * Cancelling the caller aborts a blocked read at once, not at the next chunk.
+ */
+internal suspend fun downloadTo(url: String, dest: File, onProgress: (Long, Long) -> Unit) {
+    val req = Request.Builder().url(url).header("User-Agent", DOWNLOAD_UA).build()
+    val call = downloadClient.newCall(req)
+    coroutineContext.job.invokeOnCompletion { call.cancel() }
+    call.execute().use { res ->
+        if (!res.isSuccessful) throw IOException("HTTP ${res.code}")
+        val body = res.body
+        val total = body.contentLength().coerceAtLeast(0)
+        dest.outputStream().use { out ->
+            body.byteStream().use { input ->
+                val buf = ByteArray(64 * 1024)
+                var got = 0L
+                var lastEmit = 0L
+                while (true) {
+                    coroutineContext.ensureActive()
+                    val n = input.read(buf)
+                    if (n < 0) break
+                    out.write(buf, 0, n)
+                    got += n
+                    if (got - lastEmit > 128 * 1024 || got == total) {
+                        lastEmit = got
+                        onProgress(got, total)
+                    }
+                }
+            }
+        }
+    }
 }
 
 /**
@@ -74,33 +108,7 @@ internal suspend fun saveMedia(url: String, isVideo: Boolean) {
         val ts = System.currentTimeMillis()
         val tmp = File(app.context.cacheDir, "luli_$ts.$ext")
         try {
-            val req = Request.Builder().url(url).header("User-Agent", DOWNLOAD_UA).build()
-            val call = downloadClient.newCall(req)
-            // Cancel aborts a blocked read at once, not at the next chunk.
-            coroutineContext.job.invokeOnCompletion { call.cancel() }
-            call.execute().use { res ->
-                if (!res.isSuccessful) throw IOException("HTTP ${res.code}")
-                val body = res.body
-                val total = body.contentLength().coerceAtLeast(0)
-                tmp.outputStream().use { out ->
-                    body.byteStream().use { input ->
-                        val buf = ByteArray(64 * 1024)
-                        var got = 0L
-                        var lastEmit = 0L
-                        while (true) {
-                            coroutineContext.ensureActive()
-                            val n = input.read(buf)
-                            if (n < 0) break
-                            out.write(buf, 0, n)
-                            got += n
-                            if (got - lastEmit > 128 * 1024 || got == total) {
-                                lastEmit = got
-                                progress.value = got to total
-                            }
-                        }
-                    }
-                }
-            }
+            downloadTo(url, tmp) { got, total -> progress.value = got to total }
             val mime = mimeFor(ext, isVideo)
             if (folder != null && app.media.saveToFolder(folder, tmp, "ilay_$ts.$ext", mime)) {
                 finished.value = true
@@ -173,7 +181,7 @@ private fun insertIntoGallery(file: File, name: String, mime: String, isVideo: B
 private fun mb(bytes: Long) = String.format(Locale.US, "%.1f", bytes / 1048576.0)
 
 @Composable
-private fun SavingDialog(progress: StateFlow<Pair<Long, Long>>, onCancel: () -> Unit) {
+internal fun SavingDialog(progress: StateFlow<Pair<Long, Long>>, onCancel: () -> Unit, verb: String = "Saving") {
     val p by progress.collectAsStateWithLifecycle()
     val (received, total) = p
     AlertDialog(
@@ -191,7 +199,7 @@ private fun SavingDialog(progress: StateFlow<Pair<Long, Long>>, onCancel: () -> 
                     CircularProgressIndicator(Modifier.size(26.dp), strokeWidth = 3.dp)
                 }
                 Spacer(Modifier.width(18.dp))
-                Text(if (total > 0) "Saving… ${mb(received)} / ${mb(total)} MB" else "Saving…")
+                Text(if (total > 0) "$verb… ${mb(received)} / ${mb(total)} MB" else "$verb…")
             }
         },
         confirmButton = {},

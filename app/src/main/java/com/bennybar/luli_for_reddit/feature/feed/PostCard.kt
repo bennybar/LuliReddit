@@ -45,6 +45,10 @@ import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.Sell
 import androidx.compose.material.icons.rounded.SentimentSatisfied
 import androidx.compose.material.icons.rounded.Share
+import com.bennybar.luli_for_reddit.feature.media.shareAsMedia
+import com.bennybar.luli_for_reddit.feature.media.canShareAsMedia
+import androidx.compose.material.icons.outlined.Movie
+import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Icon
@@ -213,6 +217,12 @@ private class PostActions(val post: Post, val nav: AppNavigator) {
         // Sharing is a strong interest signal (as in the ⋮ sheet).
         app.forYou.learner.share(post)
         nav.share("https://reddit.com${post.permalink}", subject = post.title)
+    }
+
+    /** The image(s) / video themselves, downloaded, rather than a link. */
+    fun shareMedia() {
+        app.forYou.learner.share(post)
+        shareAsMedia(post)
     }
 }
 
@@ -1046,6 +1056,15 @@ private fun CalmActionGroup(live: CalmLive, a: PostActions, withComments: Boolea
 @Composable
 private fun CalmShareSave(live: CalmLive, a: PostActions) {
     val cs = MaterialTheme.colorScheme
+    if (canShareAsMedia(a.post)) {
+        CalmGhost(
+            if (a.post.type == PostType.VIDEO || a.post.type == PostType.GIF) Icons.Outlined.Movie else Icons.Outlined.Image,
+            "Share as media",
+            cs.onSurfaceVariant,
+            a::shareMedia,
+            size = 40.dp,
+        )
+    }
     CalmGhost(Icons.Rounded.Share, "Share", cs.onSurfaceVariant, a::share, size = 40.dp)
     CalmGhost(
         if (live.saved) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,

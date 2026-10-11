@@ -32,6 +32,9 @@ import androidx.compose.material.icons.outlined.ReportGmailerrorred
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.VisibilityOff
+import com.bennybar.luli_for_reddit.feature.media.shareAsMedia
+import com.bennybar.luli_for_reddit.feature.media.canShareAsMedia
+import androidx.compose.material.icons.outlined.PermMedia
 import androidx.compose.material.icons.outlined.ThumbDown
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Block
@@ -360,6 +363,12 @@ private fun PostActionsSheet(post: Post, done: () -> Unit) {
             item(Icons.AutoMirrored.Outlined.TextSnippet, "Share with title", "Includes the post title above the link") {
                 app.forYou.learner.share(post)
                 app.navigator.shareWithTitle(link, post.title)
+            }
+            if (canShareAsMedia(post)) {
+                item(Icons.Outlined.PermMedia, "Share as media", "The image or video itself, not a link") {
+                    app.forYou.learner.share(post)
+                    shareAsMedia(post)
+                }
             }
             item(Icons.Outlined.VisibilityOff, "Hide") { hidePost(post) }
             if (post.subreddit.isNotEmpty()) {
