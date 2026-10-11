@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.ExperimentalTextApi
@@ -152,7 +153,23 @@ object AppTheme {
         },
     )
 
-    fun typography(font: AppFont): Typography {
+    /**
+     * Each text reads in its own direction (a Hebrew title or comment right to
+     * left, with its punctuation where it belongs). Compose's default follows
+     * the layout direction only, so RTL text was laid out as if it were English.
+     */
+    fun typography(font: AppFont): Typography = baseTypography(font).run {
+        fun TextStyle.c() = copy(textDirection = TextDirection.Content)
+        copy(
+            displayLarge = displayLarge.c(), displayMedium = displayMedium.c(), displaySmall = displaySmall.c(),
+            headlineLarge = headlineLarge.c(), headlineMedium = headlineMedium.c(), headlineSmall = headlineSmall.c(),
+            titleLarge = titleLarge.c(), titleMedium = titleMedium.c(), titleSmall = titleSmall.c(),
+            bodyLarge = bodyLarge.c(), bodyMedium = bodyMedium.c(), bodySmall = bodySmall.c(),
+            labelLarge = labelLarge.c(), labelMedium = labelMedium.c(), labelSmall = labelSmall.c(),
+        )
+    }
+
+    private fun baseTypography(font: AppFont): Typography {
         val t = Typography()
         if (font == AppFont.ROBOTO) return t
         if (font == AppFont.GOOGLE_SANS) {

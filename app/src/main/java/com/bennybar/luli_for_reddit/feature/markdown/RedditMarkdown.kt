@@ -47,6 +47,10 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
@@ -86,7 +90,7 @@ fun RedditMarkdown(
     val onLink: (String) -> Unit = onLinkClick ?: { nav.openLink(it) }
 
     val ctx = MdContext(
-        base = typo.bodyMedium.copy(fontSize = fontSize, lineHeight = 1.45.em, color = textColor),
+        base = typo.bodyMedium.copy(fontSize = fontSize, lineHeight = 1.45.em, color = textColor, textDirection = TextDirection.Content),
         fontSize = fontSize,
         textColor = textColor,
         link = cs.primary,
@@ -116,11 +120,32 @@ fun RedditMarkdown(
         )
         return
     }
-    if (selectable) {
-        SelectionContainer(modifier) { Blocks(doc.blocks, ctx, Modifier) }
-    } else {
-        Blocks(doc.blocks, ctx, modifier)
+    // Hebrew / Arabic / Persian text reads from the right: lay the blocks out
+    // right-to-left (alignment, list bullets, quote bar), not just the glyphs.
+    val rtl = remember(doc) { isMostlyRtl(flattenInlines(doc.blocks).joinToString("") { it.text }) }
+    val direction = if (rtl) LayoutDirection.Rtl else LocalLayoutDirection.current
+    // Full width when RTL, so the text can sit against the right edge.
+    val box = if (rtl) modifier.fillMaxWidth() else modifier
+    CompositionLocalProvider(LocalLayoutDirection provides direction) {
+        if (selectable) {
+            SelectionContainer(box) { Blocks(doc.blocks, ctx, Modifier) }
+        } else {
+            Blocks(doc.blocks, ctx, box)
+        }
     }
+}
+
+/** More right-to-left letters (Hebrew, Arabic…) than left-to-right ones. */
+internal fun isMostlyRtl(text: String): Boolean {
+    var rtl = 0
+    var ltr = 0
+    for (ch in text) {
+        when (Character.getDirectionality(ch)) {
+            Character.DIRECTIONALITY_RIGHT_TO_LEFT, Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC -> rtl++
+            Character.DIRECTIONALITY_LEFT_TO_RIGHT -> ltr++
+        }
+    }
+    return rtl > ltr
 }
 
 @Immutable
@@ -207,7 +232,10 @@ private fun Block(b: MdBlock, ctx: MdContext) {
                 Modifier
                     .fillMaxWidth()
                     .background(ctx.quoteBg)
-                    .drawBehind { drawRect(bar, Offset.Zero, Size(3.dp.toPx(), size.height)) }
+                    .drawBehind {
+                        val w = 3.dp.toPx()
+                        drawRect(bar, Offset(if (layoutDirection == LayoutDirection.Rtl) size.width - w else 0f, 0f), Size(w, size.height))
+                    }
                     .padding(start = 12.dp, top = 6.dp, end = 12.dp, bottom = 6.dp),
             ) {
                 Blocks(b.blocks, ctx.withColor(ctx.quoteText), Modifier)
