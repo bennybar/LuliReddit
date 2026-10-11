@@ -142,6 +142,16 @@ class AppNavigator(
 
     fun openInBrowser(url: String) = openInBrowser(Uri.parse(url))
 
+    /** Opens [url] in the app that handles it (YouTube for a YouTube link), else the browser. */
+    fun openExternal(url: String) {
+        val uri = Uri.parse(url)
+        try {
+            context.startActivity(externalViewIntent(context, uri))
+        } catch (_: ActivityNotFoundException) {
+            openInBrowser(uri)
+        }
+    }
+
     /** The system share sheet for [text] (a URL, or "Title\nURL"). */
     fun share(text: String, subject: String? = null) {
         val send = Intent(Intent.ACTION_SEND).apply {

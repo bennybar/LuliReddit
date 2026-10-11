@@ -57,6 +57,7 @@ import com.bennybar.luli_for_reddit.core.net.Redgifs
 import com.bennybar.luli_for_reddit.core.resolveVideoUrl
 import com.bennybar.luli_for_reddit.model.GalleryImage
 import com.bennybar.luli_for_reddit.model.Post
+import com.bennybar.luli_for_reddit.model.PostType
 import com.bennybar.luli_for_reddit.nav.AppNavigator
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.MediaViewer
@@ -76,10 +77,38 @@ fun postVideoUrl(p: Post): String {
 }
 
 /**
+ * A video post Ilay can't play itself — a YouTube / Vimeo / other embed with
+ * no Reddit-hosted copy or direct file. It opens in its own app or the
+ * browser (it used to land on a "can't be played" error screen).
+ */
+fun isExternalVideo(p: Post): Boolean {
+    if (p.type != PostType.VIDEO || p.hlsUrl != null || p.fallbackVideoUrl != null || p.gifMp4Url != null) return false
+    if (Redgifs.id(p.url) != null) return false
+    val u = runCatching { Uri.parse(resolveVideoUrl(p.url)) }.getOrNull() ?: return true
+    return !isVideoUrl(u)
+}
+
+/** Where an external video plays, for its feed label ("YouTube"). */
+fun externalVideoSource(p: Post): String {
+    val d = p.domain.lowercase().removePrefix("www.").removePrefix("m.")
+    return when {
+        d == "youtu.be" || d.endsWith("youtube.com") -> "YouTube"
+        d.endsWith("vimeo.com") -> "Vimeo"
+        d.endsWith("twitch.tv") -> "Twitch"
+        d.endsWith("streamable.com") -> "Streamable"
+        else -> d.ifEmpty { "Video" }
+    }
+}
+
+/**
  * Opens a video post full-screen. RedGifs clips are resolved to their HD
  * file (with sound) first, falling back to Reddit's silent mp4 copy.
  */
 suspend fun openPostVideo(nav: AppNavigator, post: Post) {
+    if (isExternalVideo(post)) {
+        nav.openExternal(post.url)
+        return
+    }
     var src = postVideoUrl(post)
     var download = post.fallbackVideoUrl ?: src
     if (post.hlsUrl == null && post.fallbackVideoUrl == null && Redgifs.id(post.url) != null) {

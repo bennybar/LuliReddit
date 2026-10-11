@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.feature.media.externalVideoSource
+import com.bennybar.luli_for_reddit.feature.media.isExternalVideo
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -491,7 +493,7 @@ private fun BannerMedia(p: Post, a: PostActions, s: Settings, height: Dp) {
     }
     val url = feedImageUrl(p, s)
     // Inline autoplay for videos (when enabled and not NSFW-blurred).
-    if (p.type == PostType.VIDEO && !blur && s.autoplayMedia) {
+    if (p.type == PostType.VIDEO && !blur && s.autoplayMedia && !isExternalVideo(p)) {
         val vurl = postVideoUrl(p)
         if (vurl.isNotEmpty() && !vurl.lowercase().endsWith(".gif")) {
             Box(Modifier.padding(bottom = 4.dp).clip(RoundedCornerShape(16.dp))) {
@@ -513,6 +515,7 @@ private fun BannerMedia(p: Post, a: PostActions, s: Settings, height: Dp) {
         ) {
             if (url != null) FeedImage(url, Modifier.fillMaxSize())
             if (p.type == PostType.VIDEO || p.type == PostType.GIF) PlayBadge(Modifier.align(Alignment.Center))
+            ExternalVideoPill(p, Modifier.align(Alignment.TopEnd).padding(8.dp))
             if (p.type == PostType.GIF) MediaPill("GIF", Icons.Rounded.Gif, Modifier.align(Alignment.TopEnd).padding(8.dp))
             if (p.type == PostType.GALLERY) {
                 MediaPill("${p.gallery.size}", Icons.Rounded.Collections, Modifier.align(Alignment.TopEnd).padding(8.dp))
@@ -688,6 +691,7 @@ private fun MediaPreview(p: Post, a: PostActions, s: Settings) {
     ) {
         if (url != null) FeedImage(url, Modifier.fillMaxSize(), brokenIcon = true)
         if (p.type == PostType.VIDEO) PlayBadge(Modifier.align(Alignment.Center))
+        ExternalVideoPill(p, Modifier.align(Alignment.TopEnd).padding(8.dp))
         if (p.type == PostType.GALLERY) {
             MediaPill("${p.gallery.size}", Icons.Rounded.Collections, Modifier.align(Alignment.TopEnd).padding(8.dp))
         }
@@ -846,6 +850,13 @@ private fun PlayBadge(modifier: Modifier = Modifier) {
         modifier.background(Color.Black.copy(alpha = 0.54f), CircleShape).padding(14.dp),
         contentAlignment = Alignment.Center,
     ) { Icon(Icons.Rounded.PlayArrow, "Play", Modifier.size(36.dp), tint = Color.White) }
+}
+
+/** "YouTube ↗" on a video that opens outside Ilay, so the tap's result isn't a surprise. */
+@Composable
+private fun ExternalVideoPill(p: Post, modifier: Modifier) {
+    if (p.type != PostType.VIDEO || !isExternalVideo(p)) return
+    MediaPill(externalVideoSource(p), Icons.AutoMirrored.Rounded.OpenInNew, modifier)
 }
 
 @Composable
@@ -1208,7 +1219,7 @@ private fun CalmMedia(p: Post, a: PostActions, s: Settings, shape: androidx.comp
         }
         val url = feedImageUrl(p, s)
         // Inline autoplay for videos (when enabled and not NSFW-blurred).
-        if (p.type == PostType.VIDEO && !blur && s.autoplayMedia) {
+        if (p.type == PostType.VIDEO && !blur && s.autoplayMedia && !isExternalVideo(p)) {
             val vurl = postVideoUrl(p)
             if (vurl.isNotEmpty() && !vurl.lowercase().endsWith(".gif")) {
                 Box(Modifier.clip(shape)) {
@@ -1230,6 +1241,7 @@ private fun CalmMedia(p: Post, a: PostActions, s: Settings, shape: androidx.comp
             ) {
                 if (url != null) FeedImage(url, Modifier.fillMaxSize(), brokenIcon = true)
                 if (p.type == PostType.VIDEO || p.type == PostType.GIF) PlayBadge(Modifier.align(Alignment.Center))
+                ExternalVideoPill(p, Modifier.align(Alignment.TopEnd).padding(8.dp))
                 if (p.type == PostType.GIF) MediaPill("GIF", Icons.Rounded.Gif, Modifier.align(Alignment.TopEnd).padding(8.dp))
                 if (p.type == PostType.GALLERY) {
                     MediaPill("${p.gallery.size}", Icons.Rounded.Collections, Modifier.align(Alignment.TopEnd).padding(8.dp))
