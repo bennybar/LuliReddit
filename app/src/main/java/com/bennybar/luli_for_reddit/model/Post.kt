@@ -28,6 +28,8 @@ data class Post(
     val title: String,
     val subreddit: String,
     val subredditPrefixed: String,
+    /** The subreddit's icon (from `sr_detail`), or null: the card shows its first letter. */
+    val subredditIcon: String? = null,
     val author: String,
     val score: Int,
     val numComments: Int,
@@ -101,6 +103,8 @@ data class Post(
                 title = (d["title"].str() ?: "").trim(),
                 subreddit = d["subreddit"].str() ?: "",
                 subredditPrefixed = d["subreddit_name_prefixed"].str() ?: "",
+                subredditIcon = (d["sr_detail"]["community_icon"].str()?.ifEmpty { null } ?: d["sr_detail"]["icon_img"].str()?.ifEmpty { null })
+                    ?.replace("&amp;", "&"),
                 author = d["author"].str() ?: "[deleted]",
                 score = d["score"].int() ?: 0,
                 numComments = d["num_comments"].int() ?: 0,

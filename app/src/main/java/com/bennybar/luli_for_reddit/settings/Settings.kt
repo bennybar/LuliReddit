@@ -81,6 +81,7 @@ data class Settings(
     val inAppBrowser: Boolean = false, // open web links in a Custom Tab, not the browser app
     val tapToCollapse: Boolean = false, // tap a comment to collapse it (else long-press)
     val hideReadPosts: Boolean = false, // skip already-read posts when feeds load
+    val subredditIcons: Boolean = true, // cards show the subreddit's icon (else its first letter)
     val markReadOnScroll: Boolean = false, // a post scrolled past counts as read
     // What swiping does: "start" = from the start edge (rightward in LTR).
     val swipePostStart: SwipeAction = SwipeAction.UPVOTE,

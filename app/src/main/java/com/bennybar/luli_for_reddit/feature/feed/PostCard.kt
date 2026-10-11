@@ -371,7 +371,7 @@ private fun LargeCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
     val cs = MaterialTheme.colorScheme
     BloomCard(dim, onClick = a::openDetail, onLongClick = a::tune) {
         Column(Modifier.padding(start = 16.dp, top = 14.dp, end = 8.dp, bottom = 6.dp)) {
-            Header(p, a)
+            Header(p, a, s)
             Spacer(Modifier.height(10.dp))
             Text(
                 p.title,
@@ -409,7 +409,7 @@ private fun CardsCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
     val cs = MaterialTheme.colorScheme
     BloomCard(dim, onClick = a::openDetail, onLongClick = a::tune) {
         Column(Modifier.padding(start = 16.dp, top = 14.dp, end = 8.dp, bottom = 6.dp)) {
-            Header(p, a)
+            Header(p, a, s)
             Spacer(Modifier.height(10.dp))
             Text(
                 p.title,
@@ -443,7 +443,7 @@ private fun CardsCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
 private fun MiniCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
     BloomCard(dim, onClick = a::openDetail, onLongClick = a::tune) {
         Column(Modifier.padding(start = 14.dp, top = 12.dp, end = 6.dp, bottom = 4.dp)) {
-            Header(p, a)
+            Header(p, a, s)
             Spacer(Modifier.height(8.dp))
             Row {
                 Column(Modifier.weight(1f)) {
@@ -570,11 +570,12 @@ private fun Thumb(p: Post, a: PostActions, s: Settings, size: Dp) {
 }
 
 @Composable
-private fun Header(p: Post, a: PostActions) {
+private fun Header(p: Post, a: PostActions, s: Settings) {
     val cs = MaterialTheme.colorScheme
     Row(verticalAlignment = Alignment.CenterVertically) {
         LetterAvatar(
             p.subreddit,
+            imageUrl = p.subredditIcon.takeIf { s.subredditIcons },
             size = 28.dp,
             container = cs.secondaryContainer,
             content = cs.onSecondaryContainer,
@@ -1010,7 +1011,7 @@ private fun CalmCardsCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
 @Composable
 private fun CalmBody(p: Post, a: PostActions, s: Settings, mediaShape: androidx.compose.ui.graphics.Shape?, fullMedia: Boolean = false) {
     val cs = MaterialTheme.colorScheme
-    CalmHeader(p, a)
+    CalmHeader(p, a, s)
     Text(
         p.title,
         Modifier.padding(top = 10.dp),
@@ -1118,7 +1119,7 @@ private fun CalmButtonGroup(buttons: List<CalmButton>) {
 }
 
 @Composable
-private fun CalmHeader(p: Post, a: PostActions) {
+private fun CalmHeader(p: Post, a: PostActions, s: Settings) {
     val cs = MaterialTheme.colorScheme
     // The subreddit is already the line above: drop a trailing " · r/sub" from the reason.
     val reason = p.feedReason?.removeSuffix(" · r/${p.subreddit}")?.removeSuffix(" · ${p.subredditPrefixed}")
@@ -1132,6 +1133,7 @@ private fun CalmHeader(p: Post, a: PostActions) {
         }
         LetterAvatar(
             p.subreddit,
+            imageUrl = p.subredditIcon.takeIf { s.subredditIcons },
             size = 36.dp,
             container = bg,
             content = fg,

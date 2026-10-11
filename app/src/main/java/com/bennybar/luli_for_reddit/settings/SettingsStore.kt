@@ -28,6 +28,7 @@ class SettingsStore(private val p: Prefs) {
             inAppBrowser = b("inAppBrowser", d.inAppBrowser),
             tapToCollapse = b("tapToCollapse", d.tapToCollapse),
             hideReadPosts = b("hideReadPosts", d.hideReadPosts),
+            subredditIcons = b("subredditIcons", d.subredditIcons),
             markReadOnScroll = b("markReadOnScroll", d.markReadOnScroll),
             swipePostStart = SwipeAction.parse(p.getString("swipePostStart"), SwipeAction.UPVOTE),
             swipePostEnd = SwipeAction.parse(p.getString("swipePostEnd"), SwipeAction.DOWNVOTE),
@@ -121,6 +122,7 @@ class SettingsStore(private val p: Prefs) {
         set { it.copy(appFont = v, jakartaFont = v == AppFont.JAKARTA) }
     }
     fun setHideReadPosts(v: Boolean) { p.setBool("hideReadPosts", v); set { it.copy(hideReadPosts = v) } }
+    fun setSubredditIcons(v: Boolean) { p.setBool("subredditIcons", v); set { it.copy(subredditIcons = v) } }
     fun setMarkReadOnScroll(v: Boolean) { p.setBool("markReadOnScroll", v); set { it.copy(markReadOnScroll = v) } }
 
     /** [key] is one of swipePostStart / swipePostEnd / swipeCommentStart / swipeCommentEnd. */

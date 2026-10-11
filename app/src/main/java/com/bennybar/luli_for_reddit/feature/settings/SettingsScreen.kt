@@ -70,6 +70,7 @@ import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.OpenInBrowser
+import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Restore
@@ -285,6 +286,10 @@ fun SettingsList(
             pickOption(PostDisplay.entries.map { PickOption(it, it.label, icon = it.icon) }, s.postDisplay)
                 ?.let(ctrl::setPostDisplay)
         })
+        switch(
+            "Subreddit icons", "Show each community's icon on posts instead of its first letter",
+            Icons.Rounded.Image, s.subredditIcons, ctrl::setSubredditIcons,
+        )
         tile("Default sort", s.defaultSort.label, Icons.AutoMirrored.Rounded.Sort, onClick = launch {
             pickOption(PostSort.entries.map { PickOption(it, it.label) }, s.defaultSort)?.let(ctrl::setDefaultSort)
         })

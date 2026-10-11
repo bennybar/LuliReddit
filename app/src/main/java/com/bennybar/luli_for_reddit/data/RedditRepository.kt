@@ -81,13 +81,14 @@ class RedditRepository(val client: RedditClient) {
     /** Posts by fullname (t3_…), in the order given (Reddit reorders and drops removed ones). */
     suspend fun getPostsByIds(fullnames: List<String>): List<Post> {
         if (fullnames.isEmpty()) return emptyList()
-        val json = client.get("/by_id/${fullnames.joinToString(",")}", mapOf("limit" to fullnames.size))
+        val json = client.get("/by_id/${fullnames.joinToString(",")}", mapOf("limit" to fullnames.size, "sr_detail" to true))
         val byId = parse { parsePostListing(json).items.associateBy { "t3_${it.id}" } }
         return fullnames.mapNotNull { byId[it] }
     }
 
     private fun postsQuery(sort: PostSort, time: TopTime, after: String?, limit: Int): Map<String, Any?> =
-        linkedMapOf<String, Any?>("limit" to limit).apply {
+        // sr_detail: each post carries its subreddit's icon for the card.
+        linkedMapOf<String, Any?>("limit" to limit, "sr_detail" to true).apply {
             if (after != null) put("after", after)
             if (sort.needsTime) put("t", time.param)
         }
@@ -196,7 +197,7 @@ class RedditRepository(val client: RedditClient) {
 
     /** [where] ∈ submitted | upvoted | downvoted | hidden (post listings). */
     suspend fun getUserPosts(username: String, where: String = "submitted", after: String? = null, limit: Int = 25): Listing<Post> {
-        val json = client.get("/user/$username/$where", linkedMapOf<String, Any?>("limit" to limit, "after" to after))
+        val json = client.get("/user/$username/$where", linkedMapOf<String, Any?>("limit" to limit, "after" to after, "sr_detail" to true))
         return parse { parsePostListing(json) }
     }
 
@@ -213,7 +214,7 @@ class RedditRepository(val client: RedditClient) {
 
     /** Saved items are mixed posts (t3) and comments (t1), in original order. */
     suspend fun getUserSaved(username: String, after: String? = null, limit: Int = 25): Listing<Any> {
-        val json = client.get("/user/$username/saved", linkedMapOf<String, Any?>("limit" to limit, "after" to after))
+        val json = client.get("/user/$username/saved", linkedMapOf<String, Any?>("limit" to limit, "after" to after, "sr_detail" to true))
         return parse {
             val data = json["data"]
             Listing(
@@ -237,7 +238,7 @@ class RedditRepository(val client: RedditClient) {
         time: String = "all",
     ): Listing<Post> {
         val base = if (subreddit == null) "/search" else "/r/$subreddit/search"
-        val q = linkedMapOf<String, Any?>("q" to query, "type" to "link", "sort" to sort, "t" to time, "limit" to 25)
+        val q = linkedMapOf<String, Any?>("q" to query, "type" to "link", "sort" to sort, "t" to time, "limit" to 25, "sr_detail" to true)
         if (subreddit != null) q["restrict_sr"] = true
         if (after != null) q["after"] = after
         val json = client.get(base, q)

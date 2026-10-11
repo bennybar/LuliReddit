@@ -48,6 +48,7 @@ data class PagePost(
     val id: String, // t3_…
     val title: String,
     val subreddit: String,
+    val subredditIcon: String?,
     val author: String,
     val score: Int,
     val comments: Int,
@@ -85,6 +86,7 @@ data class PagePost(
             title = title,
             subreddit = sub,
             subredditPrefixed = "r/$sub",
+            subredditIcon = subredditIcon,
             author = author,
             score = score,
             numComments = comments,
@@ -113,6 +115,7 @@ data class PagePost(
                 id = id,
                 title = o["title"].str().orEmpty().trim(),
                 subreddit = o["sub"].str().orEmpty(),
+                subredditIcon = o["subIcon"].str()?.ifEmpty { null },
                 author = o["author"].str().orEmpty().ifEmpty { "[deleted]" },
                 score = o["score"].str()?.toIntOrNull() ?: 0,
                 comments = o["comments"].str()?.toIntOrNull() ?: 0,
@@ -431,6 +434,8 @@ class RedditHomeLoader(private val context: Context) {
       var img = media && media.querySelector('img');
       var body = slot('text-body');
       var flair = slot('post-flair');
+      var credit = slot('credit-bar');
+      var subIcon = credit && credit.querySelector('img');
       var menu = e.querySelector('shreddit-post-overflow-menu');
       var reason = '', fewer = false;
       try {
@@ -445,6 +450,7 @@ class RedditHomeLoader(private val context: Context) {
       return {
         id: e.id, title: e.getAttribute('post-title') || '',
         sub: e.getAttribute('subreddit-prefixed-name') || '', author: e.getAttribute('author') || '',
+        subIcon: subIcon ? (subIcon.getAttribute('src') || '') : '',
         score: e.getAttribute('score') || '0', comments: e.getAttribute('comment-count') || '0',
         created: e.getAttribute('created-timestamp') || '', type: e.getAttribute('post-type') || '',
         permalink: e.getAttribute('permalink') || '', href: e.getAttribute('content-href') || '',
