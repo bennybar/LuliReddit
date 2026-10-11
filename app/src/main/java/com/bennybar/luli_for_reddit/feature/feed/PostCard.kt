@@ -27,7 +27,7 @@ import androidx.compose.material.icons.outlined.BrokenImage
 import androidx.compose.material.icons.outlined.ModeComment
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
-import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.BookmarkBorder
 import androidx.compose.material.icons.rounded.CheckCircle
@@ -340,7 +340,7 @@ private fun ReasonRow(reason: String, onTune: () -> Unit) {
             .padding(start = 18.dp, top = 2.dp, end = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(13.dp), tint = cs.primary)
+        Icon(Icons.Outlined.Info, null, Modifier.size(13.dp), tint = cs.primary)
         Spacer(Modifier.width(6.dp))
         Text(
             reason,
@@ -1152,18 +1152,26 @@ private fun CalmHeader(p: Post, a: PostActions, s: Settings) {
                 overflow = TextOverflow.Ellipsis,
             )
             if (reason != null) {
-                // For You: why it's here, in place of the author. Tap → the
+                // For You: why it's here, in place of the author, then the
+                // post's age (kept visible when the reason is long). Tap → the
                 // "why you're seeing this" / tune sheet.
                 Row(Modifier.clickable(onClick = a::tune), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(13.dp), tint = cs.primary)
+                    Icon(Icons.Outlined.Info, null, Modifier.size(13.dp), tint = cs.primary)
                     Spacer(Modifier.width(4.dp))
                     Text(
                         reason,
+                        Modifier.weight(1f, fill = false),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
                         color = cs.primary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        " · ${timeAgo(p.createdUtc)}",
+                        fontSize = 12.sp,
+                        color = cs.onSurfaceVariant,
+                        maxLines = 1,
                     )
                 }
             } else {
