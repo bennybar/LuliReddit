@@ -94,7 +94,7 @@ fun rememberFeedController(feedKey: String): FeedController {
 }
 
 /** Feed list bottom padding: room for the floating nav / FABs. */
-val FeedPadding = PaddingValues(start = 10.dp, end = 10.dp, bottom = 130.dp)
+val FeedPadding = PaddingValues(start = 7.dp, end = 7.dp, bottom = 130.dp)
 
 /**
  * Scrollable list of posts for a feed key ('' = frontpage, subreddit name,
