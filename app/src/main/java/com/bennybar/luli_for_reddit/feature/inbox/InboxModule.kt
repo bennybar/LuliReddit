@@ -16,6 +16,7 @@ import com.bennybar.luli_for_reddit.core.str
 import com.bennybar.luli_for_reddit.feature.media.launchForResult
 import com.bennybar.luli_for_reddit.model.InboxItem
 import com.bennybar.luli_for_reddit.nav.Route
+import com.bennybar.luli_for_reddit.ui.Overlays
 import com.bennybar.luli_for_reddit.state.UserScoped
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -276,7 +277,13 @@ class InboxModule(private val c: AppContainer) : UserScoped {
                 val state = c.session.state.value
                 val hasGraph = nav != null && runCatching { nav.controller.graph }.isSuccess
                 if (nav != null && hasGraph && state != SessionState.Loading) {
-                    if (state is SessionState.LoggedIn) nav.push(route)
+                    if (state is SessionState.LoggedIn) {
+                        // The app may be anywhere: close a full-screen viewer or open
+                        // sheet first, or the screen opens hidden underneath it.
+                        nav.viewers.clear()
+                        Overlays.dismissAll()
+                        nav.push(route)
+                    }
                     return@launch
                 }
                 delay(50)
