@@ -280,8 +280,10 @@ private fun FeedList(
     val hiddenSubs = if (dismissible) app.hiddenHomeSubs.ids.collectAsStateWithLifecycle().value else emptySet()
     val filters by app.contentFilters.state.collectAsStateWithLifecycle()
     // Auto-hide already-read items in the For You feed (live: updates when
-    // history changes). Only watched while the option is on.
-    val seen: Set<String>? = if (settings.autoHideReadForYou) app.history.ids.collectAsStateWithLifecycle().value else null
+    // history changes). Only watched while the option is on. Not in Reddit
+    // Home: its recommended posts carry Reddit's reason too, and opening one
+    // made it vanish on return.
+    val seen: Set<String>? = if (settings.autoHideReadForYou && !homeMode) app.history.ids.collectAsStateWithLifecycle().value else null
     // A subreddit feed still shows that subreddit's own posts.
     val viewing = if (feedKey.isEmpty() || feedKey.startsWith("m::")) null else feedKey
 
