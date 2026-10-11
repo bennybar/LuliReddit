@@ -180,6 +180,17 @@ class IlayActivity : ComponentActivity() {
         OAuthFlow.onAppPaused()
     }
 
+    override fun onStart() {
+        super.onStart()
+        app.forYou.redditHome.onAppForeground()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // The hidden Reddit Home page keeps running its scripts otherwise.
+        app.forYou.redditHome.onAppBackground()
+    }
+
     override fun onResume() {
         super.onResume()
         OAuthFlow.onAppResumed()

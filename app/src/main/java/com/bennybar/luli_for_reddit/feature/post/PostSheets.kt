@@ -32,6 +32,7 @@ import androidx.compose.material.icons.outlined.ReportGmailerrorred
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.VisibilityOff
+import androidx.compose.material.icons.outlined.ThumbDown
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.CheckCircle
@@ -364,6 +365,17 @@ private fun PostActionsSheet(post: Post, done: () -> Unit) {
             if (post.subreddit.isNotEmpty()) {
                 item(Icons.Rounded.DoNotDisturbOn, "Hide r/${post.subreddit} for 7 days", "From Home & For You only") {
                     hideSubFromHome(post)
+                }
+            }
+            // Reddit Home's own "Show fewer posts like this" (recommended posts only).
+            if (post.id in app.forYou.redditHome.showFewerIds.value) {
+                item(Icons.Outlined.ThumbDown, "Show fewer posts like this", "Tells Reddit, like on reddit.com") {
+                    if (app.forYou.redditHome.showFewer(post)) {
+                        app.dismissedPosts.add(post.id)
+                        app.navigator.showSnackbar("Reddit will show fewer posts like this")
+                    } else {
+                        app.navigator.showSnackbar("Couldn't reach Reddit Home, try again after a refresh")
+                    }
                 }
             }
             // The Calm card has no read toggle of its own: it lives here.

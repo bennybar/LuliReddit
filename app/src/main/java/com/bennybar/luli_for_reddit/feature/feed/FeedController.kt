@@ -92,6 +92,19 @@ class FeedController(val key: String) {
      */
     val deckMode: Boolean get() = redditHome || forYou
 
+    init {
+        // Reddit Home deals its cards straight from the page; the full posts
+        // (media, video, NSFW…) arrive moments later and replace them in place.
+        if (isFrontpage) scope.launch {
+            app.forYou.redditHome.upgrades.collect { full ->
+                val byId = full.associateBy { it.id }
+                val cur = current ?: return@collect
+                if (cur.posts.none { it.id in byId }) return@collect
+                _ui.value = FeedUi.Data(cur.copy(posts = cur.posts.map { byId[it.id] ?: it }))
+            }
+        }
+    }
+
     /** First use: builds the feed (Riverpod builds a provider on first watch). */
     fun start() {
         if (started) return

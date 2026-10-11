@@ -39,6 +39,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -74,7 +75,9 @@ import com.bennybar.luli_for_reddit.data.PostSort
 import com.bennybar.luli_for_reddit.data.TopTime
 import com.bennybar.luli_for_reddit.feature.foryou.DealIn
 import com.bennybar.luli_for_reddit.feature.foryou.HomeLoadingDeck
+import com.bennybar.luli_for_reddit.feature.foryou.HomeNotice
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
+import com.bennybar.luli_for_reddit.nav.Route
 import com.bennybar.luli_for_reddit.settings.PostDisplay
 import com.bennybar.luli_for_reddit.ui.ErrorView
 import com.bennybar.luli_for_reddit.ui.Overlays
@@ -173,12 +176,24 @@ fun PostListView(
         }
         // "Reddit Home couldn't load, showing For You" and similar.
         LaunchedEffect(Unit) {
-            app.forYou.redditHome.notice.collect { msg ->
-                if (msg != null) {
-                    nav.showSnackbar(msg)
+            app.forYou.redditHome.notice.collect { n ->
+                if (n != null) {
                     app.forYou.redditHome.notice.value = null
+                    when (n.action) {
+                        HomeNotice.Action.RETRY ->
+                            nav.showSnackbar(n.message, "Retry", SnackbarDuration.Long) { refresh() }
+                        HomeNotice.Action.SIGN_IN ->
+                            nav.showSnackbar(n.message, "Sign in", SnackbarDuration.Long) { nav.push(Route.WebLogin()) }
+                    }
                 }
             }
+        }
+        // Home: follow the card on screen in the hidden reddit.com page, so
+        // Reddit's own "seen" tracking matches what was actually read.
+        if (homeMode) LaunchedEffect(listState) {
+            snapshotFlow {
+                listState.layoutInfo.visibleItemsInfo.firstOrNull { (it.contentType as? String)?.startsWith("post_") == true }?.key as? String
+            }.distinctUntilChanged().collect { id -> if (id != null) app.forYou.redditHome.viewing(id) }
         }
     }
 
