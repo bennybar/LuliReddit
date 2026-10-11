@@ -74,6 +74,14 @@ import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.database.StandaloneDatabaseProvider
+import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
+import androidx.media3.datasource.cache.SimpleCache
+import androidx.media3.exoplayer.trackselection.AdaptiveTrackSelection
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import com.bennybar.luli_for_reddit.app
+import java.io.File
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.bennybar.luli_for_reddit.core.RedditConstants
@@ -88,15 +96,46 @@ import kotlinx.coroutines.delay
  */
 @OptIn(UnstableApi::class)
 internal fun buildPlayer(context: Context, audioFocus: Boolean): ExoPlayer {
-    val data = OkHttpDataSource.Factory(Http.client).setUserAgent(RedditConstants.WEB_USER_AGENT)
+    val upstream = OkHttpDataSource.Factory(Http.client).setUserAgent(RedditConstants.WEB_USER_AGENT)
+    // One disk cache for the feed and the full-screen player: opening a clip
+    // that was playing in the feed reuses its playlists and chunks (it used to
+    // download everything again: ~1-2 s before the first frame), and a loop
+    // doesn't re-download.
+    val data = CacheDataSource.Factory()
+        .setCache(videoCache(context))
+        .setUpstreamDataSourceFactory(upstream)
+        .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+    // Full screen steps quality up after 3 s buffered instead of ExoPlayer's
+    // 10 s: Reddit clips are often shorter than that, so they stayed at the
+    // 220-270p they started with. (Muted feed cards keep the default.)
+    val tracks = if (audioFocus) {
+        DefaultTrackSelector(context, AdaptiveTrackSelection.Factory(3_000, 25_000, 25_000, 0.7f))
+    } else {
+        DefaultTrackSelector(context)
+    }
     return ExoPlayer.Builder(context)
         .setMediaSourceFactory(DefaultMediaSourceFactory(data))
+        .setTrackSelector(tracks)
         .setAudioAttributes(
             AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),
             audioFocus,
         )
         .build()
 }
+
+@Volatile private var sharedVideoCache: SimpleCache? = null
+
+/** Played video, up to 200 MB (least recently used goes first). */
+@OptIn(UnstableApi::class)
+private fun videoCache(context: Context): SimpleCache = sharedVideoCache ?: synchronized(VideoCacheLock) {
+    sharedVideoCache ?: SimpleCache(
+        File(context.cacheDir, "video"),
+        LeastRecentlyUsedCacheEvictor(200L shl 20),
+        StandaloneDatabaseProvider(context),
+    ).also { sharedVideoCache = it }
+}
+
+private object VideoCacheLock
 
 /** v.redd.it HLS (HLSPlaylist.m3u8) or a progressive mp4 (DASH_720.mp4, imgur, RedGifs…). */
 internal fun mediaItemFor(url: String): MediaItem =
@@ -120,7 +159,8 @@ internal fun VideoViewer(route: MediaViewer.Video) {
     val player = remember {
         buildPlayer(context, audioFocus = true).apply {
             repeatMode = Player.REPEAT_MODE_ONE
-            setMediaItem(mediaItemFor(route.url))
+            // Carry on from where the feed card was (its chunks are cached).
+            setMediaItem(mediaItemFor(route.url), app.media.inlinePlayer.position(route.url) ?: 0L)
             prepare()
             playWhenReady = true
         }

@@ -126,29 +126,41 @@ private suspend fun download(post: Post, dir: File, onProgress: (Long, Long) -> 
                 downloadTo(video, out, onProgress)
                 return listOf(out)
             }
-            // A Reddit video's mp4 has no sound: the audio, if the video has
-            // any, is a separate file listed in its DASH playlist (DASH_AUDIO_128.mp4,
-            // CMAF_AUDIO_128.mp4…). Download both and put them together (no re-encoding).
-            val silent = File(dir, "video.mp4")
-            downloadTo(video, silent, onProgress)
-            val base = video.substringBefore('?').substringBeforeLast('/')
-            val audio = File(dir, "audio.mp4")
-            val audioName = runCatching {
-                val mpd = File(dir, "playlist.mpd")
-                downloadTo("$base/DASHPlaylist.mpd", mpd) { _, _ -> }
-                audioTrack(mpd.readText()).also { mpd.delete() }
-            }.onFailure { if (it is CancellationException) throw it }.getOrNull()
-            val gotAudio = audioName != null && runCatching { downloadTo("$base/$audioName", audio, onProgress) }
-                .onFailure { if (it is CancellationException) throw it }.isSuccess
-            if (gotAudio && runCatching { mux(silent, audio, out) }.isSuccess) {
-                silent.delete()
-            } else {
-                silent.renameTo(out) // no audio track (a silent clip): share the video as is
-            }
-            audio.delete()
+            downloadRedditVideo(video, out, onProgress)
             listOf(out)
         }
         else -> emptyList()
+    }
+}
+
+/**
+ * Downloads a Reddit-hosted video (v.redd.it) into [out] *with its sound*: a
+ * Reddit video's mp4 has none, the audio (if the video has any) is a separate
+ * file named in its DASH playlist (DASH_AUDIO_128.mp4, CMAF_AUDIO_128.mp4…).
+ * Both are downloaded next to [out] and put together, without re-encoding.
+ */
+internal suspend fun downloadRedditVideo(videoUrl: String, out: File, onProgress: (Long, Long) -> Unit) {
+    val dir = out.parentFile!!
+    val stamp = System.nanoTime()
+    val silent = File(dir, "video_$stamp.mp4")
+    val audio = File(dir, "audio_$stamp.mp4")
+    val mpd = File(dir, "playlist_$stamp.mpd")
+    try {
+        downloadTo(videoUrl, silent, onProgress)
+        val base = videoUrl.substringBefore('?').substringBeforeLast('/')
+        val audioName = runCatching {
+            downloadTo("$base/DASHPlaylist.mpd", mpd) { _, _ -> }
+            audioTrack(mpd.readText())
+        }.onFailure { if (it is CancellationException) throw it }.getOrNull()
+        val gotAudio = audioName != null && runCatching { downloadTo("$base/$audioName", audio, onProgress) }
+            .onFailure { if (it is CancellationException) throw it }.isSuccess
+        if (!(gotAudio && runCatching { mux(silent, audio, out) }.isSuccess)) {
+            silent.copyTo(out, overwrite = true) // no sound (a silent clip): the video as is
+        }
+    } finally {
+        silent.delete()
+        audio.delete()
+        mpd.delete()
     }
 }
 

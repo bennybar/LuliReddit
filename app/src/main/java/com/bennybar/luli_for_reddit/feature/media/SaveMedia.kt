@@ -108,7 +108,12 @@ internal suspend fun saveMedia(url: String, isVideo: Boolean) {
         val ts = System.currentTimeMillis()
         val tmp = File(app.context.cacheDir, "luli_$ts.$ext")
         try {
-            downloadTo(url, tmp) { got, total -> progress.value = got to total }
+            // Reddit's own videos: with their sound (stored as a separate file).
+            if (isVideo && android.net.Uri.parse(url).host == "v.redd.it") {
+                downloadRedditVideo(url, tmp) { got, total -> progress.value = got to total }
+            } else {
+                downloadTo(url, tmp) { got, total -> progress.value = got to total }
+            }
             val mime = mimeFor(ext, isVideo)
             if (folder != null && app.media.saveToFolder(folder, tmp, "ilay_$ts.$ext", mime)) {
                 finished.value = true

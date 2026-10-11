@@ -160,6 +160,9 @@ class InlineVideoPool(private val context: Context) {
         if (_active.value == key) player?.volume = if (muted) 0f else 1f
     }
 
+    /** Where the feed's clip for [url] is (or was left), for the full-screen viewer to continue. */
+    fun position(url: String): Long? = if (url == activeUrl) player?.currentPosition else positions[url]
+
     fun attach(view: TextureView) = player().setVideoTextureView(view)
     fun detach(view: TextureView) {
         player?.clearVideoTextureView(view)
