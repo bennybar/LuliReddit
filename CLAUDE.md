@@ -1,7 +1,7 @@
-# Ilay for Reddit — native Kotlin (branch `kotlin`)
+# Ilay for Reddit — native Kotlin (branch `main`)
 
-A full Kotlin/Jetpack Compose port of the Flutter app (≤ v1.0.51, still on
-`main`). Same applicationId (`com.bennybar.luli_for_reddit`), same signing key,
+A full Kotlin/Jetpack Compose port of the Flutter app (≤ v1.0.51, at tag
+`v1.0.51`), released as 2.0.0. Same applicationId (`com.bennybar.luli_for_reddit`), same signing key,
 so it installs as an update over the Flutter build and keeps the user's data.
 The Flutter source for reference: `/Users/bennybarak/StudioProjects/luli_for_reddit/lib`.
 
