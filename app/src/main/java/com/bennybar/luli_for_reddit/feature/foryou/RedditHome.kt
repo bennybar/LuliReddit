@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.foryou
 
+import com.bennybar.luli_for_reddit.core.Analytics
 import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Looper
@@ -514,6 +515,7 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
 
     private suspend fun homePage(after: String?, loaded: List<Post>): Listing<Post> {
         val firstPage = after == null
+        val started = System.currentTimeMillis()
         try {
             val store = c.secureStore
             if (store.authMode() != "web") throw IllegalStateException("Reddit Home needs website sign-in")
@@ -545,6 +547,7 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
             c.scope.launch { upgrade(page, firstPage) }
             // Read the next batch ahead, so reaching the end doesn't wait.
             prefetch = c.scope.async { l.next(restart = false, cookieHeader = cookie) }
+            if (firstPage) trackLoad("ok", cards.size, started)
             return Listing(cards, after = "home")
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
@@ -553,6 +556,7 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
             // Reddit changed its page, the session expired, or the site refused:
             // show For You rather than an empty feed, and say so.
             fellBack = true
+            trackLoad(if (e is HomeSignedOutException) "signin_expired" else "fell_back", 0, started)
             notice.value = if (e is HomeSignedOutException) {
                 HomeNotice("Your Reddit website sign-in has expired. Showing For You.", HomeNotice.Action.SIGN_IN)
             } else {
@@ -560,6 +564,18 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
             }
             return m.engine.page(null, loaded)
         }
+    }
+
+    /** Anonymous: whether a Home load worked, how many posts and how long (coarse ranges). */
+    private fun trackLoad(outcome: String, posts: Int, started: Long) {
+        val ms = System.currentTimeMillis() - started
+        val seconds = when {
+            ms < 2_000 -> "<2"
+            ms < 5_000 -> "2-5"
+            ms < 10_000 -> "5-10"
+            else -> "10+"
+        }
+        Analytics.track("home_loaded", mapOf("outcome" to outcome, "posts" to Analytics.bucket(posts, 0, 9), "seconds" to seconds))
     }
 
     /** Fetches the full posts for [page] and hands them to the feed. */

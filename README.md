@@ -3,7 +3,9 @@
 A fast, modern Reddit client for Android, built natively with Kotlin and
 Jetpack Compose in a Material 3 Expressive design. You bring your own Reddit API credentials. The app talks
 directly to Reddit; the only other data it sends is anonymous usage analytics
-(app launches, version, OS — no personal data or ad IDs).
+(app launches, version, OS, which feed you use, whether Reddit Home loaded, and
+a rough count of posts opened per visit — no personal data, ad IDs, subreddits
+or posts). Turn it off in Settings → About → Send anonymous usage stats.
 
 ## Features
 

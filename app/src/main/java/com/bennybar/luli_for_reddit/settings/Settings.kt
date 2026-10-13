@@ -97,6 +97,7 @@ data class Settings(
     val trackHistory: Boolean = true,
     val offlineCache: Boolean = true,
     val checkUpdates: Boolean = true,
+    val analytics: Boolean = true, // anonymous usage stats (Aptabase)
     val forYouFeed: Boolean = false, // frontpage uses the "For You (Beta)" feed
     // Experimental Reddit Home: the user accepted its risk warning (allowed),
     // and the frontpage currently shows it (feed).

@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.settings
 
+import com.bennybar.luli_for_reddit.core.Analytics
 import com.bennybar.luli_for_reddit.core.storage.Prefs
 import com.bennybar.luli_for_reddit.data.PostSort
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,6 +44,7 @@ class SettingsStore(private val p: Prefs) {
             trackHistory = b("trackHistory", d.trackHistory),
             offlineCache = b("offlineCache", d.offlineCache),
             checkUpdates = b("checkUpdates", d.checkUpdates),
+            analytics = b("analytics", d.analytics),
             forYouFeed = b("forYouFeed", d.forYouFeed),
             redditHomeAllowed = b("redditHomeAllowed", d.redditHomeAllowed),
             redditHomeFeed = b("redditHomeFeed", d.redditHomeFeed),
@@ -92,9 +94,12 @@ class SettingsStore(private val p: Prefs) {
     fun setTrackHistory(v: Boolean) { p.setBool("trackHistory", v); set { it.copy(trackHistory = v) } }
     fun setOfflineCache(v: Boolean) { p.setBool("offlineCache", v); set { it.copy(offlineCache = v) } }
     fun setCheckUpdates(v: Boolean) { p.setBool("checkUpdates", v); set { it.copy(checkUpdates = v) } }
+    fun setAnalytics(v: Boolean) { p.setBool("analytics", v); set { it.copy(analytics = v) } }
 
     /** Turning Reddit Home off in Settings also takes the frontpage off it. */
     fun setRedditHomeAllowed(v: Boolean) {
+        // Anonymous: how many opt in to Home after the warning, and turn it off again.
+        if (v != value.redditHomeAllowed) Analytics.track("home_toggled", mapOf("on" to v))
         p.setBool("redditHomeAllowed", v)
         set { it.copy(redditHomeAllowed = v) }
         if (!v) setRedditHomeFeed(false)

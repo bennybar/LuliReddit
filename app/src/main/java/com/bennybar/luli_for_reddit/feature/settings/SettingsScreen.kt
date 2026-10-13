@@ -44,6 +44,7 @@ import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.PlayCircleOutline
 import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material.icons.rounded.Api
@@ -635,6 +636,11 @@ fun SettingsList(
         section("About")
         switch("Check for updates", "Check GitHub releases on launch", Icons.Rounded.SystemUpdate, s.checkUpdates, ctrl::setCheckUpdates)
         tile("Check now", icon = Icons.Rounded.Update, onClick = launch { checkUpdatesNow() })
+        switch(
+            "Send anonymous usage stats",
+            "App starts, which feed you use, whether Reddit Home loads. Never your account or what you read",
+            Icons.Outlined.Insights, s.analytics, ctrl::setAnalytics,
+        )
         tile(
             "Open reddit links in Ilay",
             "Already supported via the Android \"open with\" chooser. To make Ilay the verified default, " +

@@ -161,7 +161,7 @@ private class PostActions(val post: Post, val nav: AppNavigator) {
     }
 
     fun openDetail() {
-        Analytics.track("post_opened")
+        Analytics.postOpened()
         if (app.settings.value.trackHistory) app.history.markViewed(post)
         app.forYou.learner.open(post)
         nav.openPost(post)

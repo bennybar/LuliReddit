@@ -142,7 +142,15 @@ class IlayActivity : ComponentActivity() {
                 app.secureStore.authMode() == "web" -> "website"
                 else -> "api"
             }
-            Analytics.track("app_started", mapOf("login_method" to method))
+            // Which frontpage feed this install uses (and whether Reddit Home is
+            // allowed at all), to see how many actually use Home.
+            val s = app.settings.value
+            val feed = when {
+                s.redditHomeAllowed && s.redditHomeFeed -> "home"
+                s.forYouFeed -> "for_you"
+                else -> "frontpage"
+            }
+            Analytics.track("app_started", mapOf("login_method" to method, "feed" to feed, "home_allowed" to s.redditHomeAllowed))
         }
     }
 
@@ -189,6 +197,7 @@ class IlayActivity : ComponentActivity() {
         super.onStop()
         // The hidden Reddit Home page keeps running its scripts otherwise.
         app.forYou.redditHome.onAppBackground()
+        Analytics.flushPostsOpened()
     }
 
     override fun onResume() {
