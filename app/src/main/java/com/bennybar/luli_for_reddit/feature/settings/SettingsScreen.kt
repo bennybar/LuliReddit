@@ -336,7 +336,7 @@ fun SettingsList(
             if (s.trackHistory) "A post you scroll past counts as read" else "Needs history tracking turned on",
             Icons.Rounded.DoneAll, s.markReadOnScroll, if (s.trackHistory) ctrl::setMarkReadOnScroll else null,
         )
-        tile("Content filters", "Hide posts by keyword, domain or flair", Icons.Outlined.FilterAlt) {
+        tile("Content filters", "Hide posts by keyword, domain, flair or subreddit", Icons.Outlined.FilterAlt) {
             nav.push(Route.ContentFilters)
         }
         tile(
@@ -350,7 +350,7 @@ fun SettingsList(
         )
         tile(
             "Hidden subreddits",
-            "Hidden from Home & For You for 7 days" + (if (hiddenSubs.isEmpty()) " · none now" else " · ${hiddenSubs.size} now"),
+            "Hidden from your front page for 7 days" + (if (hiddenSubs.isEmpty()) " · none now" else " · ${hiddenSubs.size} now"),
             Icons.Rounded.DoNotDisturbOn,
         ) { showHiddenSubsDialog() }
         divider("feed")

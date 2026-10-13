@@ -229,19 +229,32 @@ private class PostActions(val post: Post, val nav: AppNavigator) {
 /** True in Home / For You, where the "Dismiss" swipe action applies (set by PostListView). */
 val LocalDismissible = staticCompositionLocalOf { false }
 
+/** True on the front page (Home, For You, Best / Hot / New), where "Hide subreddit for 7 days" applies (set by PostListView). */
+val LocalFrontpage = staticCompositionLocalOf { false }
+
 /** Removes [post] from Home / For You for a day (local only), with Undo. */
 private fun dismissPost(post: Post) {
     app.dismissedPosts.add(post.id)
     app.navigator.showSnackbar("Dismissed for today", actionLabel = "Undo") { app.dismissedPosts.remove(post.id) }
 }
 
-/** Hides [post]'s subreddit from Home / For You for 7 days (local only), with Undo. */
+/** Hides [post]'s subreddit from the front page for 7 days (local only), with Undo. */
 fun hideSubFromHome(post: Post) {
     val sub = post.subreddit.lowercase()
     if (sub.isEmpty()) return
     app.hiddenHomeSubs.add(sub)
-    app.navigator.showSnackbar("r/${post.subreddit} hidden from Home & For You for 7 days", actionLabel = "Undo") {
+    app.navigator.showSnackbar("r/${post.subreddit} hidden from your front page for 7 days", actionLabel = "Undo") {
         app.hiddenHomeSubs.remove(sub)
+    }
+}
+
+/** Adds [post]'s subreddit to the content filters: hidden from every feed but its own, for good, with Undo. */
+fun filterOutSub(post: Post) {
+    val sub = post.subreddit.lowercase()
+    if (sub.isEmpty()) return
+    app.contentFilters.add("subreddit", sub)
+    app.navigator.showSnackbar("r/${post.subreddit} filtered out of your feeds", actionLabel = "Undo") {
+        app.contentFilters.remove("subreddit", sub)
     }
 }
 
@@ -288,6 +301,7 @@ fun PostCard(post: Post, modifier: Modifier = Modifier, swipeOverride: Pair<Swip
     }
 
     val dismissible = LocalDismissible.current
+    val frontpage = LocalFrontpage.current
     // What a swipe on this card does, per Settings → Swipe actions.
     fun swipe(action: SwipeAction): SwipeSpec? = when (action) {
         SwipeAction.UPVOTE -> SwipeSpec(action.icon, votes.up) { actions.vote(1) }
@@ -297,12 +311,12 @@ fun PostCard(post: Post, modifier: Modifier = Modifier, swipeOverride: Pair<Swip
         SwipeAction.HIDE -> SwipeSpec(action.icon, cs.error) { actions.hide() }
         // Only Home / For You can dismiss; elsewhere this side does nothing.
         SwipeAction.DISMISS -> if (dismissible) SwipeSpec(action.icon, cs.secondary) { dismissPost(post) } else null
-        SwipeAction.HIDE_SUB -> if (dismissible) SwipeSpec(action.icon, cs.tertiary) { hideSubFromHome(post) } else null
+        SwipeAction.HIDE_SUB -> if (frontpage) SwipeSpec(action.icon, cs.tertiary) { hideSubFromHome(post) } else null
         SwipeAction.COLLAPSE, SwipeAction.NONE -> null
     }
     // A screen can replace the swipe actions (Saved: both sides unsave).
-    val startSpec = swipeOverride?.first ?: remember(settings.swipePostStart, actions, votes, cs, dismissible) { swipe(settings.swipePostStart) }
-    val endSpec = swipeOverride?.second ?: remember(settings.swipePostEnd, actions, votes, cs, dismissible) { swipe(settings.swipePostEnd) }
+    val startSpec = swipeOverride?.first ?: remember(settings.swipePostStart, actions, votes, cs, dismissible, frontpage) { swipe(settings.swipePostStart) }
+    val endSpec = swipeOverride?.second ?: remember(settings.swipePostEnd, actions, votes, cs, dismissible, frontpage) { swipe(settings.swipePostEnd) }
 
     // The whole card, "why" banner included, is the swipe target (as Flutter).
     SwipeActions(start = startSpec, end = endSpec, modifier = outer, enabled = settings.swipeActions) {
@@ -956,7 +970,7 @@ private fun CalmCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
     CompositionLocalProvider(LocalCalmOnCard provides true) {
         BloomCard(dim, onClick = a::openDetail, onLongClick = a::tune, shape = RoundedCornerShape(CalmOuter), color = calmCardColor()) {
             Column(Modifier.padding(start = 16.dp, top = 14.dp, end = 10.dp, bottom = 10.dp)) {
-                Column(Modifier.padding(end = 6.dp)) { CalmBody(p, a, s, CalmExpressiveMedia, fullMedia = true) }
+                Column(Modifier.padding(end = 6.dp)) { CalmBody(p, a, s, CalmExpressiveMedia) }
                 Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     CalmActionGroup(live, a, withComments = true)
                     Spacer(Modifier.weight(1f))
@@ -1009,7 +1023,7 @@ private fun CalmCardsCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
 
 /** Header, title, flair, crosspost, media (when [mediaShape] is set), poll and selftext. */
 @Composable
-private fun CalmBody(p: Post, a: PostActions, s: Settings, mediaShape: androidx.compose.ui.graphics.Shape?, fullMedia: Boolean = false) {
+private fun CalmBody(p: Post, a: PostActions, s: Settings, mediaShape: androidx.compose.ui.graphics.Shape?) {
     val cs = MaterialTheme.colorScheme
     CalmHeader(p, a, s)
     Text(
@@ -1023,7 +1037,7 @@ private fun CalmBody(p: Post, a: PostActions, s: Settings, mediaShape: androidx.
     )
     p.linkFlairText?.let { CalmFlair(it, Modifier.padding(top = 8.dp)) }
     CrosspostLine(p)
-    if (mediaShape != null) CalmMedia(p, a, s, mediaShape, full = fullMedia)
+    if (mediaShape != null) CalmMedia(p, a, s, mediaShape)
     if (p.pollOptions.isNotEmpty()) {
         Spacer(Modifier.height(10.dp))
         PollOptions(p)
@@ -1211,7 +1225,7 @@ private fun CalmHeader(p: Post, a: PostActions, s: Settings) {
  * or a link block.
  */
 @Composable
-private fun CalmMedia(p: Post, a: PostActions, s: Settings, shape: androidx.compose.ui.graphics.Shape, topPad: Dp = 10.dp, full: Boolean = false) {
+private fun CalmMedia(p: Post, a: PostActions, s: Settings, shape: androidx.compose.ui.graphics.Shape, topPad: Dp = 10.dp) {
     val cs = MaterialTheme.colorScheme
     if (p.type == PostType.SELF) return
     val blur = blurOf(p, s)
@@ -1236,9 +1250,12 @@ private fun CalmMedia(p: Post, a: PostActions, s: Settings, shape: androidx.comp
         return
     }
     BoxWithConstraints(top.fillMaxWidth()) {
-        val w = p.previewWidth
-        val h = p.previewHeight
-        val aspect = if (full && w != null && h != null && h > 0) (w.toFloat() / h).coerceIn(0.5f, 2f) else 16f / 10f
+        // The media's own shape, like the Default layout (galleries often have
+        // no preview size: use the first image's).
+        val first = p.gallery.firstOrNull()
+        val w = p.previewWidth ?: first?.width
+        val h = p.previewHeight ?: first?.height
+        val aspect = if (w != null && h != null && h > 0) (w.toFloat() / h).coerceIn(0.5f, 2f) else 16f / 10f
         val height = maxWidth / aspect
         if (p.type == PostType.GALLERY && p.gallery.isNotEmpty()) {
             NsfwBlur(blur, label = blurLabel(p, s)) {

@@ -26,6 +26,7 @@ import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.outlined.CheckCircleOutline
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.DownloadForOffline
+import androidx.compose.material.icons.outlined.FilterAlt
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.GifBox
 import androidx.compose.material.icons.outlined.ReportGmailerrorred
@@ -82,6 +83,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
 import com.bennybar.luli_for_reddit.app
+import com.bennybar.luli_for_reddit.feature.feed.filterOutSub
 import com.bennybar.luli_for_reddit.feature.feed.hideSubFromHome
 import androidx.compose.material.icons.rounded.DoNotDisturbOn
 import com.bennybar.luli_for_reddit.core.externalViewIntent
@@ -372,8 +374,11 @@ private fun PostActionsSheet(post: Post, done: () -> Unit) {
             }
             item(Icons.Outlined.VisibilityOff, "Hide") { hidePost(post) }
             if (post.subreddit.isNotEmpty()) {
-                item(Icons.Rounded.DoNotDisturbOn, "Hide r/${post.subreddit} for 7 days", "From Home & For You only") {
+                item(Icons.Rounded.DoNotDisturbOn, "Hide r/${post.subreddit} for 7 days", "From your front page: Home, For You, Best / Hot / New") {
                     hideSubFromHome(post)
+                }
+                item(Icons.Outlined.FilterAlt, "Filter out r/${post.subreddit}", "From every feed, for good (Settings → Content filters)") {
+                    filterOutSub(post)
                 }
             }
             // Reddit Home's own "Show fewer posts like this" (recommended posts only).

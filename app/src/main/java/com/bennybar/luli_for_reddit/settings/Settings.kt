@@ -61,7 +61,7 @@ enum class SwipeAction(val key: String, val label: String, val icon: ImageVector
     REPLY("reply", "Reply", Icons.AutoMirrored.Rounded.Reply),
     HIDE("hide", "Hide", Icons.Rounded.VisibilityOff), // posts only
     DISMISS("dismiss", "Dismiss (Home / For You)", Icons.Rounded.Close), // posts only; local, 24h
-    HIDE_SUB("hideSub", "Hide subreddit 7 days (Home / For You)", Icons.Rounded.DoNotDisturbOn), // posts only; local
+    HIDE_SUB("hideSub", "Hide subreddit 7 days (front page)", Icons.Rounded.DoNotDisturbOn), // posts only; local
     COLLAPSE("collapse", "Collapse", Icons.Rounded.UnfoldLess); // comments only
 
     companion object {

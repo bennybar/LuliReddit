@@ -277,7 +277,10 @@ private fun FeedList(
     // Home / For You: posts dismissed with the "Dismiss" swipe (kept a day).
     val dismissible = feedKey.isEmpty() && deckMode
     val dismissedIds = if (dismissible) app.dismissedPosts.ids.collectAsStateWithLifecycle().value else emptySet()
-    val hiddenSubs = if (dismissible) app.hiddenHomeSubs.ids.collectAsStateWithLifecycle().value else emptySet()
+    // Subreddits hidden for 7 days: anywhere on the front page (Home, For You
+    // and Best / Hot / New).
+    val frontpage = feedKey.isEmpty()
+    val hiddenSubs = if (frontpage) app.hiddenHomeSubs.ids.collectAsStateWithLifecycle().value else emptySet()
     val filters by app.contentFilters.state.collectAsStateWithLifecycle()
     // Auto-hide already-read items in the For You feed (live: updates when
     // history changes). Only watched while the option is on. Not in Reddit
@@ -366,9 +369,9 @@ private fun FeedList(
             if (deckMode && i < 3) {
                 // The first cards after the loading deck are dealt in.
                 if (i == 2) LaunchedEffect(Unit) { onDealt() }
-                DealIn(i, animate = dealHome) { CompositionLocalProvider(LocalDismissible provides dismissible) { PostCard(p) } }
+                DealIn(i, animate = dealHome) { CompositionLocalProvider(LocalDismissible provides dismissible, LocalFrontpage provides frontpage) { PostCard(p) } }
             } else {
-                CompositionLocalProvider(LocalDismissible provides dismissible) { PostCard(p) }
+                CompositionLocalProvider(LocalDismissible provides dismissible, LocalFrontpage provides frontpage) { PostCard(p) }
             }
         }
         item(key = "footer", contentType = "footer") {

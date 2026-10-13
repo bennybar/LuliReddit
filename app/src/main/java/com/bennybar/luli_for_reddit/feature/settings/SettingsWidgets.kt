@@ -287,7 +287,7 @@ internal suspend fun textDialog(
     )
 }
 
-/** The subreddits hidden from Home / For You ("Hide r/… for 7 days"), each with Unhide. */
+/** The subreddits hidden from the front page ("Hide r/… for 7 days"), each with Unhide. */
 internal fun showHiddenSubsDialog() {
     Overlays.launch { done ->
         val subs by app.hiddenHomeSubs.ids.collectAsStateWithLifecycle()
