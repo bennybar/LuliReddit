@@ -174,6 +174,10 @@ fun PostListView(
                 }
             }
         }
+        // Back on the Posts tab (Settings → Back scrolls Posts to top).
+        LaunchedEffect(listState) {
+            app.feed.frontpageBackSignal.drop(1).collect { listState.animateScrollToItem(0) }
+        }
         // "Reddit Home couldn't load, showing For You" and similar.
         LaunchedEffect(Unit) {
             app.forYou.redditHome.notice.collect { n ->

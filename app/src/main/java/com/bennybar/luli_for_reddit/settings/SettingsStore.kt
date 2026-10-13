@@ -65,6 +65,7 @@ class SettingsStore(private val p: Prefs) {
                 TopBarMode.entries[it.coerceIn(0, TopBarMode.entries.size - 1)]
             } ?: d.topBarMode,
             navLabels = b("navLabels", d.navLabels),
+            backScrollsToTop = b("backScrollsToTop", d.backScrollsToTop),
             aiModel = p.getString("aiModel") ?: d.aiModel,
             aiSummaryStyle = p.getInt("aiSummaryStyle") ?: d.aiSummaryStyle,
             aiSummaryLanguage = p.getString("aiSummaryLanguage") ?: d.aiSummaryLanguage,
@@ -158,6 +159,7 @@ class SettingsStore(private val p: Prefs) {
     fun setRedditAppNotifications(v: Boolean) { p.setBool("redditAppNotifications", v); set { it.copy(redditAppNotifications = v) } }
     fun setTopBarMode(v: TopBarMode) { p.setInt("topBarMode", v.ordinal); set { it.copy(topBarMode = v) } }
     fun setNavLabels(v: Boolean) { p.setBool("navLabels", v); set { it.copy(navLabels = v) } }
+    fun setBackScrollsToTop(v: Boolean) { p.setBool("backScrollsToTop", v); set { it.copy(backScrollsToTop = v) } }
     fun setAiModel(v: String) { p.setString("aiModel", v); set { it.copy(aiModel = v) } }
     fun setAiSummaryStyle(v: Int) { p.setInt("aiSummaryStyle", v); set { it.copy(aiSummaryStyle = v) } }
     fun setAiSummaryLanguage(v: String) { p.setString("aiSummaryLanguage", v); set { it.copy(aiSummaryLanguage = v) } }

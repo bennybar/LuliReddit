@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.VerticalAlignTop
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.DoNotDisturbOn
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -416,6 +417,10 @@ fun SettingsList(
         switch(
             "Bottom bar labels", "Show text labels under the navigation icons",
             Icons.AutoMirrored.Outlined.Label, s.navLabels, ctrl::setNavLabels,
+        )
+        switch(
+            "Back scrolls Posts to top", "On the Posts tab, back scrolls the feed to the top. Back never leaves the app",
+            Icons.Rounded.VerticalAlignTop, s.backScrollsToTop, ctrl::setBackScrollsToTop,
         )
         divider("appearance")
 

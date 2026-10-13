@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.layout.onPlaced
@@ -124,6 +125,21 @@ fun HomeScreen() {
         startupChecksDone = true
         maybeCheckUpdates(context)
         maybeSuggestNotifications()
+    }
+
+    // Back never leaves the app from here: on another tab it returns to Posts,
+    // on Posts it scrolls the feed to top (a setting, on by default) or does
+    // nothing (the Home button / recents leave instead).
+    // Sheets, viewers and pushed screens register their own, later handlers,
+    // which take precedence.
+    BackHandler {
+        if (index != 0) {
+            index = 0
+            chrome = true
+        } else if (app.settings.value.backScrollsToTop) {
+            app.feed.frontpageBackSignal.value++
+            chrome = true
+        }
     }
 
     // Snackbars float above the floating nav while the shell is showing.
