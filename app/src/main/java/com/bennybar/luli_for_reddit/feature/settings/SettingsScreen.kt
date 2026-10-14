@@ -91,12 +91,9 @@ import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -125,6 +122,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -313,12 +311,12 @@ fun SettingsList(
         tile("Manage \"For You\" subreddits", "Review and undo muted / show-less subreddits", Icons.Rounded.Tune) {
             nav.push(Route.ManageForYou)
         }
-        val homeSubtitle = if (web) "RISK TO YOUR ACCOUNT: against Reddit's terms. Shows your real reddit.com Home"
+        val homeSubtitle = if (web) "Unofficial, against Reddit's terms. Shows your real reddit.com Home"
         else "Needs website sign-in"
         add(Entry("s:redditHome", "Reddit Home (experimental) $homeSubtitle") {
             SwitchTile(
                 "Reddit Home (experimental)", homeSubtitle, Icons.Rounded.WarningAmber, s.redditHomeAllowed,
-                accent = cs.error, titleWeight = FontWeight.Bold,
+                accent = homeAmber(),
                 onChange = if (!web && !s.redditHomeAllowed) null else { v ->
                     if (!v) ctrl.setRedditHomeAllowed(false)
                     else scope.launch { if (confirmRedditHome()) ctrl.setRedditHomeAllowed(true) }
@@ -840,71 +838,39 @@ private fun showSwipeSettings() {
     }
 }
 
-/** The risk warning for the experimental Reddit Home feed. True if accepted. */
+/** Amber for Reddit Home's caution (readable on light and dark surfaces). */
+@Composable
+private fun homeAmber(): Color =
+    if (MaterialTheme.colorScheme.surface.luminance() > 0.5f) Color(0xFF9A6700) else Color(0xFFFFC94D)
+
+/** What Reddit Home is (unofficial, can break) before turning it on. True to turn it on. */
 private suspend fun confirmRedditHome(): Boolean = Overlays.show<Boolean> { done ->
-    val cs = MaterialTheme.colorScheme
-    var accepted by remember { mutableStateOf(false) } // the checkbox must be ticked before enabling
+    val amber = homeAmber()
     AlertDialog(
         onDismissRequest = { done(false) },
-        containerColor = cs.errorContainer,
-        icon = { Icon(Icons.Rounded.WarningAmber, null, Modifier.size(56.dp), tint = cs.error) },
-        title = {
-            Text(
-                "Your Reddit account is at risk",
-                textAlign = TextAlign.Center,
-                color = cs.onErrorContainer,
-                fontWeight = FontWeight.Black,
-            )
-        },
+        icon = { Icon(Icons.Rounded.WarningAmber, null, Modifier.size(40.dp), tint = amber) },
+        title = { Text("About Reddit Home", textAlign = TextAlign.Center) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                val body = MaterialTheme.typography.bodyMedium.copy(color = cs.onErrorContainer, lineHeight = 20.sp)
+                val body = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp)
                 Text(
-                    "Reddit can SUSPEND OR BAN your account for this. Use it only if you accept that risk.",
-                    color = cs.onError,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 15.sp,
-                    modifier = Modifier.fillMaxWidth().background(cs.error, RoundedCornerShape(12.dp)).padding(12.dp),
-                )
-                Spacer(Modifier.height(14.dp))
-                Text(
-                    "Reddit Home shows your real reddit.com Home feed by loading reddit.com in a hidden browser " +
-                        "with your website sign-in and reading which posts it shows.",
+                    "Reddit Home shows your real reddit.com Home feed. Ilay loads reddit.com in a hidden browser " +
+                        "with your website sign-in and reads which posts it shows.",
                     style = body,
                 )
                 Spacer(Modifier.height(10.dp))
-                Text("• It is NOT an official API. Reddit's User Agreement prohibits automated access to its site.", style = body)
+                Text(
+                    "• Unofficial: Reddit's terms don't allow automated use of its site, so use it at your own discretion.",
+                    style = body,
+                )
                 Spacer(Modifier.height(6.dp))
-                Text("• It can stop working whenever Reddit changes its site. Ilay then shows For You instead.", style = body)
+                Text("• It can stop working when Reddit changes its site. Ilay then shows For You.", style = body)
                 Spacer(Modifier.height(6.dp))
-                Text("• Website sign-in only. It talks only to reddit.com.", style = body)
-                Spacer(Modifier.height(8.dp))
-                Row(
-                    Modifier.fillMaxWidth().clickable { accepted = !accepted }.padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Checkbox(
-                        checked = accepted,
-                        onCheckedChange = { accepted = it },
-                        colors = CheckboxDefaults.colors(checkedColor = cs.error, checkmarkColor = cs.onError),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        "I understand Reddit may suspend my account",
-                        color = cs.onErrorContainer,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
+                Text("• Website sign-in only; it talks only to reddit.com.", style = body)
             }
         },
-        dismissButton = { FilledTonalButton(onClick = { done(false) }) { Text("Cancel") } },
-        confirmButton = {
-            Button(
-                onClick = { done(true) },
-                enabled = accepted,
-                colors = ButtonDefaults.buttonColors(containerColor = cs.error, contentColor = cs.onError),
-            ) { Text("Enable anyway") }
-        },
+        dismissButton = { TextButton(onClick = { done(false) }) { Text("Cancel") } },
+        confirmButton = { Button(onClick = { done(true) }) { Text("Turn on") } },
     )
 } == true
 
