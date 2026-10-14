@@ -60,6 +60,8 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -730,17 +732,12 @@ private fun FeedImage(url: String, modifier: Modifier, brokenIcon: Boolean = fal
     val cs = MaterialTheme.colorScheme
     val request = rememberSizedRequest(url, feedDecodeWidth())
     if (brokenIcon) {
-        SubcomposeAsyncImage(
-            model = request,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = modifier,
-            error = {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Outlined.BrokenImage, null, tint = cs.onSurfaceVariant)
-                }
-            },
-        )
+        // AsyncImage, not SubcomposeAsyncImage: subcomposition is slow in a scrolling list.
+        var failed by remember(url) { mutableStateOf(false) }
+        Box(modifier, contentAlignment = Alignment.Center) {
+            AsyncImage(model = request, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(), onError = { failed = true })
+            if (failed) Icon(Icons.Outlined.BrokenImage, null, tint = cs.onSurfaceVariant)
+        }
     } else {
         AsyncImage(model = request, contentDescription = null, contentScale = ContentScale.Crop, modifier = modifier)
     }

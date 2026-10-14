@@ -50,11 +50,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
 import coil3.compose.SubcomposeAsyncImage
 import com.bennybar.luli_for_reddit.app
 import com.bennybar.luli_for_reddit.core.isVideoUrl
 import com.bennybar.luli_for_reddit.core.net.Redgifs
 import com.bennybar.luli_for_reddit.core.resolveVideoUrl
+import com.bennybar.luli_for_reddit.feature.feed.feedDecodeWidth
+import com.bennybar.luli_for_reddit.feature.feed.rememberSizedRequest
 import com.bennybar.luli_for_reddit.model.GalleryImage
 import com.bennybar.luli_for_reddit.model.Post
 import com.bennybar.luli_for_reddit.model.PostType
@@ -144,21 +147,27 @@ fun GalleryCarousel(images: List<GalleryImage>, modifier: Modifier = Modifier, t
         (first.width.toFloat() / first.height).coerceIn(0.5f, 2f)
     } else 16f / 9f
     val pager = rememberPagerState { images.size }
+    val decodeWidth = feedDecodeWidth()
     val sized = if (height != null) modifier.fillMaxWidth().height(height) else modifier.fillMaxWidth().aspectRatio(aspect)
     Box(sized.clip(RoundedCornerShape(16.dp))) {
         HorizontalPager(pager, Modifier.fillMaxSize(), key = { it }) { i ->
-            SubcomposeAsyncImage(
-                model = images[i].url,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().clickable { nav.openGallery(images, title, i) },
-                loading = { Box(Modifier.fillMaxSize().background(cs.surfaceContainerHighest)) },
-                error = {
-                    Box(Modifier.fillMaxSize().background(cs.surfaceContainerHighest), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Outlined.BrokenImage, null, tint = cs.onSurfaceVariant)
-                    }
-                },
-            )
+            var failed by remember { mutableStateOf(false) }
+            Box(
+                Modifier.fillMaxSize().background(cs.surfaceContainerHighest).clickable { nav.openGallery(images, title, i) },
+                contentAlignment = Alignment.Center,
+            ) {
+                // Gallery images are full size (often 12MP photos): decode at
+                // screen width, the same request the feed's prefetcher warms.
+                // AsyncImage, not SubcomposeAsyncImage: subcomposition is slow in a scrolling list.
+                AsyncImage(
+                    model = rememberSizedRequest(images[i].url, decodeWidth),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                    onError = { failed = true },
+                )
+                if (failed) Icon(Icons.Outlined.BrokenImage, null, tint = cs.onSurfaceVariant)
+            }
         }
         // Counter badge
         Row(
