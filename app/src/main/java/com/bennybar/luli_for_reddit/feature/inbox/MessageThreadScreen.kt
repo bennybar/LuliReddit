@@ -66,6 +66,7 @@ import com.bennybar.luli_for_reddit.core.timeAgo
 import com.bennybar.luli_for_reddit.feature.auth.BloomTextField
 import com.bennybar.luli_for_reddit.feature.compose.AttachmentPreview
 import com.bennybar.luli_for_reddit.feature.compose.MediaAttachment
+import com.bennybar.luli_for_reddit.feature.compose.keyboardMediaReceiver
 import com.bennybar.luli_for_reddit.feature.compose.pasteImageAttachment
 import com.bennybar.luli_for_reddit.feature.compose.readAttachment
 import com.bennybar.luli_for_reddit.feature.media.launchForResult
@@ -277,6 +278,7 @@ private fun Thread(root: InboxItem) {
                     singleLine = false,
                     minLines = 1,
                     maxLines = 5,
+                    mediaReceiver = keyboardMediaReceiver(onMedia = { media = it }, onError = nav::showSnackbar),
                 )
                 Spacer(Modifier.size(8.dp))
                 FilledIconButton(onClick = ::send, enabled = !sending) {

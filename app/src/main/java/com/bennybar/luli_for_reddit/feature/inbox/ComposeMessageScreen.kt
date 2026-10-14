@@ -52,6 +52,7 @@ import com.bennybar.luli_for_reddit.core.str
 import com.bennybar.luli_for_reddit.feature.auth.BloomTextField
 import com.bennybar.luli_for_reddit.feature.compose.AttachmentControls
 import com.bennybar.luli_for_reddit.feature.compose.MediaAttachment
+import com.bennybar.luli_for_reddit.feature.compose.keyboardMediaReceiver
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.buildJsonObject
@@ -163,6 +164,7 @@ fun ComposeMessageScreen(to: String?) {
                     singleLine = false,
                     minLines = 6,
                     maxLines = 14,
+                    mediaReceiver = keyboardMediaReceiver(onMedia = { media = it; error = null }, onError = { error = it }),
                 )
                 MarkdownToolbar(body) { body = it; saveDraft() }
                 Spacer(Modifier.height(4.dp))

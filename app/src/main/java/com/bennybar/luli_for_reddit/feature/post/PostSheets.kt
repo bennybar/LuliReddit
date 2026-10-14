@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.TextSnippet
@@ -92,6 +93,8 @@ import com.bennybar.luli_for_reddit.core.net.uploadToCatbox
 import com.bennybar.luli_for_reddit.data.RedditRepository
 import com.bennybar.luli_for_reddit.feature.compose.AttachmentControls
 import com.bennybar.luli_for_reddit.feature.compose.MediaAttachment
+import com.bennybar.luli_for_reddit.feature.compose.keyboardMediaReceiver
+import com.bennybar.luli_for_reddit.feature.compose.rememberMirroredState
 import com.bennybar.luli_for_reddit.feature.compose.errorText
 import com.bennybar.luli_for_reddit.feature.compose.showGiphyPicker
 import com.bennybar.luli_for_reddit.feature.foryou.showTuneSheet
@@ -259,12 +262,14 @@ private fun <T> ComposeSheet(
         ) {
             Text(title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
             Spacer(Modifier.height(12.dp))
+            // The state-based field: it also takes GIFs / stickers from the
+            // keyboard (as the attachment, where attachments are allowed).
             TextField(
-                value = value,
-                onValueChange = ::setText,
-                modifier = Modifier.fillMaxWidth().focusRequester(focus),
-                minLines = 3,
-                maxLines = 8,
+                state = rememberMirroredState(value, ::setText),
+                modifier = Modifier.fillMaxWidth().focusRequester(focus).then(
+                    if (allowAttachments) keyboardMediaReceiver(onMedia = { media = it; error = null }, onError = { error = it }) else Modifier,
+                ),
+                lineLimits = TextFieldLineLimits.MultiLine(3, 8),
                 placeholder = { Text("Markdown supported") },
                 shape = BloomFieldShape,
                 colors = bloomFieldColors(),

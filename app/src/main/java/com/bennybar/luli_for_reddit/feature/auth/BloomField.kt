@@ -6,6 +6,7 @@ import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -20,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import com.bennybar.luli_for_reddit.feature.compose.rememberMirroredState
 
 /**
  * The Bloom input: filled (surfaceContainerHighest), radius 18, no border
@@ -41,17 +43,53 @@ internal fun BloomTextField(
     maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
     plain: Boolean = false, // no autocorrect / suggestions (ids, usernames)
     enabled: Boolean = true,
+    /** From keyboardMediaReceiver: also take GIFs / stickers from the keyboard. */
+    mediaReceiver: Modifier? = null,
 ) {
     val cs = MaterialTheme.colorScheme
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
     val shape = RoundedCornerShape(18.dp)
+    val fieldModifier = modifier.fillMaxWidth().then(if (focused) Modifier.border(2.dp, cs.primary, shape) else Modifier)
+    val keyboardOptions = if (plain) {
+        KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None)
+    } else {
+        KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
+    }
+    val colors = TextFieldDefaults.colors(
+        focusedContainerColor = cs.surfaceContainerHighest,
+        unfocusedContainerColor = cs.surfaceContainerHighest,
+        disabledContainerColor = cs.surfaceContainerHighest,
+        focusedIndicatorColor = Color.Transparent,
+        unfocusedIndicatorColor = Color.Transparent,
+        disabledIndicatorColor = Color.Transparent,
+    )
+    if (mediaReceiver != null) {
+        // Keyboard media needs the state-based field.
+        TextField(
+            state = rememberMirroredState(value, onValueChange),
+            modifier = fieldModifier.then(mediaReceiver),
+            interactionSource = interaction,
+            enabled = enabled,
+            label = label?.let { { Text(it) } },
+            placeholder = placeholder?.let { { Text(it) } },
+            supportingText = supportingText?.let { { Text(it, maxLines = 2) } },
+            leadingIcon = leadingIcon,
+            trailingIcon = trailingIcon,
+            prefix = prefix?.let { { Text(it) } },
+            lineLimits = if (singleLine) TextFieldLineLimits.SingleLine else TextFieldLineLimits.MultiLine(minLines, maxLines),
+            shape = shape,
+            keyboardOptions = keyboardOptions,
+            colors = colors,
+        )
+        return
+    }
     // A filled field with the label inside: an outlined field's floating label
     // cuts a notch that shows as a box over the filled background.
     TextField(
         value = value,
         onValueChange = onValueChange,
-        modifier = modifier.fillMaxWidth().then(if (focused) Modifier.border(2.dp, cs.primary, shape) else Modifier),
+        modifier = fieldModifier,
         interactionSource = interaction,
         enabled = enabled,
         label = label?.let { { Text(it) } },
@@ -64,19 +102,8 @@ internal fun BloomTextField(
         minLines = minLines,
         maxLines = maxLines,
         shape = shape,
-        keyboardOptions = if (plain) {
-            KeyboardOptions(autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None)
-        } else {
-            KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
-        },
-        colors = TextFieldDefaults.colors(
-            focusedContainerColor = cs.surfaceContainerHighest,
-            unfocusedContainerColor = cs.surfaceContainerHighest,
-            disabledContainerColor = cs.surfaceContainerHighest,
-            focusedIndicatorColor = Color.Transparent,
-            unfocusedIndicatorColor = Color.Transparent,
-            disabledIndicatorColor = Color.Transparent,
-        ),
+        keyboardOptions = keyboardOptions,
+        colors = colors,
     )
 }
 
