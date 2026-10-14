@@ -185,8 +185,19 @@ fun LetterAvatar(
     ) {
         if (imageUrl != null) {
             val px = with(LocalDensity.current) { size.roundToPx() }
+            val context = androidx.compose.ui.platform.LocalContext.current
+            // Always a still image: some subreddit icons are animated GIFs,
+            // and every animated avatar redraws the list on its own 25–33fps
+            // clock, out of step with the scroll, which drops frames.
+            val request = remember(imageUrl, px) {
+                ImageRequest.Builder(context).data(imageUrl)
+                    .size(Size(Dimension(px * 2), Dimension.Undefined))
+                    .decoderFactory(coil3.decode.BitmapFactoryDecoder.Factory())
+                    .memoryCacheKeyExtra("still", "1")
+                    .build()
+            }
             AsyncImage(
-                model = rememberSizedRequest(imageUrl, px * 2),
+                model = request,
                 contentDescription = null,
                 contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                 modifier = Modifier.size(size),
