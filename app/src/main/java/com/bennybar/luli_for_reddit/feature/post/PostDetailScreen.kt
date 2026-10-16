@@ -85,6 +85,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -125,6 +126,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
+import com.bennybar.luli_for_reddit.feature.media.rememberPauseWhileScrolling
+import com.bennybar.luli_for_reddit.feature.media.LocalListScrolling
 import com.bennybar.luli_for_reddit.app
 import com.bennybar.luli_for_reddit.core.compactNumber
 import com.bennybar.luli_for_reddit.core.extractMediaLinks
@@ -583,29 +586,50 @@ private fun CommentList(
     actions: ThreadActions,
 ) {
     val flat = thread.flat
-    LazyColumn(
-        Modifier.fillMaxSize(),
-        state = listState,
-        contentPadding = PaddingValues(top = 6.dp, bottom = 96.dp),
-    ) {
-        item(key = "header", contentType = "header") { PostHeader(thread.post, fresh = true) }
-        if (flat.isEmpty()) {
-            item(key = "empty", contentType = "empty") {
-                Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { Text("No comments yet") }
-            }
-        } else if (settings.postDisplay.isCalm) {
-            // Calm: one container per top-level thread, drawn as contiguous
-            // rows (still one lazy item per comment) whose first / last
-            // rows round the container's top / bottom.
-            itemsIndexed(flat, key = { _, c -> c.fullname }, contentType = { _, c -> if (c.isMore) "more" else "comment" }) { i, c ->
-                val first = i == 0 || c.depth == 0
-                val last = i == flat.lastIndex || flat[i + 1].depth == 0
-                CalmThreadRow(first, last, highlighted = currentMatchId == c.fullname) {
+    // Animated images in the thread pause while it scrolls (see rememberPauseWhileScrolling).
+    val scrolling = remember(listState) { { listState.isScrollInProgress } }
+    CompositionLocalProvider(LocalListScrolling provides scrolling) {
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            state = listState,
+            contentPadding = PaddingValues(top = 6.dp, bottom = 96.dp),
+        ) {
+            item(key = "header", contentType = "header") { PostHeader(thread.post, fresh = true) }
+            if (flat.isEmpty()) {
+                item(key = "empty", contentType = "empty") {
+                    Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { Text("No comments yet") }
+                }
+            } else if (settings.postDisplay.isCalm) {
+                // Calm: one container per top-level thread, drawn as contiguous
+                // rows (still one lazy item per comment) whose first / last
+                // rows round the container's top / bottom.
+                itemsIndexed(flat, key = { _, c -> c.fullname }, contentType = { _, c -> if (c.isMore) "more" else "comment" }) { i, c ->
+                    val first = i == 0 || c.depth == 0
+                    val last = i == flat.lastIndex || flat[i + 1].depth == 0
+                    CalmThreadRow(first, last, highlighted = currentMatchId == c.fullname) {
+                        if (c.isMore) {
+                            MoreRow(c, loading = c.fullname in thread.loadingMore, onClick = { actions.loadMore(c) })
+                        } else {
+                            CalmCommentRow(
+                                comment = c,
+                                isNew = isNew(c),
+                                isOwn = username.isNotEmpty() && c.author == username,
+                                opAuthor = thread.post.author,
+                                collapsed = c.id in thread.collapsed,
+                                settings = settings,
+                                actions = actions,
+                            )
+                        }
+                    }
+                }
+            } else {
+                items(flat, key = { it.fullname }, contentType = { if (it.isMore) "more" else "comment" }) { c ->
                     if (c.isMore) {
                         MoreRow(c, loading = c.fullname in thread.loadingMore, onClick = { actions.loadMore(c) })
                     } else {
-                        CalmCommentRow(
+                        CommentTile(
                             comment = c,
+                            highlighted = currentMatchId == c.fullname,
                             isNew = isNew(c),
                             isOwn = username.isNotEmpty() && c.author == username,
                             opAuthor = thread.post.author,
@@ -614,23 +638,6 @@ private fun CommentList(
                             actions = actions,
                         )
                     }
-                }
-            }
-        } else {
-            items(flat, key = { it.fullname }, contentType = { if (it.isMore) "more" else "comment" }) { c ->
-                if (c.isMore) {
-                    MoreRow(c, loading = c.fullname in thread.loadingMore, onClick = { actions.loadMore(c) })
-                } else {
-                    CommentTile(
-                        comment = c,
-                        highlighted = currentMatchId == c.fullname,
-                        isNew = isNew(c),
-                        isOwn = username.isNotEmpty() && c.author == username,
-                        opAuthor = thread.post.author,
-                        collapsed = c.id in thread.collapsed,
-                        settings = settings,
-                        actions = actions,
-                    )
                 }
             }
         }
@@ -1200,7 +1207,13 @@ private fun PostMedia(p: Post, nav: AppNavigator, radius: androidx.compose.ui.un
             contentAlignment = Alignment.Center,
         ) {
             if (url != null) {
-                AsyncImage(model = url, contentDescription = p.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                AsyncImage(
+                    model = url,
+                    contentDescription = p.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                    onSuccess = rememberPauseWhileScrolling(),
+                )
             }
             if (p.type == PostType.VIDEO) {
                 Box(Modifier.clip(CircleShape).background(Color.Black.copy(alpha = 0.54f)).padding(14.dp)) {
@@ -1790,6 +1803,7 @@ private fun CommentMedia(body: String, extra: List<android.net.Uri>, nav: AppNav
                 } else {
                     var failed by remember(uri) { mutableStateOf(false) }
                     var loaded by remember(uri) { mutableStateOf(false) }
+                    val pauseWhileScrolling = rememberPauseWhileScrolling()
                     if (failed) {
                         Box(Modifier.fillMaxWidth().height(60.dp).background(cs.surfaceContainerHighest), contentAlignment = Alignment.Center) {
                             Text("Could not load media", fontSize = 12.sp, color = cs.onSurfaceVariant)
@@ -1799,7 +1813,7 @@ private fun CommentMedia(body: String, extra: List<android.net.Uri>, nav: AppNav
                             model = uri.toString(),
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
-                            onSuccess = { loaded = true },
+                            onSuccess = { loaded = true; pauseWhileScrolling(it) },
                             onError = { failed = true },
                             // A 120dp placeholder only while loading; then the image's own height (max 260).
                             modifier = Modifier

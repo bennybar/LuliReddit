@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.bennybar.luli_for_reddit.feature.media.rememberPauseWhileScrolling
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 
 /**
@@ -275,11 +276,12 @@ private fun Block(b: MdBlock, ctx: MdContext) {
                 // emote stays small), shrunk to fit the width.
                 var size by remember(b.url) { mutableStateOf<Size?>(null) }
                 val sz = size
+                val pauseWhileScrolling = rememberPauseWhileScrolling()
                 AsyncImage(
                     model = b.url,
                     contentDescription = b.alt,
                     contentScale = ContentScale.Fit,
-                    onSuccess = { size = it.painter.intrinsicSize },
+                    onSuccess = { size = it.painter.intrinsicSize; pauseWhileScrolling(it) },
                     modifier = Modifier
                         .then(
                             if (sz != null && sz.width > 0f && sz.height > 0f) {
