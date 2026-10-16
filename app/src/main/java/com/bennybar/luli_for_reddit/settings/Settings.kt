@@ -80,6 +80,9 @@ data class Settings(
     val appFont: AppFont = AppFont.GOOGLE_SANS, // the app's typeface (Google Sans by default from v2)
     val inAppBrowser: Boolean = false, // open web links in a Custom Tab, not the browser app
     val tapToCollapse: Boolean = false, // tap a comment to collapse it (else long-press)
+    val volumeKeyNavigation: Boolean = false, // in a thread, volume keys jump between top-level comments
+    val collapseBelowScore: Int? = null, // comments scoring below this start collapsed (null = off)
+    val collapseTopLevel: Boolean = false, // threads open with top-level comments' replies collapsed
     val hideReadPosts: Boolean = false, // skip already-read posts when feeds load
     val subredditIcons: Boolean = true, // cards show the subreddit's icon (else its first letter)
     val markReadOnScroll: Boolean = false, // a post scrolled past counts as read

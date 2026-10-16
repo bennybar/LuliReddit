@@ -65,6 +65,7 @@ import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.DoneAll
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.UnfoldLess
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.FontDownload
 import androidx.compose.material.icons.rounded.FormatSize
 import androidx.compose.material.icons.rounded.Gavel
@@ -438,6 +439,28 @@ fun SettingsList(
             "Tap a comment to collapse it",
             "Otherwise long-press. Comment text can't be selected while this is on",
             Icons.Rounded.UnfoldLess, s.tapToCollapse, ctrl::setTapToCollapse,
+        )
+        tile(
+            "Collapse low-scoring comments",
+            s.collapseBelowScore?.let { "Comments below $it points start collapsed" } ?: "Off",
+            Icons.Rounded.UnfoldLess,
+            onClick = launch {
+                val choices = listOf<Int?>(null, 1, 0, -5, -10)
+                pickOption(
+                    choices.map { PickOption(it ?: Int.MIN_VALUE, if (it == null) "Off" else "Below $it points") },
+                    s.collapseBelowScore ?: Int.MIN_VALUE,
+                )?.let { ctrl.setCollapseBelowScore(it.takeIf { v -> v != Int.MIN_VALUE }) }
+            },
+        )
+        switch(
+            "Open threads collapsed",
+            "Top-level comments show without their replies, each with a \"Show replies\" button",
+            Icons.Rounded.UnfoldLess, s.collapseTopLevel, ctrl::setCollapseTopLevel,
+        )
+        switch(
+            "Volume keys move between comments",
+            "In a thread, volume down goes to the next top-level comment, volume up to the previous",
+            Icons.AutoMirrored.Rounded.VolumeUp, s.volumeKeyNavigation, ctrl::setVolumeKeyNavigation,
         )
         switch("Swipe actions", "Swipe posts and comments sideways", Icons.Rounded.Swipe, s.swipeActions, ctrl::setSwipeActions)
         if (s.swipeActions) {

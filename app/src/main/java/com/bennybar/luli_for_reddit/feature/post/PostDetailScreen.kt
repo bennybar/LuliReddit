@@ -122,6 +122,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -269,6 +270,15 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
         else hits.firstOrNull { it > topIndex } ?: hits.first()
         scope.launch { listState.animateScrollToItem(target) }
         return true
+    }
+
+    // Settings → Volume keys move between comments: while this thread is the
+    // screen on top, the activity hands volume presses here.
+    val latestJump = rememberUpdatedState<(Boolean) -> Boolean> { up -> jumpNext(backwards = up) { it.depth == 0 } }
+    LifecycleResumeEffect(Unit) {
+        val h: (Boolean) -> Boolean = { up -> latestJump.value(up) }
+        VolumeKeys.handler = h
+        onPauseOrDispose { if (VolumeKeys.handler === h) VolumeKeys.handler = null }
     }
 
     val actions = remember(vm, nav) { ThreadActions(vm, nav, scope) }
@@ -474,6 +484,7 @@ private class ThreadActions(val vm: CommentsViewModel, val nav: AppNavigator, va
     var flat: List<Comment> = emptyList()
 
     fun toggle(c: Comment) = vm.toggleCollapse(c.id)
+    fun unfold(c: Comment) = vm.unfold(c.id)
 
     fun loadMore(c: Comment) {
         val p = post ?: return
@@ -610,15 +621,18 @@ private fun CommentList(
                         if (c.isMore) {
                             MoreRow(c, loading = c.fullname in thread.loadingMore, onClick = { actions.loadMore(c) })
                         } else {
-                            CalmCommentRow(
-                                comment = c,
-                                isNew = isNew(c),
-                                isOwn = username.isNotEmpty() && c.author == username,
-                                opAuthor = thread.post.author,
-                                collapsed = c.id in thread.collapsed,
-                                settings = settings,
-                                actions = actions,
-                            )
+                            Column {
+                                CalmCommentRow(
+                                    comment = c,
+                                    isNew = isNew(c),
+                                    isOwn = username.isNotEmpty() && c.author == username,
+                                    opAuthor = thread.post.author,
+                                    collapsed = c.id in thread.collapsed,
+                                    settings = settings,
+                                    actions = actions,
+                                )
+                                if (CommentTree.folded(c.id) in thread.collapsed && c.id !in thread.collapsed) FoldedReplies(c, actions)
+                            }
                         }
                     }
                 }
@@ -627,20 +641,40 @@ private fun CommentList(
                     if (c.isMore) {
                         MoreRow(c, loading = c.fullname in thread.loadingMore, onClick = { actions.loadMore(c) })
                     } else {
-                        CommentTile(
-                            comment = c,
-                            highlighted = currentMatchId == c.fullname,
-                            isNew = isNew(c),
-                            isOwn = username.isNotEmpty() && c.author == username,
-                            opAuthor = thread.post.author,
-                            collapsed = c.id in thread.collapsed,
-                            settings = settings,
-                            actions = actions,
-                        )
+                        Column {
+                            CommentTile(
+                                comment = c,
+                                highlighted = currentMatchId == c.fullname,
+                                isNew = isNew(c),
+                                isOwn = username.isNotEmpty() && c.author == username,
+                                opAuthor = thread.post.author,
+                                collapsed = c.id in thread.collapsed,
+                                settings = settings,
+                                actions = actions,
+                            )
+                            if (CommentTree.folded(c.id) in thread.collapsed && c.id !in thread.collapsed) FoldedReplies(c, actions)
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+/** Where volume presses go while a thread is on screen (Settings → Volume keys move between comments). */
+object VolumeKeys {
+    /** up = volume up; true if it moved. Null when no thread is showing. */
+    @Volatile var handler: ((up: Boolean) -> Boolean)? = null
+}
+
+/** "Show 12 replies" under a top-level comment opened folded (Settings → Open threads collapsed). */
+@Composable
+private fun FoldedReplies(c: Comment, actions: ThreadActions) {
+    val n = remember(c) { CommentTree.replyCount(c) }
+    TextButton(onClick = { actions.unfold(c) }, modifier = Modifier.padding(start = 8.dp)) {
+        Icon(Icons.Rounded.UnfoldMore, null, Modifier.size(16.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(if (n == 1) "Show 1 reply" else "Show $n replies")
     }
 }
 

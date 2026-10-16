@@ -28,6 +28,9 @@ class SettingsStore(private val p: Prefs) {
             appFont = AppFont.parse(p.getString("appFont"), if (b("jakartaFont", false)) AppFont.JAKARTA else d.appFont),
             inAppBrowser = b("inAppBrowser", d.inAppBrowser),
             tapToCollapse = b("tapToCollapse", d.tapToCollapse),
+            volumeKeyNavigation = b("volumeKeyNavigation", d.volumeKeyNavigation),
+            collapseBelowScore = p.getInt("collapseBelowScore"),
+            collapseTopLevel = b("collapseTopLevel", d.collapseTopLevel),
             hideReadPosts = b("hideReadPosts", d.hideReadPosts),
             subredditIcons = b("subredditIcons", d.subredditIcons),
             markReadOnScroll = b("markReadOnScroll", d.markReadOnScroll),
@@ -146,6 +149,12 @@ class SettingsStore(private val p: Prefs) {
     }
 
     fun setTapToCollapse(v: Boolean) { p.setBool("tapToCollapse", v); set { it.copy(tapToCollapse = v) } }
+    fun setVolumeKeyNavigation(v: Boolean) { p.setBool("volumeKeyNavigation", v); set { it.copy(volumeKeyNavigation = v) } }
+    fun setCollapseBelowScore(v: Int?) {
+        if (v == null) p.remove("collapseBelowScore") else p.setInt("collapseBelowScore", v)
+        set { it.copy(collapseBelowScore = v) }
+    }
+    fun setCollapseTopLevel(v: Boolean) { p.setBool("collapseTopLevel", v); set { it.copy(collapseTopLevel = v) } }
     fun setInAppBrowser(v: Boolean) { p.setBool("inAppBrowser", v); set { it.copy(inAppBrowser = v) } }
     fun setMidResThumbnails(v: Boolean) { p.setBool("midResThumbnails", v); set { it.copy(midResThumbnails = v) } }
     fun setSubsCacheEnabled(v: Boolean) { p.setBool("subsCacheEnabled", v); set { it.copy(subsCacheEnabled = v) } }

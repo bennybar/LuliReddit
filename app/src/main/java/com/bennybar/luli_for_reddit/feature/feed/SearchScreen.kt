@@ -1,5 +1,9 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.BookmarkBorder
+import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -61,6 +65,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.bennybar.luli_for_reddit.nav.Route
+import com.bennybar.luli_for_reddit.state.SavedSearch
 import com.bennybar.luli_for_reddit.app
 import com.bennybar.luli_for_reddit.core.compactNumber
 import com.bennybar.luli_for_reddit.model.Post
@@ -151,6 +157,9 @@ class SearchViewModel(private val subreddit: String?) : ViewModel() {
         _state.update { it.copy(query = "", error = null, posts = emptyList(), subs = emptyList(), users = emptyList(), loading = false) }
     }
 
+    /** Sort and time for the next search, without running one (a saved search sets both). */
+    fun setFilters(sort: String, time: String) = _state.update { it.copy(sort = sort, time = time) }
+
     fun setSort(sort: String) {
         _state.update { it.copy(sort = sort) }
         search(_state.value.query, saveRecent = false)
@@ -227,7 +236,7 @@ class SearchViewModel(private val subreddit: String?) : ViewModel() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SearchScreen(subreddit: String?, query: String?) {
+fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time: String? = null) {
     val cs = MaterialTheme.colorScheme
     val vm = viewModel(key = "search_${subreddit ?: ""}") { SearchViewModel(subreddit) }
     val state by vm.state.collectAsStateWithLifecycle()
@@ -248,8 +257,23 @@ fun SearchScreen(subreddit: String?, query: String?) {
     }
 
     LaunchedEffect(Unit) {
+        app.savedSearches.refresh()
         if (state.query.isEmpty()) {
+            if (sort != null || time != null) vm.setFilters(sort ?: state.sort, time ?: state.time)
             if (initial.isNotEmpty()) doSearch(initial) else focus.requestFocus()
+        }
+    }
+    val saved by app.savedSearches.items.collectAsStateWithLifecycle()
+    val current = SavedSearch(state.query, subreddit, state.sort, state.time)
+    val isSaved = state.query.isNotEmpty() && saved.any { it.key == current.key }
+
+    /** A saved search here (same scope) runs in place; another subreddit's opens its own search. */
+    fun runSaved(s: SavedSearch) {
+        if (s.subreddit.equals(subreddit, ignoreCase = true)) {
+            vm.setFilters(s.sort, s.time)
+            doSearch(s.query, save = false)
+        } else {
+            nav.push(Route.Search(s.subreddit, s.query, s.sort, s.time))
         }
     }
 
@@ -270,10 +294,29 @@ fun SearchScreen(subreddit: String?, query: String?) {
                             modifier = Modifier.fillMaxWidth().padding(end = 8.dp).focusRequester(focus),
                             onSearch = { doSearch(it) },
                             trailing = if (text.isEmpty()) null else ({
-                                IconButton(onClick = {
-                                    text = ""
-                                    vm.clear()
-                                }) { Icon(Icons.Rounded.Clear, "Clear") }
+                                Row {
+                                    // Save this search (with its sort and time) to run again from here.
+                                    if (state.query.isNotEmpty() && state.query == text.trim()) {
+                                        IconButton(onClick = {
+                                            if (isSaved) {
+                                                app.savedSearches.remove(current)
+                                            } else {
+                                                app.savedSearches.add(current)
+                                                nav.showSnackbar("Search saved: it's listed here before you type")
+                                            }
+                                        }) {
+                                            Icon(
+                                                if (isSaved) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
+                                                if (isSaved) "Remove saved search" else "Save search",
+                                                tint = if (isSaved) cs.primary else LocalContentColor.current,
+                                            )
+                                        }
+                                    }
+                                    IconButton(onClick = {
+                                        text = ""
+                                        vm.clear()
+                                    }) { Icon(Icons.Rounded.Clear, "Clear") }
+                                }
                             }),
                         )
                     },
@@ -298,10 +341,13 @@ fun SearchScreen(subreddit: String?, query: String?) {
                 state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
                 state.error != null -> ErrorView(state.error, onRetry = { vm.search(state.query, saveRecent = false) })
                 state.query.isEmpty() -> EmptySearch(
+                    saved = saved,
                     recent = state.recent,
                     onClear = vm::clearRecent,
                     onPick = { doSearch(it) },
                     onRerun = { doSearch(it, save = false) },
+                    onSaved = ::runSaved,
+                    onRemoveSaved = app.savedSearches::remove,
                 )
                 else -> HorizontalPager(pager, Modifier.fillMaxSize(), key = { tabs[it] }) { page ->
                     when (tabs[page]) {
@@ -332,9 +378,17 @@ fun SearchScreen(subreddit: String?, query: String?) {
 }
 
 @Composable
-private fun EmptySearch(recent: List<String>, onClear: () -> Unit, onPick: (String) -> Unit, onRerun: (String) -> Unit) {
+private fun EmptySearch(
+    saved: List<SavedSearch>,
+    recent: List<String>,
+    onClear: () -> Unit,
+    onPick: (String) -> Unit,
+    onRerun: (String) -> Unit,
+    onSaved: (SavedSearch) -> Unit,
+    onRemoveSaved: (SavedSearch) -> Unit,
+) {
     val cs = MaterialTheme.colorScheme
-    if (recent.isEmpty()) {
+    if (recent.isEmpty() && saved.isEmpty()) {
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(Icons.Rounded.Search, null, Modifier.size(56.dp), tint = cs.onSurfaceVariant)
             Spacer(Modifier.height(12.dp))
@@ -343,7 +397,36 @@ private fun EmptySearch(recent: List<String>, onClear: () -> Unit, onPick: (Stri
         return
     }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 130.dp)) {
-        item {
+        if (saved.isNotEmpty()) {
+            item(key = "h_saved") {
+                Text(
+                    "Saved",
+                    Modifier.padding(start = 16.dp, top = 16.dp, end = 8.dp, bottom = 8.dp),
+                    color = cs.onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            items(saved, key = { "s_" + it.key }) { s ->
+                Tile(
+                    title = { Text(s.query) },
+                    subtitle = {
+                        Text(
+                            listOfNotNull(
+                                s.subreddit?.let { "in r/$it" } ?: "all of Reddit",
+                                SEARCH_SORTS[s.sort] ?: s.sort,
+                                s.time.takeIf { s.sort == "top" }?.let { SEARCH_TIMES[it] ?: it },
+                            ).joinToString(" · "),
+                        )
+                    },
+                    leading = { Icon(Icons.Rounded.Bookmark, null, tint = cs.primary) },
+                    trailing = {
+                        IconButton(onClick = { onRemoveSaved(s) }) { Icon(Icons.Rounded.Close, "Remove saved search", Modifier.size(18.dp)) }
+                    },
+                    onClick = { onSaved(s) },
+                )
+            }
+        }
+        if (recent.isNotEmpty()) item(key = "h_recent") {
             Row(Modifier.padding(start = 16.dp, top = 8.dp, end = 8.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Recent", Modifier.weight(1f), color = cs.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
                 TextButton(onClick = onClear) { Text("Clear") }

@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit
 
+import android.view.KeyEvent
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -39,6 +40,7 @@ import com.bennybar.luli_for_reddit.core.routeForRedditUrl
 import com.bennybar.luli_for_reddit.core.isShareLink
 import com.bennybar.luli_for_reddit.core.resolveShareLink
 import com.bennybar.luli_for_reddit.core.isRedditMediaHost
+import com.bennybar.luli_for_reddit.feature.post.VolumeKeys
 import com.bennybar.luli_for_reddit.feature.auth.LoginScreen
 import com.bennybar.luli_for_reddit.feature.auth.WebLoginScreen
 import com.bennybar.luli_for_reddit.feature.compose.SubmitScreen
@@ -122,6 +124,24 @@ class IlayActivity : ComponentActivity() {
             IlayTheme(settings) { AppRoot(pendingLink) }
         }
     }
+
+    // Settings → Volume keys move between comments: a thread on screen takes
+    // volume up / down (press and release both, so the volume doesn't change),
+    // unless a media viewer is open — its video keeps the volume keys.
+    private fun volumeNavigation(keyCode: Int): ((Boolean) -> Boolean)? {
+        if (keyCode != KeyEvent.KEYCODE_VOLUME_UP && keyCode != KeyEvent.KEYCODE_VOLUME_DOWN) return null
+        if (!app.settings.value.volumeKeyNavigation || app.navigatorOrNull?.viewers?.isOpen == true) return null
+        return VolumeKeys.handler
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        val h = volumeNavigation(keyCode) ?: return super.onKeyDown(keyCode, event)
+        h(keyCode == KeyEvent.KEYCODE_VOLUME_UP)
+        return true
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean =
+        if (volumeNavigation(keyCode) != null) true else super.onKeyUp(keyCode, event)
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -294,7 +314,7 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
                 screen<Route.Offline> { OfflineScreen() }
                 screen<Route.NotificationActivity> { NotificationActivityScreen() }
                 screen<Route.Drafts> { DraftsScreen() }
-                screen<Route.Search> { val r = it.toRoute<Route.Search>(); SearchScreen(r.subreddit, r.query) }
+                screen<Route.Search> { val r = it.toRoute<Route.Search>(); SearchScreen(r.subreddit, r.query, r.sort, r.time) }
                 screen<Route.Submit> { SubmitScreen(it.toRoute<Route.Submit>().subreddit) }
                 screen<Route.MessageThread> { MessageThreadScreen(it.toRoute<Route.MessageThread>().fullname) }
                 screen<Route.ComposeMessage> { ComposeMessageScreen(it.toRoute<Route.ComposeMessage>().to) }

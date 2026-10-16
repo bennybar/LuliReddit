@@ -105,10 +105,7 @@ class CommentsViewModel(
             _state.update { it.copy(sort = sort) }
             t = repo.getComments(subreddit, postId, sort, focusCommentId, limit)
         }
-        // "Collapse AutoModerator" filter: start its comments collapsed.
-        val collapsed = if (app.contentFilters.value.collapseAutoMod) {
-            t.comments.filter { it.author == "AutoModerator" }.mapTo(HashSet()) { it.id }
-        } else emptySet()
+        val collapsed = startCollapsed(t.comments)
         // Fetch the full page only when the first one was cut short (it ends in
         // "load more" rows); a small thread is already complete.
         return withContext(Dispatchers.Default) {
@@ -134,14 +131,10 @@ class CommentsViewModel(
         }
         val cur = _state.value.thread ?: return
         if (touched) return
-        // New AutoModerator comments start collapsed, as on first load.
+        // New comments start collapsed by the same rules as on first load.
         val autoMod = withContext(Dispatchers.Default) {
-            if (app.contentFilters.value.collapseAutoMod) {
-                val known = CommentTree.flatten(cur.comments, emptySet()).mapTo(HashSet()) { it.id }
-                CommentTree.flatten(full.comments, emptySet())
-                    .filter { it.author == "AutoModerator" && it.id !in known }
-                    .mapTo(HashSet()) { it.id }
-            } else emptySet()
+            val known = CommentTree.flatten(cur.comments, emptySet()).mapTo(HashSet()) { it.id }
+            startCollapsed(full.comments, skip = known)
         }
         if (touched) return
         // Collapse state from the latest thread: a toggle made while the full
@@ -201,8 +194,39 @@ class CommentsViewModel(
     }
 
     fun toggleCollapse(commentId: String) = edit { t ->
-        val next = if (commentId in t.collapsed) t.collapsed - commentId else t.collapsed + commentId
+        // Expanding a comment also shows its folded replies.
+        val next = if (commentId in t.collapsed) t.collapsed - commentId - CommentTree.folded(commentId) else t.collapsed + commentId
         t.copy(collapsed = next, flat = CommentTree.flatten(t.comments, next))
+    }
+
+    /** "Show N replies" under a folded comment. */
+    fun unfold(commentId: String) = edit { t ->
+        val next = t.collapsed - CommentTree.folded(commentId)
+        t.copy(collapsed = next, flat = CommentTree.flatten(t.comments, next))
+    }
+
+    /**
+     * The comments a thread opens with collapsed: AutoModerator's (content
+     * filter), ones scoring below the "Collapse low-scoring comments" setting
+     * (not your own), and with "Open threads collapsed" every top-level
+     * comment's replies (folded: its own text stays). [skip]: ones already
+     * shown, left as they are.
+     */
+    private fun startCollapsed(comments: List<Comment>, skip: Set<String> = emptySet()): Set<String> {
+        val autoMod = app.contentFilters.value.collapseAutoMod
+        val s = app.settings.value
+        val below = s.collapseBelowScore
+        val me = app.session.username
+        val out = HashSet<String>()
+        for (c in CommentTree.flatten(comments, emptySet())) {
+            if (c.isMore || c.id in skip) continue
+            when {
+                autoMod && c.author == "AutoModerator" -> out += c.id
+                below != null && c.score < below && !c.scoreHidden && !c.author.equals(me, ignoreCase = true) -> out += c.id
+                s.collapseTopLevel && c.depth == 0 && c.replies.any { !it.isMore } -> out += CommentTree.folded(c.id)
+            }
+        }
+        return out
     }
 
     /**

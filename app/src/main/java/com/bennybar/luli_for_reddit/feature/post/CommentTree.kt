@@ -7,12 +7,22 @@ import com.bennybar.luli_for_reddit.model.Comment
  * and the unit tests.
  */
 object CommentTree {
-    /** Depth-first visible rows: a collapsed comment's replies (and a "more" node's) are skipped. */
+    /** The collapse-set key that folds [id]'s replies away (its own text stays). */
+    fun folded(id: String) = "f:$id"
+
+    /** How many comments are under [c] (all levels; "more" rows not counted). */
+    fun replyCount(c: Comment): Int = c.replies.sumOf { if (it.isMore) 0 else 1 + replyCount(it) }
+
+    /**
+     * Depth-first visible rows: a collapsed comment's replies (and a "more"
+     * node's) are skipped. A [folded] comment ("f:<id>" in [collapsed]: the
+     * "Open threads collapsed" setting) shows in full but hides its replies.
+     */
     fun flatten(nodes: List<Comment>, collapsed: Set<String>): List<Comment> {
         val out = ArrayList<Comment>(nodes.size * 2)
         fun walk(c: Comment) {
             out.add(c)
-            if (!c.isMore && c.id !in collapsed) c.replies.forEach(::walk)
+            if (!c.isMore && c.id !in collapsed && folded(c.id) !in collapsed) c.replies.forEach(::walk)
         }
         nodes.forEach(::walk)
         return out
