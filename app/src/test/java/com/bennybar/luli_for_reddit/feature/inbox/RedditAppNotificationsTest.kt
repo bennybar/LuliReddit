@@ -42,4 +42,20 @@ class RedditAppNotificationsTest {
         assertTrue(RedditAppNotifications.sameItem("u/Ckabal replied · Crown Jewel", "Thank you so much for this!", reddit, "Thank you so much for this!"))
         assertFalse(RedditAppNotifications.sameItem("u/someoneElse replied · Other post", "Thank you so much for this!", reddit, "Thank you so much for this!"))
     }
+
+    private fun post(id: String, sub: String, title: String) = com.bennybar.luli_for_reddit.model.Post.fromData(
+        com.bennybar.luli_for_reddit.core.AppJson.parseToJsonElement("""{"id":"$id","subreddit":"$sub","title":"$title"}"""),
+    )
+
+    @Test
+    fun `an upvote milestone opens the post it's about, not a similar one`() {
+        val mine = listOf(
+            post("a", "AEWFanHub", "Who should retire?"),
+            post("b", "AEWFanHub", "Who should retire Adam Copeland?"),
+            post("c", "galaxys26ultra", "Battery after a week"),
+        )
+        val hit = RedditAppNotifications.pickOwnPost(mine, "Your post got 10 upvotes", "Who should retire Adam Copeland? · r/AEWFanHub")
+        org.junit.Assert.assertEquals("b", hit?.id)
+        org.junit.Assert.assertNull(RedditAppNotifications.pickOwnPost(mine, "Your post got 10 upvotes", "Something I never posted"))
+    }
 }

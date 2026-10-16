@@ -216,7 +216,8 @@ private fun EventRow(e: NotificationEvent) {
                     e.account.takeIf { it.isNotEmpty() }?.let { "u/$it" },
                     timeAgoPhrase(e.at),
                     if (e.source == NotificationEvent.SOURCE_REDDIT) "from the Reddit app" else null,
-                ).joinToString(" · ") + "\n" + e.outcome.label,
+                ).joinToString(" · ") + "\n" + e.outcome.label + (e.how?.let { " · $it" } ?: "") +
+                    (e.redditData?.let { "\nReddit sent: $it" } ?: ""),
                 fontSize = 12.sp,
                 color = if (e.outcome.ok) cs.onSurfaceVariant else cs.error,
             )
@@ -234,7 +235,7 @@ private suspend fun open(e: NotificationEvent, nav: com.bennybar.luli_for_reddit
     val route = when {
         e.subreddit != null && e.postId != null -> Route.Post(e.subreddit, e.postId, e.commentId)
         e.messageFullname != null -> Route.MessageThread(e.messageFullname)
-        e.source == NotificationEvent.SOURCE_REDDIT -> runCatching { RedditAppNotifications.resolve(e.title, e.text) }.getOrNull()
+        e.source == NotificationEvent.SOURCE_REDDIT -> runCatching { RedditAppNotifications.resolve(e.title, e.text) }.getOrNull()?.route
         else -> null
     }
     if (route != null) nav.push(route) else nav.showSnackbar("Couldn't find it: try your Inbox")

@@ -28,6 +28,10 @@ data class NotificationEvent(
     val postId: String? = null,
     val commentId: String? = null,
     val messageFullname: String? = null,
+    /** How a copied Reddit notification's destination was found ("your post, by its title"). */
+    val how: String? = null,
+    /** The extra fields Reddit's notification carried (names, and any link), to find an exact one. */
+    val redditData: String? = null,
 ) {
     enum class Outcome(val label: String, val ok: Boolean) {
         SHOWN("Notified", true),
@@ -84,6 +88,7 @@ class NotificationLog(private val prefs: Prefs) {
         put("out", outcome.name)
         subreddit?.let { put("sub", it) }; postId?.let { put("post", it) }
         commentId?.let { put("comment", it) }; messageFullname?.let { put("msg", it) }
+        how?.let { put("how", it) }; redditData?.let { put("data", it) }
     }
 
     private fun load(): List<NotificationEvent> = runCatching {
@@ -99,6 +104,8 @@ class NotificationLog(private val prefs: Prefs) {
                 postId = j["post"].str(),
                 commentId = j["comment"].str(),
                 messageFullname = j["msg"].str(),
+                how = j["how"].str(),
+                redditData = j["data"].str(),
             )
         }
     }.getOrDefault(emptyList())

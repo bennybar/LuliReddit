@@ -262,7 +262,7 @@ class InboxModule(private val c: AppContainer) : UserScoped {
                 val text = intent.getStringExtra(RedditAppNotifications.EXTRA_TEXT).orEmpty()
                 val inbox = RedditAppNotifications.isInbox(title)
                 c.scope.launch {
-                    openFromNotification(runCatching { RedditAppNotifications.resolve(title, text) }.getOrNull(), inbox)
+                    openFromNotification(runCatching { RedditAppNotifications.resolve(title, text) }.getOrNull()?.route, inbox)
                 }
             }
             else -> openFromNotification(null, inbox = true)
