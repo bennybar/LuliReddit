@@ -52,6 +52,8 @@ import com.bennybar.luli_for_reddit.feature.feed.SearchScreen
 import com.bennybar.luli_for_reddit.feature.feed.SubredditScreen
 import com.bennybar.luli_for_reddit.feature.feed.UserScreen
 import com.bennybar.luli_for_reddit.feature.home.HomeScreen
+import com.bennybar.luli_for_reddit.feature.compose.DraftsScreen
+import com.bennybar.luli_for_reddit.feature.inbox.NotificationActivityScreen
 import com.bennybar.luli_for_reddit.feature.inbox.ComposeMessageScreen
 import com.bennybar.luli_for_reddit.feature.inbox.MessageThreadScreen
 import com.bennybar.luli_for_reddit.feature.media.MediaViewerHost
@@ -290,6 +292,8 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
                 screen<Route.Summaries> { SummariesScreen() }
                 screen<Route.Saved> { SavedScreen() }
                 screen<Route.Offline> { OfflineScreen() }
+                screen<Route.NotificationActivity> { NotificationActivityScreen() }
+                screen<Route.Drafts> { DraftsScreen() }
                 screen<Route.Search> { val r = it.toRoute<Route.Search>(); SearchScreen(r.subreddit, r.query) }
                 screen<Route.Submit> { SubmitScreen(it.toRoute<Route.Submit>().subreddit) }
                 screen<Route.MessageThread> { MessageThreadScreen(it.toRoute<Route.MessageThread>().fullname) }

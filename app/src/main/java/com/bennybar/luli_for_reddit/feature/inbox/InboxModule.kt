@@ -322,16 +322,42 @@ class InboxModule(private val c: AppContainer) : UserScoped {
         // notifying or recording one account's items as the other's.
         val gen = generation
         val user = runCatching { c.secureStore.username() }.getOrNull().orEmpty()
-        val items = fetchUnread() ?: return@withLock emptyList() // not logged in / network error
-        if (gen != generation || runCatching { c.secureStore.username() }.getOrNull().orEmpty() != user) return@withLock emptyList()
         // Per account: the polled inbox is the active account's, so one shared
         // list made every switch notify for all of the other account's unread.
         // An account's first poll only primes its list (no burst of old items).
         val key = userScopedKey(c.prefs, user, SEEN_IDS_PREF)
         val primed = c.prefs.contains(key)
         val seen = (c.prefs.getStringList(key) ?: emptyList()).toSet()
+        val items = fetchUnread(seen)
+        if (items == null) { // not logged in / network error
+            c.notificationLog.checked("Couldn't check: offline, or not signed in")
+            return@withLock emptyList()
+        }
+        if (gen != generation || runCatching { c.secureStore.username() }.getOrNull().orEmpty() != user) return@withLock emptyList()
         val fresh = items.filter { it.fullname !in seen }
-        val shown = if (notify && primed) fresh.filter { InboxNotifications.show(c.context, it) } else emptyList()
+        val shown = if (notify && primed) {
+            fresh.filter { item ->
+                InboxNotifications.show(c.context, item).also { ok ->
+                    c.notificationLog.add(
+                        NotificationEvent(
+                            at = System.currentTimeMillis(), account = user, source = NotificationEvent.SOURCE_INBOX,
+                            title = item.title, text = item.body,
+                            outcome = if (ok) NotificationEvent.Outcome.SHOWN else NotificationEvent.Outcome.NOT_SHOWN,
+                            subreddit = item.post?.first, postId = item.post?.second, commentId = item.post?.third,
+                            messageFullname = item.messageFullname,
+                        ),
+                    )
+                }
+            }
+        } else emptyList()
+        c.notificationLog.checked(
+            when {
+                !primed -> "First check for u/$user: ${items.size} unread (not notified)"
+                fresh.isEmpty() -> "${items.size} unread, nothing new"
+                !notify -> "${fresh.size} new (not notified: checked from the app)"
+                else -> "${fresh.size} new, ${shown.size} notified"
+            },
+        )
         // Remember everything currently unread so we never re-notify, capped so
         // the list can't grow without bound.
         val current = items.mapTo(HashSet()) { it.fullname }
@@ -341,14 +367,25 @@ class InboxModule(private val c: AppContainer) : UserScoped {
         shown
     }
 
-    /** The current unread items, or null if we can't authenticate / reach Reddit. */
-    private suspend fun fetchUnread(): List<UnreadItem>? {
+    /**
+     * The current unread items, or null if we can't authenticate / reach Reddit.
+     * Reads past the first 25 while every item on a page is new (a burst
+     * between checks), up to 100: older new ones would otherwise never notify.
+     */
+    private suspend fun fetchUnread(seen: Set<String>): List<UnreadItem>? {
         return try {
             if (c.secureStore.authMode() == "anon" || c.secureStore.username().isNullOrEmpty()) return null
-            val res = c.client.getResult("/message/unread", mapOf("limit" to 25))
-            if (res.fromCache) return null // offline: never notify from a stale copy
-            val children = res.json["data"]["children"].arr() ?: return emptyList()
-            children.mapNotNull { parseUnread(it["data"]) }
+            val out = ArrayList<UnreadItem>()
+            var after: String? = null
+            repeat(4) { page ->
+                val res = c.client.getResult("/message/unread", mapOf("limit" to 25, "after" to after))
+                if (res.fromCache) return if (page == 0) null else out // offline: never notify from a stale copy
+                val items = res.json["data"]["children"].arr().orEmpty().mapNotNull { parseUnread(it["data"]) }
+                out += items
+                after = res.json["data"]["after"].str()
+                if (after.isNullOrEmpty() || items.size < 25 || items.any { it.fullname in seen }) return out
+            }
+            out
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {

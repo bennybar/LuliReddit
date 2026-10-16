@@ -77,6 +77,8 @@ import com.bennybar.luli_for_reddit.model.InboxKind
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.NavCache
 import com.bennybar.luli_for_reddit.ui.ErrorView
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -154,7 +156,13 @@ private fun Thread(root: InboxItem) {
 
     fun setReply(v: TextFieldValue) {
         reply = v
-        app.drafts.save(draftKey, v.text)
+        app.drafts.save(
+            draftKey, v.text,
+            buildJsonObject {
+                put("kind", "msgreply"); put("subject", root.subject)
+                (messages.firstOrNull { !it.author.equals(me, ignoreCase = true) }?.author ?: root.author).let { put("to", it) }
+            },
+        )
     }
 
     fun send() {

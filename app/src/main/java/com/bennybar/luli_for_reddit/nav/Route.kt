@@ -21,6 +21,8 @@ sealed interface Route {
     @Serializable data object Summaries : Route
     @Serializable data object Saved : Route
     @Serializable data object Offline : Route
+    @Serializable data object NotificationActivity : Route
+    @Serializable data object Drafts : Route
     @Serializable data class Search(val subreddit: String? = null, val query: String? = null) : Route
     @Serializable data class Submit(val subreddit: String? = null) : Route
     /** A private-message thread; the root InboxItem is in [NavCache] under [fullname]. */

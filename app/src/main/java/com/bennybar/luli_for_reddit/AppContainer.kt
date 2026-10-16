@@ -83,6 +83,7 @@ class AppContainer(val context: Context) {
     val contentFilters = ContentFiltersStore(prefs)
     val offline = OfflineStore(context, prefs, repository)
     val drafts = Drafts(prefs) { session.username }
+    val notificationLog = com.bennybar.luli_for_reddit.feature.inbox.NotificationLog(prefs)
 
     // Feature modules (each owns its feature's singletons).
     val feed by lazy { FeedModule(this) }

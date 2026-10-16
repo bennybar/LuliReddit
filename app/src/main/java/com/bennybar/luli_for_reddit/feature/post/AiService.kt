@@ -83,8 +83,9 @@ object AiService {
         val system = "You answer questions about one Reddit thread: the post and its " +
             "comments, given in the first user message. Use only what the thread " +
             "says. If it doesn't answer the question, say so plainly instead of " +
-            "guessing. Mention the u/username when a point comes from a specific " +
-            "comment. Be concise and use markdown."
+            "guessing. When a point comes from a specific comment, cite it with " +
+            "that comment's tag right after the point, like [c3] (several: [c3] [c7]); " +
+            "don't write the tags any other way. Be concise and use markdown."
         val messages = buildList {
             add("system" to system)
             add("user" to "THE THREAD:\n$threadText")
@@ -131,6 +132,43 @@ object AiService {
         if (out.isEmpty()) throw Exception("The AI returned an empty answer.")
         return out
     }
+
+    /**
+     * The thread for Ask: like [buildThreadText], but each comment is tagged
+     * [c1], [c2]… so answers can cite them, plus [refs] (tag → comment) to turn
+     * those citations into links, and how many comments went in.
+     */
+    class CitedThread(val text: String, val refs: Map<String, Comment>, val included: Int, val loaded: Int)
+
+    fun buildCitedThread(post: Post, comments: List<Comment>, maxChars: Int): CitedThread {
+        val sb = StringBuilder()
+        sb.append("POST in r/${post.subreddit} by u/${post.author} — score ${post.score}, ${post.numComments} comments\n")
+        sb.append("TITLE: ${post.title}\n")
+        if (post.isSelf && post.selftext.isNotBlank()) sb.append("BODY: ${post.selftext.trim()}\n")
+        sb.append("\nTOP COMMENTS (most upvoted first), each with its tag:\n")
+        val ranked = comments.filter { !it.isMore && it.body.isNotBlank() }.sortedByDescending { it.score }
+        val refs = LinkedHashMap<String, Comment>()
+        for (c in ranked) {
+            val tag = "c${refs.size + 1}"
+            val line = "\n[$tag] [${c.score}] u/${c.author}: ${c.body.replace('\n', ' ').trim()}"
+            if (sb.length + line.length > maxChars) break
+            sb.append(line)
+            refs[tag] = c
+        }
+        sb.append("\n\n(Included ${refs.size} of ${ranked.size} comments, highest-scored first.)")
+        return CitedThread(sb.toString(), refs, refs.size, ranked.size)
+    }
+
+    private val CITATION = Regex("""\[(c\d+)]""")
+
+    /** Turns the answer's [c12] citations into links to those comments (`ilay-comment:<fullname>`). */
+    fun linkCitations(answer: String, refs: Map<String, Comment>): String =
+        CITATION.replace(answer) { m ->
+            val c = refs[m.groupValues[1]] ?: return@replace ""
+            "[u/${c.author}]($COMMENT_LINK${c.fullname})"
+        }
+
+    const val COMMENT_LINK = "ilay-comment:"
 
     /**
      * Builds the thread text to summarize: the post, then comments ordered by

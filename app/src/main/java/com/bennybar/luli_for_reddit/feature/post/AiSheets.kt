@@ -80,6 +80,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.app
 import com.bennybar.luli_for_reddit.state.SavedSummary
 import com.bennybar.luli_for_reddit.feature.markdown.IconTooltip
@@ -199,13 +200,20 @@ private fun SummarySheet(post: Post, baseUrl: String, apiKey: String, model: Str
  * comments. Follow-up questions keep the conversation; nothing is kept after
  * the sheet closes.
  */
-fun showAskSheet(post: Post, comments: List<Comment>) {
+fun showAskSheet(post: Post, comments: List<Comment>, onOpenComment: (fullname: String) -> Unit) {
     val key = app.post.aiKey.value
     if (key.isNullOrEmpty()) return
     val s = app.settings.value
-    val threadText = AiService.buildThreadText(post, comments, s.aiMaxChars)
+    val thread = AiService.buildCitedThread(post, comments, s.aiMaxChars)
     val baseUrl = aiBaseUrl()
-    Overlays.launch { done -> AskThreadSheet(baseUrl, key, s.aiModel, threadText, done) }
+    // What the answers can draw on: the comments that fit, of those loaded, of the thread's total.
+    val coverage = "Reads ${thread.included} of ${maxOf(post.numComments, thread.loaded)} comments, most upvoted first"
+    Overlays.launch { done ->
+        AskThreadSheet(baseUrl, key, s.aiModel, thread, coverage, done) { fullname ->
+            done()
+            onOpenComment(fullname)
+        }
+    }
 }
 
 private val starters = listOf(
@@ -217,7 +225,15 @@ private val starters = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-private fun AskThreadSheet(baseUrl: String, apiKey: String, model: String, threadText: String, done: () -> Unit) {
+private fun AskThreadSheet(
+    baseUrl: String,
+    apiKey: String,
+    model: String,
+    thread: AiService.CitedThread,
+    coverage: String,
+    done: () -> Unit,
+    onOpenComment: (String) -> Unit,
+) {
     val cs = MaterialTheme.colorScheme
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val messages = remember { mutableStateListOf<AiMessage>() }
@@ -245,8 +261,9 @@ private fun AskThreadSheet(baseUrl: String, apiKey: String, model: String, threa
         toBottom()
         scope.launch {
             try {
-                val answer = AiService.ask(baseUrl, apiKey, model, threadText, history, question)
-                messages.add(AiMessage(false, answer))
+                val answer = AiService.ask(baseUrl, apiKey, model, thread.text, history, question)
+                // Citations ([c3]) become links that jump to that comment.
+                messages.add(AiMessage(false, AiService.linkCitations(answer, thread.refs)))
                 waiting = false
             } catch (e: CancellationException) {
                 throw e // the sheet closed
@@ -273,6 +290,7 @@ private fun AskThreadSheet(baseUrl: String, apiKey: String, model: String, threa
                 Column(Modifier.weight(1f)) {
                     Text("Ask about this thread", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
                     Text("$model · answers can be wrong", fontSize = 12.sp, color = cs.onSurfaceVariant)
+                    Text(coverage, fontSize = 12.sp, color = cs.onSurfaceVariant)
                 }
             }
             LazyColumn(
@@ -291,7 +309,7 @@ private fun AskThreadSheet(baseUrl: String, apiKey: String, model: String, threa
                         }
                     }
                 }
-                itemsIndexed(messages, key = { i, _ -> "m$i" }) { _, m -> Bubble(m) }
+                itemsIndexed(messages, key = { i, _ -> "m$i" }) { _, m -> Bubble(m, onOpenComment) }
                 if (waiting) item(key = "thinking") { Thinking() }
                 if (error != null) {
                     item(key = "error") {
@@ -350,7 +368,7 @@ private fun AskThreadSheet(baseUrl: String, apiKey: String, model: String, threa
 }
 
 @Composable
-private fun Bubble(m: AiMessage) {
+private fun Bubble(m: AiMessage, onOpenComment: (String) -> Unit) {
     val cs = MaterialTheme.colorScheme
     val maxW = LocalConfiguration.current.screenWidthDp.dp * 0.82f
     Box(Modifier.fillMaxWidth().padding(top = 10.dp), contentAlignment = if (m.fromUser) Alignment.CenterEnd else Alignment.CenterStart) {
@@ -362,7 +380,12 @@ private fun Bubble(m: AiMessage) {
                 .padding(horizontal = 14.dp, vertical = 10.dp),
         ) {
             if (m.fromUser) Text(m.text, color = cs.onPrimaryContainer)
-            else RedditMarkdown(m.text, selectable = true)
+            else {
+                val nav = LocalNavigator.current
+                RedditMarkdown(m.text, selectable = true, onLinkClick = { url ->
+                    if (url.startsWith(AiService.COMMENT_LINK)) onOpenComment(url.removePrefix(AiService.COMMENT_LINK)) else nav.openLink(url)
+                })
+            }
         }
     }
 }

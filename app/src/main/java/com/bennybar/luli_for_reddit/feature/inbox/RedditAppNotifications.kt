@@ -54,8 +54,11 @@ class RedditNotificationListener : NotificationListenerService() {
                 ?.let { runCatching { it.loadDrawable(this)?.toBitmap() }.getOrNull() }
         val context = applicationContext
         app.scope.launch {
+            fun log(outcome: NotificationEvent.Outcome) = app.notificationLog.add(
+                NotificationEvent(System.currentTimeMillis(), app.session.username, NotificationEvent.SOURCE_REDDIT, title, text, outcome),
+            )
             // Ilay can't post notifications (permission off): keep Reddit's own.
-            if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return@launch
+            if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return@launch log(NotificationEvent.Outcome.KEPT)
             // A reply / message: Ilay's own notification knows exactly where it goes,
             // but only if it's this one (not another fresh item, another account's…).
             val shown = if (RedditAppNotifications.isInbox(title) && app.settings.value.notifyInbox) {
@@ -64,7 +67,10 @@ class RedditNotificationListener : NotificationListenerService() {
             // Exactly one of them, by text and author: two "Thank you!" replies
             // can't be told apart, so then Reddit's is copied instead.
             val handled = shown.count { RedditAppNotifications.sameItem(it.title, it.body, title, text) } == 1
-            if (!handled && !RedditAppNotifications.mirror(context, key, title, text, picture, n.contentIntent)) return@launch
+            if (!handled && !RedditAppNotifications.mirror(context, key, title, text, picture, n.contentIntent)) {
+                return@launch log(NotificationEvent.Outcome.KEPT)
+            }
+            log(if (handled) NotificationEvent.Outcome.REPLACED else NotificationEvent.Outcome.COPIED)
             runCatching { cancelNotification(key) }
         }
     }
@@ -75,7 +81,7 @@ internal object RedditAppNotifications {
     const val TARGET = "redditApp"
     const val EXTRA_TITLE = "ilay.redditApp.title"
     const val EXTRA_TEXT = "ilay.redditApp.text"
-    private const val CHANNEL_ID = "reddit_app"
+    const val CHANNEL_ID = "reddit_app"
 
     private val INBOX = Regex("replied to your|replied to you|mentioned you|sent you|new message|commented on your", RegexOption.IGNORE_CASE)
 

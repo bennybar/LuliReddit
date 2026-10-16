@@ -2,6 +2,7 @@ package com.bennybar.luli_for_reddit.feature.feed
 
 import androidx.compose.runtime.Immutable
 import com.bennybar.luli_for_reddit.app
+import com.bennybar.luli_for_reddit.feature.foryou.HomeStatus
 import com.bennybar.luli_for_reddit.data.PostSort
 import com.bennybar.luli_for_reddit.data.TopTime
 import com.bennybar.luli_for_reddit.model.Listing
@@ -131,6 +132,7 @@ class FeedController(val key: String) {
             val page = if (savedAt != null && System.currentTimeMillis() - savedAt < keepMillis) cachedFirstPage() else null
             if (page != null) {
                 lastLoaded = savedAt!!
+                if (redditHome) app.forYou.redditHome.status.value = HomeStatus.Saved(savedAt)
                 // The saved page has no paging cursor: mark it so reaching its
                 // end fetches more (see loadMore) instead of stopping there.
                 _ui.value = FeedUi.Data(FeedState(page.items, sort, time, page.after ?: RESTORED_PAGE))
@@ -232,6 +234,7 @@ class FeedController(val key: String) {
             // still the most useful thing to show, and pull-to-refresh retries.
             if (cached == null && deckMode) cached = cachedFirstPage()
             if (cached == null) throw e
+            if (redditHome) app.forYou.redditHome.cachedFirstPageTime()?.let { app.forYou.redditHome.status.value = HomeStatus.Saved(it) }
             showingCache = false
             // Count the attempt as a load: otherwise every return to the feed
             // (refreshIfExpired) retried at once, swapping in the loading deck

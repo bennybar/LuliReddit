@@ -87,6 +87,7 @@ fun ComposeMessageScreen(to: String?) {
             put("subject", subject.text)
             put("body", body.text)
         }.toString(),
+        buildJsonObject { put("kind", "msg") },
     )
 
     fun send() {

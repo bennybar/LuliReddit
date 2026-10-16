@@ -106,6 +106,9 @@ import com.bennybar.luli_for_reddit.settings.PostDisplay
 import com.bennybar.luli_for_reddit.nav.Route
 import com.bennybar.luli_for_reddit.ui.Overlays
 import com.bennybar.luli_for_reddit.ui.friendlyError
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.JsonObject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -150,13 +153,21 @@ internal val BloomFieldShape = RoundedCornerShape(18.dp)
  * GIFs, drafts. Returns the created comment (at depth parentDepth + 1), or
  * null if dismissed.
  */
-suspend fun showReplySheet(parentFullname: String, parentDepth: Int, replyingTo: String? = null): Comment? =
+suspend fun showReplySheet(parentFullname: String, parentDepth: Int, replyingTo: String? = null, post: Post? = null): Comment? =
     Overlays.show<Comment> { done ->
         ComposeSheet(
             title = if (replyingTo == null) "Reply" else "Reply to u/$replyingTo",
             submitLabel = "Reply",
             allowAttachments = true,
             draftKey = "reply_$parentFullname",
+            // For You → Drafts: the thread it belongs to.
+            draftInfo = post?.let { p ->
+                buildJsonObject {
+                    put("kind", "reply"); put("sub", p.subreddit); put("post", p.id); put("title", p.title)
+                    if (parentFullname.startsWith("t1_")) put("comment", parentFullname.removePrefix("t1_"))
+                    replyingTo?.let { put("to", it) }
+                }
+            },
             initialText = null,
             onSubmit = { text, media ->
                 val repo = app.repository
@@ -195,6 +206,7 @@ private fun <T> ComposeSheet(
     allowAttachments: Boolean,
     /** When set, the in-progress text is autosaved/restored under this key. */
     draftKey: String?,
+    draftInfo: JsonObject? = null,
     initialText: String?,
     onSubmit: suspend (String, MediaAttachment?) -> T,
     done: (T?) -> Unit,
@@ -212,7 +224,7 @@ private fun <T> ComposeSheet(
     val cs = MaterialTheme.colorScheme
 
     fun setText(v: TextFieldValue) {
-        if (v.text != value.text) draftKey?.let { app.drafts.save(it, v.text) }
+        if (v.text != value.text) draftKey?.let { app.drafts.save(it, v.text, draftInfo) }
         value = v
     }
 

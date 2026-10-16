@@ -332,7 +332,7 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
                     onMine = { jumpNext { it.author == username } },
                     onComment = { actions.replyToPost() },
                     onSummarize = if (!aiKey.isNullOrEmpty()) ({ showSummarySheet(thread.post, flat) }) else null,
-                    onAsk = if (!aiKey.isNullOrEmpty()) ({ showAskSheet(thread.post, flat) }) else null,
+                    onAsk = if (!aiKey.isNullOrEmpty()) ({ showAskSheet(thread.post, flat) { id -> revealId = id } }) else null,
                     onNext = { jumpNext { it.depth == 0 } },
                     onNextLongPress = {
                         // Long-press on the ↓ button: jump by the original poster or
@@ -500,11 +500,11 @@ private class ThreadActions(val vm: CommentsViewModel, val nav: AppNavigator, va
 
     fun replyToPost() {
         val p = post ?: return
-        scope.launch { showReplySheet(p.fullname, parentDepth = -1)?.let { onReplied(p.fullname, it) } }
+        scope.launch { showReplySheet(p.fullname, parentDepth = -1, post = p)?.let { onReplied(p.fullname, it) } }
     }
 
     fun reply(c: Comment) {
-        scope.launch { showReplySheet(c.fullname, c.depth, replyingTo = c.author)?.let { onReplied(c.fullname, it) } }
+        scope.launch { showReplySheet(c.fullname, c.depth, replyingTo = c.author, post = post)?.let { onReplied(c.fullname, it) } }
     }
 
     fun edit(c: Comment) {

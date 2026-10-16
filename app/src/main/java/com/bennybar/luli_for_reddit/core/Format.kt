@@ -9,6 +9,9 @@ fun compactNumber(n: Int): String = when {
     else -> n.toString()
 }
 
+/** "5m ago", "3h ago"… or "just now", for running text. */
+fun timeAgoPhrase(epochMillis: Long): String = timeAgo(epochMillis).let { if (it == "now") "just now" else "$it ago" }
+
 /** "5m", "3h", "2d", "4mo", "1y" or "now" since [epochMillis] (UTC). */
 fun timeAgo(epochMillis: Long): String {
     val diff = System.currentTimeMillis() - epochMillis

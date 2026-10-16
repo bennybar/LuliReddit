@@ -482,9 +482,16 @@ class RedditHomeLoader(private val context: Context) {
     }
 }
 
-/** A message for the Home feed, with what its action button does. */
-data class HomeNotice(val message: String, val action: Action) {
-    enum class Action { RETRY, SIGN_IN }
+/** What the Home feed is showing (a strip under its sort bar says so, unless it's live). */
+sealed interface HomeStatus {
+    /** Your live Reddit Home, loaded at [at]. */
+    data class Live(val at: Long) : HomeStatus
+
+    /** The Home page saved at [at]: back after Android closed Ilay, or Home couldn't load. */
+    data class Saved(val at: Long) : HomeStatus
+
+    /** For You instead, because Home couldn't load; [signedOut]: the website sign-in expired. */
+    data class FellBack(val signedOut: Boolean) : HomeStatus
 }
 
 /** Experimental Reddit Home (headless WebView), falling back to For You. */
@@ -494,8 +501,8 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
     /** Posts found so far while the first page loads (for the loading deck). */
     val progress: StateFlow<Int> = _progress
 
-    /** A one-off notice for the feed (fell back to For You; sign-in expired). */
-    val notice = MutableStateFlow<HomeNotice?>(null)
+    /** What the Home feed shows now (live, saved page, For You fallback); null before the first load. */
+    val status = MutableStateFlow<HomeStatus?>(null)
 
     private val _upgrades = MutableSharedFlow<List<Post>>(extraBufferCapacity = 8)
 
@@ -563,7 +570,10 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
             c.scope.launch { upgrade(page, firstPage, gen) }
             // Read the next batch ahead, so reaching the end doesn't wait.
             prefetch = c.scope.async { l.next(restart = false, cookieHeader = cookie) }
-            if (firstPage) trackLoad("ok", cards.size, started)
+            if (firstPage) {
+                trackLoad("ok", cards.size, started)
+                status.value = HomeStatus.Live(System.currentTimeMillis())
+            }
             return Listing(cards, after = "home")
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
@@ -573,11 +583,7 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
             // show For You rather than an empty feed, and say so.
             fellBack = true
             trackLoad(if (e is HomeSignedOutException) "signin_expired" else "fell_back", 0, started)
-            notice.value = if (e is HomeSignedOutException) {
-                HomeNotice("Your Reddit website sign-in has expired. Showing For You.", HomeNotice.Action.SIGN_IN)
-            } else {
-                HomeNotice("Couldn't load Reddit Home, showing For You instead.", HomeNotice.Action.RETRY)
-            }
+            status.value = HomeStatus.FellBack(signedOut = e is HomeSignedOutException)
             return m.engine.page(null, loaded)
         }
     }

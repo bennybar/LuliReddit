@@ -207,7 +207,7 @@ private class PostActions(val post: Post, val nav: AppNavigator) {
 
     fun reply() {
         app.scope.launch {
-            val reply = showReplySheet(post.fullname, parentDepth = -1)
+            val reply = showReplySheet(post.fullname, parentDepth = -1, post = post)
             if (reply != null) app.postOverrides.bumpComments(post, 1)
         }
     }

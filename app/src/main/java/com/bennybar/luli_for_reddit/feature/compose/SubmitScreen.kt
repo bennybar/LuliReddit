@@ -230,6 +230,7 @@ fun SubmitScreen(subreddit: String?) {
             buildJsonObject {
                 put("sr", sr); put("title", title); put("body", body.text); put("url", url); put("kind", kind.ordinal)
             }.toString(),
+            buildJsonObject { put("kind", "post") },
         )
         hasDraft = sr.isNotBlank() || title.isNotBlank() || body.text.isNotBlank() || url.isNotBlank()
     }

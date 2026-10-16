@@ -37,7 +37,7 @@ object InboxNotifications {
     private const val NATIVE_WORK_PREF = "inboxPollNative"
 
     // Same channel as the Flutter build, so the user's channel settings carry over.
-    private const val CHANNEL_ID = "inbox"
+    const val CHANNEL_ID = "inbox"
     private const val CHANNEL_NAME = "Inbox replies & messages"
     private const val CHANNEL_DESC = "New replies, mentions and private messages on Reddit."
 

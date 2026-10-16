@@ -38,6 +38,7 @@ import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.FilterAlt
 import androidx.compose.material.icons.outlined.Forum
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.MarkEmailRead
@@ -484,6 +485,9 @@ fun SettingsList(
             },
             Icons.Outlined.NotificationsActive, s.redditAppNotifications && redditAccess,
         ) { v -> scope.launch { toggleRedditAppNotifications(v) } }
+        tile("Notification activity", "What Ilay notified you about, what it couldn't, and why · Check now", Icons.Outlined.History) {
+            nav.push(Route.NotificationActivity)
+        }
         divider("notifications")
 
         // ---------------------------------------------------------------- AI

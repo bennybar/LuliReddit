@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
@@ -148,6 +149,11 @@ internal fun AccountTab() {
         }
         item(key = "offline") {
             NavTile(Icons.Rounded.OfflinePin, "Read later", "Threads saved for offline reading") { nav.push(Route.Offline) }
+        }
+        item(key = "drafts") {
+            val changes by app.drafts.changes.collectAsStateWithLifecycle()
+            val count = remember(changes) { app.drafts.list().size }
+            NavTile(Icons.Rounded.EditNote, "Drafts", if (count == 0) "Unfinished replies, messages and posts" else "$count unfinished") { nav.push(Route.Drafts) }
         }
         item(key = "summaries") {
             NavTile(Icons.Rounded.AutoAwesome, "Summaries", "Posts you summarized with AI, and their summaries") { nav.push(Route.Summaries) }

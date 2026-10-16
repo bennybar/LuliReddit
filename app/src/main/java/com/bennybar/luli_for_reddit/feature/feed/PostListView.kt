@@ -1,5 +1,11 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.core.timeAgoPhrase
+import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -75,7 +81,7 @@ import com.bennybar.luli_for_reddit.data.PostSort
 import com.bennybar.luli_for_reddit.data.TopTime
 import com.bennybar.luli_for_reddit.feature.foryou.DealIn
 import com.bennybar.luli_for_reddit.feature.foryou.HomeLoadingDeck
-import com.bennybar.luli_for_reddit.feature.foryou.HomeNotice
+import com.bennybar.luli_for_reddit.feature.foryou.HomeStatus
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.Route
 import com.bennybar.luli_for_reddit.settings.PostDisplay
@@ -178,20 +184,6 @@ fun PostListView(
         LaunchedEffect(listState) {
             app.feed.frontpageBackSignal.drop(1).collect { listState.animateScrollToItem(0) }
         }
-        // "Reddit Home couldn't load, showing For You" and similar.
-        LaunchedEffect(Unit) {
-            app.forYou.redditHome.notice.collect { n ->
-                if (n != null) {
-                    app.forYou.redditHome.notice.value = null
-                    when (n.action) {
-                        HomeNotice.Action.RETRY ->
-                            nav.showSnackbar(n.message, "Retry", SnackbarDuration.Long) { refresh() }
-                        HomeNotice.Action.SIGN_IN ->
-                            nav.showSnackbar(n.message, "Sign in", SnackbarDuration.Long) { nav.push(Route.WebLogin()) }
-                    }
-                }
-            }
-        }
         // Home: follow the card on screen in the hidden reddit.com page, so
         // Reddit's own "seen" tracking matches what was actually read.
         if (homeMode) LaunchedEffect(listState) {
@@ -246,6 +238,7 @@ fun PostListView(
                     dealHome = dealHome,
                     onDealt = { dealHome = false },
                     onSort = { s, t -> controller.changeSort(s, t) },
+                    onRetry = { refresh() },
                 )
             }
         }
@@ -275,8 +268,10 @@ private fun FeedList(
     dealHome: Boolean,
     onDealt: () -> Unit,
     onSort: (PostSort, TopTime?) -> Unit,
+    onRetry: () -> Unit,
 ) {
     val settings by app.settings.state.collectAsStateWithLifecycle()
+    val homeStatus = if (homeMode) app.forYou.redditHome.status.collectAsStateWithLifecycle().value else null
     val hiddenIds by app.hiddenPosts.ids.collectAsStateWithLifecycle()
     // Home / For You: posts dismissed with the "Dismiss" swipe (kept a day).
     val dismissible = feedKey.isEmpty() && deckMode
@@ -367,6 +362,10 @@ private fun FeedList(
                 redditHome = homeMode,
                 onRedditHome = if (settings.redditHomeAllowed) controller::selectRedditHome else null,
             )
+        }
+        // Not your live Home: say what this is instead (until the next load works).
+        if (homeStatus is HomeStatus.Saved || homeStatus is HomeStatus.FellBack) {
+            item(key = "homestatus", contentType = "homestatus") { HomeStatusStrip(homeStatus, onRetry) }
         }
         items(posts.size, key = { posts[it].id }, contentType = { "post_${posts[it].type}" }) { i ->
             val p = posts[i]
@@ -534,4 +533,33 @@ fun SheetTile(icon: ImageVector?, title: String, subtitle: String?, checked: Boo
         trailing = if (checked) ({ Icon(Icons.Rounded.Check, "Selected") }) else null,
                 onClick = onClick,
     )
+}
+
+/** "Saved Home from 2h ago · Refresh" / "Home couldn't load · showing For You · Retry". */
+@Composable
+private fun HomeStatusStrip(status: HomeStatus, onRetry: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val nav = LocalNavigator.current
+    val (icon, text) = when (status) {
+        is HomeStatus.Saved -> Icons.Rounded.History to "Saved Home, from ${timeAgoPhrase(status.at)}"
+        is HomeStatus.FellBack -> Icons.Rounded.CloudOff to
+            if (status.signedOut) "Website sign-in expired · showing For You" else "Home couldn't load · showing For You"
+        is HomeStatus.Live -> return
+    }
+    val signIn = status is HomeStatus.FellBack && status.signedOut
+    Row(
+        Modifier
+            .padding(horizontal = 4.dp)
+            .fillMaxWidth()
+            .background(cs.secondaryContainer, RoundedCornerShape(18.dp))
+            .padding(start = 14.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, Modifier.size(18.dp), tint = cs.onSecondaryContainer)
+        Spacer(Modifier.width(10.dp))
+        Text(text, Modifier.weight(1f), fontSize = 13.sp, color = cs.onSecondaryContainer, maxLines = 2)
+        TextButton(onClick = { if (signIn) nav.push(Route.WebLogin()) else onRetry() }) {
+            Text(if (signIn) "Sign in" else if (status is HomeStatus.Saved) "Refresh" else "Retry")
+        }
+    }
 }
