@@ -23,20 +23,21 @@ import com.bennybar.luli_for_reddit.app
 import com.bennybar.luli_for_reddit.core.net.Http
 import com.bennybar.luli_for_reddit.ui.Overlays
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.Request
 import java.io.File
 import java.io.IOException
 import java.util.Locale
 import java.util.concurrent.TimeUnit
-import kotlin.coroutines.coroutineContext
 
 // Reddit's CDN (v.redd.it) closes the connection mid-stream for requests
 // without a real User-Agent, so set one and allow a generous timeout.
@@ -56,34 +57,51 @@ internal fun mimeFor(ext: String, isVideo: Boolean): String = when (ext) {
 
 /**
  * Downloads [url] into [dest], reporting (received, total) every 128 KB.
- * Cancelling the caller aborts a blocked read at once, not at the next chunk.
+ * Cancelling the caller aborts a blocked connect or read at once, not at the
+ * next chunk or the read timeout.
  */
-internal suspend fun downloadTo(url: String, dest: File, onProgress: (Long, Long) -> Unit) {
+internal suspend fun downloadTo(url: String, dest: File, onProgress: (Long, Long) -> Unit) = withContext(Dispatchers.IO) {
     val req = Request.Builder().url(url).header("User-Agent", DOWNLOAD_UA).build()
     val call = downloadClient.newCall(req)
-    coroutineContext.job.invokeOnCompletion { call.cancel() }
-    call.execute().use { res ->
-        if (!res.isSuccessful) throw IOException("HTTP ${res.code}")
-        val body = res.body
-        val total = body.contentLength().coerceAtLeast(0)
-        dest.outputStream().use { out ->
-            body.byteStream().use { input ->
-                val buf = ByteArray(64 * 1024)
-                var got = 0L
-                var lastEmit = 0L
-                while (true) {
-                    coroutineContext.ensureActive()
-                    val n = input.read(buf)
-                    if (n < 0) break
-                    out.write(buf, 0, n)
-                    got += n
-                    if (got - lastEmit > 128 * 1024 || got == total) {
-                        lastEmit = got
-                        onProgress(got, total)
+    // Closes the connection as soon as cancellation starts: the blocked
+    // execute()/read() below then throws. (A completion handler would only run
+    // after that blocked call returned.)
+    val closer = launch(start = CoroutineStart.UNDISPATCHED) {
+        try {
+            awaitCancellation()
+        } finally {
+            call.cancel()
+        }
+    }
+    try {
+        call.execute().use { res ->
+            if (!res.isSuccessful) throw IOException("HTTP ${res.code}")
+            val body = res.body
+            val total = body.contentLength().coerceAtLeast(0)
+            dest.outputStream().use { out ->
+                body.byteStream().use { input ->
+                    val buf = ByteArray(64 * 1024)
+                    var got = 0L
+                    var lastEmit = 0L
+                    while (true) {
+                        ensureActive()
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        out.write(buf, 0, n)
+                        got += n
+                        if (got - lastEmit > 128 * 1024 || got == total) {
+                            lastEmit = got
+                            onProgress(got, total)
+                        }
                     }
                 }
             }
         }
+    } catch (e: IOException) {
+        ensureActive() // cancelled: the closed connection's error is a cancellation
+        throw e
+    } finally {
+        closer.cancel()
     }
 }
 

@@ -123,6 +123,7 @@ internal fun buildPlayer(context: Context, audioFocus: Boolean): ExoPlayer {
         .build()
 }
 
+@UnstableApi
 @Volatile private var sharedVideoCache: SimpleCache? = null
 
 /** Played video, up to 200 MB (least recently used goes first). */

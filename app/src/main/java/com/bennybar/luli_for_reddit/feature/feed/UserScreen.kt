@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -186,7 +187,7 @@ private fun ProfileHeader(user: RedditUser) {
                 color = cs.onSurfaceVariant,
             )
             Text(
-                "Joined ${SimpleDateFormat("MMM yyyy", Locale.getDefault()).format(Date(user.createdUtc))}",
+                "Joined ${SimpleDateFormat("MMM yyyy", LocalConfiguration.current.locales[0]).format(Date(user.createdUtc))}",
                 fontSize = 12.sp,
                 color = cs.onSurfaceVariant,
             )

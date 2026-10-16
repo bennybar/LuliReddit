@@ -62,10 +62,10 @@ fun rememberMirroredState(value: TextFieldValue, onValueChange: (TextFieldValue)
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun keyboardMediaReceiver(onMedia: (MediaAttachment) -> Unit, onError: (String) -> Unit): Modifier {
+fun Modifier.keyboardMediaReceiver(onMedia: (MediaAttachment) -> Unit, onError: (String) -> Unit): Modifier {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    return Modifier.contentReceiver { content ->
+    return contentReceiver { content ->
         if (!content.hasMediaType(MediaType.Image)) return@contentReceiver content
         var uri: android.net.Uri? = null
         val rest = content.consume { item -> if (uri == null && item.uri != null) { uri = item.uri; true } else false }

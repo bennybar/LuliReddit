@@ -278,7 +278,7 @@ private fun Thread(root: InboxItem) {
                     singleLine = false,
                     minLines = 1,
                     maxLines = 5,
-                    mediaReceiver = keyboardMediaReceiver(onMedia = { media = it }, onError = nav::showSnackbar),
+                    mediaReceiver = Modifier.keyboardMediaReceiver(onMedia = { media = it }, onError = nav::showSnackbar),
                 )
                 Spacer(Modifier.size(8.dp))
                 FilledIconButton(onClick = ::send, enabled = !sending) {

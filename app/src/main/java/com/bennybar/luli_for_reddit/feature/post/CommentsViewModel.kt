@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import com.bennybar.luli_for_reddit.ui.friendlyError
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -166,7 +167,15 @@ class CommentsViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _state.value = ThreadUiState(thread = null, loading = false, error = e, sort = sort)
+                val shown = _state.value.thread
+                if (!showLoading && shown != null) {
+                    // A failed refresh keeps the thread (and its collapsed
+                    // comments) readable; the error screen is for nothing loaded.
+                    _state.update { it.copy(refreshing = false) }
+                    app.navigatorOrNull?.showSnackbar("Couldn't refresh: ${friendlyError(e)}", actionLabel = "Retry", onAction = ::refresh)
+                } else {
+                    _state.value = ThreadUiState(thread = null, loading = false, error = e, sort = sort)
+                }
             }
         }
     }

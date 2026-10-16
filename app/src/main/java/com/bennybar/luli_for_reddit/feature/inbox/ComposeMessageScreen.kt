@@ -66,9 +66,10 @@ private const val DRAFT_KEY = "compose_msg"
 fun ComposeMessageScreen(to: String?) {
     val nav = LocalNavigator.current
     val scope = rememberCoroutineScope()
-    // Restore the saved draft (the recipient only if none was given).
+    // Restore the saved draft, unless it was to someone else than [to].
     val draft = remember {
         runCatching { app.drafts.get(DRAFT_KEY)?.let { AppJson.parseToJsonElement(it) } }.getOrNull()
+            ?.takeIf { d -> to.isNullOrEmpty() || d["to"].str().isNullOrEmpty() || d["to"].str().equals(to, ignoreCase = true) }
     }
     var toField by remember {
         mutableStateOf(TextFieldValue(if (to.isNullOrEmpty()) draft["to"].str() ?: "" else to))
@@ -164,7 +165,7 @@ fun ComposeMessageScreen(to: String?) {
                     singleLine = false,
                     minLines = 6,
                     maxLines = 14,
-                    mediaReceiver = keyboardMediaReceiver(onMedia = { media = it; error = null }, onError = { error = it }),
+                    mediaReceiver = Modifier.keyboardMediaReceiver(onMedia = { media = it; error = null }, onError = { error = it }),
                 )
                 MarkdownToolbar(body) { body = it; saveDraft() }
                 Spacer(Modifier.height(4.dp))

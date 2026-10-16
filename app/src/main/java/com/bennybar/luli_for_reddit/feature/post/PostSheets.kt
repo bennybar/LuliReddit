@@ -65,6 +65,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -267,7 +268,7 @@ private fun <T> ComposeSheet(
             TextField(
                 state = rememberMirroredState(value, ::setText),
                 modifier = Modifier.fillMaxWidth().focusRequester(focus).then(
-                    if (allowAttachments) keyboardMediaReceiver(onMedia = { media = it; error = null }, onError = { error = it }) else Modifier,
+                    if (allowAttachments) Modifier.keyboardMediaReceiver(onMedia = { media = it; error = null }, onError = { error = it }) else Modifier,
                 ),
                 lineLimits = TextFieldLineLimits.MultiLine(3, 8),
                 placeholder = { Text("Markdown supported") },
@@ -330,6 +331,8 @@ fun showPostActionsSheet(post: Post) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PostActionsSheet(post: Post, done: () -> Unit) {
+    // Subscribed: Reddit's list can arrive while the sheet is open.
+    val showFewerIds by app.forYou.redditHome.showFewerIds.collectAsStateWithLifecycle()
     val sheet = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
     // Ignore taps briefly so the gesture that opened the sheet can't fall
@@ -387,7 +390,7 @@ private fun PostActionsSheet(post: Post, done: () -> Unit) {
                 }
             }
             // Reddit Home's own "Show fewer posts like this" (recommended posts only).
-            if (post.id in app.forYou.redditHome.showFewerIds.value) {
+            if (post.id in showFewerIds) {
                 item(Icons.Outlined.ThumbDown, "Show fewer posts like this", "Tells Reddit, like on reddit.com") {
                     if (app.forYou.redditHome.showFewer(post)) {
                         app.dismissedPosts.add(post.id)

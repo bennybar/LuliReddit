@@ -52,6 +52,18 @@ object InboxNotifications {
     const val TARGET_APP = "app"
 
     /** Pre-creates the channel so importance is right. Safe to call repeatedly. */
+    /**
+     * Whether a notification on [channelId] would actually show: the app may
+     * post, and the user hasn't blocked that channel or its group.
+     * (notify() succeeds silently either way.)
+     */
+    fun canPost(nm: NotificationManagerCompat, channelId: String): Boolean {
+        if (!nm.areNotificationsEnabled()) return false
+        val channel = nm.getNotificationChannelCompat(channelId) ?: return true
+        if (channel.importance == NotificationManagerCompat.IMPORTANCE_NONE) return false
+        return channel.group?.let { nm.getNotificationChannelGroupCompat(it)?.isBlocked != true } ?: true
+    }
+
     fun createChannel(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
         if (nm.getNotificationChannel(CHANNEL_ID) != null) return
@@ -65,8 +77,8 @@ object InboxNotifications {
     /** Posts [item]'s notification; false if Ilay can't post notifications. */
     internal fun show(context: Context, item: UnreadItem): Boolean {
         val nm = NotificationManagerCompat.from(context)
-        if (!nm.areNotificationsEnabled()) return false
         createChannel(context)
+        if (!canPost(nm, CHANNEL_ID)) return false
         val id = item.fullname.hashCode() and 0x7fffffff
         val intent = Intent(context, IlayActivity::class.java).apply {
             // CLEAR_TOP: always the one running Ilay (onNewIntent), never a second copy whose Back leads to the last one.

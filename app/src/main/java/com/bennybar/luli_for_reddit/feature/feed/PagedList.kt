@@ -69,6 +69,7 @@ class PagedSource<T>(private val fetch: suspend (String?) -> Listing<T>) : ViewM
     val state: StateFlow<PagedState<T>> = _state
     private var lastLoaded = 0L
     private var loadJob: Job? = null
+    private var moreJob: Job? = null
     private var started = false
 
     fun start() {
@@ -80,6 +81,11 @@ class PagedSource<T>(private val fetch: suspend (String?) -> Listing<T>) : ViewM
     /** (Re)loads the first page. [silent] keeps the list (and position) on screen. */
     fun load(silent: Boolean = false): Job {
         loadJob?.cancel()
+        // A page being fetched belongs to the old list: its rows and cursor
+        // mustn't land on the new first page.
+        moreJob?.cancel()
+        moreJob = null
+        _state.update { it.copy(loadingMore = false) }
         if (!silent) _state.update { it.copy(loading = true, error = null) }
         return viewModelScope.launch {
             try {
@@ -107,14 +113,15 @@ class PagedSource<T>(private val fetch: suspend (String?) -> Listing<T>) : ViewM
         val s = _state.value
         if (s.loading || s.loadingMore || !s.hasMore) return
         _state.update { it.copy(loadingMore = true) }
-        viewModelScope.launch {
+        moreJob = viewModelScope.launch {
             try {
                 val listing = fetch(s.after)
-                _state.update { it.copy(items = it.items + listing.items, after = listing.after, loadingMore = false) }
+                // Only onto the list this page continues (not one refreshed meanwhile).
+                _state.update { if (it.after != s.after) it else it.copy(items = it.items + listing.items, after = listing.after, loadingMore = false) }
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
-                _state.update { it.copy(loadingMore = false) }
+                _state.update { if (it.after != s.after) it else it.copy(loadingMore = false) }
             }
         }
     }

@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import android.annotation.SuppressLint
 import com.bennybar.luli_for_reddit.feature.media.externalVideoSource
 import com.bennybar.luli_for_reddit.feature.media.isExternalVideo
 import androidx.compose.foundation.background
@@ -264,7 +265,11 @@ fun filterOutSub(post: Post) {
 @Composable
 private fun rememberOverride(post: Post): State<PostOverride?> {
     val flow = remember(post.id) { app.postOverrides.state.map { it[post.id] }.distinctUntilChanged() }
-    return flow.collectAsState(initial = app.postOverrides.state.value[post.id])
+    // Seeds the first frame with the current value; the collected flow then
+    // keeps it up to date (so this .value read can't go stale).
+    @SuppressLint("StateFlowValueCalledInComposition")
+    val initial = app.postOverrides.state.value[post.id]
+    return flow.collectAsState(initial = initial)
 }
 
 /** Whether [post] is in the local history (read). */

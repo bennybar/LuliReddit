@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.auth
 
+import android.webkit.RenderProcessGoneDetail
 import android.annotation.SuppressLint
 import android.webkit.CookieManager
 import android.webkit.WebSettings
@@ -24,6 +25,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -57,6 +60,8 @@ fun WebLoginScreen(clearFirst: Boolean = false) {
     var ready by remember { mutableStateOf(!clearFirst) }
     var done by remember { mutableStateOf(false) }
     var signingIn by remember { mutableStateOf(false) }
+    // Bumped when the page's renderer dies: a new WebView reloads the sign-in page.
+    var page by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(Unit) {
         if (!clearFirst) return@LaunchedEffect
@@ -107,7 +112,7 @@ fun WebLoginScreen(clearFirst: Boolean = false) {
         },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
-            if (ready) {
+            if (ready) key(page) {
                 AndroidView(
                     modifier = Modifier.fillMaxSize(),
                     factory = { ctx ->
@@ -124,6 +129,12 @@ fun WebLoginScreen(clearFirst: Boolean = false) {
                             CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                             webViewClient = object : WebViewClient() {
                                 override fun onPageFinished(view: WebView?, url: String?) = check()
+
+                                // Unhandled, a dead renderer takes Ilay down with it.
+                                override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                                    page++
+                                    return true
+                                }
                             }
                             loadUrl(RedditConstants.WEB_LOGIN_URL)
                         }

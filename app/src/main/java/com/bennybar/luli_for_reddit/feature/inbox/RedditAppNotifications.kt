@@ -61,7 +61,9 @@ class RedditNotificationListener : NotificationListenerService() {
             val shown = if (RedditAppNotifications.isInbox(title) && app.settings.value.notifyInbox) {
                 runCatching { app.inbox.pollInbox(notify = true) }.getOrNull().orEmpty()
             } else emptyList()
-            val handled = shown.any { RedditAppNotifications.sameText(it.body, text) }
+            // Exactly one of them, by text and author: two "Thank you!" replies
+            // can't be told apart, so then Reddit's is copied instead.
+            val handled = shown.count { RedditAppNotifications.sameItem(it.title, it.body, title, text) } == 1
             if (!handled && !RedditAppNotifications.mirror(context, key, title, text, picture, n.contentIntent)) return@launch
             runCatching { cancelNotification(key) }
         }
@@ -101,6 +103,8 @@ internal object RedditAppNotifications {
                 description = "The Reddit app's notifications, opened in Ilay."
             },
         )
+        // This channel turned off by the user: Reddit's own notification stays.
+        if (!InboxNotifications.canPost(nm, CHANNEL_ID)) return false
         val id = key.hashCode() and 0x7fffffff
         val tap = PendingIntent.getActivity(
             context,
@@ -140,6 +144,22 @@ internal object RedditAppNotifications {
         return b.length >= 8 && a.startsWith(b)
     }
 
+    private val AUTHOR = Regex("""\bu/([A-Za-z0-9_-]{3,20})""")
+
+    /** The u/name a Reddit notification title starts with ("u/x and 1 other replied…"), if any. */
+    fun author(title: String): String? = AUTHOR.find(title)?.groupValues?.get(1)
+
+    /**
+     * Whether an inbox item (Ilay's [itemTitle] "u/x replied…" and [itemBody])
+     * is the one Reddit notified about: the same text and, when Reddit names
+     * one, the same author.
+     */
+    fun sameItem(itemTitle: String, itemBody: String, redditTitle: String, redditText: String): Boolean {
+        if (!sameText(itemBody, redditText)) return false
+        val who = author(redditTitle) ?: return true
+        return author(itemTitle).equals(who, ignoreCase = true)
+    }
+
     /**
      * Where a copied Reddit notification should go: a reply / message found in
      * the inbox by its text; a post found in its subreddit by title; else the
@@ -151,8 +171,12 @@ internal object RedditAppNotifications {
             val wanted = norm(text).take(60)
             if (wanted.length >= 8) {
                 val json = app.client.get("/message/inbox", mapOf("limit" to 50))
+                val who = author(title)
+                // The one item with this text (and author, when Reddit names one);
+                // none or several: fall back to the subreddit below.
                 val hit = json["data"]["children"].arr().orEmpty().map { it["data"] }
-                    .firstOrNull { norm(it["body"].str()).startsWith(wanted) }
+                    .filter { norm(it["body"].str()).startsWith(wanted) && (who == null || it["author"].str().equals(who, ignoreCase = true)) }
+                    .singleOrNull()
                 val item = InboxModule.parseUnread(hit)
                 item?.post?.let { (s, post, comment) -> return Route.Post(s, post, comment) }
                 item?.messageFullname?.let { return Route.MessageThread(it) }

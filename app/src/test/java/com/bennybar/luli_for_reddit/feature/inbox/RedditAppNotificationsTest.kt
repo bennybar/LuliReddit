@@ -35,4 +35,11 @@ class RedditAppNotificationsTest {
     fun `same text needs enough text to tell items apart`() {
         assertFalse(RedditAppNotifications.sameText("ok", "ok"))
     }
+
+    @Test
+    fun `same item needs the same author when Reddit names one`() {
+        val reddit = "u/Ckabal and 1 other replied to your comment in r/WWE"
+        assertTrue(RedditAppNotifications.sameItem("u/Ckabal replied · Crown Jewel", "Thank you so much for this!", reddit, "Thank you so much for this!"))
+        assertFalse(RedditAppNotifications.sameItem("u/someoneElse replied · Other post", "Thank you so much for this!", reddit, "Thank you so much for this!"))
+    }
 }

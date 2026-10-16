@@ -114,6 +114,7 @@ class SearchViewModel(private val subreddit: String?) : ViewModel() {
     // not overwrite the results of a newer one.
     private var request = 0
     private var job: Job? = null
+    private var moreJob: Job? = null
 
     // Per account, like the rest of the on-device history.
     private val recentKey: String = run {
@@ -165,7 +166,12 @@ class SearchViewModel(private val subreddit: String?) : ViewModel() {
         if (q.isEmpty()) return null
         if (saveRecent) saveRecent(q)
         val req = ++request
-        _state.update { it.copy(loading = true, error = null, query = q) }
+        // A new search: the old one's requests (first page or "more") are
+        // dropped, and its paging state with them — a leftover loadingMore
+        // otherwise blocked paging for good.
+        job?.cancel()
+        moreJob?.cancel()
+        _state.update { it.copy(loading = true, loadingMore = false, postsAfter = null, error = null, query = q) }
         val s = _state.value
         val repo = app.repository
         job = viewModelScope.launch {
@@ -193,10 +199,10 @@ class SearchViewModel(private val subreddit: String?) : ViewModel() {
     fun loadMorePosts() {
         val s = _state.value
         val after = s.postsAfter
-        if (after.isNullOrEmpty() || s.loadingMore) return
+        if (after.isNullOrEmpty() || s.loadingMore || s.loading) return
         val req = request
         _state.update { it.copy(loadingMore = true) }
-        viewModelScope.launch {
+        moreJob = viewModelScope.launch {
             try {
                 val page = app.repository.searchPosts(s.query, subreddit = subreddit, sort = s.sort, time = s.time, after = after)
                 if (req != request) return@launch

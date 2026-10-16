@@ -82,7 +82,7 @@ class AppContainer(val context: Context) {
     val threadVisits = ThreadVisits(prefs, settings)
     val contentFilters = ContentFiltersStore(prefs)
     val offline = OfflineStore(context, prefs, repository)
-    val drafts = Drafts(prefs)
+    val drafts = Drafts(prefs) { session.username }
 
     // Feature modules (each owns its feature's singletons).
     val feed by lazy { FeedModule(this) }

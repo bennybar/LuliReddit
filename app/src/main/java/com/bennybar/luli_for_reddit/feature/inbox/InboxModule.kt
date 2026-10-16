@@ -25,6 +25,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /** One inbox tab's list (`where` = inbox | unread | messages | sent). */
 data class InboxTabState(
@@ -49,7 +51,8 @@ class InboxModule(private val c: AppContainer) : UserScoped {
     private val loadJobs = mutableMapOf<String, Job>()
 
     /** Bumped on account change, so a stale in-flight load can't land in the new account's tabs. */
-    private var generation = 0
+    @Volatile private var generation = 0
+    private val pollLock = Mutex()
 
     fun tab(where: String): StateFlow<InboxTabState> = tabs.getValue(where)
 
@@ -312,12 +315,18 @@ class InboxModule(private val c: AppContainer) : UserScoped {
      * Returns how many notifications it posted.
      */
     /** Checks the inbox; returns the items it showed a notification for. */
-    internal suspend fun pollInbox(notify: Boolean): List<UnreadItem> {
-        val items = fetchUnread() ?: return emptyList() // not logged in / network error
+    internal suspend fun pollInbox(notify: Boolean): List<UnreadItem> = pollLock.withLock {
+        // One poll at a time (the worker and the Reddit-notification listener
+        // can both start one), and for one account: the account is read before
+        // the request, and a switch while it runs drops the result rather than
+        // notifying or recording one account's items as the other's.
+        val gen = generation
+        val user = runCatching { c.secureStore.username() }.getOrNull().orEmpty()
+        val items = fetchUnread() ?: return@withLock emptyList() // not logged in / network error
+        if (gen != generation || runCatching { c.secureStore.username() }.getOrNull().orEmpty() != user) return@withLock emptyList()
         // Per account: the polled inbox is the active account's, so one shared
         // list made every switch notify for all of the other account's unread.
         // An account's first poll only primes its list (no burst of old items).
-        val user = runCatching { c.secureStore.username() }.getOrNull().orEmpty()
         val key = userScopedKey(c.prefs, user, SEEN_IDS_PREF)
         val primed = c.prefs.contains(key)
         val seen = (c.prefs.getStringList(key) ?: emptyList()).toSet()
@@ -329,7 +338,7 @@ class InboxModule(private val c: AppContainer) : UserScoped {
         val updated = items.map { it.fullname } + seen.filter { it !in current }
         c.prefs.setStringList(key, updated.take(200))
         if (fresh.isNotEmpty()) c.scope.launch { refreshUnread() }
-        return shown
+        shown
     }
 
     /** The current unread items, or null if we can't authenticate / reach Reddit. */

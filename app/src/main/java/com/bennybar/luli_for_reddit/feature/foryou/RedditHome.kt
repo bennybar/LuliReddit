@@ -6,6 +6,7 @@ import android.content.Context
 import android.os.Looper
 import android.webkit.CookieManager
 import android.webkit.WebView
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebViewClient
@@ -342,6 +343,18 @@ class RedditHomeLoader(private val context: Context) {
                 val url = request?.url ?: return null
                 return if (isSkippable(url)) EMPTY_RESPONSE() else null
             }
+
+            // The page's renderer died (crashed, or killed for memory). Unhandled,
+            // Android kills Ilay with it; instead drop this page, and the next
+            // Home load opens a new one.
+            override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                if (this@RedditHomeLoader.view === view) {
+                    this@RedditHomeLoader.view = null
+                    cookies = null
+                }
+                view.destroy()
+                return true
+            }
         }
         // A real viewport, so the page lays out and "scroll to bottom" loads more.
         v.layout(0, 0, 1080, 2400)
@@ -502,6 +515,7 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
     // This load fell back to For You (Reddit Home couldn't be read); paging
     // continues with For You until the next refresh.
     @Volatile private var fellBack = false
+    @Volatile private var loadGen = 0 // bumped by each first-page Home load
     @Volatile private var homeEmpty = 0 // consecutive empty "more" batches from Reddit Home
 
     // The next batch, read ahead while the user scrolls the current one.
@@ -522,6 +536,7 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
             val cookie = store.webCookie() ?: ""
             val l = loader ?: RedditHomeLoader(c.context).also { loader = it }
             if (firstPage) {
+                loadGen++
                 _progress.value = 0
                 prefetch?.cancel()
                 prefetch = null
@@ -544,7 +559,8 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
             // Cards straight from the page (no wait for the API); the full posts
             // (media, video, flair, NSFW) follow in the background.
             val cards = page.map { it.toPost() }
-            c.scope.launch { upgrade(page, firstPage) }
+            val gen = loadGen
+            c.scope.launch { upgrade(page, firstPage, gen) }
             // Read the next batch ahead, so reaching the end doesn't wait.
             prefetch = c.scope.async { l.next(restart = false, cookieHeader = cookie) }
             if (firstPage) trackLoad("ok", cards.size, started)
@@ -579,19 +595,22 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
     }
 
     /** Fetches the full posts for [page] and hands them to the feed. */
-    private suspend fun upgrade(page: List<PagePost>, firstPage: Boolean) {
+    private suspend fun upgrade(page: List<PagePost>, firstPage: Boolean, gen: Int) {
         // The account these cards belong to: a switch mid-request must not give
-        // its posts (or its saved Home page) to the next account.
+        // its posts (or its saved Home page) to the next account. Likewise a
+        // newer Home load ([gen]) makes these cards old: an upgrade finishing
+        // after it must not overwrite the newer cards or saved page.
         val user = c.session.username
+        fun stale() = c.session.username != user || gen != loadGen
         // A failed fetch left cards without media (empty galleries); try again
         // a couple of times before leaving them as they are.
         var full: List<Post>? = null
         for (wait in listOf(0L, 2_000L, 5_000L)) {
             delay(wait)
             full = runCatching { c.repository.getPostsByIds(page.map { it.id }) }.getOrNull()
-            if (full != null || c.session.username != user) break
+            if (full != null || stale()) break
         }
-        if (full == null || c.session.username != user) return
+        if (full == null || stale()) return
         val reasons = page.associate { it.id.removePrefix("t3_") to it.reason }
         val posts = full.map { p -> reasons[p.id]?.let { p.copy(feedReason = it) } ?: p }
         _upgrades.emit(posts)
