@@ -54,11 +54,15 @@ class RedditNotificationListener : NotificationListenerService() {
                 ?.let { runCatching { it.loadDrawable(this)?.toBitmap() }.getOrNull() }
         val context = applicationContext
         app.scope.launch {
-            // A reply / message: Ilay's own notification knows exactly where it goes.
+            // Ilay can't post notifications (permission off): keep Reddit's own.
+            if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return@launch
+            // A reply / message: Ilay's own notification knows exactly where it goes,
+            // but only if it's this one (not another fresh item, another account's…).
             val shown = if (RedditAppNotifications.isInbox(title) && app.settings.value.notifyInbox) {
-                runCatching { app.inbox.pollInbox(notify = true) }.getOrNull() ?: 0
-            } else 0
-            if (shown == 0) RedditAppNotifications.mirror(context, key, title, text, picture, n.contentIntent)
+                runCatching { app.inbox.pollInbox(notify = true) }.getOrNull().orEmpty()
+            } else emptyList()
+            val handled = shown.any { RedditAppNotifications.sameText(it.body, text) }
+            if (!handled && !RedditAppNotifications.mirror(context, key, title, text, picture, n.contentIntent)) return@launch
             runCatching { cancelNotification(key) }
         }
     }
@@ -88,9 +92,10 @@ internal object RedditAppNotifications {
             )
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
-    fun mirror(context: Context, key: String, title: String, text: String, picture: Bitmap?, original: PendingIntent?) {
+    /** Copies a Reddit notification into Ilay's; false if it couldn't be posted. */
+    fun mirror(context: Context, key: String, title: String, text: String, picture: Bitmap?, original: PendingIntent?): Boolean {
         val nm = NotificationManagerCompat.from(context)
-        if (!nm.areNotificationsEnabled()) return
+        if (!nm.areNotificationsEnabled()) return false
         context.getSystemService(NotificationManager::class.java)?.createNotificationChannel(
             NotificationChannel(CHANNEL_ID, "Reddit app notifications", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "The Reddit app's notifications, opened in Ilay."
@@ -120,12 +125,20 @@ internal object RedditAppNotifications {
             b.setStyle(NotificationCompat.BigTextStyle().bigText(text))
         }
         if (original != null) b.addAction(0, "Open in Reddit", original)
-        try {
+        return try {
             nm.notify(id, b.build())
-        } catch (_: SecurityException) { /* permission revoked meanwhile */ }
+            true
+        } catch (_: SecurityException) { false /* permission revoked meanwhile */ }
     }
 
     private fun norm(s: String?) = s.orEmpty().lowercase().filter { it.isLetterOrDigit() }
+
+    /** Whether an inbox item's [body] is the text Reddit's notification shows (Reddit cuts it short). */
+    fun sameText(body: String, text: String): Boolean {
+        val a = norm(body)
+        val b = norm(text).take(60)
+        return b.length >= 8 && a.startsWith(b)
+    }
 
     /**
      * Where a copied Reddit notification should go: a reply / message found in

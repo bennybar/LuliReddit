@@ -580,11 +580,21 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
 
     /** Fetches the full posts for [page] and hands them to the feed. */
     private suspend fun upgrade(page: List<PagePost>, firstPage: Boolean) {
-        val full = runCatching { c.repository.getPostsByIds(page.map { it.id }) }.getOrNull() ?: return
+        // The account these cards belong to: a switch mid-request must not give
+        // its posts (or its saved Home page) to the next account.
+        val user = c.session.username
+        // A failed fetch left cards without media (empty galleries); try again
+        // a couple of times before leaving them as they are.
+        var full: List<Post>? = null
+        for (wait in listOf(0L, 2_000L, 5_000L)) {
+            delay(wait)
+            full = runCatching { c.repository.getPostsByIds(page.map { it.id }) }.getOrNull()
+            if (full != null || c.session.username != user) break
+        }
+        if (full == null || c.session.username != user) return
         val reasons = page.associate { it.id.removePrefix("t3_") to it.reason }
         val posts = full.map { p -> reasons[p.id]?.let { p.copy(feedReason = it) } ?: p }
         _upgrades.emit(posts)
-        val user = c.session.username
         if (firstPage && user.isNotEmpty()) {
             launchIo { saveForYouPage(c.context, user, posts, c.repository::rawPost, feed = "home") }
         }

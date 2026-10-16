@@ -62,9 +62,10 @@ object InboxNotifications {
         )
     }
 
-    internal fun show(context: Context, item: UnreadItem) {
+    /** Posts [item]'s notification; false if Ilay can't post notifications. */
+    internal fun show(context: Context, item: UnreadItem): Boolean {
         val nm = NotificationManagerCompat.from(context)
-        if (!nm.areNotificationsEnabled()) return
+        if (!nm.areNotificationsEnabled()) return false
         createChannel(context)
         val id = item.fullname.hashCode() and 0x7fffffff
         val intent = Intent(context, IlayActivity::class.java).apply {
@@ -100,9 +101,10 @@ object InboxNotifications {
             .setAutoCancel(true)
             .setContentIntent(tap)
             .build()
-        try {
+        return try {
             nm.notify(id, notification)
-        } catch (_: SecurityException) { /* permission revoked meanwhile */ }
+            true
+        } catch (_: SecurityException) { false /* permission revoked meanwhile */ }
     }
 
     /** Registers the ~15-minute periodic poll (network required). */

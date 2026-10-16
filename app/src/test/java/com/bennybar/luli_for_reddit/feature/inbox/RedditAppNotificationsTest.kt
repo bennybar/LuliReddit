@@ -19,4 +19,20 @@ class RedditAppNotificationsTest {
         assertFalse(RedditAppNotifications.isInbox("Trending in r/WWE"))
         assertFalse(RedditAppNotifications.isInbox("r/Android: Pixel 11 announced"))
     }
+
+    @Test
+    fun `same text matches Reddit's shortened body`() {
+        val body = "Totally agree, the **battery** on the Watch 8 is way better than the 7. Mine lasts two days."
+        assertTrue(RedditAppNotifications.sameText(body, "Totally agree, the battery on the Watch 8 is way better than the…"))
+    }
+
+    @Test
+    fun `same text rejects another item`() {
+        assertFalse(RedditAppNotifications.sameText("Thanks for the tip!", "Totally agree, the battery on the Watch 8"))
+    }
+
+    @Test
+    fun `same text needs enough text to tell items apart`() {
+        assertFalse(RedditAppNotifications.sameText("ok", "ok"))
+    }
 }

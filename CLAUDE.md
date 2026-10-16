@@ -1,9 +1,9 @@
 # Ilay for Reddit — native Kotlin (branch `main`)
 
-A full Kotlin/Jetpack Compose port of the Flutter app (≤ v1.0.51, at tag
-`v1.0.51`), released as 2.0.0. Same applicationId (`com.bennybar.luli_for_reddit`), same signing key,
+A full Kotlin/Jetpack Compose port of the Flutter app (≤ v1.0.51), released as
+2.0.0. Same applicationId (`com.bennybar.luli_for_reddit`), same signing key,
 so it installs as an update over the Flutter build and keeps the user's data.
-The Flutter source for reference: `/Users/bennybarak/StudioProjects/luli_for_reddit/lib`.
+The Flutter source, its releases and its git history were removed on 2026-10-16.
 
 ## Never rename (users depend on these)
 applicationId/namespace `com.bennybar.luli_for_reddit`; OAuth redirect
@@ -18,7 +18,7 @@ export ANDROID_HOME="$HOME/Library/Android/sdk"   # local.properties is gitignor
 ./gradlew :app:testDebugUnitTest    # JVM unit tests
 ```
 Release: `./gradlew :app:assembleRelease` (versionCode scheme 20000+build: it must stay above the Flutter per-ABI codes, abi*1000+build, e.g. 2051) (needs `key.properties` + the .jks at
-the repo root, copied from the Flutter project's `android/`; both gitignored).
+the repo root; both gitignored).
 Emulator: `~/Library/Android/sdk/emulator/emulator -avd Pixel_9_Pro_XL`,
 adb at `~/Library/Android/sdk/platform-tools/adb`.
 

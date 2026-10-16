@@ -311,8 +311,9 @@ class InboxModule(private val c: AppContainer) : UserScoped {
      * on, so we don't dump a notification for every pre-existing unread item).
      * Returns how many notifications it posted.
      */
-    suspend fun pollInbox(notify: Boolean): Int {
-        val items = fetchUnread() ?: return 0 // not logged in / network error
+    /** Checks the inbox; returns the items it showed a notification for. */
+    internal suspend fun pollInbox(notify: Boolean): List<UnreadItem> {
+        val items = fetchUnread() ?: return emptyList() // not logged in / network error
         // Per account: the polled inbox is the active account's, so one shared
         // list made every switch notify for all of the other account's unread.
         // An account's first poll only primes its list (no burst of old items).
@@ -321,7 +322,7 @@ class InboxModule(private val c: AppContainer) : UserScoped {
         val primed = c.prefs.contains(key)
         val seen = (c.prefs.getStringList(key) ?: emptyList()).toSet()
         val fresh = items.filter { it.fullname !in seen }
-        val shown = if (notify && primed) fresh.onEach { InboxNotifications.show(c.context, it) }.size else 0
+        val shown = if (notify && primed) fresh.filter { InboxNotifications.show(c.context, it) } else emptyList()
         // Remember everything currently unread so we never re-notify, capped so
         // the list can't grow without bound.
         val current = items.mapTo(HashSet()) { it.fullname }
