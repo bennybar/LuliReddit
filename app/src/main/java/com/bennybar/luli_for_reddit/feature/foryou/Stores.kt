@@ -67,7 +67,7 @@ class InterestStore(private val prefs: Prefs, private val trackHistory: () -> Bo
             ts = m["_ts"].long()
             val w = LinkedHashMap<String, Double>()
             for ((k, v) in m) if (!k.startsWith("_")) w[k] = num(v)
-            decayed(w)
+            decayed(w).also { if (ts != null) ts = System.currentTimeMillis() } // decay owed is applied: don't apply it again
         } catch (_: Exception) {
             emptyMap()
         }
@@ -201,7 +201,7 @@ class KeywordStore(private val prefs: Prefs, private val trackHistory: () -> Boo
             (m["_lu"] as? JsonObject)?.forEach { (k, v) -> lastUsed[k] = num(v).toLong() }
             val w = LinkedHashMap<String, Double>()
             for ((k, v) in m) if (!k.startsWith("_")) w[k] = num(v)
-            decayed(w)
+            decayed(w).also { if (ts != null) ts = System.currentTimeMillis() } // decay owed is applied: don't apply it again
         } catch (_: Exception) {
             emptyMap()
         }
@@ -348,6 +348,10 @@ class ImpressionStore(
 
     @Synchronized
     fun load(username: String) {
+        // Impressions waiting for the batched save belong to the account that
+        // saw them: save them there before switching, not into the next one.
+        flush()
+        session.clear()
         key = userScopedKey(prefs, username, BASE)
         val raw = prefs.getString(key)
         _state.value = if (raw == null) emptyMap() else try {
@@ -509,6 +513,7 @@ class SubStatsStore(private val prefs: Prefs, private val trackHistory: () -> Bo
                 val a = v.jsonArray
                 out[k] = num(a[0]) * f to num(a[1]) * f
             }
+            if (ts != null) ts = System.currentTimeMillis() // decay owed is applied: don't apply it again
             out
         } catch (_: Exception) {
             ts = null
@@ -576,6 +581,7 @@ class DocFreqStore(private val prefs: Prefs) {
             docs = (m["_n"].double() ?: 0.0) * f
             val out = LinkedHashMap<String, Double>()
             for ((k, v) in m) if (!k.startsWith("_")) out[k] = num(v) * f
+            if (ts != null) ts = System.currentTimeMillis() // decay owed is applied: don't apply it again
             out
         } catch (_: Exception) {
             ts = null
@@ -594,8 +600,11 @@ class DocFreqStore(private val prefs: Prefs) {
         for (t in titles) {
             d += 1
             for (w in titleKeywords(t).toSet()) {
-                next.remove(w)
-                next[w] = (state[w] ?: 0.0) * f + 1 // re-insert: recency order
+                // The running count (already decayed above), +1 for this title:
+                // the stored count used to be read for every title, so a word
+                // in 100 titles of one batch was counted once.
+                val c = next.remove(w) ?: 0.0
+                next[w] = c + 1 // re-insert: recency order
             }
         }
         while (next.size > CAP) next.remove(next.keys.first())

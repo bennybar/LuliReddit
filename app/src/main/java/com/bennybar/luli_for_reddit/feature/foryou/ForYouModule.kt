@@ -95,10 +95,15 @@ class ForYouLearner internal constructor(private val m: ForYouModule) {
         if (titleDelta != 0.0) m.keywords.bumpTitle(p.title, titleDelta)
     }
 
-    /** Opened, read 30s+, or voted: counts once per post toward the subreddit's engagement rate. */
+    /**
+     * Opened, read 30s+, or upvoted: counts once per post toward the
+     * subreddit's engagement rate — only for a post For You showed this
+     * session, so the rate is "liked what For You showed" (engagement from
+     * other feeds, with no matching impression, used to inflate it).
+     */
     private fun engage(p: Post, event: String) {
         m.metrics.count("$event.${group(p)}")
-        if (synchronized(this) { engaged.add(p.id) }) m.subStats.engaged(p.subreddit)
+        if (synchronized(this) { p.id in seen && engaged.add(p.id) }) m.subStats.engaged(p.subreddit)
     }
 
     /** A For You card that stayed >=60% on screen for 1s. */
@@ -124,7 +129,8 @@ class ForYouLearner internal constructor(private val m: ForYouModule) {
         fun sub(d: Int) = if (d == 1) 2.0 else if (d == -1) -1.5 else 0.0
         fun kw(d: Int) = if (d == 1) 1.0 else if (d == -1) -0.8 else 0.0
         learn(p, sub(to) - sub(from), kw(to) - kw(from))
-        if (to != 0) engage(p, "vote")
+        // A downvote isn't engagement (it counted as liking the subreddit).
+        if (to == 1) engage(p, "vote")
     }
 
     fun save(p: Post, saved: Boolean) = learn(p, if (saved) 3.0 else -3.0, if (saved) 1.5 else -1.5)
@@ -357,7 +363,10 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
         // An empty page (everything failed, or all muted/seen) retries the next
         // cursors once before ending the feed — it used to stop dead.
         for (attempt in 0 until 2) {
-            val pg = forYouPage(inputs, communities, prev, excludeIds, if (attempt == 0) carryOver else emptyList())
+            // First page only without a cursor at all: once every source has run
+            // out the cursor is empty ({}), and the leftovers page on from there.
+            val first = cursors.isNullOrEmpty() && attempt == 0
+            val pg = forYouPage(inputs, communities, prev, excludeIds, if (attempt == 0) carryOver else emptyList(), first)
             page = pg
             if (pg.listing.items.isNotEmpty() || pg.cursors.isEmpty()) break
             prev = pg.cursors
@@ -371,9 +380,9 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
         prev: Map<String, String?>,
         excludeIds: Set<String>,
         carryOver: List<Candidate>,
+        firstPage: Boolean,
     ): ForYouPage = coroutineScope {
         val repo = c.repository
-        val firstPage = prev.isEmpty()
         val muted = inputs.muted
 
         // Subreddits you engage with most (learned on-device), even if not
@@ -488,7 +497,10 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
                 next[key] = listing.after
             }
         }
-        val hasMore = (result.ranked.isNotEmpty() || result.leftovers.isNotEmpty()) && next.isNotEmpty()
+        // More while a source has a next page, or ranked posts are still waiting
+        // (once every source ran out, its leftovers used to be unreachable).
+        val hasMore = (result.ranked.isNotEmpty() || result.leftovers.isNotEmpty()) &&
+            (next.isNotEmpty() || result.leftovers.isNotEmpty())
         ForYouPage(
             listing = Listing(
                 result.ranked,

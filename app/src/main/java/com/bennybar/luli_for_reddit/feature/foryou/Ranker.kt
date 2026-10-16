@@ -222,10 +222,6 @@ fun rankForYou(pool: List<Candidate>, i: RankInputs, pageSize: Int = 50): RankRe
     // least 15 slots after the first, a third never. Stories from earlier
     // pages count.
     val stories = ArrayList<Story>()
-    for (t in i.previousTitles) {
-        val w = titleKeywords(t).toSet()
-        if (w.size >= 3) stories.add(Story(w, 1, -1000))
-    }
     fun storyOf(words: Set<String>): Int? {
         if (words.size < 3) return null
         for (k in stories.indices) {
@@ -233,6 +229,15 @@ fun rankForYou(pool: List<Candidate>, i: RankInputs, pageSize: Int = 50): RankRe
             if (shared >= 3 && shared.toDouble() / (stories[k].words union words).size >= 0.5) return k
         }
         return null
+    }
+    // Earlier pages, newest first: copies of one story count together (each
+    // used to be its own story, so a third copy got through), and the newest
+    // keeps its real distance (j + 1 slots before this page) for the spacing.
+    for ((j, t) in i.previousTitles.withIndex()) {
+        val w = titleKeywords(t).toSet()
+        if (w.size < 3) continue
+        val k = storyOf(w)
+        if (k != null) stories[k].count += 1 else stories.add(Story(w, 1, -(j + 1)))
     }
 
     // Greedy placement: each slot takes the best remaining post after a
