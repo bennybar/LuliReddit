@@ -37,6 +37,8 @@ class ForYouModule(private val c: AppContainer) : UserScoped {
     val impressions = ImpressionStore(c.prefs, track, c.scope)
     val explicit = ExplicitPrefsStore(c.prefs)
     val subStats = SubStatsStore(c.prefs, track)
+    /** The same per post type ("image", "video", "text", "link"): which kinds you open. */
+    val typeStats = SubStatsStore(c.prefs, track, "fy_typestats")
     val docFreq = DocFreqStore(c.prefs)
     val metrics = ForYouMetrics(c.prefs, track)
 
@@ -54,6 +56,7 @@ class ForYouModule(private val c: AppContainer) : UserScoped {
         impressions.load(username)
         explicit.load(username)
         subStats.load(username)
+        typeStats.load(username)
         docFreq.load(username)
         metrics.load(username)
         meta.value = emptyMap()
@@ -77,11 +80,20 @@ class ForYouModule(private val c: AppContainer) : UserScoped {
 class ForYouLearner internal constructor(private val m: ForYouModule) {
     private val seen = HashSet<String>() // impressions counted this session
     private val engaged = HashSet<String>() // posts already counted as engaged
+    private val passive = HashSet<String>() // "signal:postId" already learned this session
+
+    /**
+     * Passive signals (open, media, reading time, bounce) count once per post
+     * per session: reopening the same thread kept adding interest. Votes,
+     * saves, comments and shares are deliberate and always count.
+     */
+    private fun once(p: Post, signal: String) = synchronized(this) { passive.add("$signal:${p.id}") }
 
     internal fun reset() {
         synchronized(this) {
             seen.clear()
             engaged.clear()
+            passive.clear()
         }
     }
 
@@ -103,7 +115,10 @@ class ForYouLearner internal constructor(private val m: ForYouModule) {
      */
     private fun engage(p: Post, event: String) {
         m.metrics.count("$event.${group(p)}")
-        if (synchronized(this) { p.id in seen && engaged.add(p.id) }) m.subStats.engaged(p.subreddit)
+        if (synchronized(this) { p.id in seen && engaged.add(p.id) }) {
+            m.subStats.engaged(p.subreddit)
+            m.typeStats.engaged(postTypeKey(p))
+        }
     }
 
     /** A For You card that stayed >=60% on screen for 1s. */
@@ -111,6 +126,7 @@ class ForYouLearner internal constructor(private val m: ForYouModule) {
         m.impressions.record(p.id)
         if (!synchronized(this) { seen.add(p.id) }) return
         m.subStats.impression(p.subreddit)
+        m.typeStats.impression(postTypeKey(p))
         val meta = m.meta.value[p.id]
         m.metrics.count("impr.${group(p)}")
         if (meta != null) {
@@ -136,11 +152,13 @@ class ForYouLearner internal constructor(private val m: ForYouModule) {
     fun save(p: Post, saved: Boolean) = learn(p, if (saved) 3.0 else -3.0, if (saved) 1.5 else -1.5)
 
     fun open(p: Post) {
-        learn(p, 0.5, 0.0)
+        if (once(p, "open")) learn(p, 0.5, 0.0)
         engage(p, "open")
     }
 
-    fun viewMedia(p: Post) = learn(p, 1.0, 0.0)
+    fun viewMedia(p: Post) {
+        if (once(p, "media")) learn(p, 1.0, 0.0)
+    }
 
     /** Commenting is the strongest engagement signal there is. */
     fun comment(p: Post) = learn(p, 2.5, 1.0)
@@ -149,12 +167,33 @@ class ForYouLearner internal constructor(private val m: ForYouModule) {
 
     /** Time in the thread: 30s+ ([long] = 2min+, on top of it). */
     fun read(p: Post, long: Boolean = false) {
-        learn(p, if (long) 1.5 else 1.0, if (long) 1.0 else 0.5)
+        if (once(p, if (long) "read2m" else "read30")) learn(p, if (long) 1.5 else 1.0, if (long) 1.0 else 0.5)
         if (!long) engage(p, "read30")
     }
 
+    /**
+     * The "no" signals: hiding a post, the Dismiss swipe, hiding its subreddit
+     * for 7 days, filtering it out. They used to only remove things from view.
+     * [undo] reverses one (its snackbar's Undo).
+     */
+    fun hidePost(p: Post, undo: Boolean = false) = learn(p, if (undo) 2.0 else -2.0, if (undo) 0.8 else -0.8)
+
+    fun dismiss(p: Post, undo: Boolean = false) = learn(p, if (undo) 1.0 else -1.0, if (undo) 0.4 else -0.4)
+
+    fun hideSubreddit(p: Post, undo: Boolean = false) = learn(p, if (undo) 3.0 else -3.0, 0.0)
+
+    fun filterOutSubreddit(p: Post, undo: Boolean = false) = learn(p, if (undo) 4.0 else -4.0, 0.0)
+
+    /** Upvoted a comment in [p]'s thread: interest in the thread's subreddit (once per post per session). */
+    fun commentUpvote(p: Post) {
+        if (once(p, "commentvote")) learn(p, 0.75, 0.0)
+        engage(p, "commentvote")
+    }
+
     /** Backed out within 3 seconds. */
-    fun bounce(p: Post) = learn(p, -0.5, 0.0)
+    fun bounce(p: Post) {
+        if (once(p, "bounce")) learn(p, -0.5, 0.0)
+    }
 
     /** Explicit "More/Less from r/x" (+1 / -1 / 0 to clear). */
     fun subPreference(p: Post, value: Int) {
@@ -272,6 +311,7 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
         return RankInputs(
             interest = m.interest.value,
             subStats = m.subStats.value,
+            typeStats = m.typeStats.value,
             explicit = m.explicit.value,
             keywordScore = { t -> kw.scoreTitle(t, df::idf) },
             topKeyword = { t -> kw.topKeywordIn(t, df::idf) },
@@ -283,6 +323,7 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
             // Stories already shown on earlier pages count toward repeats.
             previousTitles = if (firstPage) emptyList() else loaded.asReversed().take(100).map { it.title },
             discoveryAppetite = m.metrics.discoveryAppetite(),
+            discoveryMix = c.settings.value.forYouDiscovery,
         )
     }
 
@@ -456,10 +497,18 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
         }
         // Favourites go out the moment the list is known, while the rest is still
         // in flight. One already fetched as a top interest isn't fetched twice.
-        val favouriteF = if (firstPage) favourites.take(8)
-            .filter { it !in topInterest && it !in muted }
-            .map { f -> source { repo.getPosts(subreddit = f, sort = PostSort.HOT, limit = 10) } }
-        else emptyList()
+        // Eight per load; with more favourites than that, each load takes the
+        // next eight in turn (only the first eight ever got fetched before).
+        val favouriteF = if (firstPage) {
+            val favs = favourites.filter { it !in topInterest && it !in muted }
+            val pick = if (favs.size <= 8) favs else {
+                val k = userScopedKey(c.prefs, user, "fy_fav_rotation")
+                val start = (c.prefs.getInt(k) ?: 0).mod(favs.size)
+                c.prefs.setInt(k, start + 8)
+                List(8) { favs[(start + it) % favs.size] }
+            }
+            pick.map { f -> source { repo.getPosts(subreddit = f, sort = PostSort.HOT, limit = 10) } }
+        } else emptyList()
 
         val best = bestF.await()
         val rising = risingF.await()

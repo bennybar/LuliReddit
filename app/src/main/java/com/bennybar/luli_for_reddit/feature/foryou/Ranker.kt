@@ -40,6 +40,8 @@ data class RankInputs(
     val previousTop: Set<String> = emptySet(), // the top 10 before this refresh
     val previousTitles: List<String> = emptyList(), // titles already on earlier pages
     val discoveryAppetite: Double = 1.0, // discovery vs primary open rate
+    val discoveryMix: Int = 0, // Settings → Familiar (-2) ↔ Discover (+2)
+    val typeStats: Map<String, Pair<Double, Double>> = emptyMap(), // post type (postTypeKey) → (seen, engaged)
     val now: Long = System.currentTimeMillis(), // millis
 ) {
     /** The same inputs once the subscription list has arrived. */
@@ -92,15 +94,47 @@ fun rankForYou(pool: List<Candidate>, i: RankInputs, pageSize: Int = 50): RankRe
     vels.values.forEach { it.sort() }
     fun velPct(p: Post): Double {
         val v = vels[p.subreddit]!!
-        if (v.size == 1) return 0.7
+        if (v.size == 1) return 0.5
         val x = p.score / ageHours(p)
+        // Average rank among equals: ties (a sub's brand-new posts, all at
+        // 1 point) used to share the lowest percentile, 0.
         var lo = 0
-        var hi = v.size - 1
-        while (lo < hi) {
-            val mid = (lo + hi) shr 1
-            if (v[mid] < x) lo = mid + 1 else hi = mid
-        }
-        return lo.toDouble() / (v.size - 1)
+        while (lo < v.size && v[lo] < x) lo++
+        var hi = lo
+        while (hi < v.size && v[hi] == x) hi++
+        val rank = (lo + maxOf(hi - 1, lo)) / 2.0
+        val raw = rank / (v.size - 1)
+        // A sub with few candidates says little about how good a post is for
+        // it: pulled toward the middle (a single candidate is 0.5, was 0.7).
+        val trust = (v.size - 1) / (v.size + 2.0)
+        return 0.5 + (raw - 0.5) * trust
+    }
+
+    // How often you engage with each kind of post (image, video, text…) that
+    // For You shows, against your overall rate: learns what you like to see.
+    var typeSeen = 0.0
+    var typeEng = 0.0
+    for (v in i.typeStats.values) {
+        typeSeen += v.first
+        typeEng += v.second
+    }
+    val typeCtr = (typeEng + 1) / (typeSeen + 6)
+    fun typeMult(p: Post): Double {
+        val st = i.typeStats[postTypeKey(p)] ?: return 1.0
+        if (st.first < 8) return 1.0
+        val lift = ln(((st.second + 1) / (st.first + 6)) / typeCtr).coerceIn(-0.5, 0.5)
+        return exp(0.6 * lift) // ×0.74 … ×1.35
+    }
+
+    // Discussion: comments per hour, as a percentile in this pool (a busy
+    // thread and a silent one used to rank alike).
+    val talk = pool.map { it.post.numComments / ageHours(it.post) }.sorted()
+    fun talkPct(p: Post): Double {
+        if (talk.size < 2) return 0.5
+        val x = p.numComments / ageHours(p)
+        var lo = 0
+        while (lo < talk.size && talk[lo] < x) lo++
+        return lo.toDouble() / (talk.size - 1)
     }
 
     fun pct(f: Double): String {
@@ -162,7 +196,11 @@ fun rankForYou(pool: List<Candidate>, i: RankInputs, pageSize: Int = 50): RankRe
         val openedPen = if (opened != null) 0.15 else 1.0
         val churn = if (p.id in i.previousTop) 0.7 else 1.0
 
-        val s = additive * base * wInterest * eSub * kwMult * eTopic * quality * fatigue * openedPen * churn
+        val tMult = typeMult(p)
+        val tp = talkPct(p)
+        val discussion = 0.92 + 0.16 * tp // ×0.92 … ×1.08
+
+        val s = additive * base * wInterest * eSub * kwMult * eTopic * quality * fatigue * openedPen * churn * tMult * discussion
 
         // Explanation from what actually moved the score.
         val topKw = i.topKeyword?.invoke(p.title)
@@ -199,6 +237,10 @@ fun rankForYou(pool: List<Candidate>, i: RankInputs, pageSize: Int = 50): RankRe
                 add("Topics you read${if (topKw != null) ", like “$topKw”" else ""} (${pct(kwMult)})")
             }
             if (vp > 0.8) add("Doing well in r/${p.subreddit} right now")
+            if (kotlin.math.abs(tMult - 1) > 0.05) {
+                add("${if (tMult > 1) "You often open" else "You rarely open"} ${postTypeLabel(p)} posts (${pct(tMult)})")
+            }
+            if (tp > 0.85 && p.numComments >= 20) add("Lively discussion: ${p.numComments} comments (${pct(discussion)})")
             if (shown >= 0.5) add("Seen ${shown.roundToInt()}× before (${pct(fatigue)})")
             if (opened != null) add("You already opened it (×0.15)")
             add("Source: ${sourceLabel(c.source)}")
@@ -245,7 +287,12 @@ fun rankForYou(pool: List<Candidate>, i: RankInputs, pageSize: Int = 50): RankRe
     // the last 4), alternating in discovery at an adaptive rate.
     val primaryPool = unique.filter { !it.discovery }.toMutableList()
     val discoveryPool = unique.filter { it.discovery }.toMutableList()
-    val every = (6 / i.discoveryAppetite.coerceIn(0.6, 1.5)).roundToInt().coerceIn(4, 10)
+    // A discovery post every ~6 slots, adapted to how often you open them;
+    // the Familiar ↔ Discover setting scales that (Familiar: ~1 in 20,
+    // Discover: ~1 in 3). The middle keeps the adaptive 4–10 range.
+    val mix = listOf(0.3, 0.6, 1.0, 1.4, 2.0)[i.discoveryMix.coerceIn(-2, 2) + 2]
+    val every = if (i.discoveryMix == 0) (6 / i.discoveryAppetite.coerceIn(0.6, 1.5)).roundToInt().coerceIn(4, 10)
+    else (6 / (i.discoveryAppetite.coerceIn(0.6, 1.5) * mix)).roundToInt().coerceIn(3, 20)
     val placed = ArrayList<Scored>()
     val dropped = HashSet<Scored>()
 
@@ -330,4 +377,19 @@ internal fun normalisedUrl(p: Post): String? {
     val names = u.queryParameterNames.filter { !it.startsWith("utm_") }.sorted()
     val q = names.joinToString("&") { "$it=${u.queryParameterValues(it).lastOrNull()}" }
     return "$host${u.encodedPath}${if (q.isEmpty()) "" else "?$q"}"
+}
+
+/** The kind of post, for learning which kinds you open (galleries count as images, GIFs as videos). */
+fun postTypeKey(p: Post): String = when (p.type) {
+    com.bennybar.luli_for_reddit.model.PostType.IMAGE, com.bennybar.luli_for_reddit.model.PostType.GALLERY -> "image"
+    com.bennybar.luli_for_reddit.model.PostType.VIDEO, com.bennybar.luli_for_reddit.model.PostType.GIF -> "video"
+    com.bennybar.luli_for_reddit.model.PostType.LINK -> "link"
+    com.bennybar.luli_for_reddit.model.PostType.SELF -> "text"
+}
+
+private fun postTypeLabel(p: Post) = when (postTypeKey(p)) {
+    "image" -> "image"
+    "video" -> "video"
+    "link" -> "link"
+    else -> "text"
 }

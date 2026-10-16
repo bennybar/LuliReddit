@@ -505,8 +505,10 @@ suspend fun hidePost(post: Post) {
     app.hiddenPosts.add(post.id)
     try {
         repo.setHidden(post.fullname, true)
+        app.forYou.learner.hidePost(post) // a clear "not for me"
         app.navigator.showSnackbar("Post hidden", actionLabel = "Undo") {
             app.hiddenPosts.remove(post.id)
+            app.forYou.learner.hidePost(post, undo = true)
             app.scope.launch { runCatching { repo.setHidden(post.fullname, false) } } // best effort
         }
     } catch (e: Exception) {

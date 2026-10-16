@@ -52,6 +52,7 @@ class SettingsStore(private val p: Prefs) {
             redditHomeAllowed = b("redditHomeAllowed", d.redditHomeAllowed),
             redditHomeFeed = b("redditHomeFeed", d.redditHomeFeed),
             autoHideReadForYou = b("autoHideReadForYou", d.autoHideReadForYou),
+            forYouDiscovery = (p.getInt("forYouDiscovery") ?: d.forYouDiscovery).coerceIn(-2, 2),
             midResThumbnails = b("midResThumbnails", d.midResThumbnails),
             subsCacheEnabled = b("subsCacheEnabled", d.subsCacheEnabled),
             subsCacheMinutes = p.getInt("subsCacheMinutes") ?: d.subsCacheMinutes,
@@ -126,6 +127,7 @@ class SettingsStore(private val p: Prefs) {
     }
 
     fun setAutoHideReadForYou(v: Boolean) { p.setBool("autoHideReadForYou", v); set { it.copy(autoHideReadForYou = v) } }
+    fun setForYouDiscovery(v: Int) { p.setInt("forYouDiscovery", v); set { it.copy(forYouDiscovery = v) } }
     fun setAppFont(v: AppFont) {
         p.setString("appFont", v.key)
         p.setBool("jakartaFont", v == AppFont.JAKARTA) // keeps backups readable by older builds

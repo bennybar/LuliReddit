@@ -145,4 +145,44 @@ class ForYouRankerTest {
         assertTrue(titleKeywords("New Pokémon game announced").contains("pokémon"))
         assertFalse(titleKeywords("this is just the help").contains("this"))
     }
+
+    @Test
+    fun `the Familiar-Discover setting changes how much discovery is placed`() {
+        // 60 subscribed posts across 12 subs, 60 discovery ones across 12 others.
+        // Distinct titles (shared words would make them one "story", allowed twice).
+        fun title(i: Int) = "w${i}alpha w${i}beta w${i}gamma w${i}delta"
+        val pool = c((0 until 60).map { p("mine${it % 12}", title(it)) }) +
+            c((0 until 60).map { p("new${it % 12}", title(100 + it)) }, "popular")
+        val subs = (0 until 12).map { "mine$it" }.toSet()
+        fun discoveryShare(mix: Int): Int {
+            val r = rankForYou(pool, RankInputs(subscribed = subs, now = now, discoveryMix = mix), pageSize = 40)
+            return r.ranked.count { r.meta[it.id]?.discovery == true }
+        }
+        val familiar = discoveryShare(-2)
+        val balanced = discoveryShare(0)
+        val discover = discoveryShare(2)
+        assertTrue("familiar $familiar < balanced $balanced", familiar < balanced)
+        assertTrue("balanced $balanced < discover $discover", balanced < discover)
+    }
+
+    @Test
+    fun `post types you open a lot rank higher`() {
+        val text = p("pics", "w1alpha w1beta w1gamma w1delta")
+        val link = p("pics", "w2alpha w2beta w2gamma w2delta", url = "https://example.com/a")
+        val inputs = RankInputs(
+            subscribed = setOf("pics"), now = now,
+            // You open most link posts and almost no text posts.
+            typeStats = mapOf("link" to (40.0 to 30.0), "text" to (40.0 to 1.0)),
+        )
+        val r = rankForYou(c(listOf(text, link)), inputs)
+        assertEquals(link.id, r.ranked.first().id)
+    }
+
+    @Test
+    fun `a lively discussion ranks above a silent twin`() {
+        val busy = p("pics", "w3alpha w3beta w3gamma w3delta").copy(numComments = 400)
+        val quiet = p("pics", "w4alpha w4beta w4gamma w4delta").copy(numComments = 0)
+        val r = rankForYou(c(listOf(quiet, busy)), RankInputs(subscribed = setOf("pics"), now = now))
+        assertEquals(busy.id, r.ranked.first().id)
+    }
 }

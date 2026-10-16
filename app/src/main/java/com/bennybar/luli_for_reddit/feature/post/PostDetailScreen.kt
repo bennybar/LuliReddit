@@ -540,6 +540,8 @@ private class ThreadActions(val vm: CommentsViewModel, val nav: AppNavigator, va
     fun vote(c: Comment, dir: Int) {
         val current = PostOverrides.dirOf(c.likes)
         val target = if (current == dir) 0 else dir
+        // Upvoting comments says you're into this thread's subreddit.
+        if (target == 1) post?.let { app.forYou.learner.commentUpvote(it) }
         vm.updateComment(c.fullname) {
             it.copy(score = it.score + target - current, likes = when (target) { 1 -> true; -1 -> false; else -> null })
         }

@@ -112,6 +112,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -310,6 +311,9 @@ fun SettingsList(
             "Auto-hide read items in \"For You\"", "Hide posts you've marked/opened as read",
             Icons.Outlined.MarkEmailRead, s.autoHideReadForYou, ctrl::setAutoHideReadForYou,
         )
+        add(Entry("forYouDiscovery", "For You mix familiar discover new communities") {
+            ForYouMixSlider(s.forYouDiscovery, ctrl::setForYouDiscovery)
+        })
         tile("Manage \"For You\" subreddits", "Review and undo muted / show-less subreddits", Icons.Rounded.Tune) {
             nav.push(Route.ManageForYou)
         }
@@ -1031,3 +1035,35 @@ private fun keepLabel(minutes: Int): String = when {
 }
 
 private fun dayLabel(days: Int): String = if (days == 1) "1 day" else "$days days"
+
+/** For You's Familiar ↔ Discover mix: how often posts from communities you don't follow come up. */
+@Composable
+private fun ForYouMixSlider(value: Int, onChange: (Int) -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    var v by remember(value) { mutableFloatStateOf(value.toFloat()) }
+    Column(Modifier.fillMaxWidth().padding(start = 56.dp, end = 24.dp, top = 8.dp, bottom = 4.dp)) {
+        Text("For You mix", style = MaterialTheme.typography.bodyLarge)
+        Text(
+            when (v.roundToInt()) {
+                -2 -> "Almost only your communities"
+                -1 -> "Mostly your communities"
+                1 -> "More from communities you don't follow"
+                2 -> "Lots of new communities"
+                else -> "Balanced: adapts to what you open (next refresh)"
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = cs.onSurfaceVariant,
+        )
+        Slider(
+            value = v,
+            onValueChange = { v = it },
+            onValueChangeFinished = { onChange(v.roundToInt()) },
+            valueRange = -2f..2f,
+            steps = 3,
+        )
+        Row {
+            Text("Familiar", Modifier.weight(1f), fontSize = 12.sp, color = cs.onSurfaceVariant)
+            Text("Discover", fontSize = 12.sp, color = cs.onSurfaceVariant)
+        }
+    }
+}

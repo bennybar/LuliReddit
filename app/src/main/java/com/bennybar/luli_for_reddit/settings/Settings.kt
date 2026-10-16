@@ -107,6 +107,7 @@ data class Settings(
     val redditHomeAllowed: Boolean = false,
     val redditHomeFeed: Boolean = false,
     val autoHideReadForYou: Boolean = false, // hide already-read items in For You
+    val forYouDiscovery: Int = 0, // For You's Familiar (-2) ↔ Discover (+2) slider; 0 = adaptive default
     val midResThumbnails: Boolean = true, // load smaller preview images in feeds
     val subsCacheEnabled: Boolean = true, // cache subscription list in memory
     val subsCacheMinutes: Int = 10, // how long to keep the subs cache

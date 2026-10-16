@@ -251,6 +251,7 @@ private suspend fun confirmReset() {
     m.impressions.clear()
     m.explicit.clear()
     m.subStats.clear()
+    m.typeStats.clear()
 }
 
 /** Local, never-uploaded counters for judging For You changes. */

@@ -238,7 +238,11 @@ val LocalFrontpage = staticCompositionLocalOf { false }
 /** Removes [post] from Home / For You for a day (local only), with Undo. */
 private fun dismissPost(post: Post) {
     app.dismissedPosts.add(post.id)
-    app.navigator.showSnackbar("Dismissed for today", actionLabel = "Undo") { app.dismissedPosts.remove(post.id) }
+    app.forYou.learner.dismiss(post)
+    app.navigator.showSnackbar("Dismissed for today", actionLabel = "Undo") {
+        app.dismissedPosts.remove(post.id)
+        app.forYou.learner.dismiss(post, undo = true)
+    }
 }
 
 /** Hides [post]'s subreddit from the front page for 7 days (local only), with Undo. */
@@ -246,8 +250,10 @@ fun hideSubFromHome(post: Post) {
     val sub = post.subreddit.lowercase()
     if (sub.isEmpty()) return
     app.hiddenHomeSubs.add(sub)
+    app.forYou.learner.hideSubreddit(post)
     app.navigator.showSnackbar("r/${post.subreddit} hidden from your front page for 7 days", actionLabel = "Undo") {
         app.hiddenHomeSubs.remove(sub)
+        app.forYou.learner.hideSubreddit(post, undo = true)
     }
 }
 
@@ -256,8 +262,10 @@ fun filterOutSub(post: Post) {
     val sub = post.subreddit.lowercase()
     if (sub.isEmpty()) return
     app.contentFilters.add("subreddit", sub)
+    app.forYou.learner.filterOutSubreddit(post)
     app.navigator.showSnackbar("r/${post.subreddit} filtered out of your feeds", actionLabel = "Undo") {
         app.contentFilters.remove("subreddit", sub)
+        app.forYou.learner.filterOutSubreddit(post, undo = true)
     }
 }
 

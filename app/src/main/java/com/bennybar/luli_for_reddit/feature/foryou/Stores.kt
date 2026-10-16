@@ -493,8 +493,8 @@ class ExplicitPrefsStore(private val prefs: Prefs) {
  * keep scrolling past fades on its own, and a niche one you always open
  * rises even with few impressions. Decays like the interest model.
  */
-class SubStatsStore(private val prefs: Prefs, private val trackHistory: () -> Boolean) {
-    private var key = BASE
+class SubStatsStore(private val prefs: Prefs, private val trackHistory: () -> Boolean, private val base: String = BASE) {
+    private var key = base
     private var ts: Long? = null
     private val _state = MutableStateFlow<Map<String, Pair<Double, Double>>>(emptyMap())
     val state: StateFlow<Map<String, Pair<Double, Double>>> = _state
@@ -502,7 +502,7 @@ class SubStatsStore(private val prefs: Prefs, private val trackHistory: () -> Bo
 
     @Synchronized
     fun load(username: String) {
-        key = userScopedKey(prefs, username, BASE)
+        key = userScopedKey(prefs, username, base)
         val m = readJson(prefs, key)
         _state.value = try {
             ts = m["_ts"].long()
