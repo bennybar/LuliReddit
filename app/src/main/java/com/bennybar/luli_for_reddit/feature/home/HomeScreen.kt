@@ -130,6 +130,16 @@ fun HomeScreen() {
         maybeSuggestNotifications()
     }
 
+    // A notification tap asks for a tab (Inbox).
+    val openTab by app.feed.openTab.collectAsStateWithLifecycle()
+    LaunchedEffect(openTab) {
+        openTab?.let {
+            index = it
+            chrome = true
+            app.feed.openTab.value = null
+        }
+    }
+
     // Back never leaves the app from here: on another tab it returns to Posts,
     // on Posts it scrolls the feed to top (a setting, on by default) or does
     // nothing (the Home button / recents leave instead).

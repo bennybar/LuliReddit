@@ -52,6 +52,9 @@ class FeedModule(private val c: AppContainer) : UserScoped {
     /** Bumped by back on the Posts tab: scroll the frontpage feed to top (never refreshes). */
     val frontpageBackSignal = MutableStateFlow(0)
 
+    /** A tab for the home shell to switch to (a notification tap opens Inbox); null once taken. */
+    val openTab = MutableStateFlow<Int?>(null)
+
     private val reselect = HashMap<Int, MutableStateFlow<Int>>()
 
     /**

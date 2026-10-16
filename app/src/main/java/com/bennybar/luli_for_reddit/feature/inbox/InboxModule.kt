@@ -243,34 +243,36 @@ class InboxModule(private val c: AppContainer) : UserScoped {
      */
     fun handleLaunchIntent(intent: Intent): Boolean {
         val target = intent.getStringExtra(InboxNotifications.EXTRA_TARGET) ?: return false
-        val route: Route? = when (target) {
+        // Consumed: don't route it again if the activity re-delivers this intent.
+        intent.removeExtra(InboxNotifications.EXTRA_TARGET)
+        when (target) {
             InboxNotifications.TARGET_POST -> {
                 val sub = intent.getStringExtra(InboxNotifications.EXTRA_SUBREDDIT)
                 val post = intent.getStringExtra(InboxNotifications.EXTRA_POST_ID)
-                if (sub != null && post != null) {
-                    Route.Post(sub, post, intent.getStringExtra(InboxNotifications.EXTRA_COMMENT_ID))
-                } else null
+                openFromNotification(if (sub != null && post != null) Route.Post(sub, post, intent.getStringExtra(InboxNotifications.EXTRA_COMMENT_ID)) else null, inbox = true)
             }
             InboxNotifications.TARGET_MESSAGE ->
-                intent.getStringExtra(InboxNotifications.EXTRA_MESSAGE)?.let { Route.MessageThread(it) }
+                openFromNotification(intent.getStringExtra(InboxNotifications.EXTRA_MESSAGE)?.let { Route.MessageThread(it) }, inbox = true)
             // A Reddit app notification Ilay took over: find its post / comment first.
             RedditAppNotifications.TARGET -> {
                 val title = intent.getStringExtra(RedditAppNotifications.EXTRA_TITLE).orEmpty()
                 val text = intent.getStringExtra(RedditAppNotifications.EXTRA_TEXT).orEmpty()
+                val inbox = RedditAppNotifications.isInbox(title)
                 c.scope.launch {
-                    runCatching { RedditAppNotifications.resolve(title, text) }.getOrNull()?.let(::navigateWhenReady)
+                    openFromNotification(runCatching { RedditAppNotifications.resolve(title, text) }.getOrNull(), inbox)
                 }
-                null
             }
-            else -> null // just open the app
+            else -> openFromNotification(null, inbox = true)
         }
-        // Consumed: don't route it again if the activity re-delivers this intent.
-        intent.removeExtra(InboxNotifications.EXTRA_TARGET)
-        if (route != null) navigateWhenReady(route)
         return true
     }
 
-    private fun navigateWhenReady(route: Route) {
+    /**
+     * A notification was tapped: back to the home shell (screens opened by
+     * earlier notifications are closed, so Back doesn't walk through them), on
+     * the Inbox tab for inbox items, then [route] on top.
+     */
+    private fun openFromNotification(route: Route?, inbox: Boolean) {
         c.scope.launch {
             repeat(200) { // up to ~10 s for a cold start
                 val nav = app.navigatorOrNull
@@ -282,7 +284,9 @@ class InboxModule(private val c: AppContainer) : UserScoped {
                         // sheet first, or the screen opens hidden underneath it.
                         nav.viewers.clear()
                         Overlays.dismissAll()
-                        nav.push(route)
+                        nav.controller.popBackStack<Route.Home>(inclusive = false)
+                        if (inbox) app.feed.openTab.value = 2
+                        route?.let(nav::push)
                     }
                     return@launch
                 }

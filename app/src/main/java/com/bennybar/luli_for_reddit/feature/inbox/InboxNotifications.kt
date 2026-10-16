@@ -68,7 +68,8 @@ object InboxNotifications {
         createChannel(context)
         val id = item.fullname.hashCode() and 0x7fffffff
         val intent = Intent(context, IlayActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            // CLEAR_TOP: always the one running Ilay (onNewIntent), never a second copy whose Back leads to the last one.
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             when {
                 item.post != null -> {
                     putExtra(EXTRA_TARGET, TARGET_POST)
