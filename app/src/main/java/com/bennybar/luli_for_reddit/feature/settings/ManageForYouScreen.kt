@@ -51,7 +51,7 @@ import java.util.Locale
 import kotlin.math.abs
 
 /**
- * Everything that shapes the "For You (Beta)" feed, visible and undoable:
+ * Everything that shapes the "For You" feed, visible and undoable:
  * explicit choices, mutes, learned topics and communities, and a full reset.
  * All local and per-account. Long-press the title for local metrics.
  */

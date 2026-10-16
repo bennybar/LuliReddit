@@ -169,6 +169,7 @@ class IlayActivity : ComponentActivity() {
             val s = app.settings.value
             val feed = when {
                 s.redditHomeAllowed && s.redditHomeFeed -> "home"
+                s.forYouFeed && s.blendHome && s.redditHomeAllowed -> "blend"
                 s.forYouFeed -> "for_you"
                 else -> "frontpage"
             }

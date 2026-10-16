@@ -95,6 +95,7 @@ internal fun FrontpageTab(chromeVisible: Boolean) {
     val settings by app.settings.state.collectAsStateWithLifecycle()
     val forYou = settings.forYouFeed
     val homeOn = settings.redditHomeAllowed && settings.redditHomeFeed
+    val blend = forYou && settings.blendHome && settings.redditHomeAllowed
     val expandable = settings.topBarMode == TopBarMode.EXPANDABLE
     // Full mode pins the action row; Expandable floats it in on demand.
     val showActionRow = settings.topBarMode == TopBarMode.FULL
@@ -133,14 +134,14 @@ internal fun FrontpageTab(chromeVisible: Boolean) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        if (homeOn) "Home" else if (forYou) "For You" else "Frontpage",
+                        if (homeOn) "Home" else if (blend) "Blend" else if (forYou) "For You" else "Frontpage",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.ExtraBold,
                     )
                     if (!homeOn && forYou) {
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            "Personalized on-device · Beta",
+                            if (blend) "Your Reddit Home + For You · Beta" else "Personalized on your phone",
                             Modifier.weight(1f),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,

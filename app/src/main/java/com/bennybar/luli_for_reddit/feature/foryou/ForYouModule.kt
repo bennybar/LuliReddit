@@ -19,6 +19,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
@@ -218,7 +219,7 @@ class ForYouPage(
 )
 
 /**
- * "For You (Beta)" — a transparent, client-side personalized feed.
+ * "For You" — a transparent, client-side personalized feed.
  *
  * Reddit's real Home ranking is server-side ML and is NOT exposed to the
  * API, so this approximates it: fetch candidates from the sources that
@@ -510,6 +511,15 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
             pick.map { f -> source { repo.getPosts(subreddit = f, sort = PostSort.HOT, limit = 10) } }
         } else emptyList()
 
+        // Blend (Beta): your Reddit Home is one more source, ranked with the
+        // rest. It's slow to read (a hidden browser), so the first page waits
+        // only so long for it; later pages read the next batch.
+        val s = c.settings.value
+        val blend = s.forYouFeed && s.blendHome && s.redditHomeAllowed
+        val homeF = if (blend && (firstPage || prev.containsKey("home"))) async {
+            withTimeoutOrNull(if (firstPage) 9_000L else 20_000L) { m.redditHome.blendCandidates(firstPage) }
+        } else null
+
         val best = bestF.await()
         val rising = risingF.await()
         val popular = popularF.await()
@@ -519,7 +529,10 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
             for (p in l?.items ?: emptyList()) if (ids.add(p.id)) pool.add(Candidate(p, src))
         }
 
-        for (cand in carryOver) if (ids.add(cand.post.id)) pool.add(Candidate(cand.post, "carry"))
+        // Held over from the last page ("home" ones stay Reddit's picks).
+        for (cand in carryOver) if (ids.add(cand.post.id)) pool.add(Candidate(cand.post, if (cand.source == "home") "home" else "carry"))
+        val home = homeF?.await()
+        home?.forEach { p -> if (ids.add(p.id)) pool.add(Candidate(p, "home")) }
         add(best, "best")
         add(rising, "rising")
         add(popular, "popular")
@@ -538,6 +551,9 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
         // dropped for the rest of the session — one timeout on /best and the
         // feed quietly became r/popular); an exhausted one is left out.
         val next = LinkedHashMap<String, String>()
+        // Blend: Home goes on while it returns posts (its cursor is the hidden
+        // page itself); once it doesn't, the rest of this feed is For You's own.
+        if (home?.isNotEmpty() == true) next["home"] = "home"
         for ((key, listing) in listOf("best" to best, "rising" to rising, "popular" to popular)) {
             if (!live(key)) continue
             if (listing == null) {

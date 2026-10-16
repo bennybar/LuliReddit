@@ -52,6 +52,7 @@ class SettingsStore(private val p: Prefs) {
             redditHomeAllowed = b("redditHomeAllowed", d.redditHomeAllowed),
             redditHomeFeed = b("redditHomeFeed", d.redditHomeFeed),
             autoHideReadForYou = b("autoHideReadForYou", d.autoHideReadForYou),
+            blendHome = b("blendHome", d.blendHome),
             forYouDiscovery = (p.getInt("forYouDiscovery") ?: d.forYouDiscovery).coerceIn(-2, 2),
             midResThumbnails = b("midResThumbnails", d.midResThumbnails),
             subsCacheEnabled = b("subsCacheEnabled", d.subsCacheEnabled),
@@ -126,6 +127,7 @@ class SettingsStore(private val p: Prefs) {
         if (v) setRedditHomeFeed(false)
     }
 
+    fun setBlendHome(v: Boolean) { p.setBool("blendHome", v); set { it.copy(blendHome = v) } }
     fun setAutoHideReadForYou(v: Boolean) { p.setBool("autoHideReadForYou", v); set { it.copy(autoHideReadForYou = v) } }
     fun setForYouDiscovery(v: Int) { p.setInt("forYouDiscovery", v); set { it.copy(forYouDiscovery = v) } }
     fun setAppFont(v: AppFont) {

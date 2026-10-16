@@ -185,4 +185,15 @@ class ForYouRankerTest {
         val r = rankForYou(c(listOf(quiet, busy)), RankInputs(subscribed = setOf("pics"), now = now))
         assertEquals(busy.id, r.ranked.first().id)
     }
+
+    @Test
+    fun `Blend - a Reddit Home pick from a sub you don't follow beats plain discovery and says why`() {
+        val fromHome = p("watches", "w5alpha w5beta w5gamma w5delta")
+        val fromPopular = p("watches", "w6alpha w6beta w6gamma w6delta")
+        val r = rankForYou(c(listOf(fromHome), "home") + c(listOf(fromPopular), "popular"), RankInputs(now = now))
+        assertEquals(fromHome.id, r.ranked.first().id)
+        val meta = r.meta[fromHome.id]!!
+        assertFalse("Reddit's picks compete in the main pool", meta.discovery)
+        assertTrue(r.ranked.first().feedReason!!.startsWith("Recommended by Reddit"))
+    }
 }

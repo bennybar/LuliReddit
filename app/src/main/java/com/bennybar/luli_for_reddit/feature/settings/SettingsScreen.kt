@@ -51,6 +51,7 @@ import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material.icons.rounded.Api
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Merge
 import androidx.compose.material.icons.rounded.Backup
 import androidx.compose.material.icons.rounded.BlurOn
 import androidx.compose.material.icons.rounded.Brightness6
@@ -303,10 +304,20 @@ fun SettingsList(
             pickOption(PostSort.entries.map { PickOption(it, it.label) }, s.defaultSort)?.let(ctrl::setDefaultSort)
         })
         switch(
-            "\"For You\" feed (Beta)",
-            "Personalized frontpage built on-device. Reddit's own recommendations aren't available to third-party apps.",
+            "\"For You\" feed",
+            "A personalized frontpage, built on your phone from what you read and like",
             Icons.Rounded.AutoAwesome, s.forYouFeed, ctrl::setForYouFeed,
         )
+        if (s.redditHomeAllowed) {
+            switch(
+                "Blend (Beta)",
+                "For You also ranks your Reddit Home: Reddit's recommendations, under your For You choices",
+                Icons.Rounded.Merge, s.forYouFeed && s.blendHome,
+            ) { v ->
+                ctrl.setBlendHome(v)
+                if (v) ctrl.setForYouFeed(true)
+            }
+        }
         switch(
             "Auto-hide read items in \"For You\"", "Hide posts you've marked/opened as read",
             Icons.Outlined.MarkEmailRead, s.autoHideReadForYou, ctrl::setAutoHideReadForYou,

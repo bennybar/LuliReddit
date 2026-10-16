@@ -588,6 +588,31 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
         }
     }
 
+    /**
+     * For Blend: the next batch of your Reddit Home as full posts (Reddit's
+     * "why" kept as their reason), for For You to rank with everything else.
+     * Null when Home can't be read (no website sign-in, signed out, the page
+     * changed): Blend is then plain For You.
+     */
+    suspend fun blendCandidates(first: Boolean): List<Post>? {
+        return try {
+            val store = c.secureStore
+            if (store.authMode() != "web") return null
+            val cookie = store.webCookie() ?: ""
+            val l = loader ?: RedditHomeLoader(c.context).also { loader = it }
+            val page = l.next(restart = first, cookieHeader = cookie)
+            if (page.isEmpty()) return null
+            _showFewer.value = l.showFewerIds
+            val full = c.repository.getPostsByIds(page.map { it.id })
+            val reasons = page.associate { it.id.removePrefix("t3_") to it.reason }
+            full.map { p -> reasons[p.id]?.let { p.copy(feedReason = it) } ?: p }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     /** Anonymous: whether a Home load worked, how many posts and how long (coarse ranges). */
     private fun trackLoad(outcome: String, posts: Int, started: Long) {
         val ms = System.currentTimeMillis() - started

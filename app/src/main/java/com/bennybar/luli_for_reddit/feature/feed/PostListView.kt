@@ -34,6 +34,7 @@ import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Merge
 import androidx.compose.material.icons.rounded.Leaderboard
 import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.Schedule
@@ -184,9 +185,12 @@ fun PostListView(
         LaunchedEffect(listState) {
             app.feed.frontpageBackSignal.drop(1).collect { listState.animateScrollToItem(0) }
         }
-        // Home: follow the card on screen in the hidden reddit.com page, so
-        // Reddit's own "seen" tracking matches what was actually read.
-        if (homeMode) LaunchedEffect(listState) {
+        // Home (and Blend's Home posts): follow the card on screen in the hidden
+        // reddit.com page, so Reddit's own "seen" tracking matches what was
+        // actually read and the next load brings new posts. (Cards not on its
+        // page are ignored there.)
+        val blendMode = isFrontpage && settings.forYouFeed && settings.blendHome && settings.redditHomeAllowed
+        if (homeMode || blendMode) LaunchedEffect(listState) {
             snapshotFlow {
                 listState.layoutInfo.visibleItemsInfo.firstOrNull { (it.contentType as? String)?.startsWith("post_") == true }?.key as? String
             }.distinctUntilChanged().collect { id -> if (id != null) app.forYou.redditHome.viewing(id) }
@@ -361,6 +365,8 @@ private fun FeedList(
                 onForYou = controller::selectForYou,
                 redditHome = homeMode,
                 onRedditHome = if (settings.redditHomeAllowed) controller::selectRedditHome else null,
+                blend = settings.forYouFeed && settings.blendHome && settings.redditHomeAllowed && isFrontpage,
+                onBlend = if (settings.redditHomeAllowed) controller::selectBlend else null,
             )
         }
         // Not your live Home: say what this is instead (until the next load works).
@@ -435,11 +441,14 @@ fun SortBar(
     onForYou: (() -> Unit)? = null,
     redditHome: Boolean = false,
     onRedditHome: (() -> Unit)? = null, // null unless enabled in Settings
+    blend: Boolean = false,
+    onBlend: (() -> Unit)? = null, // null unless Reddit Home is enabled
 ) {
     val scope = rememberCoroutineScope()
     val label = when {
         redditHome -> "Home"
-        forYou -> "For You · Beta"
+        blend -> "Blend · Beta"
+        forYou -> "For You"
         sort.needsTime -> "${sort.label} · ${time.label}"
         else -> sort.label
     }
@@ -447,7 +456,7 @@ fun SortBar(
         AssistChip(
             onClick = {
                 scope.launch {
-                    showSortSheet(sort, time, onPick, isFrontpage, forYou, onForYou, redditHome, onRedditHome)
+                    showSortSheet(sort, time, onPick, isFrontpage, forYou && !blend, onForYou, redditHome, onRedditHome, blend, onBlend)
                 }
             },
             label = { Text(label) },
@@ -455,6 +464,7 @@ fun SortBar(
                 Icon(
                     when {
                         redditHome -> Icons.Rounded.Home
+                        blend -> Icons.Rounded.Merge
                         forYou -> Icons.Rounded.AutoAwesome
                         else -> Icons.AutoMirrored.Rounded.Sort
                     },
@@ -472,6 +482,7 @@ fun SortBar(
 private sealed interface SortPick {
     data object ForYou : SortPick
     data object Home : SortPick
+    data object Blend : SortPick
     data class Sort(val sort: PostSort) : SortPick
 }
 
@@ -485,19 +496,24 @@ private suspend fun showSortSheet(
     onForYou: (() -> Unit)?,
     redditHome: Boolean,
     onRedditHome: (() -> Unit)?,
+    blend: Boolean,
+    onBlend: (() -> Unit)?,
 ) {
     val pick = Overlays.show<SortPick> { done ->
         ModalBottomSheet(onDismissRequest = { done(null) }) {
             TapGuard {
                 Column(Modifier.navigationBarsPadding()) {
                     if (isFrontpage && onForYou != null) {
-                        SheetTile(Icons.Rounded.AutoAwesome, "For You", "Personalized · Beta", checked = forYou) { done(SortPick.ForYou) }
+                        SheetTile(Icons.Rounded.AutoAwesome, "For You", "Personalized on your phone", checked = forYou) { done(SortPick.ForYou) }
+                    }
+                    if (isFrontpage && onBlend != null) {
+                        SheetTile(Icons.Rounded.Merge, "Blend · Beta", "Your Reddit Home + For You, ranked for you", checked = blend) { done(SortPick.Blend) }
                     }
                     if (isFrontpage && onRedditHome != null) {
                         SheetTile(Icons.Rounded.Home, "Home", "Your reddit.com Home", checked = redditHome) { done(SortPick.Home) }
                     }
                     for (s in PostSort.entries) {
-                        SheetTile(iconFor(s), s.label, null, checked = !forYou && !redditHome && s == sort) { done(SortPick.Sort(s)) }
+                        SheetTile(iconFor(s), s.label, null, checked = !forYou && !blend && !redditHome && s == sort) { done(SortPick.Sort(s)) }
                     }
                 }
             }
@@ -506,6 +522,7 @@ private suspend fun showSortSheet(
     when (pick) {
         SortPick.ForYou -> onForYou?.invoke()
         SortPick.Home -> onRedditHome?.invoke()
+        SortPick.Blend -> onBlend?.invoke()
         is SortPick.Sort -> if (pick.sort.needsTime) {
             val t = Overlays.show<TopTime> { done ->
                 ModalBottomSheet(onDismissRequest = { done(null) }) {

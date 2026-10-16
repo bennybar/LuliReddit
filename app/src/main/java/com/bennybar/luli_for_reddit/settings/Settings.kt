@@ -101,7 +101,8 @@ data class Settings(
     val offlineCache: Boolean = true,
     val checkUpdates: Boolean = true,
     val analytics: Boolean = true, // anonymous usage stats (Aptabase)
-    val forYouFeed: Boolean = false, // frontpage uses the "For You (Beta)" feed
+    val forYouFeed: Boolean = false, // frontpage uses the "For You" feed
+    val blendHome: Boolean = false, // with forYouFeed + Reddit Home allowed: "Blend (Beta)", For You ranking over your Reddit Home too
     // Experimental Reddit Home: the user accepted its risk warning (allowed),
     // and the frontpage currently shows it (feed).
     val redditHomeAllowed: Boolean = false,

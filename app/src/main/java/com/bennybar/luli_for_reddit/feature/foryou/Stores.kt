@@ -47,7 +47,7 @@ private typealias JsonObjectBuilderBlock = kotlinx.serialization.json.JsonObject
 /**
  * On-device interest model: a per-subreddit affinity score that learns from
  * the user's own actions (upvote / downvote / save / open / comment / share).
- * Entirely local — it never leaves the device and powers "For You (Beta)".
+ * Entirely local — it never leaves the device and powers "For You".
  * Weights decay daily so the feed tracks your *current* taste.
  */
 class InterestStore(private val prefs: Prefs, private val trackHistory: () -> Boolean) {

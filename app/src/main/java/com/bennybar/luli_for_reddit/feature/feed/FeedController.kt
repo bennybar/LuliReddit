@@ -284,19 +284,29 @@ class FeedController(val key: String) {
             val s = app.settings
             s.setDefaultSort(sort)
             s.setForYouFeed(false)
+            s.setBlendHome(false)
             s.setRedditHomeFeed(false)
         }
         rebuild(showLoading = true)
     }
 
-    /** Switches the frontpage to the "For You (Beta)" feed (persisted). */
+    /** Switches the frontpage to the "For You" feed (persisted). */
     fun selectForYou() {
         app.settings.setForYouFeed(true)
+        app.settings.setBlendHome(false)
+        rebuild(showLoading = true)
+    }
+
+    /** Switches the frontpage to Blend (Beta): For You ranking over your Reddit Home too (persisted). */
+    fun selectBlend() {
+        app.settings.setForYouFeed(true)
+        app.settings.setBlendHome(true)
         rebuild(showLoading = true)
     }
 
     /** Switches the frontpage to the experimental Reddit Home (persisted). */
     fun selectRedditHome() {
+        app.settings.setBlendHome(false)
         app.settings.setRedditHomeFeed(true)
         rebuild(showLoading = true)
     }

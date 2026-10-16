@@ -167,8 +167,13 @@ fun rankForYou(pool: List<Candidate>, i: RankInputs, pageSize: Int = 50): RankRe
         // were clamped away), heavy use keeps ordering instead of capping out.
         val wInterest = if (a >= 0) 1 + 0.6 * ln(1 + a / 3) else exp(a / 4)
 
-        val primary = fav || subd || a >= K_ENGAGED_INTEREST || explicitSub > 0
-        val base = if (fav) 4.0 else if (subd || explicitSub > 0) 2.5 else 0.4
+        // Blend: a post from your Reddit Home is Reddit's own pick for you. It
+        // competes in the main pool, between your communities and discovery,
+        // and gets a small nudge for being recommended.
+        val fromHome = c.source == "home"
+        val primary = fav || subd || a >= K_ENGAGED_INTEREST || explicitSub > 0 || fromHome
+        val base = if (fav) 4.0 else if (subd || explicitSub > 0) 2.5 else if (fromHome) 1.6 else 0.4
+        val homeMult = if (fromHome) 1.15 else 1.0
         val eSub = if (explicitSub > 0) 1.6 else if (explicitSub < 0) 0.3 else 1.0
 
         val kw = i.keywordScore?.invoke(p.title) ?: 0.0
@@ -200,7 +205,7 @@ fun rankForYou(pool: List<Candidate>, i: RankInputs, pageSize: Int = 50): RankRe
         val tp = talkPct(p)
         val discussion = 0.92 + 0.16 * tp // ×0.92 … ×1.08
 
-        val s = additive * base * wInterest * eSub * kwMult * eTopic * quality * fatigue * openedPen * churn * tMult * discussion
+        val s = additive * base * wInterest * eSub * kwMult * eTopic * quality * fatigue * openedPen * churn * tMult * discussion * homeMult
 
         // Explanation from what actually moved the score.
         val topKw = i.topKeyword?.invoke(p.title)
@@ -215,6 +220,7 @@ fun rankForYou(pool: List<Candidate>, i: RankInputs, pageSize: Int = 50): RankRe
             drivers.isNotEmpty() && drivers.first().first > ln(1.15) -> drivers.first().second
             age < 6 && p.score > 1000 && vp > 0.8 -> "🔥 Trending on Reddit"
             subd -> "From r/${p.subreddit}"
+            fromHome -> "Recommended by Reddit · r/${p.subreddit}"
             c.source == "community" -> "Discover · r/${p.subreddit}, near communities you visit"
             else -> "Discover · r/${p.subreddit}"
         }
@@ -224,9 +230,11 @@ fun rankForYou(pool: List<Candidate>, i: RankInputs, pageSize: Int = 50): RankRe
                 when {
                     fav -> "r/${p.subreddit} is one of your favourites"
                     subd -> "You're subscribed to r/${p.subreddit}"
+                    fromHome -> "Reddit recommends r/${p.subreddit} to you (you don't follow it)"
                     else -> "Discovery: you don't follow r/${p.subreddit}"
                 },
             )
+            if (fromHome) add("In your Reddit Home${p.feedReason?.let { ": “$it”" } ?: ""} (×1.15)")
             if (explicitSub != 0) {
                 add("You asked for ${if (explicitSub > 0) "more" else "less"} from r/${p.subreddit} (${pct(eSub)})")
             }
@@ -361,6 +369,7 @@ private fun sourceLabel(source: String): String = when (source) {
     "interest" -> "a community you engage with"
     "community" -> "a community you've visited"
     "carry" -> "held over from the previous page"
+    "home" -> "your Reddit Home (Blend)"
     else -> source
 }
 
