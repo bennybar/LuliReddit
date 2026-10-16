@@ -196,4 +196,11 @@ class ForYouRankerTest {
         assertFalse("Reddit's picks compete in the main pool", meta.discovery)
         assertTrue(r.ranked.first().feedReason!!.startsWith("Recommended by Reddit"))
     }
+
+    @Test
+    fun `Blend - a Home post from a sub you follow says it came from your Reddit Home`() {
+        val post = p("running", "w7alpha w7beta w7gamma w7delta")
+        val r = rankForYou(c(listOf(post), "home"), RankInputs(subscribed = setOf("running"), now = now))
+        assertEquals("In your Reddit Home · r/running", r.ranked.first().feedReason)
+    }
 }

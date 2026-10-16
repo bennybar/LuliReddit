@@ -308,16 +308,6 @@ fun SettingsList(
             "A personalized frontpage, built on your phone from what you read and like",
             Icons.Rounded.AutoAwesome, s.forYouFeed, ctrl::setForYouFeed,
         )
-        if (s.redditHomeAllowed) {
-            switch(
-                "Blend (Beta)",
-                "For You also ranks your Reddit Home: Reddit's recommendations, under your For You choices",
-                Icons.Rounded.Merge, s.forYouFeed && s.blendHome,
-            ) { v ->
-                ctrl.setBlendHome(v)
-                if (v) ctrl.setForYouFeed(true)
-            }
-        }
         switch(
             "Auto-hide read items in \"For You\"", "Hide posts you've marked/opened as read",
             Icons.Outlined.MarkEmailRead, s.autoHideReadForYou, ctrl::setAutoHideReadForYou,
@@ -340,6 +330,16 @@ fun SettingsList(
                 },
             )
         })
+        if (s.redditHomeAllowed) {
+            switch(
+                "Blend (Beta)",
+                "For You also ranks your Reddit Home: Reddit's recommendations, under your For You choices",
+                Icons.Rounded.Merge, s.forYouFeed && s.blendHome,
+            ) { v ->
+                ctrl.setBlendHome(v)
+                if (v) ctrl.setForYouFeed(true)
+            }
+        }
         tile("Keep feed for", "Home / For You: ${keepLabel(s.feedKeepMinutes)}, then a new feed (pull down to refresh anytime)", Icons.Outlined.Timer, onClick = launch {
             pickOption(listOf(10, 30, 60, 180).map { PickOption(it, keepLabel(it)) }, s.feedKeepMinutes)
                 ?.let(ctrl::setFeedKeepMinutes)

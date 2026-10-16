@@ -516,9 +516,7 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
         // only so long for it; later pages read the next batch.
         val s = c.settings.value
         val blend = s.forYouFeed && s.blendHome && s.redditHomeAllowed
-        val homeF = if (blend && (firstPage || prev.containsKey("home"))) async {
-            withTimeoutOrNull(if (firstPage) 9_000L else 20_000L) { m.redditHome.blendCandidates(firstPage) }
-        } else null
+        val homeBatch = if (blend && (firstPage || prev.containsKey("home"))) m.redditHome.blendBatch(firstPage) else null
 
         val best = bestF.await()
         val rising = risingF.await()
@@ -531,8 +529,14 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
 
         // Held over from the last page ("home" ones stay Reddit's picks).
         for (cand in carryOver) if (ids.add(cand.post.id)) pool.add(Candidate(cand.post, if (cand.source == "home") "home" else "carry"))
-        val home = homeF?.await()
+        // Wait only so long (the first page shows the loading deck meanwhile, as
+        // Home does): a batch still loading joins the next page instead of
+        // being dropped.
+        val home = homeBatch?.let { b -> withTimeoutOrNull(if (firstPage) 12_000L else 15_000L) { b.await() } }
+        val homeLoading = homeBatch != null && !homeBatch.isCompleted
+        if (homeLoading) m.redditHome.blendKeep(homeBatch!!)
         home?.forEach { p -> if (ids.add(p.id)) pool.add(Candidate(p, "home")) }
+        if (!home.isNullOrEmpty()) m.redditHome.blendPrefetch()
         add(best, "best")
         add(rising, "rising")
         add(popular, "popular")
@@ -551,9 +555,10 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
         // dropped for the rest of the session — one timeout on /best and the
         // feed quietly became r/popular); an exhausted one is left out.
         val next = LinkedHashMap<String, String>()
-        // Blend: Home goes on while it returns posts (its cursor is the hidden
-        // page itself); once it doesn't, the rest of this feed is For You's own.
-        if (home?.isNotEmpty() == true) next["home"] = "home"
+        // Blend: Home goes on while it returns posts or is still loading (its
+        // cursor is the hidden page itself); once it comes back empty or fails,
+        // the rest of this feed is For You's own.
+        if (!home.isNullOrEmpty() || homeLoading) next["home"] = "home"
         for ((key, listing) in listOf("best" to best, "rising" to rising, "popular" to popular)) {
             if (!live(key)) continue
             if (listing == null) {

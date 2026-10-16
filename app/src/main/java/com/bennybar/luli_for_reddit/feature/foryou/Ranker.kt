@@ -219,8 +219,10 @@ fun rankForYou(pool: List<Candidate>, i: RankInputs, pageSize: Int = 50): RankRe
         val reason = when {
             drivers.isNotEmpty() && drivers.first().first > ln(1.15) -> drivers.first().second
             age < 6 && p.score > 1000 && vp > 0.8 -> "🔥 Trending on Reddit"
-            subd -> "From r/${p.subreddit}"
+            // Blend: say it came from your Reddit Home (yours, or Reddit's pick).
+            fromHome && subd -> "In your Reddit Home · r/${p.subreddit}"
             fromHome -> "Recommended by Reddit · r/${p.subreddit}"
+            subd -> "From r/${p.subreddit}"
             c.source == "community" -> "Discover · r/${p.subreddit}, near communities you visit"
             else -> "Discover · r/${p.subreddit}"
         }

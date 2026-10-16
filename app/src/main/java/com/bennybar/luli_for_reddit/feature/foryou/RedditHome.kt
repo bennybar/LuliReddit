@@ -588,6 +588,29 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
         }
     }
 
+    // Blend: the Home batch being read for the next page (the hidden page is
+    // slow; a batch keeps loading in the background between pages).
+    private var blendPending: Deferred<List<Post>?>? = null
+
+    /**
+     * For Blend: the Home batch for this page — a fresh read on the first page,
+     * else the one already loading in the background. The caller may stop
+     * waiting for it; it keeps going and is picked up by the next page then
+     * ([blendKeep]). Never cancelled by a page's timeout.
+     */
+    fun blendBatch(first: Boolean): Deferred<List<Post>?> {
+        val pending = blendPending
+        blendPending = null
+        if (first) pending?.cancel()
+        return if (!first && pending != null) pending else c.scope.async { blendCandidates(first) }
+    }
+
+    /** The page stopped waiting for [batch]: the next page takes it (or, once it's in, reads the next one). */
+    fun blendKeep(batch: Deferred<List<Post>?>) { blendPending = batch }
+
+    /** A batch arrived: start reading the next one now, so the next page doesn't wait. */
+    fun blendPrefetch() { blendPending = c.scope.async { blendCandidates(first = false) } }
+
     /**
      * For Blend: the next batch of your Reddit Home as full posts (Reddit's
      * "why" kept as their reason), for For You to rank with everything else.
