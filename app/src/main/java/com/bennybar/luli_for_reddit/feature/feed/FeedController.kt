@@ -163,10 +163,15 @@ class FeedController(val key: String) {
      * "Hide read posts": drops posts already in history as each page arrives.
      * Filtering when fetched rather than live keeps a post you've just read
      * (or scrolled past) from vanishing under you; the next load skips it.
-     * For You has its own live auto-hide option.
+     * For You has its own live auto-hide option. Feeds only (front page,
+     * custom feeds) unless "Also in subreddits" is on: browsing one subreddit
+     * you often want to see what you've read.
      */
     private fun dropRead(listing: Listing<Post>): Listing<Post> {
-        if (forYou || !app.settings.value.hideReadPosts) return listing
+        val s = app.settings.value
+        if (forYou || !s.hideReadPosts) return listing
+        val subreddit = key.isNotEmpty() && !key.startsWith("m::")
+        if (subreddit && !s.hideReadInSubreddits) return listing
         val read = app.history.ids.value
         if (read.isEmpty()) return listing
         return Listing(listing.items.filter { it.id !in read }, listing.after, listing.fromCache)

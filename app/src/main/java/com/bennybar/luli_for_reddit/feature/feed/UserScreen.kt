@@ -16,6 +16,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.rounded.MailOutline
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -24,6 +26,9 @@ import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -123,7 +128,7 @@ fun UserScreen(username: String) {
                     CircularProgressIndicator()
                 }
                 is Async.Error -> Text("Could not load profile: ${friendlyError(a.error)}", Modifier.padding(16.dp))
-                is Async.Data -> ProfileHeader(a.value)
+                is Async.Data -> ProfileHeader(a.value, canFollow = !isSelf && me.isNotEmpty())
             }
             PrimaryScrollableTabRow(
                 selectedTabIndex = pager.currentPage,
@@ -174,8 +179,14 @@ internal fun currentSessionUsername(): String {
 }
 
 @Composable
-private fun ProfileHeader(user: RedditUser) {
+private fun ProfileHeader(user: RedditUser, canFollow: Boolean) {
     val cs = MaterialTheme.colorScheme
+    val nav = LocalNavigator.current
+    val scope = rememberCoroutineScope()
+    // Following a user is subscribing to their profile (u_<name>): their posts
+    // then show in your Best / Hot / New and For You, like a subreddit's.
+    var following by remember(user.name) { mutableStateOf(user.following) }
+    var busy by remember { mutableStateOf(false) }
     Row(Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         LetterAvatar(user.name, 60.dp, cs.primaryContainer, cs.onPrimaryContainer, imageUrl = user.iconUrl)
         Spacer(Modifier.width(16.dp))
@@ -191,6 +202,30 @@ private fun ProfileHeader(user: RedditUser) {
                 fontSize = 12.sp,
                 color = cs.onSurfaceVariant,
             )
+        }
+        if (canFollow) {
+            val toggle: () -> Unit = {
+                val next = !following
+                following = next
+                busy = true
+                scope.launch {
+                    try {
+                        app.repository.setSubscribed("u_${user.name}", next)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        following = !next
+                        nav.showActionError(if (next) "follow" else "unfollow", e)
+                    } finally {
+                        busy = false
+                    }
+                }
+            }
+            if (following) {
+                OutlinedButton(onClick = toggle, enabled = !busy) { Text("Following") }
+            } else {
+                Button(onClick = toggle, enabled = !busy) { Text("Follow") }
+            }
         }
     }
 }

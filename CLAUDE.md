@@ -25,7 +25,7 @@ adb at `~/Library/Android/sdk/platform-tools/adb`.
 Stack: AGP 9.4 (built-in Kotlin), Kotlin 2.4, Compose BOM 2026.09 +
 Material 3 1.5 (Expressive), Navigation Compose (type-safe routes), OkHttp 5,
 kotlinx.serialization (JsonElement parsing), Coil 3, Media3, WorkManager,
-commonmark-java. minSdk 34. No Play Services (F-Droid/IzzyOnDroid-safe).
+commonmark-java. minSdk 33 (Android 13; lowered from 34 in 2.0.19, issue #21 — no lower). No Play Services (F-Droid/IzzyOnDroid-safe).
 
 ## Architecture (package `com.bennybar.luli_for_reddit`)
 - `app` (global, `AppContainer`) — manual DI: `app.prefs`, `app.secureStore`,

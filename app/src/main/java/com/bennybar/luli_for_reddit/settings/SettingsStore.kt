@@ -32,6 +32,8 @@ class SettingsStore(private val p: Prefs) {
             collapseBelowScore = p.getInt("collapseBelowScore"),
             collapseTopLevel = b("collapseTopLevel", d.collapseTopLevel),
             hideReadPosts = b("hideReadPosts", d.hideReadPosts),
+            hideReadInSubreddits = b("hideReadInSubreddits", d.hideReadInSubreddits),
+            dimReadTextOnly = b("dimReadTextOnly", d.dimReadTextOnly),
             subredditIcons = b("subredditIcons", d.subredditIcons),
             markReadOnScroll = b("markReadOnScroll", d.markReadOnScroll),
             swipePostStart = SwipeAction.parse(p.getString("swipePostStart"), SwipeAction.UPVOTE),
@@ -136,6 +138,8 @@ class SettingsStore(private val p: Prefs) {
         set { it.copy(appFont = v, jakartaFont = v == AppFont.JAKARTA) }
     }
     fun setHideReadPosts(v: Boolean) { p.setBool("hideReadPosts", v); set { it.copy(hideReadPosts = v) } }
+    fun setHideReadInSubreddits(v: Boolean) { p.setBool("hideReadInSubreddits", v); set { it.copy(hideReadInSubreddits = v) } }
+    fun setDimReadTextOnly(v: Boolean) { p.setBool("dimReadTextOnly", v); set { it.copy(dimReadTextOnly = v) } }
     fun setSubredditIcons(v: Boolean) { p.setBool("subredditIcons", v); set { it.copy(subredditIcons = v) } }
     fun setMarkReadOnScroll(v: Boolean) { p.setBool("markReadOnScroll", v); set { it.copy(markReadOnScroll = v) } }
 

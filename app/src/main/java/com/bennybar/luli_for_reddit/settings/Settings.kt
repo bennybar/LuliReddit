@@ -84,6 +84,8 @@ data class Settings(
     val collapseBelowScore: Int? = null, // comments scoring below this start collapsed (null = off)
     val collapseTopLevel: Boolean = false, // threads open with top-level comments' replies collapsed
     val hideReadPosts: Boolean = false, // skip already-read posts when feeds load
+    val hideReadInSubreddits: Boolean = false, // …in single subreddits too (else front page / custom feeds only)
+    val dimReadTextOnly: Boolean = false, // read posts: dim only title / text (images stay bright), else the whole card
     val subredditIcons: Boolean = true, // cards show the subreddit's icon (else its first letter)
     val markReadOnScroll: Boolean = false, // a post scrolled past counts as read
     // What swiping does: "start" = from the start edge (rightward in LTR).

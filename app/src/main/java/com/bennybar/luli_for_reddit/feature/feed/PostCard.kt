@@ -66,6 +66,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
@@ -229,6 +230,13 @@ private class PostActions(val post: Post, val nav: AppNavigator) {
     }
 }
 
+/** A read post with Settings → Dim read posts → Text only: its title and text fade (set by PostCard). */
+private val LocalReadTextDim = staticCompositionLocalOf { false }
+
+/** Fades a read post's title / text when only text is dimmed (images stay bright). */
+@Composable
+private fun Modifier.readDim(): Modifier = if (LocalReadTextDim.current) this.alpha(0.5f) else this
+
 /** True in Home / For You, where the "Dismiss" swipe action applies (set by PostListView). */
 val LocalDismissible = staticCompositionLocalOf { false }
 
@@ -343,17 +351,22 @@ fun PostCard(post: Post, modifier: Modifier = Modifier, swipeOverride: Pair<Swip
             // page-colour veil looks the same as 55% opacity — the card sits on
             // the page surface — without re-rendering the whole card, images
             // and all, into an offscreen layer every frame it scrolls.
-            val veil = if (seen && settings.trackHistory) cs.surface.copy(alpha = 0.45f) else Color.Transparent
+            // Settings → Dim read posts: the whole card (veil), or only its
+            // title and text so images and videos stay bright.
+            val dimRead = seen && settings.trackHistory
+            val veil = if (dimRead && !settings.dimReadTextOnly) cs.surface.copy(alpha = 0.45f) else Color.Transparent
             val dim = Modifier.drawWithContent {
                 drawContent()
                 if (veil.alpha > 0f) drawRect(veil)
             }
-            when (settings.postDisplay) {
-                PostDisplay.LARGE -> LargeCard(post, actions, settings, dim)
-                PostDisplay.CARD -> CardsCard(post, actions, settings, dim)
-                PostDisplay.MINI -> MiniCard(post, actions, settings, dim)
-                PostDisplay.CALM -> CalmCard(post, actions, settings, dim)
-                PostDisplay.CALM_CARDS -> CalmCardsCard(post, actions, settings, dim)
+            CompositionLocalProvider(LocalReadTextDim provides (dimRead && settings.dimReadTextOnly)) {
+                when (settings.postDisplay) {
+                    PostDisplay.LARGE -> LargeCard(post, actions, settings, dim)
+                    PostDisplay.CARD -> CardsCard(post, actions, settings, dim)
+                    PostDisplay.MINI -> MiniCard(post, actions, settings, dim)
+                    PostDisplay.CALM -> CalmCard(post, actions, settings, dim)
+                    PostDisplay.CALM_CARDS -> CalmCardsCard(post, actions, settings, dim)
+                }
             }
         }
     }
@@ -404,6 +417,7 @@ private fun LargeCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
             Spacer(Modifier.height(10.dp))
             Text(
                 p.title,
+                Modifier.readDim(),
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, lineHeight = TitleLineHeight),
             )
             p.linkFlairText?.let {
@@ -418,6 +432,7 @@ private fun LargeCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
                 Spacer(Modifier.height(4.dp))
                 Text(
                     p.snippet,
+                    Modifier.readDim(),
                         maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium,
@@ -442,6 +457,7 @@ private fun CardsCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
             Spacer(Modifier.height(10.dp))
             Text(
                 p.title,
+                Modifier.readDim(),
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, lineHeight = TitleLineHeight),
             )
             p.linkFlairText?.let {
@@ -456,6 +472,7 @@ private fun CardsCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
                 Spacer(Modifier.height(4.dp))
                 Text(
                     p.snippet,
+                    Modifier.readDim(),
                         maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium,
@@ -478,6 +495,7 @@ private fun MiniCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
                 Column(Modifier.weight(1f)) {
                     Text(
                         p.title,
+                        Modifier.readDim(),
                         maxLines = 3,
                         overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, lineHeight = TitleLineHeight),
@@ -720,6 +738,19 @@ private fun MediaPreview(p: Post, a: PostActions, s: Settings) {
     val w = p.previewWidth
     val h = p.previewHeight
     val aspect = if (w != null && h != null && h > 0) w.toFloat() / h else 16f / 9f
+    // Inline autoplay for videos (when enabled and not NSFW-blurred), as in
+    // the Cards and Calm layouts — Default only ever showed the poster.
+    if (p.type == PostType.VIDEO && !blurOf(p, s) && s.autoplayMedia && !isExternalVideo(p)) {
+        val vurl = postVideoUrl(p)
+        if (vurl.isNotEmpty() && !vurl.lowercase().endsWith(".gif")) {
+            BoxWithConstraints(Modifier.padding(bottom = 4.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp))) {
+                androidx.compose.runtime.key(p.id) {
+                    InlineVideo(vurl, height = maxWidth / aspect.coerceIn(0.5f, 2.0f), onTap = a::openMedia, poster = url)
+                }
+            }
+            return
+        }
+    }
     Box(
         Modifier
             .padding(bottom = 4.dp)
@@ -1038,7 +1069,7 @@ private fun CalmBody(p: Post, a: PostActions, s: Settings, mediaShape: androidx.
     CalmHeader(p, a, s)
     Text(
         p.title,
-        Modifier.padding(top = 10.dp),
+        Modifier.padding(top = 10.dp).readDim(),
         fontSize = 18.sp,
         fontWeight = FontWeight.SemiBold,
         lineHeight = 1.3.em,
@@ -1055,7 +1086,7 @@ private fun CalmBody(p: Post, a: PostActions, s: Settings, mediaShape: androidx.
     if (p.snippet.isNotEmpty()) {
         Text(
             p.snippet,
-            Modifier.padding(top = 6.dp),
+            Modifier.padding(top = 6.dp).readDim(),
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             fontSize = 14.sp,

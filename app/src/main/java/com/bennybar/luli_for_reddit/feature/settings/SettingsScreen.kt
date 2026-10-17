@@ -345,9 +345,15 @@ fun SettingsList(
                 ?.let(ctrl::setFeedKeepMinutes)
         })
         switch(
-            "Hide read posts", "Skip posts you've already read when feeds load or refresh",
+            "Hide read posts", "Skip posts you've already read when your front page and custom feeds load or refresh",
             Icons.Outlined.VisibilityOff, s.hideReadPosts, ctrl::setHideReadPosts,
         )
+        if (s.hideReadPosts) {
+            switch(
+                "Also in subreddits", "Hide read posts when browsing a single subreddit too",
+                Icons.Outlined.VisibilityOff, s.hideReadInSubreddits, ctrl::setHideReadInSubreddits,
+            )
+        }
         switch(
             "Mark read as you scroll",
             if (s.trackHistory) "A post you scroll past counts as read" else "Needs history tracking turned on",
@@ -597,6 +603,19 @@ fun SettingsList(
         // ---------------------------------------------------------------- Data & storage
         section("Data & storage")
         switch("Track history", "Remember and dim viewed posts (local only)", Icons.Outlined.Visibility, s.trackHistory, ctrl::setTrackHistory)
+        if (s.trackHistory) {
+            tile(
+                "Dim read posts",
+                if (s.dimReadTextOnly) "Text only: titles and text fade, images stay bright" else "Whole card",
+                Icons.Outlined.Visibility,
+                onClick = launch {
+                    pickOption(
+                        listOf(PickOption(false, "Whole card"), PickOption(true, "Text only", "Images and videos stay bright")),
+                        s.dimReadTextOnly,
+                    )?.let(ctrl::setDimReadTextOnly)
+                },
+            )
+        }
         switch("Offline cache", "Show the last loaded content when offline", Icons.Rounded.CloudOff, s.offlineCache, ctrl::setOfflineCache)
         switch(
             "Cache subscriptions", "Keep your subreddit list in memory to speed up \"For You\"",

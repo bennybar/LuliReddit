@@ -20,13 +20,13 @@ android {
 
     defaultConfig {
         applicationId = "com.bennybar.luli_for_reddit"
-        minSdk = 34
+        minSdk = 33
         targetSdk = 36
         // Must exceed every Flutter build's code: its per-ABI APKs were
         // abi*1000 + build (arm64 v1.0.51 = 2051, x86_64 = 4051). Scheme:
         // 20000 + build, the same for every ABI.
-        versionCode = 20058
-        versionName = "2.0.18"
+        versionCode = 20059
+        versionName = "2.0.19"
     }
 
     dependenciesInfo {

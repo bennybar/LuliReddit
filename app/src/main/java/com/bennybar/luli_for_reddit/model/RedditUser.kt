@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import com.bennybar.luli_for_reddit.core.get
 import com.bennybar.luli_for_reddit.core.int
 import com.bennybar.luli_for_reddit.core.long
+import com.bennybar.luli_for_reddit.core.isTrue
 import com.bennybar.luli_for_reddit.core.str
 import kotlinx.serialization.json.JsonElement
 
@@ -16,6 +17,8 @@ data class RedditUser(
     val commentKarma: Int = 0,
     val createdUtc: Long,
     val description: String = "",
+    /** You follow this user (subscribed to their profile, u_<name>). */
+    val following: Boolean = false,
 ) {
     companion object {
         fun fromData(d: JsonElement): RedditUser {
@@ -23,6 +26,7 @@ data class RedditUser(
             val sub = d["subreddit"]
             return RedditUser(
                 name = d["name"].str() ?: "",
+                following = sub["user_is_subscriber"].isTrue(),
                 iconUrl = clean(d["icon_img"].str()) ?: clean(sub["icon_img"].str()),
                 bannerUrl = clean(sub["banner_img"].str()),
                 linkKarma = d["link_karma"].int() ?: 0,
