@@ -1,10 +1,12 @@
 package com.bennybar.luli_for_reddit.feature.inbox
 
+import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.outlined.Notifications
 import com.bennybar.luli_for_reddit.feature.home.TabMenuButton
 import com.bennybar.luli_for_reddit.feature.web.rememberWebSignIn
 import com.bennybar.luli_for_reddit.feature.web.RedditWeb
 import androidx.compose.material.icons.automirrored.outlined.Chat
-import androidx.compose.material.icons.outlined.Notifications
 import com.bennybar.luli_for_reddit.feature.feed.LoadMoreNearEnd
 import com.bennybar.luli_for_reddit.feature.feed.SwipeSpec
 import com.bennybar.luli_for_reddit.feature.feed.SwipeActions
@@ -113,7 +115,9 @@ fun InboxScreen(reselect: Int) {
         return
     }
 
-    val tabs = InboxModule.TABS
+    // Signed in on the web: Reddit's own notifications (a tab) and Chat.
+    val webSignIn = rememberWebSignIn()
+    val tabs = if (webSignIn) InboxModule.TABS + ("Reddit" to REDDIT_TAB) else InboxModule.TABS
     val pager = rememberPagerState { tabs.size }
     val lists = tabs.map { rememberLazyListState() }
     val scope = rememberCoroutineScope()
@@ -124,8 +128,6 @@ fun InboxScreen(reselect: Int) {
         if (reselect != initialReselect) lists[pager.currentPage].animateScrollToItem(0)
     }
 
-    // Signed in on the web: Reddit's own notifications and Chat, signed in.
-    val webSignIn = rememberWebSignIn()
     Scaffold(
         topBar = {
             Column {
@@ -134,14 +136,12 @@ fun InboxScreen(reselect: Int) {
                     colors = appBarColors,
                     actions = {
                         if (webSignIn) {
-                            IconButton(onClick = { nav.push(Route.RedditWeb(RedditWeb.NOTIFICATIONS, "Reddit notifications")) }) {
-                                Icon(Icons.Outlined.Notifications, "Reddit notifications")
-                            }
                             IconButton(onClick = { nav.push(Route.RedditWeb(RedditWeb.CHAT, "Chat")) }) {
                                 Icon(Icons.AutoMirrored.Outlined.Chat, "Reddit Chat")
                             }
                         }
-                        IconButton(onClick = {
+                        // Reddit's notifications are read-only here: nothing to mark.
+                        if (tabs[pager.currentPage].second != REDDIT_TAB) IconButton(onClick = {
                             scope.launch {
                                 try {
                                     app.inbox.markAllRead(tabs[pager.currentPage].second)
@@ -186,7 +186,8 @@ fun InboxScreen(reselect: Int) {
             Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()),
             beyondViewportPageCount = 1,
         ) { page ->
-            InboxList(tabs[page].second, lists[page])
+            if (tabs[page].second == REDDIT_TAB) RedditNotificationsList(active = pager.currentPage == page, lists[page])
+            else InboxList(tabs[page].second, lists[page])
         }
     }
 }
@@ -397,6 +398,106 @@ private fun SignInPrompt(message: String) {
                 Icon(Icons.AutoMirrored.Rounded.Login, null, Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
                 Text("Sign in")
+            }
+        }
+    }
+}
+
+/** The Inbox pager key for Reddit's own notifications (website sign-in only). */
+private const val REDDIT_TAB = "reddit"
+
+/**
+ * Reddit's own notifications (replies, mentions, upvote milestones…), read
+ * from reddit.com when this tab is shown and kept a few minutes. A tap opens
+ * the post or comment in Ilay; older ones are on reddit.com.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RedditNotificationsList(active: Boolean, listState: LazyListState) {
+    val nav = LocalNavigator.current
+    val state by app.redditNotifications.state.collectAsStateWithLifecycle()
+    // Only when you're on this tab (the pager also builds its neighbour).
+    LaunchedEffect(active) { if (active) app.redditNotifications.refresh() }
+    val openWeb = { nav.push(Route.RedditWeb(RedditNotifications.URL, "Reddit notifications")) }
+    var refreshing by remember { mutableStateOf(false) }
+    LaunchedEffect(state) { if (state !is RedditNotifications.State.Loading) refreshing = false }
+
+    PullToRefreshBox(
+        isRefreshing = refreshing,
+        onRefresh = {
+            refreshing = true
+            app.redditNotifications.refresh(force = true)
+        },
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        when (val s = state) {
+            null, RedditNotifications.State.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+            is RedditNotifications.State.Failed -> LazyColumn(Modifier.fillMaxSize()) {
+                item {
+                    Column(Modifier.fillMaxWidth().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            if (s.signedOut) "Your Reddit website sign-in has expired. Sign in again to see Reddit's notifications."
+                            else "Couldn't load Reddit's notifications. Pull to try again.",
+                            textAlign = TextAlign.Center,
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Button(onClick = openWeb) { Text("Open on reddit.com") }
+                    }
+                }
+            }
+            is RedditNotifications.State.Data -> LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 130.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                if (s.items.isEmpty()) {
+                    item(key = "empty") {
+                        Spacer(Modifier.height(120.dp))
+                        Text("No notifications", Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                    }
+                }
+                items(s.items, key = { it.id }, contentType = { "reddit" }) { n ->
+                    RedditNotificationCard(n) { n.link?.let(nav::openLink) ?: openWeb() }
+                }
+                item(key = "older", contentType = "older") {
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        TextButton(onClick = openWeb) { Text("Older notifications on reddit.com") }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RedditNotificationCard(n: RedditNotification, onTap: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val (icon, label) = when {
+        n.type == "POST_REPLY" -> Icons.Outlined.Forum to "Post reply"
+        n.type == "COMMENT_REPLY" -> Icons.AutoMirrored.Rounded.Reply to "Comment reply"
+        n.type.contains("MENTION") -> Icons.Rounded.AlternateEmail to "Mention"
+        n.type.startsWith("UPVOTE") -> Icons.Rounded.ArrowUpward to "Upvotes"
+        else -> Icons.Outlined.Notifications to "Reddit"
+    }
+    BloomCard(Modifier.fillMaxWidth(), onClick = onTap) {
+        Column(Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(icon, null, Modifier.size(16.dp), tint = cs.primary)
+                Spacer(Modifier.width(6.dp))
+                Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = cs.primary)
+                if (n.at > 0) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(timeAgo(n.at), fontSize = 12.sp, color = cs.onSurfaceVariant)
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(n.title, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (n.body.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                Text(n.body, maxLines = 2, overflow = TextOverflow.Ellipsis, color = cs.onSurfaceVariant)
             }
         }
     }

@@ -132,7 +132,13 @@ class RedditClient(
     }
 
     private fun captureRateLimit(res: Response) {
-        val rem = res.header("x-ratelimit-remaining") ?: return
+        val rem = res.header("x-ratelimit-remaining")
+        if (rem == null) {
+            // A 429 without the usual headers can still say when to come back.
+            val retry = res.header("retry-after")?.toDoubleOrNull()?.toInt()
+            if (res.code == 429 && retry != null) onRateLimit(RateLimit(remaining = 0, used = 0, resetSeconds = retry))
+            return
+        }
         onRateLimit(
             RateLimit(
                 remaining = rem.toDoubleOrNull()?.toInt() ?: 0,

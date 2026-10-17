@@ -862,7 +862,7 @@ private fun RateLimitTile() {
     val rl by app.rateLimit.collectAsStateWithLifecycle()
     SettingTile(
         "API usage",
-        rl?.let { "${it.used}/${it.total} used this window · resets in ${it.resetSeconds}s" }
+        rl?.let { "${it.used}/${it.total} used this window · resets in ${it.secondsLeft()}s" }
             ?: "Reddit allows roughly 100 requests/minute. No data yet.",
         Icons.Rounded.Speed,
     )
@@ -1074,7 +1074,7 @@ internal fun reloadLocalData() {
     AppIcon.apply(app.context, AppIcon.parse(app.settings.value.appIcon))
     val user = app.session.username
     listOf(
-        app.postOverrides, app.commentVotes, app.hiddenPosts, app.dismissedPosts, app.hiddenHomeSubs, app.summaries, app.history, app.threadVisits, app.contentFilters,
+        app.postOverrides, app.commentVotes, app.redditNotifications, app.hiddenPosts, app.dismissedPosts, app.hiddenHomeSubs, app.summaries, app.history, app.threadVisits, app.contentFilters,
         app.offline, app.feed, app.post, app.forYou, app.inbox, app.media,
     ).forEach { it.onUserChanged(user) }
     app.session.reload()

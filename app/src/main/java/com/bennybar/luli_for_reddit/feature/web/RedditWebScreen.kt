@@ -52,7 +52,6 @@ import com.bennybar.luli_for_reddit.nav.LocalNavigator
 
 /** Reddit pages Ilay opens signed in (website sign-in only). */
 object RedditWeb {
-    const val NOTIFICATIONS = "https://www.reddit.com/notifications"
     const val CHAT = "https://chat.reddit.com/"
     const val SETTINGS = "https://www.reddit.com/settings"
 }

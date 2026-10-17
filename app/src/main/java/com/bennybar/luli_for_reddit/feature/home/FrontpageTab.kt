@@ -242,7 +242,7 @@ private fun ApiUsagePill(modifier: Modifier = Modifier) {
     val cs = MaterialTheme.colorScheme
     val rl by app.rateLimit.collectAsStateWithLifecycle()
     val r = rl
-    val label = if (r == null) "API usage · no calls yet" else "API ${r.used}/${r.total} · resets ${r.resetSeconds}s"
+    val label = if (r == null) "API usage · no calls yet" else "API ${r.used}/${r.total} · resets ${r.secondsLeft()}s"
     GlassSurface(modifier) {
         Row(Modifier.padding(horizontal = 18.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Rounded.Speed, null, tint = cs.onSurfaceVariant)

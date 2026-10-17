@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit
 
+import com.bennybar.luli_for_reddit.feature.inbox.RedditNotifications
 import android.content.Context
 import com.bennybar.luli_for_reddit.auth.AuthRepository
 import com.bennybar.luli_for_reddit.auth.SessionManager
@@ -69,6 +70,8 @@ class AppContainer(val context: Context) {
     // Shared, per-account local state.
     val postOverrides = PostOverrides()
     val commentVotes = CommentVotes()
+    /** Reddit's own notification list (website sign-in), read like Home. */
+    val redditNotifications = RedditNotifications(this)
     /**
      * Posts hidden with Hide (also hidden on Reddit). Kept on the device too —
      * Home's id-fetched posts and saved first pages don't honour Reddit's
@@ -103,7 +106,7 @@ class AppContainer(val context: Context) {
     val navigator: AppNavigator get() = navigatorOrNull ?: error("No activity")
 
     private val userScoped: List<UserScoped>
-        get() = listOf(postOverrides, commentVotes, hiddenPosts, dismissedPosts, hiddenHomeSubs, summaries, history, threadVisits, contentFilters, offline, feed, post, forYou, inbox, media)
+        get() = listOf(postOverrides, commentVotes, redditNotifications, hiddenPosts, dismissedPosts, hiddenHomeSubs, summaries, history, threadVisits, contentFilters, offline, feed, post, forYou, inbox, media)
 
     /** Called once by [IlayApp] after [app] is assigned (modules may use it). */
     fun start() {

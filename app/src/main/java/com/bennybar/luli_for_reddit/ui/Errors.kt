@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.bennybar.luli_for_reddit.app
 import com.bennybar.luli_for_reddit.core.net.RedditApiException
 import java.io.IOException
 
@@ -34,7 +35,7 @@ fun friendlyError(e: Any?): String {
         when (e.statusCode) {
             403 -> return "You don't have permission to do that."
             404 -> return "Not found — it may have been removed."
-            429 -> return "You're going a bit fast — Reddit is rate-limiting. Try again shortly."
+            429 -> return rateLimited()
             in 500..599 -> return "Reddit is having problems right now. Try again later."
         }
     }
@@ -46,9 +47,19 @@ fun friendlyError(e: Any?): String {
             "You appear to be offline. Check your connection and try again."
         "403" in lower -> "You don't have permission to do that."
         "404" in lower -> "Not found — it may have been removed."
-        "429" in lower -> "You're going a bit fast — Reddit is rate-limiting. Try again shortly."
+        "429" in lower -> rateLimited()
         "500" in lower || "502" in lower || "503" in lower -> "Reddit is having problems right now. Try again later."
         else -> s
+    }
+}
+
+/** Rate-limited: when Reddit said the window resets, say how long to wait. */
+private fun rateLimited(): String {
+    val left = runCatching { app.rateLimit.value?.secondsLeft() }.getOrNull() ?: 0
+    return when {
+        left <= 0 -> "You're going a bit fast — Reddit is rate-limiting. Try again shortly."
+        left < 60 -> "Reddit is rate-limiting for a moment. Try again in ${left}s."
+        else -> "Reddit is rate-limiting. Try again in about ${(left + 59) / 60} min."
     }
 }
 
