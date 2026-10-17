@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.bennybar.luli_for_reddit.ui.theme.LocalVoteColors
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bennybar.luli_for_reddit.app
@@ -100,6 +101,9 @@ fun UserScreen(username: String) {
         }
     }
     val pager = rememberPagerState { tabs.size }
+    // Your own lists reload on every return from a post (scores and votes
+    // you just changed); others' after the usual five minutes.
+    val staleAfter = if (isSelf) 30_000L else 5 * 60_000L
 
     Scaffold(
         topBar = {
@@ -149,22 +153,26 @@ fun UserScreen(username: String) {
                         rememberPagedSource("u_${username}_posts") { a -> repo.getUserPosts(username, after = a) },
                         itemKey = Post::id,
                         emptyLabel = "No posts yet",
+                        staleAfterMillis = staleAfter,
                     ) { PostCard(it) }
                     "Comments" -> PagedList(
                         rememberPagedSource("u_${username}_comments") { a -> repo.getUserComments(username, after = a) },
                         itemKey = Comment::fullname,
                         emptyLabel = "No comments yet",
+                        staleAfterMillis = staleAfter,
                     ) { ProfileCommentCard(it) }
                     "Saved" -> PagedList(
                         rememberPagedSource("u_${username}_saved") { a -> repo.getUserSaved(username, after = a) },
                         itemKey = { if (it is Post) it.fullname else (it as Comment).fullname },
                         emptyLabel = "Nothing saved",
+                        staleAfterMillis = staleAfter,
                         contentType = { if (it is Post) "post" else "comment" },
                     ) { item -> if (item is Post) PostCard(item) else ProfileCommentCard(item as Comment) }
                     else -> PagedList(
                         rememberPagedSource("u_${username}_upvoted") { a -> repo.getUserPosts(username, where = "upvoted", after = a) },
                         itemKey = Post::id,
                         emptyLabel = "Nothing upvoted",
+                        staleAfterMillis = staleAfter,
                     ) { PostCard(it) }
                 }
             }
@@ -240,15 +248,20 @@ internal fun openPermalink(nav: AppNavigator, permalink: String) {
 private fun ProfileCommentCard(comment: Comment) {
     val cs = MaterialTheme.colorScheme
     val nav = LocalNavigator.current
+    // Your votes from threads (this list is Reddit's copy from when it loaded).
+    val votes by app.commentVotes.state.collectAsStateWithLifecycle()
+    val vote = votes[comment.id]
+    val likes = if (vote != null) vote.likes else comment.likes
+    val voteColors = LocalVoteColors.current
     BloomCard(Modifier.fillMaxWidth(), onClick = { openPermalink(nav, comment.permalink) }) {
         Column(Modifier.padding(14.dp)) {
             if (comment.linkTitle.isNotEmpty()) {
                 Text(comment.linkTitle, maxLines = 2, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold)
             }
             Text(
-                "r/${comment.subreddit} · ${compactNumber(comment.score)} pts · ${timeAgo(comment.createdUtc)}",
+                "r/${comment.subreddit} · ${compactNumber(vote?.score ?: comment.score)} pts · ${timeAgo(comment.createdUtc)}",
                 fontSize = 12.sp,
-                color = cs.onSurfaceVariant,
+                color = when (likes) { true -> voteColors.up; false -> voteColors.down; null -> cs.onSurfaceVariant },
             )
             Spacer(Modifier.height(6.dp))
             Text(comment.body.replace('\n', ' '), maxLines = 4, overflow = TextOverflow.Ellipsis, color = cs.onSurface)

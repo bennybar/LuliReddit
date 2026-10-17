@@ -26,6 +26,7 @@ class PostOverrides : UserScoped {
     // When the user last voted/saved each post. A fresh server copy wins
     // otherwise, so scores don't freeze at whatever was first seen.
     private val localAt = HashMap<String, Long>()
+    private val votes = LocalVotes()
 
     /** Effective state for [p] (an override if one exists, else the post's own). */
     fun effective(p: Post): PostOverride =
@@ -39,6 +40,7 @@ class PostOverrides : UserScoped {
         val curDir = dirOf(cur.likes)
         if (targetDir == curDir) return
         localAt[p.id] = System.currentTimeMillis()
+        votes.record(p.id, targetDir, p.score, p.likes)
         set(
             p.id,
             cur.copy(
@@ -59,19 +61,20 @@ class PostOverrides : UserScoped {
     }
 
     /**
-     * Refresh from a freshly-fetched post. The server copy wins, except
-     * vote/score/saved the user changed in the last couple of minutes (a
-     * request may still be in flight, or Reddit's copy may lag).
+     * Refresh from a freshly-fetched post. The server copy wins, except a
+     * vote Reddit's copy doesn't show yet ([LocalVotes]) and saved changed
+     * in the last couple of minutes (a request may still be in flight).
      */
     fun syncFromServer(p: Post) {
         val existing = _state.value[p.id]
         val at = localAt[p.id]
         val recentLocal = existing != null && at != null && System.currentTimeMillis() - at < 2 * 60_000
+        val (likes, score) = votes.reconcile(p.id, p.likes, p.score)
         set(
             p.id,
             PostOverride(
-                likes = if (recentLocal) existing!!.likes else p.likes,
-                score = if (recentLocal) existing!!.score else p.score,
+                likes = likes,
+                score = score,
                 numComments = p.numComments,
                 saved = if (recentLocal) existing!!.saved else p.saved,
             ),
@@ -80,6 +83,7 @@ class PostOverrides : UserScoped {
 
     override fun onUserChanged(username: String) {
         localAt.clear()
+        votes.clear()
         _state.value = emptyMap()
     }
 

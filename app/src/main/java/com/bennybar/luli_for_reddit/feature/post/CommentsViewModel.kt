@@ -95,7 +95,7 @@ class CommentsViewModel(
             val saved = if (focusCommentId == null) app.offline.read(postId) else null
             saved ?: throw e
             val th = withContext(Dispatchers.Default) { repo.parseThread(saved) }
-            return PostThread(th.post, th.comments) to false
+            return PostThread(th.post, app.commentVotes.apply(th.comments)) to false
         }
         // Threads like AMAs set a suggested sort (Q&A, New). Follow it unless the
         // user picked a sort for this thread; it's only known once fetched.
@@ -109,7 +109,7 @@ class CommentsViewModel(
         // Fetch the full page only when the first one was cut short (it ends in
         // "load more" rows); a small thread is already complete.
         return withContext(Dispatchers.Default) {
-            val thread = PostThread(t.post, t.comments, collapsed)
+            val thread = PostThread(t.post, app.commentVotes.apply(t.comments), collapsed)
             thread to (paged && CommentTree.flatten(t.comments, emptySet()).any { it.isMore })
         }
     }
@@ -141,7 +141,7 @@ class CommentsViewModel(
         // page was being prepared must survive the swap.
         _state.update { s ->
             val latest = s.thread ?: return@update s
-            s.copy(thread = PostThread(full.post, full.comments, latest.collapsed + autoMod))
+            s.copy(thread = PostThread(full.post, app.commentVotes.apply(full.comments), latest.collapsed + autoMod))
         }
     }
 
@@ -263,7 +263,7 @@ class CommentsViewModel(
                     depth = moreNode.depth,
                 )
                 val tree = withContext(Dispatchers.Default) {
-                    CommentTree.replaceMore(_state.value.thread?.comments ?: s.comments, moreNode, flat)
+                    CommentTree.replaceMore(_state.value.thread?.comments ?: s.comments, moreNode, app.commentVotes.apply(flat))
                 }
                 edit { it.withTree(tree).copy(loadingMore = it.loadingMore - moreNode.fullname) }
             } catch (e: CancellationException) {

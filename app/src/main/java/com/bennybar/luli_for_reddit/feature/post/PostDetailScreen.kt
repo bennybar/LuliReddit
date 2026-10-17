@@ -545,11 +545,13 @@ private class ThreadActions(val vm: CommentsViewModel, val nav: AppNavigator, va
         vm.updateComment(c.fullname) {
             it.copy(score = it.score + target - current, likes = when (target) { 1 -> true; -1 -> false; else -> null })
         }
+        app.commentVotes.setVote(c, target)
         scope.launch {
             try {
                 app.repository.vote(c.fullname, target)
             } catch (e: Exception) {
                 vm.updateComment(c.fullname) { it.copy(score = c.score, likes = c.likes) }
+                app.commentVotes.setVote(c, current)
                 nav.showActionError("vote", e)
             }
         }

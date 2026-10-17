@@ -105,8 +105,8 @@ class PagedSource<T>(private val fetch: suspend (String?) -> Listing<T>) : ViewM
      * Returning to this list after a pushed route is popped: silently refresh
      * if the data has gone stale (no full-screen spinner, keeps the place).
      */
-    fun refreshIfStale() {
-        if (!_state.value.loading && System.currentTimeMillis() - lastLoaded > 5 * 60_000L) load(silent = true)
+    fun refreshIfStale(maxAgeMillis: Long = 5 * 60_000L) {
+        if (!_state.value.loading && System.currentTimeMillis() - lastLoaded > maxAgeMillis) load(silent = true)
     }
 
     fun loadMore() {
@@ -145,6 +145,8 @@ fun <T> PagedList(
     contentPadding: PaddingValues = PaddingValues(start = 10.dp, top = 8.dp, end = 10.dp, bottom = 130.dp),
     emptyLabel: String = "Nothing here",
     contentType: (T) -> Any? = { null },
+    /** How old the list may be before a return from a pushed route reloads it. */
+    staleAfterMillis: Long = 5 * 60_000L,
     itemContent: @Composable (T) -> Unit,
 ) {
     val state by source.state.collectAsStateWithLifecycle()
@@ -160,7 +162,7 @@ fun <T> PagedList(
         coveredByRoute = nav.controller.currentBackStackEntry !== owner
     }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        if (coveredByRoute) source.refreshIfStale()
+        if (coveredByRoute) source.refreshIfStale(staleAfterMillis)
         coveredByRoute = false
     }
     fun refresh() {
