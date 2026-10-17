@@ -1,10 +1,12 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import com.bennybar.luli_for_reddit.feature.feed.UserProfileBody
+import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.AssistChip
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material.icons.rounded.EditNote
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -24,22 +26,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Login
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.outlined.BookmarkBorder
-import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.DynamicFeed
 import androidx.compose.material.icons.rounded.OfflinePin
 import androidx.compose.material.icons.rounded.PeopleAlt
 import androidx.compose.material.icons.rounded.PersonAddAlt1
 import androidx.compose.material.icons.rounded.TravelExplore
-import androidx.compose.material.icons.rounded.UnfoldMore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -63,28 +60,29 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.bennybar.luli_for_reddit.app
 import com.bennybar.luli_for_reddit.auth.SessionState
-import com.bennybar.luli_for_reddit.feature.feed.Async
 import com.bennybar.luli_for_reddit.feature.feed.BloomCard
 import com.bennybar.luli_for_reddit.feature.feed.LetterAvatar
 import com.bennybar.luli_for_reddit.feature.feed.Tile
 import com.bennybar.luli_for_reddit.feature.feed.SectionHeader
 import com.bennybar.luli_for_reddit.feature.feed.TapGuard
-import com.bennybar.luli_for_reddit.feature.settings.SettingsList
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.Route
 import com.bennybar.luli_for_reddit.ui.Overlays
 import kotlinx.coroutines.launch
 
-/** The "You" tab: profile + account switcher, your stuff (saved, history, read later, custom feeds), then settings. */
+/**
+ * The Profile tab: your profile (Posts, Comments, Saved, Upvoted) under a
+ * bar with the account switcher and Settings, and a "Your stuff" row for
+ * what's kept on this device. Browsing without an account: sign in, plus
+ * your stuff.
+ */
 @Composable
-internal fun AccountTab() {
-    val cs = MaterialTheme.colorScheme
+internal fun ProfileTab() {
     val nav = LocalNavigator.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -92,109 +90,70 @@ internal fun AccountTab() {
     val s = (session as? SessionState.LoggedIn)?.session
     val username = s?.username ?: ""
     val anonymous = s?.anonymous ?: false
-    val multis by app.feed.multireddits.collectAsStateWithLifecycle()
-    val version by app.feed.version.collectAsStateWithLifecycle()
-    LaunchedEffect(anonymous, version) { if (!anonymous) app.feed.loadMultireddits() }
 
-    fun accountSheet() = scope.launch { showAccountSheet(username, context) }
-
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 130.dp)) {
-        if (anonymous) {
-            item(key = "signin") {
-                SignInPrompt(
-                    "You're browsing without an account. Sign in to vote, comment, save, see your inbox and get your own frontpage.",
-                )
-            }
-        } else {
-            // Profile header
-            item(key = "profile") {
-                Row(Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    LetterAvatar(username, 56.dp, cs.primaryContainer, cs.onPrimaryContainer, fontSize = 22.sp)
-                    Spacer(Modifier.width(16.dp))
-                    Column(Modifier.weight(1f)) {
-                        Row(
-                            Modifier.clickable { accountSheet() }.padding(vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                "u/$username",
-                                Modifier.weight(1f, fill = false),
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Icon(Icons.Rounded.UnfoldMore, null, Modifier.size(20.dp))
-                        }
-                        Text(
-                            "View profile",
-                            Modifier.clickable { nav.openUser(username) }.padding(vertical = 2.dp),
-                            color = cs.primary,
-                            style = MaterialTheme.typography.labelLarge,
-                        )
-                    }
-                    FilledTonalIconButton(onClick = { accountSheet() }) { Icon(Icons.Rounded.PeopleAlt, "Switch / add account") }
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, top = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Profile", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+            if (!anonymous) {
+                IconButton(onClick = { scope.launch { showAccountSheet(username, context) } }) {
+                    Icon(Icons.Rounded.PeopleAlt, "Switch / add account")
                 }
             }
+            TabMenuButton()
         }
-        // Your stuff: what's yours on Reddit and on this device, before the settings.
-        item(key = "yours_header") { SectionHeader("Your stuff", Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp)) }
-        if (!anonymous) {
-            item(key = "saved") {
-                NavTile(Icons.Outlined.BookmarkBorder, "Saved", "Search your saved posts & comments") { nav.push(Route.Saved) }
-            }
-        }
-        item(key = "history") {
-            NavTile(Icons.Rounded.History, "History", "Recently viewed (stored on this device)") { nav.push(Route.History) }
-        }
-        item(key = "offline") {
-            NavTile(Icons.Rounded.OfflinePin, "Read later", "Threads saved for offline reading") { nav.push(Route.Offline) }
-        }
-        item(key = "drafts") {
-            val changes by app.drafts.changes.collectAsStateWithLifecycle()
-            val count = remember(changes) { app.drafts.list().size }
-            NavTile(Icons.Rounded.EditNote, "Drafts", if (count == 0) "Unfinished replies, messages and posts" else "$count unfinished") { nav.push(Route.Drafts) }
-        }
-        item(key = "summaries") {
-            NavTile(Icons.Rounded.AutoAwesome, "Summaries", "Posts you summarized with AI, and their summaries") { nav.push(Route.Summaries) }
-        }
-        // Custom feeds
-        if (!anonymous) {
-            item(key = "feeds_header") {
-                Row(Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    SectionHeader("Custom feeds", Modifier.weight(1f))
-                    TextButton(onClick = { scope.launch { createMulti(username) } }) {
-                        Icon(Icons.Rounded.Add, null, Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("New")
-                    }
-                }
-            }
-            when (val m = multis) {
-                Async.Loading -> item(key = "feeds_loading") {
-                    Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-                }
-                is Async.Error -> {}
-                is Async.Data -> items(m.value, key = { "multi_${it.name}" }) { multi ->
-                    Tile(
-                        title = { Text(multi.displayName) },
-                        subtitle = { Text("${multi.subreddits.size} subreddits") },
-                        leading = {
-                            Box(
-                                Modifier.size(40.dp).background(cs.tertiaryContainer, CircleShape),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(Icons.Rounded.DynamicFeed, null, Modifier.size(20.dp), tint = cs.onTertiaryContainer)
-                            }
-                        },
-                        onClick = { nav.push(Route.Multireddit(username, multi.name)) },
+        if (anonymous || username.isEmpty()) {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 130.dp)) {
+                item(key = "signin") {
+                    SignInPrompt(
+                        "You're browsing without an account. Sign in to vote, comment, save, see your inbox and get your own frontpage.",
                     )
                 }
+                item(key = "yours_header") { SectionHeader("Your stuff", Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp)) }
+                item(key = "history") {
+                    NavTile(Icons.Rounded.History, "History", "Recently viewed (stored on this device)") { nav.push(Route.History) }
+                }
+                item(key = "offline") {
+                    NavTile(Icons.Rounded.OfflinePin, "Read later", "Threads saved for offline reading") { nav.push(Route.Offline) }
+                }
+                item(key = "summaries") {
+                    NavTile(Icons.Rounded.AutoAwesome, "Summaries", "Posts you summarized with AI, and their summaries") { nav.push(Route.Summaries) }
+                }
             }
+        } else {
+            UserProfileBody(username, Modifier.weight(1f)) { YourStuffRow() }
         }
-        item(key = "div") { HorizontalDivider(Modifier.padding(vertical = 8.dp), color = cs.outlineVariant.copy(alpha = 0.5f)) }
-        // Settings, inline as in the Flutter build.
-        item(key = "settings", contentType = "settings") { SettingsList(embedded = true) }
+    }
+}
+
+/** History, Read later, Drafts, Summaries and saved search, as one row of chips. */
+@Composable
+private fun YourStuffRow() {
+    val nav = LocalNavigator.current
+    val cs = MaterialTheme.colorScheme
+    val changes by app.drafts.changes.collectAsStateWithLifecycle()
+    val drafts = remember(changes) { app.drafts.list().size }
+    val chips = listOf(
+        Triple(Icons.Rounded.History, "History", Route.History),
+        Triple(Icons.Rounded.OfflinePin, "Read later", Route.Offline),
+        Triple(Icons.Rounded.EditNote, if (drafts == 0) "Drafts" else "Drafts · $drafts", Route.Drafts),
+        Triple(Icons.Rounded.AutoAwesome, "Summaries", Route.Summaries),
+        Triple(Icons.Outlined.BookmarkBorder, "Search saved", Route.Saved),
+    )
+    LazyRow(
+        Modifier.padding(bottom = 4.dp),
+        contentPadding = PaddingValues(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(chips, key = { it.third.toString() }) { (icon, label, route) ->
+            AssistChip(
+                onClick = { nav.push(route) },
+                label = { Text(label) },
+                leadingIcon = { Icon(icon, null, Modifier.size(18.dp), tint = cs.onSecondaryContainer) },
+                shape = CircleShape,
+                border = null,
+                colors = AssistChipDefaults.assistChipColors(containerColor = cs.surfaceContainerHigh),
+            )
+        }
     }
 }
 
@@ -208,7 +167,7 @@ private fun NavTile(icon: androidx.compose.ui.graphics.vector.ImageVector, title
     )
 }
 
-private suspend fun createMulti(username: String) {
+internal suspend fun createMulti(username: String) {
     val name = Overlays.show<String> { done ->
         var text by remember { mutableStateOf("") }
         val focus = remember { FocusRequester() }

@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.inbox
 
+import com.bennybar.luli_for_reddit.feature.home.TabMenuButton
 import com.bennybar.luli_for_reddit.feature.web.rememberWebSignIn
 import com.bennybar.luli_for_reddit.feature.web.RedditWeb
 import androidx.compose.material.icons.automirrored.outlined.Chat
@@ -149,6 +150,7 @@ fun InboxScreen(reselect: Int) {
                                 }
                             }
                         }) { Icon(Icons.Outlined.MarkEmailRead, "Mark all read") }
+                        TabMenuButton()
                     },
                 )
                 PrimaryScrollableTabRow(

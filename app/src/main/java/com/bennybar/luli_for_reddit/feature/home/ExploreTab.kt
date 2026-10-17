@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -196,9 +197,9 @@ internal fun ExploreTab() {
                     }
                 }
             }
-            // Custom feeds (multireddits) — hidden when the user has none.
+            // Custom feeds (multireddits), with "New feed" at the end (signed in).
             val multiList = (multis as? Async.Data)?.value.orEmpty()
-            if (multiList.isNotEmpty()) {
+            if (multiList.isNotEmpty() || !anonymous) {
                 item(key = "multis") {
                     Column {
                         SectionHeader("Custom feeds", Modifier.padding(start = 16.dp, top = 14.dp, end = 16.dp, bottom = 2.dp))
@@ -224,17 +225,32 @@ internal fun ExploreTab() {
                                     colors = AssistChipDefaults.assistChipColors(containerColor = cs.surfaceContainerHigh),
                                 )
                             }
+                            if (!anonymous) {
+                                item(key = "new_multi") {
+                                    AssistChip(
+                                        onClick = { scope.launch { createMulti(currentUser()) } },
+                                        label = { Text("New feed") },
+                                        leadingIcon = { Icon(Icons.Rounded.Add, null, Modifier.size(18.dp), tint = cs.onSecondaryContainer) },
+                                        shape = CircleShape,
+                                        border = null,
+                                        colors = AssistChipDefaults.assistChipColors(containerColor = cs.surfaceContainerHigh),
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
             item(key = "title") {
-                Text(
-                    "Explore",
-                    Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.ExtraBold,
-                )
+                Row(Modifier.padding(start = 16.dp, top = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Explore",
+                        Modifier.weight(1f),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                    )
+                    TabMenuButton()
+                }
             }
             item(key = "filter") {
                 Row(Modifier.padding(start = 16.dp, top = 8.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {

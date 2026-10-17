@@ -103,10 +103,10 @@ private val navItems = listOf(
     NavItem(Icons.Outlined.Home, Icons.Rounded.Home, "Posts"),
     NavItem(Icons.Outlined.Explore, Icons.Rounded.Explore, "Explore"),
     NavItem(Icons.Rounded.MailOutline, Icons.Rounded.Mail, "Inbox"),
-    NavItem(Icons.Outlined.AccountCircle, Icons.Rounded.AccountCircle, "You"),
+    NavItem(Icons.Outlined.AccountCircle, Icons.Rounded.AccountCircle, "Profile"),
 )
 
-/** The home shell: Posts / Explore / Inbox / You tabs with the floating "Pop" pill nav. */
+/** The home shell: Posts / Explore / Inbox / Profile tabs with the floating "Pop" pill nav. */
 @Composable
 fun HomeScreen() {
     val nav = LocalNavigator.current
@@ -237,7 +237,7 @@ fun HomeScreen() {
                 0 -> FrontpageTab(chromeVisible = chrome)
                 1 -> ExploreTab()
                 2 -> InboxScreen(reselect = inboxReselect)
-                else -> AccountTab()
+                else -> ProfileTab()
             }
         }
         // A fade from the page colour behind the nav, so the pill never sits

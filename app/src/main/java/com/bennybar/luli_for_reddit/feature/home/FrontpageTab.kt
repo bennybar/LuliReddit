@@ -1,10 +1,10 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import androidx.compose.material.icons.outlined.Settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Surface
-import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Arrangement
@@ -191,6 +191,7 @@ private fun ProfileAvatar(username: String, size: Dp, onClick: () -> Unit) {
 /** Three-dot menu to switch the feed's post display type (and media autoplay). */
 @Composable
 private fun DisplayMenu(onPicked: () -> Unit = {}) {
+    val nav = LocalNavigator.current
     val settings by app.settings.state.collectAsStateWithLifecycle()
     var open by remember { mutableStateOf(false) }
     Box {
@@ -217,6 +218,15 @@ private fun DisplayMenu(onPicked: () -> Unit = {}) {
                     open = false
                     app.settings.setAutoplayMedia(!settings.autoplayMedia)
                     onPicked()
+                },
+            )
+            HorizontalDivider()
+            DropdownMenuItem(
+                text = { Text("Settings") },
+                leadingIcon = { Icon(Icons.Outlined.Settings, null, Modifier.size(20.dp)) },
+                onClick = {
+                    open = false
+                    nav.push(Route.Settings)
                 },
             )
         }
@@ -284,6 +294,7 @@ private fun showFloatingToolbar(nav: AppNavigator, username: String) {
                     onSearch = { close { nav.push(Route.Search()) } },
                     onNewPost = { close { nav.push(Route.Submit()) } },
                     onProfile = { close { nav.push(Route.User(username)) } },
+                    onSettings = { close { nav.push(Route.Settings) } },
                 )
             }
         }
@@ -295,12 +306,12 @@ private val PanelInner = 6.dp
 
 /**
  * The expandable top bar's panel: connected segments 3dp apart — search
- * (with the profile avatar), New post / Profile, the feed layout as one
+ * (with the profile avatar), New post / Settings, the feed layout as one
  * connected button group, and the autoplay switch. Layout and autoplay
  * apply at once and leave the panel open, so the change is visible behind it.
  */
 @Composable
-private fun ToolbarPanel(username: String, onSearch: () -> Unit, onNewPost: () -> Unit, onProfile: () -> Unit) {
+private fun ToolbarPanel(username: String, onSearch: () -> Unit, onNewPost: () -> Unit, onProfile: () -> Unit, onSettings: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     val settings by app.settings.state.collectAsStateWithLifecycle()
     val seg = cs.surfaceContainerHigh
@@ -323,7 +334,7 @@ private fun ToolbarPanel(username: String, onSearch: () -> Unit, onNewPost: () -
             }
             Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                 PanelButton(EditSquareIcon, "New post", Modifier.weight(1f), onNewPost)
-                PanelButton(Icons.Outlined.AccountCircle, "Profile", Modifier.weight(1f), onProfile)
+                PanelButton(Icons.Outlined.Settings, "Settings", Modifier.weight(1f), onSettings)
             }
             Column(
                 Modifier

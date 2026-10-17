@@ -86,24 +86,8 @@ class UserAboutViewModel(private val username: String) : ViewModel() {
 fun UserScreen(username: String) {
     val nav = LocalNavigator.current
     val scope = rememberCoroutineScope()
-    val vm = viewModel(key = "user_$username") { UserAboutViewModel(username) }
-    val about by vm.about.collectAsStateWithLifecycle()
     val me = currentSessionUsername()
     val isSelf = me.isNotEmpty() && me.equals(username, ignoreCase = true)
-    val repo = app.repository
-
-    val tabs = buildList {
-        add("Posts")
-        add("Comments")
-        if (isSelf) {
-            add("Saved")
-            add("Upvoted")
-        }
-    }
-    val pager = rememberPagerState { tabs.size }
-    // Your own lists reload on every return from a post (scores and votes
-    // you just changed); others' after the usual five minutes.
-    val staleAfter = if (isSelf) 30_000L else 5 * 60_000L
 
     Scaffold(
         topBar = {
@@ -126,55 +110,85 @@ fun UserScreen(username: String) {
         },
         containerColor = MaterialTheme.colorScheme.surface,
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
-            when (val a = about) {
-                Async.Loading -> Box(Modifier.fillMaxWidth().height(96.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-                is Async.Error -> Text("Could not load profile: ${friendlyError(a.error)}", Modifier.padding(16.dp))
-                is Async.Data -> ProfileHeader(a.value, canFollow = !isSelf && me.isNotEmpty())
+        UserProfileBody(username, Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()))
+    }
+}
+
+/**
+ * A profile's header and its Posts / Comments (and your own Saved / Upvoted)
+ * lists: the user screen, and the Profile tab ([belowHeader]: its "Your stuff" row).
+ */
+@Composable
+fun UserProfileBody(username: String, modifier: Modifier = Modifier, belowHeader: @Composable () -> Unit = {}) {
+    val scope = rememberCoroutineScope()
+    val vm = viewModel(key = "user_$username") { UserAboutViewModel(username) }
+    val about by vm.about.collectAsStateWithLifecycle()
+    val me = currentSessionUsername()
+    val isSelf = me.isNotEmpty() && me.equals(username, ignoreCase = true)
+    val repo = app.repository
+
+    val tabs = buildList {
+        add("Posts")
+        add("Comments")
+        if (isSelf) {
+            add("Saved")
+            add("Upvoted")
+        }
+    }
+    val pager = rememberPagerState { tabs.size }
+    // Your own lists reload on every return from a post (scores and votes
+    // you just changed); others' after the usual five minutes.
+    val staleAfter = if (isSelf) 30_000L else 5 * 60_000L
+
+    Column(modifier) {
+        when (val a = about) {
+            Async.Loading -> Box(Modifier.fillMaxWidth().height(96.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
             }
-            PrimaryScrollableTabRow(
-                selectedTabIndex = pager.currentPage,
-                edgePadding = 0.dp,
-                containerColor = MaterialTheme.colorScheme.surface,
-            ) {
-                tabs.forEachIndexed { i, t ->
-                    Tab(
-                        selected = pager.currentPage == i,
-                        onClick = { scope.launch { pager.animateScrollToPage(i) } },
-                        text = { Text(t) },
-                    )
-                }
+            is Async.Error -> Text("Could not load profile: ${friendlyError(a.error)}", Modifier.padding(16.dp))
+            is Async.Data -> ProfileHeader(a.value, canFollow = !isSelf && me.isNotEmpty())
+        }
+        belowHeader()
+        PrimaryScrollableTabRow(
+            selectedTabIndex = pager.currentPage,
+            edgePadding = 0.dp,
+            containerColor = MaterialTheme.colorScheme.surface,
+        ) {
+            tabs.forEachIndexed { i, t ->
+                Tab(
+                    selected = pager.currentPage == i,
+                    onClick = { scope.launch { pager.animateScrollToPage(i) } },
+                    text = { Text(t) },
+                )
             }
-            HorizontalPager(pager, Modifier.weight(1f), beyondViewportPageCount = 0, key = { tabs[it] }) { page ->
-                when (tabs[page]) {
-                    "Posts" -> PagedList(
-                        rememberPagedSource("u_${username}_posts") { a -> repo.getUserPosts(username, after = a) },
-                        itemKey = Post::id,
-                        emptyLabel = "No posts yet",
-                        staleAfterMillis = staleAfter,
-                    ) { PostCard(it) }
-                    "Comments" -> PagedList(
-                        rememberPagedSource("u_${username}_comments") { a -> repo.getUserComments(username, after = a) },
-                        itemKey = Comment::fullname,
-                        emptyLabel = "No comments yet",
-                        staleAfterMillis = staleAfter,
-                    ) { ProfileCommentCard(it) }
-                    "Saved" -> PagedList(
-                        rememberPagedSource("u_${username}_saved") { a -> repo.getUserSaved(username, after = a) },
-                        itemKey = { if (it is Post) it.fullname else (it as Comment).fullname },
-                        emptyLabel = "Nothing saved",
-                        staleAfterMillis = staleAfter,
-                        contentType = { if (it is Post) "post" else "comment" },
-                    ) { item -> if (item is Post) PostCard(item) else ProfileCommentCard(item as Comment) }
-                    else -> PagedList(
-                        rememberPagedSource("u_${username}_upvoted") { a -> repo.getUserPosts(username, where = "upvoted", after = a) },
-                        itemKey = Post::id,
-                        emptyLabel = "Nothing upvoted",
-                        staleAfterMillis = staleAfter,
-                    ) { PostCard(it) }
-                }
+        }
+        HorizontalPager(pager, Modifier.weight(1f), beyondViewportPageCount = 0, key = { tabs[it] }) { page ->
+            when (tabs[page]) {
+                "Posts" -> PagedList(
+                    rememberPagedSource("u_${username}_posts") { a -> repo.getUserPosts(username, after = a) },
+                    itemKey = Post::id,
+                    emptyLabel = "No posts yet",
+                    staleAfterMillis = staleAfter,
+                ) { PostCard(it) }
+                "Comments" -> PagedList(
+                    rememberPagedSource("u_${username}_comments") { a -> repo.getUserComments(username, after = a) },
+                    itemKey = Comment::fullname,
+                    emptyLabel = "No comments yet",
+                    staleAfterMillis = staleAfter,
+                ) { ProfileCommentCard(it) }
+                "Saved" -> PagedList(
+                    rememberPagedSource("u_${username}_saved") { a -> repo.getUserSaved(username, after = a) },
+                    itemKey = { if (it is Post) it.fullname else (it as Comment).fullname },
+                    emptyLabel = "Nothing saved",
+                    staleAfterMillis = staleAfter,
+                    contentType = { if (it is Post) "post" else "comment" },
+                ) { item -> if (item is Post) PostCard(item) else ProfileCommentCard(item as Comment) }
+                else -> PagedList(
+                    rememberPagedSource("u_${username}_upvoted") { a -> repo.getUserPosts(username, where = "upvoted", after = a) },
+                    itemKey = Post::id,
+                    emptyLabel = "Nothing upvoted",
+                    staleAfterMillis = staleAfter,
+                ) { PostCard(it) }
             }
         }
     }
