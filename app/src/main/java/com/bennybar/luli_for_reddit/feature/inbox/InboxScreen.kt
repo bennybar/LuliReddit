@@ -1,5 +1,9 @@
 package com.bennybar.luli_for_reddit.feature.inbox
 
+import com.bennybar.luli_for_reddit.feature.web.rememberWebSignIn
+import com.bennybar.luli_for_reddit.feature.web.RedditWeb
+import androidx.compose.material.icons.automirrored.outlined.Chat
+import androidx.compose.material.icons.outlined.Notifications
 import com.bennybar.luli_for_reddit.feature.feed.LoadMoreNearEnd
 import com.bennybar.luli_for_reddit.feature.feed.SwipeSpec
 import com.bennybar.luli_for_reddit.feature.feed.SwipeActions
@@ -119,6 +123,8 @@ fun InboxScreen(reselect: Int) {
         if (reselect != initialReselect) lists[pager.currentPage].animateScrollToItem(0)
     }
 
+    // Signed in on the web: Reddit's own notifications and Chat, signed in.
+    val webSignIn = rememberWebSignIn()
     Scaffold(
         topBar = {
             Column {
@@ -126,6 +132,14 @@ fun InboxScreen(reselect: Int) {
                     title = title,
                     colors = appBarColors,
                     actions = {
+                        if (webSignIn) {
+                            IconButton(onClick = { nav.push(Route.RedditWeb(RedditWeb.NOTIFICATIONS, "Reddit notifications")) }) {
+                                Icon(Icons.Outlined.Notifications, "Reddit notifications")
+                            }
+                            IconButton(onClick = { nav.push(Route.RedditWeb(RedditWeb.CHAT, "Chat")) }) {
+                                Icon(Icons.AutoMirrored.Outlined.Chat, "Reddit Chat")
+                            }
+                        }
                         IconButton(onClick = {
                             scope.launch {
                                 try {

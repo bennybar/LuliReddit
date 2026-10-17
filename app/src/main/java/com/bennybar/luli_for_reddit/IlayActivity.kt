@@ -64,6 +64,7 @@ import com.bennybar.luli_for_reddit.feature.settings.ContentFiltersScreen
 import com.bennybar.luli_for_reddit.feature.settings.ManageForYouScreen
 import com.bennybar.luli_for_reddit.feature.settings.PolicyScreen
 import com.bennybar.luli_for_reddit.feature.settings.SettingsScreen
+import com.bennybar.luli_for_reddit.feature.web.RedditWebScreen
 import com.bennybar.luli_for_reddit.nav.AppNavigator
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.Route
@@ -315,6 +316,7 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
                 screen<Route.Offline> { OfflineScreen() }
                 screen<Route.NotificationActivity> { NotificationActivityScreen() }
                 screen<Route.Drafts> { DraftsScreen() }
+                screen<Route.RedditWeb> { val r = it.toRoute<Route.RedditWeb>(); RedditWebScreen(r.url, r.title) }
                 screen<Route.Search> { val r = it.toRoute<Route.Search>(); SearchScreen(r.subreddit, r.query, r.sort, r.time) }
                 screen<Route.Submit> { SubmitScreen(it.toRoute<Route.Submit>().subreddit) }
                 screen<Route.MessageThread> { MessageThreadScreen(it.toRoute<Route.MessageThread>().fullname) }

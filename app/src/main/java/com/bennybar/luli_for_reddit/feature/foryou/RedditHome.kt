@@ -4,7 +4,6 @@ import com.bennybar.luli_for_reddit.core.Analytics
 import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Looper
-import android.webkit.CookieManager
 import android.webkit.WebView
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceRequest
@@ -16,6 +15,7 @@ import com.bennybar.luli_for_reddit.core.arr
 import com.bennybar.luli_for_reddit.core.get
 import com.bennybar.luli_for_reddit.core.isTrue
 import com.bennybar.luli_for_reddit.core.str
+import com.bennybar.luli_for_reddit.core.net.loadWebSessionCookies
 import com.bennybar.luli_for_reddit.model.Listing
 import com.bennybar.luli_for_reddit.model.Post
 import com.bennybar.luli_for_reddit.model.PostType
@@ -301,33 +301,7 @@ class RedditHomeLoader(private val context: Context) {
         suspendCancellableCoroutine { cont ->
             Looper.myQueue().addIdleHandler { if (cont.isActive) cont.resume(Unit); false }
         }
-        // The WebView's cookie jar may hold a different account's session (the
-        // last one that signed in through it): load the active one's.
-        val jar = CookieManager.getInstance()
-        suspend fun set(cookie: String) = suspendCancellableCoroutine { cont ->
-            jar.setCookie(HOME, cookie) { if (cont.isActive) cont.resume(Unit) }
-        }
-        fun session(header: String?) = header?.split(';')
-            ?.firstOrNull { it.trim().startsWith("reddit_session=") }?.trim()
-        // Same account already in the jar: keep it as is. Wiping it also threw
-        // away the cookies Reddit set when the page passed its browser check,
-        // so every launch had to pass that check again (an extra page load).
-        if (session(jar.getCookie(HOME)) != session(cookieHeader)) {
-            for (part in jar.getCookie(HOME)?.split(';') ?: emptyList()) {
-                val name = part.substringBefore('=').trim()
-                if (name.isEmpty()) continue
-                set("$name=; Domain=.reddit.com; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT")
-                set("$name=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT")
-            }
-            for (part in cookieHeader.split(';')) {
-                val i = part.indexOf('=')
-                if (i <= 0) continue
-                val name = part.substring(0, i).trim()
-                val value = part.substring(i + 1).trim()
-                set("$name=$value; Domain=.reddit.com; Path=/; Secure")
-            }
-        }
-        jar.flush()
+        loadWebSessionCookies(cookieHeader)
 
         val v = WebView(context.applicationContext)
         v.settings.javaScriptEnabled = true

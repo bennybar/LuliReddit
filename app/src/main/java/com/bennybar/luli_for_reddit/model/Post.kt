@@ -56,6 +56,10 @@ data class Post(
     /** Images / GIFs referenced inside the body (`media_metadata`), by id — shown inline, not as links. */
     val bodyMedia: Map<String, String> = emptyMap(),
     val pollOptions: List<String> = emptyList(),
+    /** Votes per option, same order; empty while Reddit hides them (before you vote or it ends). */
+    val pollVotes: List<Int> = emptyList(),
+    /** Which option you voted for, if you did. */
+    val pollChoice: Int? = null,
     // media
     val thumbnailUrl: String? = null,
     val previewUrl: String? = null,
@@ -96,6 +100,8 @@ data class Post(
                 vreddit.pathSegments.isNotEmpty()
             val isVideo = d["is_video"].isTrue() || parent["is_video"].isTrue() || redditVideo != null || bareVreddit
             val flair = d["link_flair_text"].str()
+            val poll = content["poll_data"]
+            val pollRaw = poll["options"].arr().orEmpty().filter { !it["text"].str().isNullOrEmpty() }
 
             return Post(
                 id = d["id"].str() ?: "",
@@ -129,8 +135,9 @@ data class Post(
                 distinguished = d["distinguished"].str(),
                 crosspostFrom = parent?.get("subreddit").str(),
                 bodyMedia = Comment.mediaUrls(content["media_metadata"]),
-                pollOptions = content["poll_data"]["options"].arr()?.mapNotNull { it["text"].str()?.ifEmpty { null } }
-                    ?: emptyList(),
+                pollOptions = pollRaw.map { it["text"].str()!! },
+                pollVotes = pollRaw.map { it["vote_count"].int() ?: -1 }.takeIf { v -> v.isNotEmpty() && v.none { it < 0 } } ?: emptyList(),
+                pollChoice = poll["user_selection"].str()?.let { sel -> pollRaw.indexOfFirst { it["id"].str() == sel }.takeIf { it >= 0 } },
                 thumbnailUrl = validThumb(d["thumbnail"].str()) ?: validThumb(content["thumbnail"].str()),
                 previewUrl = preview?.url,
                 previewMedUrl = medPreviewUrl(d) ?: medPreviewUrl(content) ?: preview?.url,

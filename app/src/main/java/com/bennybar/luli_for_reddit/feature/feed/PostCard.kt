@@ -1,5 +1,9 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.feature.web.rememberWebSignIn
+import com.bennybar.luli_for_reddit.nav.Route
+import androidx.compose.material3.TextButton
+import kotlin.math.roundToInt
 import android.annotation.SuppressLint
 import com.bennybar.luli_for_reddit.feature.media.externalVideoSource
 import com.bennybar.luli_for_reddit.feature.media.isExternalVideo
@@ -690,23 +694,48 @@ private fun CrosspostLine(p: Post) {
     }
 }
 
-/** A poll's options (read-only: Reddit's API can't vote in polls). */
+/**
+ * A poll's options, with results once Reddit shows them. Reddit's API can't
+ * vote in polls: with the website sign-in, "Vote on Reddit" opens the post
+ * signed in (the thread refreshes its results when you come back).
+ */
 @Composable
-private fun PollOptions(p: Post) {
+fun PollOptions(p: Post) {
     if (p.pollOptions.isEmpty()) return
     val cs = MaterialTheme.colorScheme
+    val nav = LocalNavigator.current
+    val total = p.pollVotes.sum()
     Column(Modifier.padding(top = 4.dp, bottom = 4.dp)) {
-        for (opt in p.pollOptions) {
-            Text(
-                opt,
+        p.pollOptions.forEachIndexed { i, opt ->
+            val votes = p.pollVotes.getOrNull(i)
+            val chosen = p.pollChoice == i
+            val share = if (votes != null && total > 0) votes.toFloat() / total else 0f
+            Box(
                 Modifier
                     .fillMaxWidth()
                     .padding(bottom = 8.dp)
-                    .background(cs.surfaceContainerHigh, RoundedCornerShape(14.dp))
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
-            )
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(cs.surfaceContainerHigh),
+            ) {
+                if (votes != null) {
+                    Box(Modifier.matchParentSize().fillMaxWidth(share).background(if (chosen) cs.primaryContainer else cs.surfaceContainerHighest))
+                }
+                Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(opt, Modifier.weight(1f), fontWeight = if (chosen) FontWeight.Bold else null)
+                    if (votes != null) Text("${(share * 100).roundToInt()}%", fontSize = 13.sp, color = cs.onSurfaceVariant)
+                }
+            }
         }
-        Text("Vote in the official app", fontSize = 12.sp, color = cs.onSurfaceVariant)
+        val webSignIn = rememberWebSignIn()
+        when {
+            p.pollChoice != null -> Text("You voted · ${compactNumber(total)} votes", fontSize = 12.sp, color = cs.onSurfaceVariant)
+            p.pollVotes.isNotEmpty() -> Text("${compactNumber(total)} votes", fontSize = 12.sp, color = cs.onSurfaceVariant)
+            webSignIn -> TextButton(onClick = {
+                app.post.pollVoteOpened = p.id
+                nav.push(Route.RedditWeb("https://www.reddit.com${p.permalink}", "Vote in poll"))
+            }) { Text("Vote on Reddit") }
+            else -> Text("Vote in the official app", fontSize = 12.sp, color = cs.onSurfaceVariant)
+        }
     }
 }
 

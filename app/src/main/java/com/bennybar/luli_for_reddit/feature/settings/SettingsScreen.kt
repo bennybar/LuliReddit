@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.settings
 
+import com.bennybar.luli_for_reddit.feature.web.RedditWeb
+import androidx.compose.material.icons.rounded.ManageAccounts
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -662,6 +664,11 @@ fun SettingsList(
             if (web) Icons.Rounded.Public else Icons.Rounded.Api,
             onClick = launch { showLoginMethodInfo(web) },
         )
+        if (web) {
+            tile("Reddit account settings", "Reddit's own settings: Home recommendations, notifications, muted communities", Icons.Rounded.ManageAccounts) {
+                nav.push(Route.RedditWeb(RedditWeb.SETTINGS, "Reddit settings"))
+            }
+        }
         tile("Reddit API credentials", "Re-enter your Client ID / Redirect URI", Icons.Rounded.VpnKey, onClick = launch {
             if (confirmDialog(
                     "Re-enter credentials?",

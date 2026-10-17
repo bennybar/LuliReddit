@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import com.bennybar.luli_for_reddit.feature.feed.PollOptions
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -194,6 +196,13 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
     val username = remember(session) { app.session.username }
     val aiKey by app.post.aiKey.collectAsStateWithLifecycle()
     val settings by app.settings.state.collectAsStateWithLifecycle()
+    // Back from voting in this post's poll on Reddit: load the results.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        if (app.post.pollVoteOpened == postId) {
+            app.post.pollVoteOpened = null
+            vm.refresh()
+        }
+    }
     val thread = ui.thread
     val flat = thread?.flat ?: emptyList()
     val since = dwell.since
@@ -1001,21 +1010,7 @@ private fun PostHeader(post: Post, fresh: Boolean) {
         }
         Spacer(Modifier.height(12.dp))
         PostMedia(p, nav)
-        if (p.pollOptions.isNotEmpty()) {
-            Spacer(Modifier.height(4.dp))
-            for (opt in p.pollOptions) {
-                Text(
-                    opt,
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 8.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(cs.surfaceContainerHigh)
-                        .padding(horizontal = 14.dp, vertical = 12.dp),
-                )
-            }
-            Text("Vote in the official app", fontSize = 12.sp, color = cs.onSurfaceVariant)
-        }
+        PollOptions(p)
         // Gallery/image/link posts can carry a body too — show it whenever
         // there's selftext, not only for pure self-posts.
         PostBody(p)
@@ -1149,21 +1144,7 @@ private fun CalmPostHeader(
         }
         Spacer(Modifier.height(12.dp))
         PostMedia(p, nav, radius = 22.dp)
-        if (p.pollOptions.isNotEmpty()) {
-            Spacer(Modifier.height(4.dp))
-            for (opt in p.pollOptions) {
-                Text(
-                    opt,
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 8.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(cs.surfaceContainerHigh)
-                        .padding(horizontal = 14.dp, vertical = 12.dp),
-                )
-            }
-            Text("Vote in the official app", fontSize = 12.sp, color = cs.onSurfaceVariant)
-        }
+        PollOptions(p)
         PostBody(p)
         Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             CalmVoteGroup(score, likes, onUp = { vote(1) }, onDown = { vote(-1) }, height = 40.dp, iconSize = 19.dp, hPad = 14.dp)

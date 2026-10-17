@@ -13,6 +13,9 @@ class PostModule(private val c: AppContainer) : UserScoped {
     /** The OpenAI(-compatible) API key, or null/empty when AI isn't set up. Account-independent. */
     val aiKey: StateFlow<String?> = _aiKey
 
+    /** The post whose poll was opened on Reddit to vote; its thread refreshes on return. */
+    @Volatile var pollVoteOpened: String? = null
+
     /** Re-reads the key (Settings may have changed it). Cheap; called when a thread opens. */
     fun refreshAiKey() {
         c.scope.launch { _aiKey.value = c.secureStore.openaiKey() }
