@@ -63,6 +63,7 @@ class ForYouModule(private val c: AppContainer) : UserScoped {
         meta.value = emptyMap()
         learner.reset()
         engine.reset()
+        redditHome.cancelBlend() // the other account's Home reads
     }
 
     /** Re-reads every store for the current account (after a backup restore). */
@@ -239,7 +240,10 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
     internal fun reset() {
         leftovers = emptyList()
         communityTurn = 0
+        blendPlaced = 0
     }
+
+    @Volatile private var blendPlaced = 0 // Blend: Reddit Home posts placed in this feed
 
     /**
      * First page when [after] is null, else the page after that cursor.
@@ -313,6 +317,7 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
             interest = m.interest.value,
             subStats = m.subStats.value,
             typeStats = m.typeStats.value,
+            blendReddit = c.settings.value.blendReddit,
             explicit = m.explicit.value,
             keywordScore = { t -> kw.scoreTitle(t, df::idf) },
             topKeyword = { t -> kw.topKeywordIn(t, df::idf) },
@@ -527,16 +532,21 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
             for (p in l?.items ?: emptyList()) if (ids.add(p.id)) pool.add(Candidate(p, src))
         }
 
-        // Held over from the last page ("home" ones stay Reddit's picks).
-        for (cand in carryOver) if (ids.add(cand.post.id)) pool.add(Candidate(cand.post, if (cand.source == "home") "home" else "carry"))
-        // Wait only so long (the first page shows the loading deck meanwhile, as
-        // Home does): a batch still loading joins the next page instead of
-        // being dropped.
-        val home = homeBatch?.let { b -> withTimeoutOrNull(if (firstPage) 12_000L else 15_000L) { b.await() } }
+        // Blend: Reddit's Home batch first, so a post it also recommends counts
+        // as Reddit's pick whichever source found it too (de-duplication used
+        // to keep whichever came first and drop the Home signal). Wait only so
+        // long — the first page shows the loading deck meanwhile, as Home
+        // does; a batch still loading joins the next page instead.
+        val homeResult = homeBatch?.let { b -> withTimeoutOrNull(if (firstPage) 10_000L else 12_000L) { b.await() } }
         val homeLoading = homeBatch != null && !homeBatch.isCompleted
         if (homeLoading) m.redditHome.blendKeep(homeBatch!!)
-        home?.forEach { p -> if (ids.add(p.id)) pool.add(Candidate(p, "home")) }
+        val home = (homeResult as? RedditHomeEngine.BlendResult.Posts)?.posts
+        home?.forEachIndexed { i, p ->
+            if (ids.add(p.id)) pool.add(Candidate(p, "home", homePos = i.toDouble() / maxOf(home.size - 1, 1)))
+        }
         if (!home.isNullOrEmpty()) m.redditHome.blendPrefetch()
+        // Held over from the last page ("home" ones stay Reddit's picks).
+        for (cand in carryOver) if (ids.add(cand.post.id)) pool.add(if (cand.source == "home") cand else Candidate(cand.post, "carry"))
         add(best, "best")
         add(rising, "rising")
         add(popular, "popular")
@@ -555,10 +565,34 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
         // dropped for the rest of the session — one timeout on /best and the
         // feed quietly became r/popular); an exhausted one is left out.
         val next = LinkedHashMap<String, String>()
-        // Blend: Home goes on while it returns posts or is still loading (its
-        // cursor is the hidden page itself); once it comes back empty or fails,
-        // the rest of this feed is For You's own.
-        if (!home.isNullOrEmpty() || homeLoading) next["home"] = "home"
+        // Blend: Home's cursor is the hidden page itself; its value counts
+        // misses in a row. Still loading or a passing failure: try again on
+        // the next page (up to 3 failures, 2 empty batches, as Home allows);
+        // signed out: the rest of this feed is For You's own, and says so.
+        if (homeBatch != null) {
+            val misses = prev["home"]?.removePrefix("m")?.toIntOrNull() ?: 0
+            val state: RedditHomeEngine.BlendState?
+            when {
+                homeLoading -> {
+                    next["home"] = "m$misses"
+                    state = if (firstPage) RedditHomeEngine.BlendState.Loading else null
+                }
+                homeResult is RedditHomeEngine.BlendResult.Posts -> {
+                    next["home"] = "m0"
+                    state = null
+                }
+                homeResult is RedditHomeEngine.BlendResult.SignedOut -> state = RedditHomeEngine.BlendState.Unavailable(signedOut = true)
+                misses + 1 < (if (homeResult is RedditHomeEngine.BlendResult.Empty) 2 else 3) -> {
+                    next["home"] = "m${misses + 1}"
+                    state = null
+                }
+                else -> state = RedditHomeEngine.BlendState.Unavailable(signedOut = false)
+            }
+            // "8 Reddit Home picks" in the header: placed in this feed so far.
+            val placedHome = result.ranked.count { result.meta[it.id]?.source == "home" }
+            blendPlaced = (if (firstPage) 0 else blendPlaced) + placedHome
+            m.redditHome.blendState.value = state ?: RedditHomeEngine.BlendState.Included(blendPlaced)
+        }
         for ((key, listing) in listOf("best" to best, "rising" to rising, "popular" to popular)) {
             if (!live(key)) continue
             if (listing == null) {

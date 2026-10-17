@@ -96,6 +96,7 @@ internal fun FrontpageTab(chromeVisible: Boolean) {
     val forYou = settings.forYouFeed
     val homeOn = settings.redditHomeAllowed && settings.redditHomeFeed
     val blend = forYou && settings.blendHome && settings.redditHomeAllowed
+    val blendState by app.forYou.redditHome.blendState.collectAsStateWithLifecycle()
     val expandable = settings.topBarMode == TopBarMode.EXPANDABLE
     // Full mode pins the action row; Expandable floats it in on demand.
     val showActionRow = settings.topBarMode == TopBarMode.FULL
@@ -141,7 +142,7 @@ internal fun FrontpageTab(chromeVisible: Boolean) {
                     if (!homeOn && forYou) {
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            if (blend) "Your Reddit Home + For You · Beta" else "Personalized on your phone",
+                            if (blend) blendSubtitle(blendState) else "Personalized on your phone",
                             Modifier.weight(1f),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -397,4 +398,14 @@ private fun PanelButton(icon: ImageVector, label: String, modifier: Modifier, on
         Spacer(Modifier.width(10.dp))
         Text(label, fontSize = 15.sp, fontWeight = FontWeight.Medium)
     }
+}
+
+/** Blend's header subtitle: what its Reddit Home source is contributing right now. */
+private fun blendSubtitle(state: com.bennybar.luli_for_reddit.feature.foryou.RedditHomeEngine.BlendState?): String = when (state) {
+    is com.bennybar.luli_for_reddit.feature.foryou.RedditHomeEngine.BlendState.Included ->
+        if (state.count == 0) "Beta · no Reddit Home picks yet" else "Beta · ${state.count} Reddit Home pick${if (state.count == 1) "" else "s"}"
+    com.bennybar.luli_for_reddit.feature.foryou.RedditHomeEngine.BlendState.Loading -> "Beta · Reddit Home loading…"
+    is com.bennybar.luli_for_reddit.feature.foryou.RedditHomeEngine.BlendState.Unavailable ->
+        if (state.signedOut) "Beta · Reddit Home signed out: showing For You" else "Beta · Reddit Home unavailable: showing For You"
+    null -> "Your Reddit Home + For You · Beta"
 }

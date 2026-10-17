@@ -193,7 +193,7 @@ class ForYouRankerTest {
         val r = rankForYou(c(listOf(fromHome), "home") + c(listOf(fromPopular), "popular"), RankInputs(now = now))
         assertEquals(fromHome.id, r.ranked.first().id)
         val meta = r.meta[fromHome.id]!!
-        assertFalse("Reddit's picks compete in the main pool", meta.discovery)
+        assertTrue("a community you don't follow stays discovery, even when Reddit recommends it", meta.discovery)
         assertTrue(r.ranked.first().feedReason!!.startsWith("Recommended by Reddit"))
     }
 
@@ -202,5 +202,32 @@ class ForYouRankerTest {
         val post = p("running", "w7alpha w7beta w7gamma w7delta")
         val r = rankForYou(c(listOf(post), "home"), RankInputs(subscribed = setOf("running"), now = now))
         assertEquals("In your Reddit Home · r/running", r.ranked.first().feedReason)
+    }
+
+    private fun titled(sub: String, i: Int) = p(sub, "w${i}alpha w${i}beta w${i}gamma w${i}delta")
+
+    @Test
+    fun `Blend - at most Familiar, a flood of unfamiliar Home picks stays limited`() {
+        val subs = (0 until 10).map { "mine$it" }.toSet()
+        val pool = c((0 until 40).map { titled("mine${it % 10}", it) }) +
+            c((0 until 40).map { titled("strange${it % 10}", 100 + it) }, "home")
+        val r = rankForYou(pool, RankInputs(subscribed = subs, now = now, discoveryMix = -2, blendReddit = 1), pageSize = 40)
+        val unfamiliar = r.ranked.count { it.subreddit.startsWith("strange") }
+        assertTrue("only $unfamiliar unfamiliar Home picks expected to be few", unfamiliar <= 4)
+    }
+
+    @Test
+    fun `Blend - Mostly Reddit gives your Home more spots than Mostly Ilay`() {
+        val subs = (0 until 10).map { "mine$it" }.toSet()
+        // Same communities from both sources; Home's are a little less popular.
+        val pool = c((0 until 40).map { titled("mine${it % 10}", it) }) +
+            c((0 until 40).map { p("mine${it % 10}", "w${200 + it}alpha w${200 + it}beta w${200 + it}gamma w${200 + it}delta", score = 300) }, "home")
+        fun homeCount(preset: Int): Int {
+            val r = rankForYou(pool, RankInputs(subscribed = subs, now = now, blendReddit = preset), pageSize = 30)
+            return r.ranked.count { r.meta[it.id]?.source == "home" }
+        }
+        val ilay = homeCount(0)
+        val reddit = homeCount(2)
+        assertTrue("Mostly Ilay $ilay < Mostly Reddit $reddit", ilay < reddit)
     }
 }

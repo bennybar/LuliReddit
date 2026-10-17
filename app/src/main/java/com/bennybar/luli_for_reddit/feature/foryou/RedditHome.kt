@@ -588,51 +588,95 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
         }
     }
 
-    // Blend: the Home batch being read for the next page (the hidden page is
-    // slow; a batch keeps loading in the background between pages).
-    private var blendPending: Deferred<List<Post>?>? = null
-
-    /**
-     * For Blend: the Home batch for this page — a fresh read on the first page,
-     * else the one already loading in the background. The caller may stop
-     * waiting for it; it keeps going and is picked up by the next page then
-     * ([blendKeep]). Never cancelled by a page's timeout.
-     */
-    fun blendBatch(first: Boolean): Deferred<List<Post>?> {
-        val pending = blendPending
-        blendPending = null
-        if (first) pending?.cancel()
-        return if (!first && pending != null) pending else c.scope.async { blendCandidates(first) }
+    /** One Blend read of your Reddit Home. */
+    sealed interface BlendResult {
+        /** Full posts, in Reddit's order. */
+        data class Posts(val posts: List<Post>) : BlendResult
+        /** Home had nothing new this time (the page may still be setting up). */
+        data object Empty : BlendResult
+        /** A network or page error: worth trying again on the next page. */
+        data object Failed : BlendResult
+        /** No website sign-in, or it expired: Blend is For You until you sign in. */
+        data object SignedOut : BlendResult
     }
 
-    /** The page stopped waiting for [batch]: the next page takes it (or, once it's in, reads the next one). */
-    fun blendKeep(batch: Deferred<List<Post>?>) { blendPending = batch }
+    /** What Blend's Home source is doing, for the Blend header. */
+    sealed interface BlendState {
+        data object Loading : BlendState
+        /** [count] Reddit Home posts placed in this feed so far. */
+        data class Included(val count: Int) : BlendState
+        data class Unavailable(val signedOut: Boolean) : BlendState
+    }
 
-    /** A batch arrived: start reading the next one now, so the next page doesn't wait. */
-    fun blendPrefetch() { blendPending = c.scope.async { blendCandidates(first = false) } }
+    val blendState = MutableStateFlow<BlendState?>(null)
+
+    // Blend reads run on the app scope (a page may stop waiting for one; it
+    // keeps going and the next page takes it), so they're tracked here and
+    // cancelled on refresh, when the feed closes and on account changes; a
+    // result from before that ([blendGen]) is thrown away.
+    @Volatile private var blendGen = 0
+    private var blendPending: Deferred<BlendResult>? = null // being read for the next page
+    private var blendActive: Deferred<BlendResult>? = null // handed to the page being built
+
+    /** Stops every Blend read (refresh, feed closed, account change). */
+    fun cancelBlend() {
+        blendGen++
+        blendPending?.cancel()
+        blendActive?.cancel()
+        blendPending = null
+        blendActive = null
+    }
 
     /**
-     * For Blend: the next batch of your Reddit Home as full posts (Reddit's
-     * "why" kept as their reason), for For You to rank with everything else.
-     * Null when Home can't be read (no website sign-in, signed out, the page
-     * changed): Blend is then plain For You.
+     * The Home read for this page: a fresh one on the first page (older reads
+     * are cancelled), else the one already loading in the background.
      */
-    suspend fun blendCandidates(first: Boolean): List<Post>? {
+    fun blendBatch(first: Boolean): Deferred<BlendResult> {
+        if (first) cancelBlend()
+        val pending = blendPending
+        blendPending = null
+        val gen = blendGen
+        val batch = if (!first && pending != null) pending else c.scope.async { blendCandidates(first, gen) }
+        blendActive = batch
+        return batch
+    }
+
+    /** The page stopped waiting for [batch]: the next page takes it. */
+    fun blendKeep(batch: Deferred<BlendResult>) {
+        blendPending = batch
+    }
+
+    /** A batch arrived: start reading the next one now, so the next page doesn't wait. */
+    fun blendPrefetch() {
+        val gen = blendGen
+        blendPending = c.scope.async { blendCandidates(first = false, gen = gen) }
+    }
+
+    /**
+     * One read of your Reddit Home as full posts (Reddit's "why" kept as
+     * their reason), for For You to rank with everything else.
+     */
+    private suspend fun blendCandidates(first: Boolean, gen: Int): BlendResult {
+        val user = c.session.username
         return try {
             val store = c.secureStore
-            if (store.authMode() != "web") return null
+            if (store.authMode() != "web") return BlendResult.SignedOut
             val cookie = store.webCookie() ?: ""
             val l = loader ?: RedditHomeLoader(c.context).also { loader = it }
             val page = l.next(restart = first, cookieHeader = cookie)
-            if (page.isEmpty()) return null
+            if (gen != blendGen || c.session.username != user) return BlendResult.Failed // superseded
+            if (page.isEmpty()) return BlendResult.Empty
             _showFewer.value = l.showFewerIds
             val full = c.repository.getPostsByIds(page.map { it.id })
+            if (gen != blendGen || c.session.username != user) return BlendResult.Failed
             val reasons = page.associate { it.id.removePrefix("t3_") to it.reason }
-            full.map { p -> reasons[p.id]?.let { p.copy(feedReason = it) } ?: p }
+            BlendResult.Posts(full.map { p -> reasons[p.id]?.let { p.copy(feedReason = it) } ?: p })
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
+        } catch (_: HomeSignedOutException) {
+            BlendResult.SignedOut
         } catch (_: Exception) {
-            null
+            BlendResult.Failed
         }
     }
 
@@ -717,6 +761,7 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
 
     /** Closes the hidden browser (the feed went away). */
     fun dispose() {
+        cancelBlend()
         prefetch?.cancel()
         prefetch = null
         _showFewer.value = emptySet()

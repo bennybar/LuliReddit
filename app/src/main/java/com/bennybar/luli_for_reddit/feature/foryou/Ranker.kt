@@ -12,7 +12,9 @@ import kotlin.math.roundToInt
 /** A post fetched for For You, and the request it came from. */
 data class Candidate(
     val post: Post,
-    val source: String, // best / rising / popular / favourite / interest / community
+    val source: String, // best / rising / popular / favourite / interest / community / home / carry
+    /** Blend: where Reddit placed it in your Home batch, 0 = top … 1 = bottom. */
+    val homePos: Double = 1.0,
 )
 
 /**
@@ -42,6 +44,7 @@ data class RankInputs(
     val discoveryAppetite: Double = 1.0, // discovery vs primary open rate
     val discoveryMix: Int = 0, // Settings → Familiar (-2) ↔ Discover (+2)
     val typeStats: Map<String, Pair<Double, Double>> = emptyMap(), // post type (postTypeKey) → (seen, engaged)
+    val blendReddit: Int = 1, // Blend: Reddit ↔ Ilay — 0 mostly Ilay, 1 balanced, 2 mostly Reddit
     val now: Long = System.currentTimeMillis(), // millis
 ) {
     /** The same inputs once the subscription list has arrived. */
@@ -137,6 +140,11 @@ fun rankForYou(pool: List<Candidate>, i: RankInputs, pageSize: Int = 50): RankRe
         return lo.toDouble() / (talk.size - 1)
     }
 
+    // Blend presets: how strong Reddit's pick counts, and how often a Home
+    // post gets a guaranteed slot (0 = never; it then competes on score alone).
+    val homeBoost = listOf(1.1, 1.25, 1.5)[i.blendReddit.coerceIn(0, 2)]
+    val homeEvery = listOf(0, 5, 3)[i.blendReddit.coerceIn(0, 2)]
+
     fun pct(f: Double): String {
         val digits = if (f >= 10) 0 else if (f >= 1) 1 else 2
         return "×" + String.format(Locale.ROOT, "%.${digits}f", f)
@@ -167,13 +175,16 @@ fun rankForYou(pool: List<Candidate>, i: RankInputs, pageSize: Int = 50): RankRe
         // were clamped away), heavy use keeps ordering instead of capping out.
         val wInterest = if (a >= 0) 1 + 0.6 * ln(1 + a / 3) else exp(a / 4)
 
-        // Blend: a post from your Reddit Home is Reddit's own pick for you. It
-        // competes in the main pool, between your communities and discovery,
-        // and gets a small nudge for being recommended.
+        // Blend: a post from your Reddit Home is Reddit's own pick for you. That
+        // boosts it (one bounded multiplier, set by Reddit ↔ Ilay, plus a little
+        // for being near the top of your Home) but doesn't make its community
+        // familiar: Reddit's picks from communities you don't follow stay
+        // discovery, under Familiar ↔ Discover. (It used to be primary with a
+        // higher base too — ~4.6× plain discovery.)
         val fromHome = c.source == "home"
-        val primary = fav || subd || a >= K_ENGAGED_INTEREST || explicitSub > 0 || fromHome
-        val base = if (fav) 4.0 else if (subd || explicitSub > 0) 2.5 else if (fromHome) 1.6 else 0.4
-        val homeMult = if (fromHome) 1.15 else 1.0
+        val primary = fav || subd || a >= K_ENGAGED_INTEREST || explicitSub > 0
+        val base = if (fav) 4.0 else if (subd || explicitSub > 0) 2.5 else 0.4
+        val homeMult = if (fromHome) homeBoost * (1 + 0.1 * (1 - c.homePos.coerceIn(0.0, 1.0))) else 1.0
         val eSub = if (explicitSub > 0) 1.6 else if (explicitSub < 0) 0.3 else 1.0
 
         val kw = i.keywordScore?.invoke(p.title) ?: 0.0
@@ -236,7 +247,7 @@ fun rankForYou(pool: List<Candidate>, i: RankInputs, pageSize: Int = 50): RankRe
                     else -> "Discovery: you don't follow r/${p.subreddit}"
                 },
             )
-            if (fromHome) add("In your Reddit Home${p.feedReason?.let { ": “$it”" } ?: ""} (×1.15)")
+            if (fromHome) add("In your Reddit Home${p.feedReason?.let { ": “$it”" } ?: ""} (${pct(homeMult)})")
             if (explicitSub != 0) {
                 add("You asked for ${if (explicitSub > 0) "more" else "less"} from r/${p.subreddit} (${pct(eSub)})")
             }
@@ -331,7 +342,13 @@ fun rankForYou(pool: List<Candidate>, i: RankInputs, pageSize: Int = 50): RankRe
 
     while (placed.size < pageSize) {
         val wantDiscovery = (placed.size + 1) % every == 0
-        val s = (if (wantDiscovery) pick(discoveryPool) else null)
+        // Blend: every homeEvery-th slot goes to the best Reddit Home post —
+        // one from a community you don't follow only if Familiar ↔ Discover
+        // isn't at its most familiar.
+        val wantHome = !wantDiscovery && homeEvery > 0 && (placed.size + 1) % homeEvery == 0
+        val s = (if (wantHome) pick(primaryPool.filter { it.c.source == "home" } +
+                if (i.discoveryMix > -2) discoveryPool.filter { it.c.source == "home" } else emptyList()) else null)
+            ?: (if (wantDiscovery) pick(discoveryPool) else null)
             ?: pick(primaryPool)
             ?: pick(discoveryPool)
             ?: break

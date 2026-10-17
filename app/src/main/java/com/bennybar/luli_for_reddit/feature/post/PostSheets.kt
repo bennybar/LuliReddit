@@ -38,6 +38,7 @@ import com.bennybar.luli_for_reddit.feature.media.shareAsMedia
 import com.bennybar.luli_for_reddit.feature.media.canShareAsMedia
 import androidx.compose.material.icons.outlined.PermMedia
 import androidx.compose.material.icons.outlined.ThumbDown
+import androidx.compose.material.icons.rounded.DoneAll
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.CheckCircle
@@ -393,6 +394,9 @@ private fun PostActionsSheet(post: Post, done: () -> Unit) {
                 }
             }
             item(Icons.Outlined.VisibilityOff, "Hide") { hidePost(post) }
+            item(Icons.Rounded.DoneAll, "Already seen elsewhere", "Mark as read and drop it from your feeds (e.g. read in the Reddit app)") {
+                alreadySeen(post)
+            }
             if (post.subreddit.isNotEmpty()) {
                 item(Icons.Rounded.DoNotDisturbOn, "Hide r/${post.subreddit} for 7 days", "From your front page: Home, For You, Best / Hot / New") {
                     hideSubFromHome(post)
@@ -500,6 +504,21 @@ suspend fun modAction(doneMsg: String, action: suspend (RedditRepository) -> Uni
 }
 
 /** Hides [post] on Reddit and in open feeds (app.hiddenPosts), with Undo. */
+/**
+ * "Already seen elsewhere" (read in the official app, on the web…): marks it
+ * read, so For You / Blend treat it as opened and won't bring it back, and
+ * drops it from the feeds on screen. Local only — Reddit isn't told.
+ */
+fun alreadySeen(post: Post) {
+    val wasRead = post.id in app.history.ids.value
+    app.history.markViewed(post)
+    app.hiddenPosts.add(post.id)
+    app.navigator.showSnackbar("Marked as seen", actionLabel = "Undo") {
+        app.hiddenPosts.remove(post.id)
+        if (!wasRead) app.history.removeViewed(post.id)
+    }
+}
+
 suspend fun hidePost(post: Post) {
     val repo = app.repository
     app.hiddenPosts.add(post.id)

@@ -339,6 +339,22 @@ fun SettingsList(
                 ctrl.setBlendHome(v)
                 if (v) ctrl.setForYouFeed(true)
             }
+            if (s.forYouFeed && s.blendHome) {
+                val blendLabels = listOf("Mostly Ilay", "Balanced", "Mostly Reddit")
+                val blendHints = listOf(
+                    "Reddit's picks get a small nudge, no reserved spots",
+                    "About 1 post in 5 is from your Reddit Home",
+                    "About 1 in 3 from your Reddit Home, and they count more",
+                )
+                tile(
+                    "Reddit ↔ Ilay",
+                    "${blendLabels[s.blendReddit]}: ${blendHints[s.blendReddit].replaceFirstChar { it.lowercase() }}",
+                    Icons.Rounded.Merge,
+                    onClick = launch {
+                        pickOption((0..2).map { PickOption(it, blendLabels[it], blendHints[it]) }, s.blendReddit)?.let(ctrl::setBlendReddit)
+                    },
+                )
+            }
         }
         tile("Keep feed for", "Home / For You: ${keepLabel(s.feedKeepMinutes)}, then a new feed (pull down to refresh anytime)", Icons.Outlined.Timer, onClick = launch {
             pickOption(listOf(10, 30, 60, 180).map { PickOption(it, keepLabel(it)) }, s.feedKeepMinutes)
