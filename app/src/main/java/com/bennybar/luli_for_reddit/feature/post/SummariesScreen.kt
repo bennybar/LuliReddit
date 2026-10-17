@@ -1,5 +1,14 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import kotlinx.coroutines.launch
+import com.bennybar.luli_for_reddit.feature.settings.confirmDialog
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material3.Checkbox
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Checklist
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.activity.compose.BackHandler
 import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -52,10 +61,14 @@ import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.Route
 import com.bennybar.luli_for_reddit.state.SavedSummary
 
-/** You → Summaries: every post summarized with AI, newest first, with its summary and a link back. */
+/**
+ * Profile → Summaries: every post summarized with AI, newest first, with its
+ * summary and a link back. Select (or long-press one) to delete several, or all.
+ */
 @Composable
 fun SummariesScreen() {
     val cs = MaterialTheme.colorScheme
+    val scope = rememberCoroutineScope()
     val items by app.summaries.items.collectAsStateWithLifecycle()
     var query by rememberSaveable { mutableStateOf("") }
     val shown = remember(items, query) {
@@ -63,8 +76,62 @@ fun SummariesScreen() {
         if (q.isEmpty()) items
         else items.filter { q in it.title.lowercase() || q in it.subreddit.lowercase() || q in it.text.lowercase() }
     }
+    // Selection mode: null = off; otherwise the selected post ids.
+    var selected by rememberSaveable { mutableStateOf<List<String>?>(null) }
+    val selecting = selected != null
+    BackHandler(enabled = selecting) { selected = null }
+    fun toggle(id: String) {
+        val cur = selected.orEmpty()
+        selected = if (id in cur) cur - id else cur + id
+    }
+    val allShown = shown.isNotEmpty() && shown.all { it.postId in selected.orEmpty() }
 
-    Scaffold(topBar = { BloomTopBar("Summaries") }, containerColor = cs.surface) { padding ->
+    Scaffold(
+        topBar = {
+            if (selecting) {
+                BloomTopBar(
+                    "",
+                    showBack = false,
+                    titleContent = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { selected = null }) { Icon(Icons.Rounded.Close, "Cancel selection") }
+                            Text("${selected.orEmpty().size} selected", style = MaterialTheme.typography.titleLarge)
+                        }
+                    },
+                    actions = {
+                        TextButton(onClick = { selected = if (allShown) emptyList() else shown.map { it.postId } }) {
+                            Text(if (allShown) "Select none" else "Select all")
+                        }
+                        IconButton(
+                            onClick = {
+                                val ids = selected.orEmpty().toSet()
+                                scope.launch {
+                                    val n = ids.size
+                                    if (confirmDialog(
+                                            if (n == 1) "Delete this summary?" else "Delete $n summaries?",
+                                            "They're removed from this device. The posts stay on Reddit.",
+                                            "Delete",
+                                        )
+                                    ) {
+                                        app.summaries.removeAll(ids)
+                                        selected = null
+                                    }
+                                }
+                            },
+                            enabled = selected.orEmpty().isNotEmpty(),
+                        ) { Icon(Icons.Rounded.DeleteOutline, "Delete selected") }
+                    },
+                )
+            } else {
+                BloomTopBar("Summaries", actions = {
+                    if (items.isNotEmpty()) {
+                        IconButton(onClick = { selected = emptyList() }) { Icon(Icons.Rounded.Checklist, "Select") }
+                    }
+                })
+            }
+        },
+        containerColor = cs.surface,
+    ) { padding ->
         Column(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
             if (items.size > 3) {
                 PillTextField(
@@ -88,15 +155,24 @@ fun SummariesScreen() {
                     contentPadding = PaddingValues(start = 12.dp, top = 8.dp, end = 12.dp, bottom = 32.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    items(shown, key = { it.postId }) { SummaryCard(it) }
+                    items(shown, key = { it.postId }) { s ->
+                        SummaryCard(
+                            s,
+                            selected = if (selecting) s.postId in selected.orEmpty() else null,
+                            onToggle = { toggle(s.postId) },
+                            onLongPress = { if (!selecting) selected = listOf(s.postId) },
+                        )
+                    }
                 }
             }
         }
     }
 }
 
+/** [selected]: null outside selection mode; then a tap toggles the card ([onToggle]). */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun SummaryCard(s: SavedSummary) {
+private fun SummaryCard(s: SavedSummary, selected: Boolean?, onToggle: () -> Unit, onLongPress: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     val nav = LocalNavigator.current
     var expanded by rememberSaveable(s.postId) { mutableStateOf(false) }
@@ -105,9 +181,17 @@ private fun SummaryCard(s: SavedSummary) {
         else Route.Post(s.subreddit.ifEmpty { "_" }, s.postId)
         route?.let(nav::push)
     }
-    Surface(shape = RoundedCornerShape(28.dp), color = cs.surfaceContainerLow) {
+    Surface(
+        Modifier.combinedClickable(onLongClick = onLongPress, onClick = { if (selected != null) onToggle() }),
+        shape = RoundedCornerShape(28.dp),
+        color = if (selected == true) cs.secondaryContainer else cs.surfaceContainerLow,
+    ) {
         Column(Modifier.padding(start = 16.dp, top = 12.dp, end = 8.dp, bottom = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                if (selected != null) {
+                    Checkbox(checked = selected, onCheckedChange = { onToggle() }, Modifier.size(32.dp))
+                    Spacer(Modifier.width(6.dp))
+                }
                 Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(14.dp), tint = cs.primary)
                 Spacer(Modifier.width(6.dp))
                 Text(
@@ -118,11 +202,13 @@ private fun SummaryCard(s: SavedSummary) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                IconButton(onClick = { copyToClipboard(s.text) }, Modifier.size(36.dp)) {
-                    Icon(Icons.Rounded.ContentCopy, "Copy summary", Modifier.size(18.dp))
-                }
-                IconButton(onClick = { app.summaries.remove(s.postId) }, Modifier.size(36.dp)) {
-                    Icon(Icons.Rounded.DeleteOutline, "Remove", Modifier.size(18.dp))
+                if (selected == null) {
+                    IconButton(onClick = { copyToClipboard(s.text) }, Modifier.size(36.dp)) {
+                        Icon(Icons.Rounded.ContentCopy, "Copy summary", Modifier.size(18.dp))
+                    }
+                    IconButton(onClick = { app.summaries.remove(s.postId) }, Modifier.size(36.dp)) {
+                        Icon(Icons.Rounded.DeleteOutline, "Remove", Modifier.size(18.dp))
+                    }
                 }
             }
             Text(

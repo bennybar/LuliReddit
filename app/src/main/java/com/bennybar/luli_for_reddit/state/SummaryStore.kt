@@ -48,8 +48,10 @@ class SummaryStore(private val context: Context) : UserScoped {
         save()
     }
 
-    fun remove(postId: String) {
-        _items.value = _items.value.filter { it.postId != postId }
+    fun remove(postId: String) = removeAll(setOf(postId))
+
+    fun removeAll(postIds: Set<String>) {
+        _items.value = _items.value.filter { it.postId !in postIds }
         save()
     }
 

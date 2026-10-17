@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.inbox
 
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.outlined.Notifications
@@ -416,8 +417,12 @@ private const val REDDIT_TAB = "reddit"
 private fun RedditNotificationsList(active: Boolean, listState: LazyListState) {
     val nav = LocalNavigator.current
     val state by app.redditNotifications.state.collectAsStateWithLifecycle()
-    // Only when you're on this tab (the pager also builds its neighbour).
-    LaunchedEffect(active) { if (active) app.redditNotifications.refresh() }
+    // Only when you're on this tab (the pager also builds its neighbour);
+    // leaving it lets the hidden page close.
+    LaunchedEffect(active) { if (active) app.redditNotifications.refresh() else app.redditNotifications.release() }
+    DisposableEffect(Unit) { onDispose { app.redditNotifications.release() } }
+    val data = state as? RedditNotifications.State.Data
+    LoadMoreNearEnd(listState, 4, page = (data?.items?.size ?: 0) to data?.hasMore) { app.redditNotifications.loadMore() }
     val openWeb = { nav.push(Route.RedditWeb(RedditNotifications.URL, "Reddit notifications")) }
     var refreshing by remember { mutableStateOf(false) }
     LaunchedEffect(state) { if (state !is RedditNotifications.State.Loading) refreshing = false }
@@ -460,11 +465,20 @@ private fun RedditNotificationsList(active: Boolean, listState: LazyListState) {
                     }
                 }
                 items(s.items, key = { it.id }, contentType = { "reddit" }) { n ->
-                    RedditNotificationCard(n) { n.link?.let(nav::openLink) ?: openWeb() }
+                    RedditNotificationCard(n) {
+                        app.redditNotifications.opened(n)
+                        n.link?.let(nav::openLink) ?: openWeb()
+                    }
                 }
-                item(key = "older", contentType = "older") {
-                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        TextButton(onClick = openWeb) { Text("Older notifications on reddit.com") }
+                if (s.loadingMore) {
+                    item(key = "loadingMore", contentType = "loading") {
+                        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                    }
+                } else if (!s.hasMore && s.items.isNotEmpty()) {
+                    item(key = "older", contentType = "older") {
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            TextButton(onClick = openWeb) { Text("Older notifications on reddit.com") }
+                        }
                     }
                 }
             }
@@ -492,6 +506,8 @@ private fun RedditNotificationCard(n: RedditNotification, onTap: () -> Unit) {
                     Spacer(Modifier.width(8.dp))
                     Text(timeAgo(n.at), fontSize = 12.sp, color = cs.onSurfaceVariant)
                 }
+                Spacer(Modifier.weight(1f))
+                if (n.unread) Box(Modifier.size(9.dp).background(cs.primary, CircleShape))
             }
             Spacer(Modifier.height(8.dp))
             Text(n.title, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
