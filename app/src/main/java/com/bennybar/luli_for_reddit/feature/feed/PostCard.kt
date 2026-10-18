@@ -689,9 +689,9 @@ private fun Flair(text: String) {
     )
 }
 
-/** "Reminder · tomorrow at 09:00" on a post you asked to be reminded about; tap to change or cancel. */
+/** "Reminder tomorrow at 09:00" on a post you asked to be reminded about (cards and the post screen); tap to change or cancel. */
 @Composable
-private fun ReminderLine(p: Post) {
+fun ReminderLine(p: Post) {
     val pending by PostReminders.pending.collectAsStateWithLifecycle()
     val due = pending[p.id] ?: return
     val cs = MaterialTheme.colorScheme

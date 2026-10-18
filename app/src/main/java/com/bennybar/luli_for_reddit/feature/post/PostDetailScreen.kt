@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import com.bennybar.luli_for_reddit.feature.feed.ReminderLine
 import com.bennybar.luli_for_reddit.feature.reminders.PostReminders
 import com.bennybar.luli_for_reddit.feature.feed.PollOptions
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -1010,6 +1011,7 @@ private fun PostHeader(post: Post, fresh: Boolean) {
                 Text("Crossposted from r/$from", fontSize = 12.sp, color = cs.onSurfaceVariant)
             }
         }
+        ReminderLine(p)
         Spacer(Modifier.height(12.dp))
         PostMedia(p, nav)
         PollOptions(p)
@@ -1144,6 +1146,7 @@ private fun CalmPostHeader(
                 Text("Crossposted from r/$from", fontSize = 12.sp, color = cs.onSurfaceVariant)
             }
         }
+        ReminderLine(p)
         Spacer(Modifier.height(12.dp))
         PostMedia(p, nav, radius = 22.dp)
         PollOptions(p)
