@@ -1,5 +1,8 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material.icons.rounded.Schedule
 import com.bennybar.luli_for_reddit.feature.reminders.PostReminders
 import com.bennybar.luli_for_reddit.feature.web.rememberWebSignIn
 import com.bennybar.luli_for_reddit.nav.Route
@@ -431,6 +434,7 @@ private fun LargeCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
                 Flair(it)
             }
             CrosspostLine(p)
+            ReminderLine(p)
             Spacer(Modifier.height(12.dp))
             Media(p, a, s)
             PollOptions(p)
@@ -471,6 +475,7 @@ private fun CardsCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
                 Flair(it)
             }
             CrosspostLine(p)
+            ReminderLine(p)
             Spacer(Modifier.height(12.dp))
             BannerMedia(p, a, s, 180.dp)
             PollOptions(p)
@@ -511,6 +516,7 @@ private fun MiniCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
                         Flair(it)
                     }
                     CrosspostLine(p)
+                    ReminderLine(p)
                 }
                 if (p.type != PostType.SELF) {
                     Spacer(Modifier.width(12.dp))
@@ -681,6 +687,24 @@ private fun Flair(text: String) {
         fontSize = 12.sp,
         color = cs.onSurfaceVariant,
     )
+}
+
+/** "Reminder · tomorrow at 09:00" on a post you asked to be reminded about; tap to change or cancel. */
+@Composable
+private fun ReminderLine(p: Post) {
+    val pending by PostReminders.pending.collectAsStateWithLifecycle()
+    val due = pending[p.id] ?: return
+    val cs = MaterialTheme.colorScheme
+    val context = LocalContext.current
+    Spacer(Modifier.height(8.dp))
+    Row(
+        Modifier.clip(CircleShape).clickable { PostReminders.manage(p) }.padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Rounded.Schedule, null, Modifier.size(14.dp), tint = cs.primary)
+        Spacer(Modifier.width(6.dp))
+        Text("Reminder ${PostReminders.whenLabel(context, due)}", fontSize = 12.sp, color = cs.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
 }
 
 /** "Crossposted from r/x" (the media comes from the original post). */
@@ -1109,6 +1133,7 @@ private fun CalmBody(p: Post, a: PostActions, s: Settings, mediaShape: androidx.
     )
     p.linkFlairText?.let { CalmFlair(it, Modifier.padding(top = 8.dp)) }
     CrosspostLine(p)
+    ReminderLine(p)
     if (mediaShape != null) CalmMedia(p, a, s, mediaShape)
     if (p.pollOptions.isNotEmpty()) {
         Spacer(Modifier.height(10.dp))

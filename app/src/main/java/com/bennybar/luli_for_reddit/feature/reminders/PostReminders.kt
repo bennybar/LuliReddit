@@ -1,5 +1,23 @@
 package com.bennybar.luli_for_reddit.feature.reminders
 
+import java.util.Locale
+import java.util.Date
+import java.time.format.TextStyle
+import java.time.format.DateTimeFormatter
+import java.time.ZoneId
+import java.time.LocalDate
+import java.time.Instant
+import kotlinx.serialization.json.longOrNull
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonObject
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import com.bennybar.luli_for_reddit.core.AppJson
+import androidx.compose.material.icons.rounded.NotificationsOff
+import android.text.format.DateFormat
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -41,9 +59,35 @@ import java.util.concurrent.TimeUnit
  * post, then a local notification at the time you pick. WorkManager runs it
  * on the phone, no push service (F-Droid safe); the time is approximate
  * (Android may run it a little late to save battery). Unsaving cancels it.
+ * Pending ones are kept ([pending], post id → when) so the post shows it.
  */
 object PostReminders {
     private const val CHANNEL_ID = "reminders"
+    private const val PREF = "postReminders"
+
+    private val _pending = MutableStateFlow<Map<String, Long>>(emptyMap())
+    private var loaded = false
+
+    /** Post id → when its reminder is due (millis). */
+    val pending: StateFlow<Map<String, Long>>
+        get() {
+            if (!loaded) {
+                loaded = true
+                _pending.value = runCatching {
+                    AppJson.parseToJsonElement(app.prefs.getString(PREF) ?: "{}").jsonObject
+                        .mapNotNull { (k, v) -> v.jsonPrimitive.longOrNull?.let { k to it } }.toMap()
+                }.getOrDefault(emptyMap())
+                    // Long past (fired while the list wasn't updated): drop.
+                    .filterValues { it > System.currentTimeMillis() - 60 * 60_000L }
+            }
+            return _pending
+        }
+
+    private fun store(change: (Map<String, Long>) -> Map<String, Long>) {
+        pending // loads it first
+        _pending.update(change)
+        app.prefs.setString(PREF, JsonObject(_pending.value.mapValues { JsonPrimitive(it.value) }).toString())
+    }
     // Read back by InboxModule.handleLaunchIntent.
     const val TARGET = "reminder"
 
@@ -63,13 +107,18 @@ object PostReminders {
         nav.showSnackbar("Saved", actionLabel = "Remind me") { app.scope.launch { pick(post) } }
     }
 
+    /** Tapped a post's reminder line: pick a new time, or cancel it. */
+    fun manage(post: Post) = app.scope.launch { pick(post, existing = pending.value[post.id]) }
+
+    private object CancelIt
+
     @OptIn(ExperimentalMaterial3Api::class)
-    private suspend fun pick(post: Post) {
-        val choice = Overlays.show<Choice> { done ->
+    private suspend fun pick(post: Post, existing: Long? = null) {
+        val picked = Overlays.show<Any> { done ->
             ModalBottomSheet(onDismissRequest = { done(null) }) {
                 Column(Modifier.navigationBarsPadding().padding(bottom = 8.dp)) {
                     Text(
-                        "Remind me about this post",
+                        if (existing == null) "Remind me about this post" else "Reminder ${whenLabel(app.context, existing)}",
                         Modifier.padding(start = 20.dp, top = 4.dp, end = 20.dp, bottom = 8.dp),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
@@ -81,16 +130,47 @@ object PostReminders {
                             onClick = { done(c) },
                         )
                     }
+                    if (existing != null) {
+                        Tile(
+                            title = { Text("Cancel reminder") },
+                            leading = { Icon(Icons.Rounded.NotificationsOff, null) },
+                            onClick = { done(CancelIt) },
+                        )
+                    }
                 }
             }
         } ?: return
+        if (picked === CancelIt) {
+            cancel(post.id)
+            app.navigatorOrNull?.showSnackbar("Reminder cancelled")
+            return
+        }
+        val choice = picked as Choice
         // Reminders need notifications allowed.
         if (!app.inbox.requestPermission()) {
             app.navigatorOrNull?.showSnackbar("Allow Ilay's notifications to get reminders")
             return
         }
-        schedule(post, TimeUnit.HOURS.toMillis(choice.hours))
-        app.navigatorOrNull?.showSnackbar("I'll remind you ${choice.label.replaceFirstChar { it.lowercase() }}")
+        val at = System.currentTimeMillis() + TimeUnit.HOURS.toMillis(choice.hours)
+        schedule(post, at - System.currentTimeMillis())
+        store { it + (post.id to at) }
+        app.navigatorOrNull?.showSnackbar("I'll remind you ${whenLabel(app.context, at)}")
+    }
+
+    /** "today at 14:30", "tomorrow at 09:00", "Tue at 18:05", "on Oct 25 at 10:00". */
+    fun whenLabel(context: Context, at: Long): String {
+        val zone = ZoneId.systemDefault()
+        val day = Instant.ofEpochMilli(at).atZone(zone).toLocalDate()
+        val today = LocalDate.now(zone)
+        val time = DateFormat.getTimeFormat(context).format(Date(at))
+        val date = when {
+            at <= System.currentTimeMillis() -> return "any moment now"
+            day == today -> "today"
+            day == today.plusDays(1) -> "tomorrow"
+            day.isBefore(today.plusDays(7)) -> day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+            else -> "on " + day.format(DateTimeFormatter.ofPattern("MMM d", Locale.getDefault()))
+        }
+        return "$date at $time"
     }
 
     private fun schedule(post: Post, delayMillis: Long) {
@@ -110,6 +190,12 @@ object PostReminders {
     /** Unsaved: drop its reminder, if any. */
     fun cancel(postId: String) {
         WorkManager.getInstance(app.context).cancelUniqueWork(workName(postId))
+        if (postId in pending.value) store { it - postId }
+    }
+
+    /** It fired: no longer pending. */
+    internal fun fired(postId: String) {
+        if (postId in pending.value) store { it - postId }
     }
 
     private fun workName(postId: String) = "reminder_$postId"
@@ -154,6 +240,7 @@ class PostReminderWorker(context: Context, params: WorkerParameters) : Coroutine
         val sub = inputData.getString("sub") ?: return Result.success()
         val post = inputData.getString("post") ?: return Result.success()
         PostReminders.show(applicationContext, sub, post, inputData.getString("title").orEmpty())
+        PostReminders.fired(post)
         return Result.success()
     }
 }
