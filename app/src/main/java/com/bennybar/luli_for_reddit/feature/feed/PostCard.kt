@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.feature.reminders.PostReminders
 import com.bennybar.luli_for_reddit.feature.web.rememberWebSignIn
 import com.bennybar.luli_for_reddit.nav.Route
 import androidx.compose.material3.TextButton
@@ -157,6 +158,7 @@ private class PostActions(val post: Post, val nav: AppNavigator) {
         overrides.setSaved(post, next)
         val learner = app.forYou.learner
         learner.save(post, next)
+        if (next) PostReminders.offer(post) else PostReminders.cancel(post.id)
         app.scope.launch {
             try {
                 app.repository.setSaved(post.fullname, next)

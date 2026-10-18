@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.inbox
 
+import com.bennybar.luli_for_reddit.feature.reminders.PostReminders
 import com.bennybar.luli_for_reddit.state.userScopedKey
 import android.Manifest
 import android.content.Intent
@@ -253,6 +254,12 @@ class InboxModule(private val c: AppContainer) : UserScoped {
                 val sub = intent.getStringExtra(InboxNotifications.EXTRA_SUBREDDIT)
                 val post = intent.getStringExtra(InboxNotifications.EXTRA_POST_ID)
                 openFromNotification(if (sub != null && post != null) Route.Post(sub, post, intent.getStringExtra(InboxNotifications.EXTRA_COMMENT_ID)) else null, inbox = true)
+            }
+            // A post reminder: open the post where you are (not the Inbox).
+            PostReminders.TARGET -> {
+                val sub = intent.getStringExtra(InboxNotifications.EXTRA_SUBREDDIT)
+                val post = intent.getStringExtra(InboxNotifications.EXTRA_POST_ID)
+                openFromNotification(if (sub != null && post != null) Route.Post(sub, post) else null, inbox = false)
             }
             InboxNotifications.TARGET_MESSAGE ->
                 openFromNotification(intent.getStringExtra(InboxNotifications.EXTRA_MESSAGE)?.let { Route.MessageThread(it) }, inbox = true)

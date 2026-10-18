@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import com.bennybar.luli_for_reddit.feature.reminders.PostReminders
 import com.bennybar.luli_for_reddit.feature.feed.PollOptions
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -958,6 +959,7 @@ private fun PostHeader(post: Post, fresh: Boolean) {
         o.setSaved(p, next)
         val learner = app.forYou.learner
         learner.save(p, next)
+        if (next) PostReminders.offer(p) else PostReminders.cancel(p.id)
         scope.launch {
             try {
                 app.repository.setSaved(p.fullname, next)
