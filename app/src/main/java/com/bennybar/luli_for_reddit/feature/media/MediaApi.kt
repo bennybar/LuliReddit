@@ -256,7 +256,7 @@ fun NsfwBlur(blur: Boolean, modifier: Modifier = Modifier, blurredImageUrl: Stri
     }
 }
 
-/** Feed video: autoplays muted + looping while visible, pauses off-screen; tap = viewer. */
+/** Feed video: autoplays (muted unless Autoplay with sound) + looping while visible, pauses off-screen; tap = viewer. */
 @Composable
 fun InlineVideo(url: String, height: Dp, onTap: () -> Unit, modifier: Modifier = Modifier, poster: String? = null) =
     InlineVideoImpl(url, height, onTap, modifier, poster)

@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.auth.SessionState
+import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -100,6 +102,8 @@ fun SubredditScreen(name: String) {
     val scope = rememberCoroutineScope()
     val vm = viewModel(key = "sr_$name") { SubredditAboutViewModel(name) }
     val about by vm.about.collectAsStateWithLifecycle()
+    val session by app.session.state.collectAsStateWithLifecycle()
+    val anonymous = (session as? SessionState.LoggedIn)?.session?.anonymous != false
     Scaffold(
         topBar = {
             BloomTopBar(
@@ -108,6 +112,11 @@ fun SubredditScreen(name: String) {
                     IconButton(onClick = { nav.push(Route.Search(subreddit = name)) }) { Icon(Icons.Rounded.Search, "Search") }
                     IconButton(onClick = { scope.launch { showAbout(name, (about as? Async.Data)?.value) } }) {
                         Icon(Icons.Outlined.Info, "About & rules")
+                    }
+                    if (!anonymous && name.lowercase() !in setOf("all", "popular")) {
+                        IconButton(onClick = { scope.launch { showAddToCustomFeed(name) } }) {
+                            Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, "Add to a custom feed")
+                        }
                     }
                     IconButton(onClick = { nav.share("https://reddit.com/r/$name") }) { Icon(Icons.Outlined.Share, "Share") }
                 },

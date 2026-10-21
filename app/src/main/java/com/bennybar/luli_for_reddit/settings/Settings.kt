@@ -119,6 +119,7 @@ data class Settings(
     val hiddenPostDays: Int = 7, // how long Ilay keeps posts you hid out of every feed (Reddit hides them too)
     val textScale: Double = 1.0, // global text size multiplier (0.8–1.4)
     val autoplayMedia: Boolean = true, // autoplay videos/GIFs in feeds
+    val autoplaySound: Boolean = false, // feed videos start unmuted (#23)
     val showApiUsage: Boolean = false, // show API usage instead of search on Posts screen
     val notifyInbox: Boolean = false, // background-poll the inbox + local notifications
     val redditAppNotifications: Boolean = false, // take over the Reddit app's notifications (needs notification access)

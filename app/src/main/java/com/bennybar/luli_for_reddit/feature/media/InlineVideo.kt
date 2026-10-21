@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.media
 
+import androidx.media3.common.C
+import androidx.media3.common.AudioAttributes
 import android.content.Context
 import android.view.TextureView
 import androidx.compose.animation.core.animateFloatAsState
@@ -157,7 +159,19 @@ class InlineVideoPool(private val context: Context) {
 
     fun setMuted(key: Any, muted: Boolean) {
         candidates[key]?.muted = muted
-        if (_active.value == key) player?.volume = if (muted) 0f else 1f
+        if (_active.value == key) player?.let { sound(it, muted) }
+    }
+
+    /**
+     * Muted clips play silently alongside your music; one with sound takes
+     * audio focus like any player (pauses for a call, stops other audio).
+     */
+    private fun sound(p: ExoPlayer, muted: Boolean) {
+        p.volume = if (muted) 0f else 1f
+        p.setAudioAttributes(
+            AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),
+            !muted,
+        )
     }
 
     /** Where the feed's clip for [url] is (or was left), for the full-screen viewer to continue. */
@@ -197,7 +211,7 @@ class InlineVideoPool(private val context: Context) {
         _videoSize.value = VideoSize.UNKNOWN
         activeUrl = c.url
         _active.value = bestKey
-        pl.volume = if (c.muted) 0f else 1f
+        sound(pl, c.muted)
         pl.setMediaItem(mediaItemFor(c.url), positions[c.url] ?: 0L)
         pl.prepare()
         pl.playWhenReady = foreground && !covered
@@ -205,7 +219,7 @@ class InlineVideoPool(private val context: Context) {
 }
 
 /**
- * Feed video: autoplays muted + looping while visible, pauses off-screen;
+ * Feed video: autoplays (muted, unless Autoplay with sound) + looping while visible, pauses off-screen;
  * tap = viewer. The player is attached only once the card is mostly on
  * screen (not when it's built: the list composes cards ahead of the
  * viewport). Respects Settings › autoplay media.
@@ -217,7 +231,8 @@ internal fun InlineVideoImpl(url: String, height: Dp, onTap: () -> Unit, modifie
     val canPlay = settings.autoplayMedia && !covered
     val pool = remember { app.media.inlinePlayer }
     val key = remember { Any() }
-    var muted by remember { mutableStateOf(true) }
+    // Muted unless Settings › Autoplay with sound.
+    var muted by remember { mutableStateOf(!settings.autoplaySound) }
     val currentUrl by rememberUpdatedState(url)
     val active by pool.active.collectAsStateWithLifecycle()
     val isActive = active === key

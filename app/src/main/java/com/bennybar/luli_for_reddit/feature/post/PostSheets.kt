@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import com.bennybar.luli_for_reddit.feature.feed.showAddToCustomFeed
+import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
@@ -450,6 +452,9 @@ private fun PostActionsSheet(post: Post, done: () -> Unit) {
             item(Icons.Outlined.Flag, "Report") { showReportDialog(post.fullname) }
             item(Icons.Rounded.Block, "Block u/${post.author}") { confirmBlockUser(post.author) }
             item(Icons.Rounded.Repeat, "Crosspost") { showCrosspostDialog(post) }
+            if (!anonymousSession()) {
+                item(Icons.AutoMirrored.Rounded.PlaylistAdd, "Add r/${post.subreddit} to a custom feed") { showAddToCustomFeed(post.subreddit) }
+            }
             item(Icons.AutoMirrored.Rounded.OpenInNew, "Open in browser") {
                 runCatching {
                     app.context.startActivity(externalViewIntent(app.context, Uri.parse(link)))
@@ -680,3 +685,7 @@ suspend fun confirmDelete(what: String): Boolean =
             dismissButton = { TextButton(onClick = { done(false) }) { Text("Cancel") } },
         )
     } == true
+
+/** Browsing without an account: account-only actions are left out. */
+private fun anonymousSession(): Boolean =
+    (app.session.state.value as? com.bennybar.luli_for_reddit.auth.SessionState.LoggedIn)?.session?.anonymous != false

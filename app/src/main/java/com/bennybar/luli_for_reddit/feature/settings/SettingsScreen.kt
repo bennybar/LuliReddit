@@ -202,6 +202,7 @@ private val SUMMARY_LANGUAGES = listOf(
 private val SUMMARY_STYLE_LABELS = listOf("TL;DR", "Key points", "Consensus & disagreements", "Explain like I'm 5")
 
 private val AI_MODELS = listOf("gpt-6.1-sol", "gpt-5.5", "gpt-5.4-mini", "gpt-5.4-nano")
+private const val CUSTOM_MODEL = "\u0000custom"
 
 // Where saved media goes (same prefs keys as the Flutter build). null = the
 // gallery's "Ilay" album.
@@ -520,9 +521,15 @@ fun SettingsList(
         // ---------------------------------------------------------------- Media
         section("Media")
         switch(
-            "Autoplay videos", "Play videos muted as you scroll the feed",
+            "Autoplay videos", if (s.autoplaySound) "Play videos as you scroll the feed" else "Play videos muted as you scroll the feed",
             Icons.Outlined.PlayCircleOutline, s.autoplayMedia, ctrl::setAutoplayMedia,
         )
+        if (s.autoplayMedia) {
+            switch(
+                "Autoplay with sound", "Feed videos start with sound; tap the speaker to mute one",
+                Icons.AutoMirrored.Rounded.VolumeUp, s.autoplaySound, ctrl::setAutoplaySound,
+            )
+        }
         switch("Blur NSFW media", "Tap to reveal blurred images", Icons.Rounded.BlurOn, s.blurNsfw, ctrl::setBlurNsfw)
         switch(
             "Data-saver thumbnails", "Load smaller preview images in feeds (faster, less data)",
@@ -554,13 +561,15 @@ fun SettingsList(
 
         // ---------------------------------------------------------------- AI
         section("AI summaries")
+        // With a custom endpoint the key is that provider's (Groq, OpenRouter, a LiteLLM key…).
+        val keyLabel = if (s.aiUseCustomUrl) "API key" else "OpenAI API key"
         tile(
-            "OpenAI API key",
+            keyLabel,
             if (aiKeySet) "Key set — tap to change or remove" else "Add a key to enable thread summaries",
             Icons.Outlined.Key,
             onClick = launch {
                 val r = textDialog(
-                    "OpenAI API key", hint = "sk-…", secret = true, removable = aiKeySet,
+                    keyLabel, hint = if (s.aiUseCustomUrl) "Your provider's API key" else "sk-…", secret = true, removable = aiKeySet,
                     note = "Stored securely on this device (never in backups). Summaries send the thread text to your AI endpoint.",
                 ) ?: return@launch
                 when (r) {
@@ -571,7 +580,16 @@ fun SettingsList(
             },
         )
         tile("Model", s.aiModel, Icons.Outlined.SmartToy, enabled = aiKeySet, onClick = launch {
-            pickOption(AI_MODELS.map { PickOption(it, it) }, s.aiModel, radio = false)?.let(ctrl::setAiModel)
+            // The presets are OpenAI's; any other provider's model is typed in.
+            val presets = (AI_MODELS + listOfNotNull(s.aiModel.takeIf { it !in AI_MODELS })).map { PickOption(it, it) }
+            val picked = pickOption(presets + PickOption(CUSTOM_MODEL, "Custom model…", "Type your provider's model ID"), s.aiModel, radio = false)
+                ?: return@launch
+            if (picked != CUSTOM_MODEL) return@launch ctrl.setAiModel(picked)
+            val r = textDialog(
+                "Model ID", initial = s.aiModel, hint = "e.g. llama-3.3-70b-versatile",
+                note = "Exactly as your provider names it.",
+            ) as? TextResult.Save ?: return@launch
+            if (r.text.isNotBlank()) ctrl.setAiModel(r.text.trim())
         })
         tile(
             "Summary style",
@@ -605,13 +623,14 @@ fun SettingsList(
             },
         )
         switch(
-            "Custom API base URL", "Advanced — use an OpenAI-compatible endpoint (e.g. LiteLLM)",
+            "Custom API base URL", "Advanced — use an OpenAI-compatible endpoint (e.g. Groq, OpenRouter, LiteLLM)",
             Icons.Rounded.Dns, s.aiUseCustomUrl, ctrl::setAiUseCustomUrl,
         )
         if (s.aiUseCustomUrl) {
             tile("API base URL", s.aiBaseUrl, Icons.Rounded.Link, onClick = launch {
                 val r = textDialog(
-                    "API base URL", initial = s.aiBaseUrl, hint = "https://your-litellm-host", keyboardType = KeyboardType.Uri,
+                    "API base URL", initial = s.aiBaseUrl, hint = "https://api.groq.com/openai/v1", keyboardType = KeyboardType.Uri,
+                    note = "With or without /v1, as your provider shows it. Then set the Model to one of theirs.",
                 ) as? TextResult.Save ?: return@launch
                 if (r.text.isNotBlank()) ctrl.setAiBaseUrl(r.text.trim())
             })

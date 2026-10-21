@@ -98,7 +98,7 @@ object AiService {
 
     /** One /v1/chat/completions call; returns the reply text or throws with a readable message. */
     private suspend fun chat(baseUrl: String, apiKey: String, model: String, messages: List<Pair<String, String>>): String {
-        val url = "${baseUrl.replace(Regex("/+$"), "")}/v1/chat/completions"
+        val url = chatUrl(baseUrl)
         val body = buildJsonObject {
             put("model", model)
             put("messages", JsonArray(messages.map { (role, content) -> buildJsonObject { put("role", role); put("content", content) } }))
@@ -192,4 +192,14 @@ object AiService {
         sb.append("\n\n(Included $included of ${ranked.size} comments, highest-scored first.)")
         return sb.toString()
     }
+}
+
+/**
+ * The chat endpoint under [baseUrl]. Providers document their base either
+ * without the version (api.openai.com, a LiteLLM host) or with it
+ * (api.groq.com/openai/v1): don't add a second /v1.
+ */
+internal fun chatUrl(baseUrl: String): String {
+    val base = baseUrl.trim().replace(Regex("/+$"), "")
+    return if (Regex("/v\\d+$").containsMatchIn(base)) "$base/chat/completions" else "$base/v1/chat/completions"
 }

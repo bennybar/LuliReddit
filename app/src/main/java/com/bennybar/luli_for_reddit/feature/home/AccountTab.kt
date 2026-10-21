@@ -167,7 +167,8 @@ private fun NavTile(icon: androidx.compose.ui.graphics.vector.ImageVector, title
     )
 }
 
-internal suspend fun createMulti(username: String) {
+/** Asks for a name and creates a custom feed (holding [subreddits]); true if it was created. */
+internal suspend fun createMulti(username: String, subreddits: List<String> = emptyList()): Boolean {
     val name = Overlays.show<String> { done ->
         var text by remember { mutableStateOf("") }
         val focus = remember { FocusRequester() }
@@ -190,12 +191,14 @@ internal suspend fun createMulti(username: String) {
             confirmButton = { Button(onClick = { done(text.trim()) }) { Text("Create") } },
         )
     }
-    if (name.isNullOrEmpty()) return
-    try {
-        app.repository.createMultireddit(username, name)
+    if (name.isNullOrEmpty()) return false
+    return try {
+        app.repository.createMultireddit(username, name, subreddits)
         app.feed.loadMultireddits(force = true)
+        true
     } catch (e: Exception) {
         app.navigatorOrNull?.showSnackbar("Could not create feed: ${(e.message ?: e.toString()).removePrefix("Exception: ")}")
+        false
     }
 }
 
