@@ -45,6 +45,10 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.31", "Oct 22, 2026",
+        listOf("With the side bar on, swiping back on the main screen opens it, and back again closes it"),
+    ),
+    Release(
         "2.0.30", "Oct 22, 2026",
         listOf(
             "What's new: this list, once after each update, and any time in Settings → About",

@@ -207,8 +207,8 @@ private val SUMMARY_STYLE_LABELS = listOf("TL;DR", "Key points", "Consensus & di
 private val AI_MODELS = listOf("gpt-6.1-sol", "gpt-5.5", "gpt-5.4-mini", "gpt-5.4-nano")
 private val NAV_STYLES = listOf(
     "Bottom bar" to "The floating bar at the bottom",
-    "Side bar" to "A ☰ menu at the top of each tab (or swipe from the left edge)",
-    "Both" to "The bottom bar, plus the side bar",
+    "Side bar" to "The ☰ at the top of each tab, or swipe back, opens it",
+    "Both" to "The bottom bar, plus the side bar (☰ or swipe back)",
 )
 private const val CUSTOM_MODEL = "\u0000custom"
 

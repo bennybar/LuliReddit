@@ -159,13 +159,26 @@ fun HomeScreen() {
         }
     }
 
-    // Back never leaves the app from here: on another tab it returns to Posts,
-    // on Posts it scrolls the feed to top (a setting, on by default) or does
-    // nothing (the Home button / recents leave instead).
+    // Settings › Navigation: the bottom bar, the side bar, or both.
+    val bottomBar = settings.navStyle != 1
+    val sideBar = settings.navStyle != 0
+    val drawer = rememberDrawerState(DrawerValue.Closed)
+    val shellScope = rememberCoroutineScope()
+
+    // Back never leaves the app from here. With the side bar on, it opens the
+    // side bar (so the edge swipe that gesture navigation keeps for Back
+    // still brings it out; Back again closes it). Otherwise,
+    // on another tab it returns to Posts, on Posts it scrolls the feed to top
+    // (a setting, on by default) or does nothing (the Home button / recents
+    // leave instead).
     // Sheets, viewers and pushed screens register their own, later handlers,
     // which take precedence.
     BackHandler {
-        if (index != 0) {
+        if (drawer.isOpen) {
+            shellScope.launch { drawer.close() }
+        } else if (sideBar) {
+            shellScope.launch { drawer.open() }
+        } else if (index != 0) {
             index = 0
             chrome = true
         } else if (app.settings.value.backScrollsToTop) {
@@ -173,12 +186,6 @@ fun HomeScreen() {
             chrome = true
         }
     }
-
-    // Settings › Navigation: the bottom bar, the side bar, or both.
-    val bottomBar = settings.navStyle != 1
-    val sideBar = settings.navStyle != 0
-    val drawer = rememberDrawerState(DrawerValue.Closed)
-    val shellScope = rememberCoroutineScope()
 
     // Snackbars float above the floating nav while the shell is showing.
     DisposableEffect(nav, bottomBar) {
