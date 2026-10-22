@@ -254,6 +254,10 @@ class RedditNotifications(private val c: AppContainer) : UserScoped {
         val firstLook = seen.isEmpty()
         val out = items.map { n -> n.copy(unread = n.id !in opened && ((!firstLook && n.id !in seen) || n.clicked == false)) }
         remember(SEEN, items.map { it.id })
+        // Opened on Reddit (its app, the site): the matching reply or mention
+        // reads as read in Ilay's Inbox too. Free: the list is already read.
+        val openedThere = items.filter { it.clicked == true }.mapNotNull { it.link?.let(::commentIdOf) }
+        if (openedThere.isNotEmpty()) c.inbox.markReadFromReddit(openedThere)
         return out
     }
 
@@ -363,6 +367,11 @@ class RedditNotifications(private val c: AppContainer) : UserScoped {
         private const val MAX_IDS = 400
         private const val SEEN = "redditNotifSeen"
         private const val OPENED = "redditNotifOpened"
+
+        /** The comment a notification link points at (.../comments/<post>/<slug>/<comment>/), or null. */
+        internal fun commentIdOf(link: String): String? =
+            Regex("/comments/[a-z0-9]+/[^/]+/([a-z0-9]+)/?(?:[?#].*)?$").find(link)?.groupValues?.get(1)
+                ?: Regex("/comment/([a-z0-9]+)/?(?:[?#].*)?$").find(link)?.groupValues?.get(1)
 
         internal fun parse(json: JsonElement): List<RedditNotification> =
             json["items"].arr().orEmpty().mapNotNull { e ->

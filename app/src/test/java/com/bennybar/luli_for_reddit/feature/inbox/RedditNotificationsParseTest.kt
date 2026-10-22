@@ -24,4 +24,12 @@ class RedditNotificationsParseTest {
         assertEquals(0L, items[1].at)
         assertNull(items[1].avatar)
     }
+
+    @Test
+    fun `finds the comment a notification points at`() {
+        assertEquals("phbdvfd", RedditNotifications.commentIdOf("https://www.reddit.com/r/GalaxyWatch/comments/1x79dhp/new_button_remapping_app/phbdvfd/"))
+        assertEquals("ph6woy7", RedditNotifications.commentIdOf("https://www.reddit.com/r/WearOS/comments/1x79h6q/slug/ph6woy7/?screen_view_count=1"))
+        assertEquals("abc12", RedditNotifications.commentIdOf("https://www.reddit.com/r/x/comments/1x/comment/abc12/"))
+        assertNull("a post, not a comment", RedditNotifications.commentIdOf("https://www.reddit.com/r/WearOS/comments/1x79h6q/new_galaxy_watch/"))
+    }
 }

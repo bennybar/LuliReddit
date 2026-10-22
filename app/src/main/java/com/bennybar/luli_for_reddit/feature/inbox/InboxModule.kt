@@ -158,8 +158,20 @@ class InboxModule(private val c: AppContainer) : UserScoped {
     private fun isNew(fullname: String): Boolean? =
         tabs.values.firstNotNullOfOrNull { f -> f.value.items.firstOrNull { it.fullname == fullname }?.isNew }
 
-    /** Optimistically marks one item read locally and on the server. */
-    fun markRead(fullname: String) {
+    /**
+     * Replies / mentions (comment ids) Reddit's notification list says you
+     * opened elsewhere: mark the loaded unread ones read here and in Reddit's
+     * inbox (not back on the notification list, where they already are).
+     */
+    fun markReadFromReddit(commentIds: List<String>) {
+        for (id in commentIds) {
+            val fullname = "t1_$id"
+            if (isNew(fullname) == true) markRead(fullname, notifications = false)
+        }
+    }
+
+    /** Optimistically marks one item read locally and on the server ([notifications]: Reddit's notification list too). */
+    fun markRead(fullname: String, notifications: Boolean = true) {
         // Already read: nothing to send (a repeated swipe used to fire again and
         // again, hitting Reddit's rate limit).
         if (isNew(fullname) == false) return
@@ -171,7 +183,7 @@ class InboxModule(private val c: AppContainer) : UserScoped {
             } catch (_: Exception) { /* keep optimistic state */ }
         }
         // Replies and mentions also sit in Reddit's notification list (website sign-in).
-        if (fullname.startsWith("t1_")) c.redditNotifications.markReadOnReddit(fullname.removePrefix("t1_"))
+        if (notifications && fullname.startsWith("t1_")) c.redditNotifications.markReadOnReddit(fullname.removePrefix("t1_"))
     }
 
     /** Optimistically marks one item unread locally and on the server. */
