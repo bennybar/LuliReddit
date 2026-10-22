@@ -45,6 +45,10 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.32", "Oct 22, 2026",
+        listOf("With the website sign-in, replies you read in the Inbox are marked read in Reddit's notifications too (and Mark all read clears them there)"),
+    ),
+    Release(
         "2.0.31", "Oct 22, 2026",
         listOf("With the side bar on, swiping back on the main screen opens it, and back again closes it"),
     ),

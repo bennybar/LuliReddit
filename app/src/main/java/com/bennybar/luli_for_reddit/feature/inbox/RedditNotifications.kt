@@ -146,20 +146,94 @@ class RedditNotifications(private val c: AppContainer) : UserScoped {
     fun opened(n: RedditNotification) {
         remember(OPENED, listOf(n.id))
         _state.update { s -> if (s is State.Data) s.copy(items = s.items.map { if (it.id == n.id) it.copy(unread = false) else it }) else s }
-        val id = n.id.filter { it.isLetterOrDigit() || it == '-' }
         c.scope.launch(Dispatchers.Main) {
             val v = view ?: return@launch
-            eval(v, "(function(){var e=document.querySelector('notification-item[notification-id=\"$id\"]');var a=e&&e.querySelector('a[href]');if(a)a.click();return !!a})()")
+            clickItem(v, n.id)
+        }
+    }
+
+    // Inbox items marked read in Ilay, waiting to be marked on Reddit too.
+    private val toMark = LinkedHashSet<String>()
+    private var markAll = false
+    private var markJob: Job? = null
+
+    /**
+     * A reply or mention (comment [commentId]) was read in Ilay's Inbox:
+     * Reddit's notification for it is a separate list, so mark it there too
+     * (website sign-in only). Batched: reads close together share one page load.
+     */
+    fun markReadOnReddit(commentId: String) = queueMark { toMark.add(commentId) }
+
+    /** Inbox → Mark all read: Reddit's "Mark all as read" on its notification list too. */
+    fun markAllReadOnReddit() = queueMark { markAll = true }
+
+    private fun queueMark(add: () -> Unit) {
+        synchronized(toMark) { add() }
+        markJob?.cancel()
+        markJob = c.scope.launch {
             delay(2_000)
-            if (view === v && v.canGoBack()) v.goBack()
+            lock.withLock {
+                val (ids, all) = synchronized(toMark) {
+                    val r = toMark.toList() to markAll
+                    toMark.clear(); markAll = false
+                    r
+                }
+                if (ids.isEmpty() && !all) return@withLock
+                if (c.secureStore.authMode() != "web") return@withLock
+                val cookie = c.secureStore.webCookie()?.takeIf { it.isNotEmpty() } ?: return@withLock
+                withContext(Dispatchers.Main) {
+                    closeJob?.cancel()
+                    if (view == null) {
+                        val r = runCatching { open(cookie) }.getOrNull() ?: return@withContext
+                        if (r.ok) {
+                            nextUrl = r.next
+                            _state.value = State.Data(mark(r.items), System.currentTimeMillis(), hasMore = r.next != null)
+                        }
+                    }
+                    val v = view ?: return@withContext
+                    if (all) {
+                        eval(v, "(function(){var b=document.querySelector('mark-all-messages-read button');if(b)b.click();return !!b})()")
+                        delay(1_500)
+                        _state.update { s -> if (s is State.Data) s.copy(items = s.items.map { it.copy(unread = false) }) else s }
+                    } else {
+                        val opened = ArrayList<String>()
+                        for (id in ids) {
+                            val n = (_state.value as? State.Data)?.items?.firstOrNull { it.link?.contains("/$id/") == true } ?: continue
+                            opened += n.id
+                            clickItem(v, n.id)
+                        }
+                        if (opened.isNotEmpty()) {
+                            remember(OPENED, opened)
+                            _state.update { s -> if (s is State.Data) s.copy(items = s.items.map { if (it.id in opened) it.copy(unread = false) else it }) else s }
+                        }
+                    }
+                }
+            }
+            // Reading replies one after another: the next one reuses the page.
+            release(after = 60_000)
+        }
+    }
+
+    // Clicks one notification in the page (how Reddit records it as opened),
+    // then steps back to the list, which Reddit's page moved away from.
+    private suspend fun clickItem(v: WebView, notificationId: String) {
+        val id = notificationId.filter { it.isLetterOrDigit() || it == '-' }
+        val clicked = eval(v, "(function(){var e=document.querySelector('notification-item[notification-id=\"$id\"]');var a=e&&e.querySelector('a[href]');if(a)a.click();return !!a})()")
+        if (clicked != "true") return
+        delay(2_000)
+        if (view === v && v.canGoBack()) v.goBack()
+        // Wait for the list to be back before the next click.
+        repeat(10) {
+            delay(500)
+            if (eval(v, "document.querySelectorAll('notification-item').length") ?.toIntOrNull()?.let { it > 0 } == true) return
         }
     }
 
     /** Leaving the tab: the page closes shortly after (coming straight back keeps it). */
-    fun release() {
+    fun release(after: Long = 10_000) {
         closeJob?.cancel()
         closeJob = c.scope.launch(Dispatchers.Main) {
-            delay(10_000)
+            delay(after)
             closeView()
         }
     }

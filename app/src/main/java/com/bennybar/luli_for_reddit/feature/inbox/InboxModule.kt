@@ -170,6 +170,8 @@ class InboxModule(private val c: AppContainer) : UserScoped {
                 refreshUnread()
             } catch (_: Exception) { /* keep optimistic state */ }
         }
+        // Replies and mentions also sit in Reddit's notification list (website sign-in).
+        if (fullname.startsWith("t1_")) c.redditNotifications.markReadOnReddit(fullname.removePrefix("t1_"))
     }
 
     /** Optimistically marks one item unread locally and on the server. */
@@ -210,6 +212,7 @@ class InboxModule(private val c: AppContainer) : UserScoped {
             flow.value = before
             throw e
         }
+        c.redditNotifications.markAllReadOnReddit()
         refreshLoadedTabs()
     }
 
