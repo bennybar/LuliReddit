@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.inbox
 
+import com.bennybar.luli_for_reddit.feature.home.SideBarButton
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.rounded.ArrowUpward
@@ -108,7 +109,7 @@ fun InboxScreen(reselect: Int) {
     }
 
     if (anonymous) {
-        Scaffold(topBar = { TopAppBar(title = title, colors = appBarColors) }) { padding ->
+        Scaffold(topBar = { TopAppBar(title = title, navigationIcon = { SideBarButton() }, colors = appBarColors) }) { padding ->
             Box(Modifier.padding(padding)) {
                 SignInPrompt("Sign in to see your messages, replies and mentions.")
             }
@@ -134,6 +135,7 @@ fun InboxScreen(reselect: Int) {
             Column {
                 TopAppBar(
                     title = title,
+                    navigationIcon = { SideBarButton() },
                     colors = appBarColors,
                     actions = {
                         if (webSignIn) {

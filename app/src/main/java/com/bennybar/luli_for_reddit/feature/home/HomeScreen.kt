@@ -1,5 +1,23 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import kotlinx.coroutines.launch
+import com.bennybar.luli_for_reddit.auth.SessionState
+import androidx.compose.material.icons.rounded.EditNote
+import androidx.compose.material.icons.rounded.OfflinePin
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.DrawerValue
+import com.bennybar.luli_for_reddit.feature.about.maybeShowWhatsNew
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.layout.positionInParent
@@ -127,6 +145,7 @@ fun HomeScreen() {
         if (startupChecksDone) return@LaunchedEffect
         startupChecksDone = true
         maybeCheckUpdates(context)
+        maybeShowWhatsNew()
         maybeSuggestNotifications()
     }
 
@@ -155,9 +174,15 @@ fun HomeScreen() {
         }
     }
 
+    // Settings › Navigation: the bottom bar, the side bar, or both.
+    val bottomBar = settings.navStyle != 1
+    val sideBar = settings.navStyle != 0
+    val drawer = rememberDrawerState(DrawerValue.Closed)
+    val shellScope = rememberCoroutineScope()
+
     // Snackbars float above the floating nav while the shell is showing.
-    DisposableEffect(nav) {
-        nav.snackbarBottomPadding = 86.dp
+    DisposableEffect(nav, bottomBar) {
+        nav.snackbarBottomPadding = if (bottomBar) 86.dp else 0.dp
         onDispose { nav.snackbarBottomPadding = 0.dp }
     }
 
@@ -226,6 +251,37 @@ fun HomeScreen() {
 
     val navOffset by animateFloatAsState(if (chrome) 0f else 1.4f, tween(220, easing = FastOutSlowInEasing), label = "nav")
 
+    fun selectTab(i: Int) {
+        // Double-tapping Explore opens search, keyboard up.
+        val now = System.currentTimeMillis()
+        if (i == 1 && now - lastExploreTap < 400) {
+            lastExploreTap = 0L
+            nav.push(Route.Search())
+            return
+        }
+        if (i == 1) lastExploreTap = now
+        // Re-tapping the active tab scrolls it to top (Posts also refreshes).
+        if (i == index) {
+            if (i == 0) app.feed.frontpageScrollSignal.value++ else app.feed.tabReselect(i).value++
+        } else {
+            index = i
+            chrome = true // always reveal chrome when switching tabs
+        }
+    }
+
+    ModalNavigationDrawer(
+        drawerState = drawer,
+        gesturesEnabled = sideBar,
+        drawerContent = {
+            if (sideBar) {
+                SideBar(index, unread, onTab = ::selectTab) { pick ->
+                    shellScope.launch { drawer.close() }
+                    pick()
+                }
+            }
+        },
+    ) {
+    CompositionLocalProvider(LocalSideBar provides if (sideBar) ({ shellScope.launch { drawer.open() } }) else null) {
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
         KeepAliveTabs(
             selected = index,
@@ -240,6 +296,7 @@ fun HomeScreen() {
                 else -> ProfileTab()
             }
         }
+        if (bottomBar) {
         // A fade from the page colour behind the nav, so the pill never sits
         // directly on a post of the same tone; it hides with the nav.
         val scrim = MaterialTheme.colorScheme.surface
@@ -259,24 +316,60 @@ fun HomeScreen() {
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .graphicsLayer { translationY = size.height * navOffset },
-            onSelected = { i ->
-                // Double-tapping Explore opens search, keyboard up.
-                val now = System.currentTimeMillis()
-                if (i == 1 && now - lastExploreTap < 400) {
-                    lastExploreTap = 0L
-                    nav.push(Route.Search())
-                    return@FloatingNav
-                }
-                if (i == 1) lastExploreTap = now
-                // Re-tapping the active tab scrolls it to top (Posts also refreshes).
-                if (i == index) {
-                    if (i == 0) app.feed.frontpageScrollSignal.value++ else app.feed.tabReselect(i).value++
-                } else {
-                    index = i
-                    chrome = true // always reveal chrome when switching tabs
-                }
-            },
+            onSelected = ::selectTab,
         )
+        }
+    }
+    }
+    }
+}
+
+/**
+ * The side bar (Settings › Navigation): the four tabs, then your stuff and
+ * Settings. [onPick] closes it, then runs the choice.
+ */
+@Composable
+private fun SideBar(selected: Int, unread: Int, onTab: (Int) -> Unit, onPick: (() -> Unit) -> Unit) {
+    val nav = LocalNavigator.current
+    val cs = MaterialTheme.colorScheme
+    val session by app.session.state.collectAsStateWithLifecycle()
+    val s = (session as? SessionState.LoggedIn)?.session
+    val anonymous = s?.anonymous != false
+    ModalDrawerSheet(Modifier.width(300.dp)) {
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)) {
+            Text("Ilay", Modifier.padding(start = 16.dp, top = 20.dp), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
+            Text(
+                if (anonymous) "Browsing without an account" else "u/${s?.username}",
+                Modifier.padding(start = 16.dp, top = 2.dp, bottom = 16.dp),
+                color = cs.onSurfaceVariant,
+            )
+            navItems.forEachIndexed { i, item ->
+                NavigationDrawerItem(
+                    label = { Text(item.label) },
+                    icon = { Icon(if (i == selected) item.on else item.off, null) },
+                    badge = if (i == 2 && unread > 0) ({ Text(if (unread > 99) "99+" else "$unread") }) else null,
+                    selected = i == selected,
+                    onClick = { onPick { onTab(i) } },
+                )
+            }
+            HorizontalDivider(Modifier.padding(vertical = 12.dp, horizontal = 16.dp))
+            val more = buildList {
+                if (!anonymous) add(Triple(Icons.Outlined.BookmarkBorder, "Saved", Route.Saved))
+                add(Triple(Icons.Rounded.History, "History", Route.History))
+                add(Triple(Icons.Rounded.OfflinePin, "Read later", Route.Offline))
+                add(Triple(Icons.Rounded.EditNote, "Drafts", Route.Drafts))
+                add(Triple(Icons.Outlined.Settings, "Settings", Route.Settings))
+            }
+            for ((icon, label, route) in more) {
+                NavigationDrawerItem(
+                    label = { Text(label) },
+                    icon = { Icon(icon, null) },
+                    selected = false,
+                    onClick = { onPick { nav.push(route) } },
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+        }
     }
 }
 

@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,6 +22,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.Route
+
+/** Opens the side bar (Settings › Navigation: side bar / both); null when it's off. */
+val LocalSideBar = staticCompositionLocalOf<(() -> Unit)?> { null }
+
+/** The ☰ at the start of a tab's top bar, when the side bar is on. */
+@Composable
+fun SideBarButton() {
+    val open = LocalSideBar.current ?: return
+    IconButton(onClick = open) { Icon(Icons.Rounded.Menu, "Open menu") }
+}
 
 /** The ⋮ at the top of a tab's main screen: where Settings lives. */
 @Composable

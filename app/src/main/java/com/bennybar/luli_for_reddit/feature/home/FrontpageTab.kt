@@ -110,9 +110,10 @@ internal fun FrontpageTab(chromeVisible: Boolean) {
                 exit = shrinkVertically(tween(220), shrinkTowards = Alignment.Top),
             ) {
                 Row(
-                    Modifier.fillMaxWidth().padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 4.dp),
+                    Modifier.fillMaxWidth().padding(start = if (LocalSideBar.current != null) 4.dp else 16.dp, top = 12.dp, end = 16.dp, bottom = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    SideBarButton()
                     if (settings.showApiUsage) {
                         ApiUsagePill(Modifier.weight(1f))
                     } else {
@@ -134,6 +135,8 @@ internal fun FrontpageTab(chromeVisible: Boolean) {
                     Modifier.fillMaxWidth().padding(start = 16.dp, top = if (expandable) 10.dp else 8.dp, end = if (expandable) 4.dp else 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    // Full mode has it in the action row above.
+                    if (expandable) SideBarButton()
                     Text(
                         if (homeOn) "Home" else if (blend) "Blend" else if (forYou) "For You" else "Frontpage",
                         style = MaterialTheme.typography.titleLarge,

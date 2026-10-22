@@ -125,6 +125,7 @@ data class Settings(
     val redditAppNotifications: Boolean = false, // take over the Reddit app's notifications (needs notification access)
     val topBarMode: TopBarMode = TopBarMode.EXPANDABLE, // Posts-screen action layout
     val navLabels: Boolean = true, // show text labels on the bottom nav bar
+    val navStyle: Int = 0, // 0 bottom bar, 1 side bar, 2 both (#25)
     val backScrollsToTop: Boolean = true, // back on the Posts tab scrolls the feed to top
     val aiModel: String = "gpt-5.4-mini", // OpenAI(-compatible) model id for summaries
     val aiSummaryStyle: Int = 1, // index into SummaryStyle (Key points)

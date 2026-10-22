@@ -170,11 +170,13 @@ internal fun ExploreTab() {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 130.dp)) {
             // Search entry
             item(key = "search") {
-                SearchPill(
-                    "Search communities & posts",
-                    onClick = { nav.push(Route.Search()) },
-                    modifier = Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 4.dp),
-                )
+                Row(
+                    Modifier.padding(start = if (LocalSideBar.current != null) 4.dp else 16.dp, top = 12.dp, end = 16.dp, bottom = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    SideBarButton()
+                    SearchPill("Search communities & posts", onClick = { nav.push(Route.Search()) }, modifier = Modifier.weight(1f))
+                }
             }
             item(key = "popular") {
                 Row(Modifier.padding(start = 12.dp, top = 8.dp, end = 12.dp)) {

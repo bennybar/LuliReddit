@@ -23,6 +23,7 @@ sealed interface Route {
     @Serializable data object Offline : Route
     @Serializable data object NotificationActivity : Route
     @Serializable data object Drafts : Route
+    @Serializable data object WhatsNew : Route
     /** A reddit.com page signed in as you (website sign-in): notifications, chat, a poll, Reddit's settings. */
     @Serializable data class RedditWeb(val url: String, val title: String) : Route
     @Serializable data class Search(val subreddit: String? = null, val query: String? = null, val sort: String? = null, val time: String? = null) : Route

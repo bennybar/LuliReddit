@@ -92,7 +92,11 @@ internal fun ProfileTab() {
     val anonymous = s?.anonymous ?: false
 
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(start = 16.dp, top = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = if (LocalSideBar.current != null) 4.dp else 16.dp, top = 8.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SideBarButton()
             Text("Profile", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
             if (!anonymous) {
                 IconButton(onClick = { scope.launch { showAccountSheet(username, context) } }) {

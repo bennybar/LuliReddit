@@ -1,5 +1,8 @@
 package com.bennybar.luli_for_reddit.feature.settings
 
+import androidx.compose.material.icons.rounded.Menu
+import com.bennybar.luli_for_reddit.BuildConfig
+import androidx.compose.material.icons.rounded.NewReleases
 import com.bennybar.luli_for_reddit.feature.web.RedditWeb
 import androidx.compose.material.icons.rounded.ManageAccounts
 import android.content.Context
@@ -202,6 +205,11 @@ private val SUMMARY_LANGUAGES = listOf(
 private val SUMMARY_STYLE_LABELS = listOf("TL;DR", "Key points", "Consensus & disagreements", "Explain like I'm 5")
 
 private val AI_MODELS = listOf("gpt-6.1-sol", "gpt-5.5", "gpt-5.4-mini", "gpt-5.4-nano")
+private val NAV_STYLES = listOf(
+    "Bottom bar" to "The floating bar at the bottom",
+    "Side bar" to "A ☰ menu at the top of each tab (or swipe from the left edge)",
+    "Both" to "The bottom bar, plus the side bar",
+)
 private const val CUSTOM_MODEL = "\u0000custom"
 
 // Where saved media goes (same prefs keys as the Flutter build). null = the
@@ -454,10 +462,15 @@ fun SettingsList(
             pickOption(TopBarMode.entries.map { PickOption(it, it.label, it.description) }, s.topBarMode)
                 ?.let(ctrl::setTopBarMode)
         })
-        switch(
-            "Bottom bar labels", "Show text labels under the navigation icons",
-            Icons.AutoMirrored.Outlined.Label, s.navLabels, ctrl::setNavLabels,
-        )
+        tile("Navigation", NAV_STYLES[s.navStyle.coerceIn(0, 2)].first, Icons.Rounded.Menu, onClick = launch {
+            pickOption(NAV_STYLES.mapIndexed { i, (l, d) -> PickOption(i, l, d) }, s.navStyle)?.let(ctrl::setNavStyle)
+        })
+        if (s.navStyle != 1) {
+            switch(
+                "Bottom bar labels", "Show text labels under the navigation icons",
+                Icons.AutoMirrored.Outlined.Label, s.navLabels, ctrl::setNavLabels,
+            )
+        }
         switch(
             "Back scrolls Posts to top", "On the Posts tab, back scrolls the feed to the top. Back never leaves the app",
             Icons.Rounded.VerticalAlignTop, s.backScrollsToTop, ctrl::setBackScrollsToTop,
@@ -740,6 +753,7 @@ fun SettingsList(
 
         // ---------------------------------------------------------------- About
         section("About")
+        tile("What's new", "Ilay ${BuildConfig.VERSION_NAME} · what changed in each release", Icons.Rounded.NewReleases) { nav.push(Route.WhatsNew) }
         switch("Check for updates", "Check GitHub releases on launch", Icons.Rounded.SystemUpdate, s.checkUpdates, ctrl::setCheckUpdates)
         tile("Check now", icon = Icons.Rounded.Update, onClick = launch { checkUpdatesNow() })
         switch(
