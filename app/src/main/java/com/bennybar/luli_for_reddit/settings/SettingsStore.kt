@@ -75,6 +75,7 @@ class SettingsStore(private val p: Prefs) {
             } ?: d.topBarMode,
             navLabels = b("navLabels", d.navLabels),
             navStyle = (p.getInt("navStyle") ?: d.navStyle).coerceIn(0, 2),
+            navOutline = b("navOutline", d.navOutline),
             backScrollsToTop = b("backScrollsToTop", d.backScrollsToTop),
             aiModel = p.getString("aiModel") ?: d.aiModel,
             aiSummaryStyle = p.getInt("aiSummaryStyle") ?: d.aiSummaryStyle,
@@ -182,6 +183,7 @@ class SettingsStore(private val p: Prefs) {
     fun setTopBarMode(v: TopBarMode) { p.setInt("topBarMode", v.ordinal); set { it.copy(topBarMode = v) } }
     fun setNavLabels(v: Boolean) { p.setBool("navLabels", v); set { it.copy(navLabels = v) } }
     fun setNavStyle(v: Int) { p.setInt("navStyle", v); set { it.copy(navStyle = v) } }
+    fun setNavOutline(v: Boolean) { p.setBool("navOutline", v); set { it.copy(navOutline = v) } }
     fun setBackScrollsToTop(v: Boolean) { p.setBool("backScrollsToTop", v); set { it.copy(backScrollsToTop = v) } }
     fun setAiModel(v: String) { p.setString("aiModel", v); set { it.copy(aiModel = v) } }
     fun setAiSummaryStyle(v: Int) { p.setInt("aiSummaryStyle", v); set { it.copy(aiSummaryStyle = v) } }

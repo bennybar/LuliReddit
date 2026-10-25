@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.settings
 
+import androidx.compose.material.icons.rounded.CropFree
 import androidx.compose.material.icons.rounded.Menu
 import com.bennybar.luli_for_reddit.BuildConfig
 import androidx.compose.material.icons.rounded.NewReleases
@@ -469,6 +470,10 @@ fun SettingsList(
             switch(
                 "Bottom bar labels", "Show text labels under the navigation icons",
                 Icons.AutoMirrored.Outlined.Label, s.navLabels, ctrl::setNavLabels,
+            )
+            switch(
+                "Bottom bar outline", "A thin outline around the bottom bar. Off: just its shadow, Material 3 style",
+                Icons.Rounded.CropFree, s.navOutline, ctrl::setNavOutline,
             )
         }
         switch(

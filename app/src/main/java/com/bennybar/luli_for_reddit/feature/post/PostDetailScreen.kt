@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import com.bennybar.luli_for_reddit.feature.media.GalleryM3Carousel
 import androidx.compose.foundation.layout.widthIn
 import com.bennybar.luli_for_reddit.feature.feed.ReminderLine
 import com.bennybar.luli_for_reddit.feature.reminders.PostReminders
@@ -1215,7 +1216,8 @@ private fun PostMedia(p: Post, nav: AppNavigator, radius: androidx.compose.ui.un
     val label = if (p.over18) "NSFW" else "Spoiler"
     if (p.type == PostType.GALLERY && p.gallery.isNotEmpty()) {
         NsfwBlur(blur, Modifier.padding(bottom = 12.dp), label = label) {
-            GalleryCarousel(p.gallery, if (radius != 16.dp) Modifier.clip(RoundedCornerShape(radius)) else Modifier, title = p.title)
+            if (p.gallery.size > 1) GalleryM3Carousel(p.gallery, title = p.title)
+            else GalleryCarousel(p.gallery, if (radius != 16.dp) Modifier.clip(RoundedCornerShape(radius)) else Modifier, title = p.title)
         }
         return
     }

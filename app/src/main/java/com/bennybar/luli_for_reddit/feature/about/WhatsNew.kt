@@ -45,6 +45,13 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.35", "Oct 25, 2026",
+        listOf(
+            "Gallery posts open as a Material 3 carousel: one big image with the next ones peeking beside it",
+            "Bottom bar outline can be turned off (Settings → Appearance)",
+        ),
+    ),
+    Release(
         "2.0.34", "Oct 25, 2026",
         listOf(
             "User flairs next to names in posts and comments, and set your own flair from a community's About",

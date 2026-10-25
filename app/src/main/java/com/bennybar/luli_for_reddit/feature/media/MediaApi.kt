@@ -1,5 +1,8 @@
 package com.bennybar.luli_for_reddit.feature.media
 
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.carousel.rememberCarouselState
+import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -130,6 +133,54 @@ suspend fun openPostVideo(nav: AppNavigator, post: Post) {
  * downloaded / total size.
  */
 suspend fun saveMediaToGallery(url: String, isVideo: Boolean) = saveMedia(url, isVideo)
+
+/**
+ * A gallery as a Material 3 carousel (#30), for the post screen: a large
+ * image with the next ones peeking beside it, each opening the full-screen
+ * viewer at that image. Feeds keep [GalleryCarousel] (one image at a time),
+ * which is lighter while scrolling.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GalleryM3Carousel(images: List<GalleryImage>, modifier: Modifier = Modifier, title: String? = null) {
+    if (images.isEmpty()) return
+    val nav = LocalNavigator.current
+    val cs = MaterialTheme.colorScheme
+    val decodeWidth = feedDecodeWidth()
+    val state = rememberCarouselState { images.size }
+    Column(modifier.fillMaxWidth()) {
+        HorizontalMultiBrowseCarousel(
+            state = state,
+            preferredItemWidth = 280.dp,
+            itemSpacing = 8.dp,
+            modifier = Modifier.fillMaxWidth().height(300.dp),
+        ) { i ->
+            var failed by remember { mutableStateOf(false) }
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .maskClip(RoundedCornerShape(28.dp))
+                    .background(cs.surfaceContainerHighest)
+                    .clickable { nav.openGallery(images, title, i) },
+                contentAlignment = Alignment.Center,
+            ) {
+                AsyncImage(
+                    model = rememberSizedRequest(images[i].url, decodeWidth),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                    onError = { failed = true },
+                )
+                if (failed) Icon(Icons.Outlined.BrokenImage, null, tint = cs.onSurfaceVariant)
+            }
+        }
+        Row(Modifier.padding(start = 4.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.Collections, null, Modifier.size(14.dp), tint = cs.onSurfaceVariant)
+            Spacer(Modifier.width(6.dp))
+            Text("${images.size} images · tap one to view", fontSize = 12.sp, color = cs.onSurfaceVariant)
+        }
+    }
+}
 
 /**
  * An inline, swipeable gallery preview with a page counter and dot indicator.

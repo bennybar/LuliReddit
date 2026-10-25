@@ -321,6 +321,7 @@ fun HomeScreen() {
             selected = index,
             unread = unread,
             showLabels = settings.navLabels,
+            outline = settings.navOutline,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .graphicsLayer { translationY = size.height * navOffset },
@@ -418,6 +419,7 @@ private fun FloatingNav(
     selected: Int,
     unread: Int,
     showLabels: Boolean,
+    outline: Boolean,
     onSelected: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -437,7 +439,7 @@ private fun FloatingNav(
             shape = shape,
             // Fully solid so it stays legible over images.
             color = if (dark) cs.surfaceContainerHigh else cs.surfaceContainer,
-            border = BorderStroke(1.dp, cs.outlineVariant),
+            border = if (outline) BorderStroke(1.dp, cs.outlineVariant) else null,
         ) {
             Row(
                 Modifier
