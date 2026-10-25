@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import com.bennybar.luli_for_reddit.ui.RefreshBox
+import com.bennybar.luli_for_reddit.ui.Loading
 import com.bennybar.luli_for_reddit.model.UserFlair
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.PlaceholderVerticalAlign
@@ -95,7 +97,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
@@ -382,7 +383,7 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
             when {
                 thread != null -> Column(Modifier.fillMaxSize()) {
                     if (focusCommentId != null) FocusBanner { nav.pop(); nav.push(Route.Post(subreddit, postId)) }
-                    PullToRefreshBox(isRefreshing = ui.refreshing, onRefresh = vm::refresh, modifier = Modifier.weight(1f)) {
+                    RefreshBox(isRefreshing = ui.refreshing, onRefresh = vm::refresh, modifier = Modifier.weight(1f)) {
                         CommentList(
                             thread = thread,
                             listState = listState,
@@ -408,7 +409,7 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
                 else -> LazyColumn(Modifier.fillMaxSize()) {
                     if (initialPost != null) item(key = "header") { PostHeader(initialPost, fresh = false) }
                     item(key = "loading") {
-                        Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                        Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { Loading() }
                     }
                 }
             }
@@ -1305,7 +1306,7 @@ private fun MoreRow(c: Comment, loading: Boolean, onClick: () -> Unit) {
     Box(Modifier.fillMaxWidth().padding(start = 10.dp + indent, end = 10.dp, bottom = 8.dp)) {
         TextButton(onClick = onClick, enabled = !loading) {
             if (loading) {
-                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                Loading(Modifier.size(24.dp), color = LocalContentColor.current)
             } else {
                 Icon(Icons.Rounded.AddCircleOutline, null, Modifier.size(18.dp), tint = cs.primary)
             }

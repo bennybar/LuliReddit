@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.auth
 
+import com.bennybar.luli_for_reddit.ui.Loading
 import android.webkit.RenderProcessGoneDetail
 import android.annotation.SuppressLint
 import android.webkit.CookieManager
@@ -143,7 +144,7 @@ fun WebLoginScreen(clearFirst: Boolean = false) {
                     onRelease = { it.destroy() },
                 )
             }
-            if (!ready || signingIn) CircularProgressIndicator(Modifier.align(Alignment.Center))
+            if (!ready || signingIn) Loading(Modifier.align(Alignment.Center))
         }
     }
 }

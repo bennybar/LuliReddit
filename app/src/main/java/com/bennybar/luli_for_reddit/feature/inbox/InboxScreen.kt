@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.inbox
 
+import com.bennybar.luli_for_reddit.ui.RefreshBox
+import com.bennybar.luli_for_reddit.ui.Loading
 import com.bennybar.luli_for_reddit.feature.home.SideBarButton
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.material3.TextButton
@@ -61,7 +63,6 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -255,7 +256,7 @@ private fun InboxList(where: String, listState: LazyListState) {
                 }
             }
         }
-        PullToRefreshBox(
+        RefreshBox(
             isRefreshing = refreshing,
             onRefresh = {
                 scope.launch {
@@ -268,7 +269,7 @@ private fun InboxList(where: String, listState: LazyListState) {
         ) {
             when {
                 state.loading && state.items.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+                    Loading()
                 }
                 // A failed (re)load shows the error even over loaded items, as in
                 // Flutter (its AsyncError replaced the list); pull to retry.
@@ -299,7 +300,7 @@ private fun InboxList(where: String, listState: LazyListState) {
                     if (state.loadingMore) {
                         item(key = "loadingMore", contentType = "loading") {
                             Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator()
+                                Loading()
                             }
                         }
                     }
@@ -429,7 +430,7 @@ private fun RedditNotificationsList(active: Boolean, listState: LazyListState) {
     var refreshing by remember { mutableStateOf(false) }
     LaunchedEffect(state) { if (state !is RedditNotifications.State.Loading) refreshing = false }
 
-    PullToRefreshBox(
+    RefreshBox(
         isRefreshing = refreshing,
         onRefresh = {
             refreshing = true
@@ -439,7 +440,7 @@ private fun RedditNotificationsList(active: Boolean, listState: LazyListState) {
     ) {
         when (val s = state) {
             null, RedditNotifications.State.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+                Loading()
             }
             is RedditNotifications.State.Failed -> LazyColumn(Modifier.fillMaxSize()) {
                 item {
@@ -474,7 +475,7 @@ private fun RedditNotificationsList(active: Boolean, listState: LazyListState) {
                 }
                 if (s.loadingMore) {
                     item(key = "loadingMore", contentType = "loading") {
-                        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { Loading() }
                     }
                 } else if (!s.hasMore && s.items.isNotEmpty()) {
                     item(key = "older", contentType = "older") {

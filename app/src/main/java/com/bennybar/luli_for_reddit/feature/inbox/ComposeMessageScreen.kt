@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.inbox
 
+import androidx.compose.material3.LocalContentColor
+import com.bennybar.luli_for_reddit.ui.Loading
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
@@ -128,7 +130,7 @@ fun ComposeMessageScreen(to: String?) {
                 },
                 actions = {
                     Button(onClick = ::send, enabled = !busy, modifier = Modifier.padding(end = 8.dp)) {
-                        if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("Send")
+                        if (busy) Loading(Modifier.size(24.dp), color = LocalContentColor.current) else Text("Send")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

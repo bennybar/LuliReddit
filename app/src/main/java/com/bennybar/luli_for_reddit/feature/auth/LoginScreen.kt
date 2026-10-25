@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.auth
 
+import androidx.compose.material3.LocalContentColor
+import com.bennybar.luli_for_reddit.ui.Loading
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -358,7 +360,7 @@ fun LoginScreen() {
                 modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 52.dp),
             ) {
                 if (busy) {
-                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Loading(Modifier.size(24.dp), color = LocalContentColor.current)
                 } else {
                     Icon(Icons.AutoMirrored.Rounded.Login, null, Modifier.size(18.dp))
                 }

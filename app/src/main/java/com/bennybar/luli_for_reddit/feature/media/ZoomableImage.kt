@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.media
 
+import com.bennybar.luli_for_reddit.ui.Loading
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -211,7 +212,7 @@ internal fun ZoomableImage(
         )
         when (state) {
             is AsyncImagePainter.State.Loading, AsyncImagePainter.State.Empty ->
-                CircularProgressIndicator(color = Color.White)
+                Loading(color = Color.White)
             is AsyncImagePainter.State.Error ->
                 Icon(Icons.Rounded.BrokenImage, null, Modifier.size(48.dp), tint = Color.White.copy(alpha = 0.6f))
             else -> {}

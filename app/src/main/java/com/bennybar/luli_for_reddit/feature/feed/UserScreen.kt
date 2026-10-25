@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.ui.Loading
 import android.net.Uri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -143,7 +144,7 @@ fun UserProfileBody(username: String, modifier: Modifier = Modifier, belowHeader
     Column(modifier) {
         when (val a = about) {
             Async.Loading -> Box(Modifier.fillMaxWidth().height(96.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+                Loading()
             }
             is Async.Error -> Text("Could not load profile: ${friendlyError(a.error)}", Modifier.padding(16.dp))
             is Async.Data -> ProfileHeader(a.value, canFollow = !isSelf && me.isNotEmpty())

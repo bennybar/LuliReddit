@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import androidx.compose.material3.LocalContentColor
+import com.bennybar.luli_for_reddit.ui.Loading
 import com.bennybar.luli_for_reddit.feature.feed.showAddToCustomFeed
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import android.content.ClipData
@@ -320,7 +322,7 @@ private fun <T> ComposeSheet(
             Spacer(Modifier.height(12.dp))
             Button(onClick = ::submit, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
                 if (busy) {
-                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Loading(Modifier.size(24.dp), color = LocalContentColor.current)
                 } else {
                     Icon(Icons.AutoMirrored.Rounded.Send, null, Modifier.size(18.dp))
                 }

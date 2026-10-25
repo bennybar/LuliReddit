@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.ui.Loading
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.foundation.layout.Box
@@ -138,7 +139,7 @@ fun ManageMultiredditScreen(username: String, name: String) {
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
             when (val a = async) {
-                Async.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                Async.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Loading() }
                 is Async.Error -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("Could not load feed: ${friendlyError(a.error)}")
                 }

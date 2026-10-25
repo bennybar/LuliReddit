@@ -1,5 +1,10 @@
 package com.bennybar.luli_for_reddit.feature.media
 
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LinearWavyProgressIndicator
 import android.content.ContentValues
 import android.os.Environment
 import android.provider.MediaStore
@@ -8,7 +13,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -203,6 +207,7 @@ private fun insertIntoGallery(file: File, name: String, mime: String, isVideo: B
 
 private fun mb(bytes: Long) = String.format(Locale.US, "%.1f", bytes / 1048576.0)
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun SavingDialog(progress: StateFlow<Pair<Long, Long>>, onCancel: () -> Unit, verb: String = "Saving") {
     val p by progress.collectAsStateWithLifecycle()
@@ -211,18 +216,18 @@ internal fun SavingDialog(progress: StateFlow<Pair<Long, Long>>, onCancel: () ->
         onDismissRequest = {},
         properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
         text = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // Material 3 Expressive's wavy bar: filling up when the size is known, travelling otherwise.
+            Column {
+                Text(if (total > 0) "$verb… ${mb(received)} / ${mb(total)} MB" else "$verb…")
+                Spacer(Modifier.height(16.dp))
                 if (total > 0) {
-                    CircularProgressIndicator(
+                    LinearWavyProgressIndicator(
                         progress = { (received.toFloat() / total).coerceIn(0f, 1f) },
-                        modifier = Modifier.size(26.dp),
-                        strokeWidth = 3.dp,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 } else {
-                    CircularProgressIndicator(Modifier.size(26.dp), strokeWidth = 3.dp)
+                    LinearWavyProgressIndicator(Modifier.fillMaxWidth())
                 }
-                Spacer(Modifier.width(18.dp))
-                Text(if (total > 0) "$verb… ${mb(received)} / ${mb(total)} MB" else "$verb…")
             }
         },
         confirmButton = {},

@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.ui.Loading
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -74,7 +75,7 @@ fun CustomFeedsScreen() {
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
             when (val m = multis) {
-                Async.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                Async.Loading -> Loading(Modifier.align(Alignment.Center))
                 is Async.Error -> Text("Couldn't load your custom feeds: ${friendlyError(m.error)}", Modifier.align(Alignment.Center).padding(32.dp))
                 is Async.Data -> if (m.value.isEmpty()) {
                     Column(Modifier.align(Alignment.Center).padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {

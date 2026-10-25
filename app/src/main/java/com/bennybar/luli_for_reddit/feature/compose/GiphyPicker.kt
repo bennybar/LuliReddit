@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.compose
 
+import com.bennybar.luli_for_reddit.ui.Loading
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -145,7 +146,7 @@ private fun GiphySheet(apiKey: String, done: (String?) -> Unit) {
             Spacer(Modifier.height(8.dp))
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 if (loading) {
-                    CircularProgressIndicator(Modifier.align(Alignment.Center))
+                    Loading(Modifier.align(Alignment.Center))
                 } else {
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(3),

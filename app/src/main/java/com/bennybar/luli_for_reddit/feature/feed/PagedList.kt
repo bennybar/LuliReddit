@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.ui.RefreshBox
+import com.bennybar.luli_for_reddit.ui.Loading
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,7 +19,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -178,7 +179,7 @@ fun <T> PagedList(
 
     when {
         state.loading && state.items.isEmpty() -> Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
+            Loading()
         }
         state.error != null -> LazyColumn(modifier.fillMaxSize()) {
             item {
@@ -189,7 +190,7 @@ fun <T> PagedList(
                 }
             }
         }
-        state.items.isEmpty() -> PullToRefreshBox(refreshing, onRefresh = ::refresh, modifier = modifier.fillMaxSize()) {
+        state.items.isEmpty() -> RefreshBox(refreshing, onRefresh = ::refresh, modifier = modifier.fillMaxSize()) {
             LazyColumn(Modifier.fillMaxSize()) {
                 item {
                     Spacer(Modifier.height(120.dp))
@@ -197,7 +198,7 @@ fun <T> PagedList(
                 }
             }
         }
-        else -> PullToRefreshBox(refreshing, onRefresh = ::refresh, modifier = modifier.fillMaxSize()) {
+        else -> RefreshBox(refreshing, onRefresh = ::refresh, modifier = modifier.fillMaxSize()) {
             val listState = rememberLazyListState()
             LoadMoreNearEnd(listState, fromEnd = 4, page = state.items.size to state.after, onLoadMore = source::loadMore)
             val items = remember(state.items) { state.items.distinctBy(itemKey) }
@@ -211,7 +212,7 @@ fun <T> PagedList(
                 item(key = "__footer") {
                     if (state.loadingMore) {
                         Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator()
+                            Loading()
                         }
                     }
                 }

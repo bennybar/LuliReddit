@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.ui.Loading
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.rounded.BookmarkRemove
 import androidx.compose.foundation.layout.Arrangement
@@ -127,7 +128,7 @@ fun SavedScreen() {
             Box(Modifier.weight(1f)) {
                 when {
                     state.loading && state.items.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+                        Loading()
                     }
                     state.error != null -> Column(
                         Modifier.fillMaxSize().padding(32.dp),
@@ -167,7 +168,7 @@ fun SavedScreen() {
                             item(key = "__footer") {
                                 if (state.loadingMore) {
                                     Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                                        CircularProgressIndicator()
+                                        Loading()
                                     }
                                 }
                             }

@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.web
 
+import com.bennybar.luli_for_reddit.ui.Loading
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.net.Uri
@@ -119,7 +120,7 @@ fun RedditWebScreen(url: String, title: String) {
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
-                ready == null -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                ready == null -> Loading(Modifier.align(Alignment.Center))
                 ready == false || crashed -> Column(
                     Modifier.align(Alignment.Center).padding(32.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,

@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import com.bennybar.luli_for_reddit.ui.Loading
 import android.provider.Settings
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
@@ -178,7 +179,7 @@ private fun SummarySheet(post: Post, baseUrl: String, apiKey: String, model: Str
             Spacer(Modifier.height(12.dp))
             when {
                 loading -> Box(Modifier.fillMaxWidth().padding(28.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+                    Loading()
                 }
                 error != null -> {
                     Text(error!!, color = cs.error)

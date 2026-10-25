@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.inbox
 
+import androidx.compose.material3.LocalContentColor
+import com.bennybar.luli_for_reddit.ui.Loading
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -128,7 +130,7 @@ fun MessageThreadScreen(fullname: String) {
             when {
                 r != null -> Thread(r)
                 loadError != null -> ErrorView(loadError, onRetry = { attempt++ })
-                else -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                else -> Loading(Modifier.align(Alignment.Center))
             }
         }
     }
@@ -290,7 +292,7 @@ private fun Thread(root: InboxItem) {
                 )
                 Spacer(Modifier.size(8.dp))
                 FilledIconButton(onClick = ::send, enabled = !sending) {
-                    if (sending) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    if (sending) Loading(Modifier.size(24.dp), color = LocalContentColor.current)
                     else Icon(Icons.AutoMirrored.Rounded.Send, "Send")
                 }
             }

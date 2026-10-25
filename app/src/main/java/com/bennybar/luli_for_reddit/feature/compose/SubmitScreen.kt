@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.compose
 
+import androidx.compose.material3.LocalContentColor
+import com.bennybar.luli_for_reddit.ui.Loading
 import android.content.Context
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
@@ -365,7 +367,7 @@ fun SubmitScreen(subreddit: String?) {
                         }
                     }
                     Button(onClick = ::submit, enabled = !busy, modifier = Modifier.padding(end = 8.dp)) {
-                        if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("Post")
+                        if (busy) Loading(Modifier.size(24.dp), color = LocalContentColor.current) else Text("Post")
                     }
                 },
             )
@@ -562,7 +564,7 @@ private suspend fun pickSubreddit(): String? = Overlays.show<String> { done ->
         val list = subs
         when {
             failed -> Text("Couldn't load your subreddits.", Modifier.padding(24.dp))
-            list == null -> Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            list == null -> Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { Loading() }
             list.isEmpty() -> Text("You aren't subscribed to any subreddits.", Modifier.padding(24.dp))
             else -> LazyColumn(Modifier.navigationBarsPadding()) {
                 items(list, key = { it.name }) { s ->

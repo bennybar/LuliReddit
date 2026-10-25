@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.ui.Loading
 import androidx.compose.runtime.remember
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.rounded.CheckCircle
@@ -218,7 +219,7 @@ private suspend fun showAbout(name: String, about: Subreddit?) {
                 val r = rules
                 when {
                     r == null -> item {
-                        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { Loading() }
                     }
                     r.isEmpty() -> item { Text("No rules listed.") }
                     else -> items(r.size) { i -> RuleTile(i, r[i].first, r[i].second) }

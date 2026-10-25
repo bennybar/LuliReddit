@@ -45,6 +45,13 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.37", "Oct 25, 2026",
+        listOf(
+            "Material 3 Expressive loading: morphing-shape indicators everywhere Ilay is loading, including pull to refresh",
+            "Saving media shows a wavy progress bar",
+        ),
+    ),
+    Release(
         "2.0.36", "Oct 25, 2026",
         listOf(
             "User flairs show their emoji (club badges and the like), not just their text",

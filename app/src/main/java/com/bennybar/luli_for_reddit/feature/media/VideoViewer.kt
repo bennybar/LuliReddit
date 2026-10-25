@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.media
 
+import com.bennybar.luli_for_reddit.ui.Loading
 import android.content.Context
 import android.view.TextureView
 import androidx.annotation.OptIn
@@ -292,7 +293,7 @@ internal fun VideoViewer(route: MediaViewer.Video) {
                         .alpha(if (ready) 1f else 0f),
                 )
             }
-            if (!ready) CircularProgressIndicator(Modifier.align(Alignment.Center), color = Color.White)
+            if (!ready) Loading(Modifier.align(Alignment.Center), color = Color.White)
         }
 
         // Playback controls overlay (tap the video to show/hide).

@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import com.bennybar.luli_for_reddit.ui.RefreshBox
+import com.bennybar.luli_for_reddit.ui.Loading
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.foundation.layout.Arrangement
@@ -42,7 +44,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -154,7 +155,7 @@ internal fun ExploreTab() {
         }
     }
 
-    PullToRefreshBox(
+    RefreshBox(
         isRefreshing = refreshing,
         onRefresh = {
             scope.launch {
@@ -279,7 +280,7 @@ internal fun ExploreTab() {
             }
             when (val s = subs) {
                 Async.Loading -> item(key = "loading") {
-                    Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                    Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { Loading() }
                 }
                 is Async.Error -> item(key = "error") {
                     if (anonymous) {

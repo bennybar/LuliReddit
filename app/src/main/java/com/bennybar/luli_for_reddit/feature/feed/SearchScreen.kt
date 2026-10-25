@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.ui.RefreshBox
+import com.bennybar.luli_for_reddit.ui.Loading
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.BookmarkBorder
@@ -45,7 +47,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -338,7 +339,7 @@ fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time:
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
             when {
-                state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Loading() }
                 state.error != null -> ErrorView(state.error, onRetry = { vm.search(state.query, saveRecent = false) })
                 state.query.isEmpty() -> EmptySearch(
                     saved = saved,
@@ -456,7 +457,7 @@ private fun RefreshableResults(
 ) {
     var refreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    PullToRefreshBox(
+    RefreshBox(
         refreshing,
         onRefresh = {
             scope.launch {
@@ -501,7 +502,7 @@ private fun PostsTab(state: SearchState, vm: SearchViewModel) {
     val scope = rememberCoroutineScope()
     Column(Modifier.fillMaxSize()) {
         FilterBar(state, vm)
-        PullToRefreshBox(
+        RefreshBox(
             refreshing,
             onRefresh = {
                 scope.launch {
@@ -533,7 +534,7 @@ private fun PostsTab(state: SearchState, vm: SearchViewModel) {
                     items(state.posts, key = { it.id }, contentType = { "post_${it.type}" }) { PostCard(it) }
                     if (state.loadingMore) {
                         item(key = "__more") {
-                            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { Loading() }
                         }
                     }
                 }

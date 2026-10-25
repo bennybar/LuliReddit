@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.media
 
+import com.bennybar.luli_for_reddit.ui.Loading
 import androidx.media3.common.C
 import androidx.media3.common.AudioAttributes
 import android.content.Context
@@ -282,7 +283,7 @@ internal fun InlineVideoImpl(url: String, height: Dp, onTap: () -> Unit, modifie
                     .graphicsLayer { this.alpha = alpha },
             )
             if (!firstFrame) {
-                CircularProgressIndicator(Modifier.align(Alignment.Center).size(26.dp), strokeWidth = 2.dp)
+                Loading(Modifier.align(Alignment.Center).size(40.dp))
             }
             // Mute / unmute toggle.
             if (ready) {

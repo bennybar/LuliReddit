@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.ui.RefreshBox
+import com.bennybar.luli_for_reddit.ui.Loading
 import com.bennybar.luli_for_reddit.core.timeAgoPhrase
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.rounded.CloudOff
@@ -49,7 +51,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -198,7 +199,7 @@ fun PostListView(
     }
 
     Box(modifier.fillMaxSize()) {
-        PullToRefreshBox(
+        RefreshBox(
             isRefreshing = refreshing,
             onRefresh = { refresh() },
             modifier = Modifier.fillMaxSize(),
@@ -387,7 +388,7 @@ private fun FeedList(
             val muted = MaterialTheme.colorScheme.onSurfaceVariant
             Column(Modifier.fillMaxWidth().padding(vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 when {
-                    state.loadingMore -> CircularProgressIndicator()
+                    state.loadingMore -> Loading()
                     state.hasMore -> {}
                     else -> Text("— end —", color = muted)
                 }

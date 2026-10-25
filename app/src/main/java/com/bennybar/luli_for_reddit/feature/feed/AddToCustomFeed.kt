@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.material3.LocalContentColor
+import com.bennybar.luli_for_reddit.ui.Loading
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -84,7 +86,7 @@ suspend fun showAddToCustomFeed(subreddit: String) {
                 )
                 when (val m = multis) {
                     Async.Loading -> Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+                        Loading()
                     }
                     is Async.Error -> Text(
                         "Couldn't load your custom feeds: ${friendlyError(m.error)}",
@@ -98,7 +100,7 @@ suspend fun showAddToCustomFeed(subreddit: String) {
                             leading = { Icon(Icons.Rounded.DynamicFeed, null, tint = cs.tertiary) },
                             trailing = {
                                 when {
-                                    busy == multi.path -> CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+                                    busy == multi.path -> Loading(Modifier.size(24.dp), color = LocalContentColor.current)
                                     inIt -> Icon(Icons.Rounded.CheckCircle, "In this feed", tint = cs.primary)
                                 }
                             },
