@@ -9,18 +9,26 @@ class AuthorFlairTest {
     private fun flair(json: String) = authorFlairOf(AppJson.parseToJsonElement(json))
 
     @Test
-    fun `richtext keeps the text parts, drops emoji`() {
-        assertEquals("Galaxy Watch Ultra", flair("""{"author_flair_richtext":[{"e":"emoji","a":":watch:","u":"https://x"},{"e":"text","t":" Galaxy Watch Ultra "}],"author_flair_text":":watch: Galaxy Watch Ultra"}"""))
+    fun `richtext keeps text and emoji in order`() {
+        val f = flair("""{"author_flair_richtext":[{"e":"emoji","a":":watch:","u":"https://emoji.redditmedia.com/w.png"},{"e":"text","t":" Galaxy Watch Ultra "}],"author_flair_text":":watch: Galaxy Watch Ultra"}""")!!
+        assertEquals(listOf(FlairPart(emojiUrl = "https://emoji.redditmedia.com/w.png"), FlairPart(text = " Galaxy Watch Ultra")), f.parts)
+        assertEquals("Galaxy Watch Ultra", f.text)
+    }
+
+    @Test
+    fun `emoji-only flair is kept (it has images)`() {
+        val f = flair("""{"author_flair_richtext":[{"e":"emoji","a":":x:","u":"https://e/x.png"}],"author_flair_text":":x:"}""")!!
+        assertEquals(listOf(FlairPart(emojiUrl = "https://e/x.png")), f.parts)
     }
 
     @Test
     fun `plain text loses its emoji codes`() {
-        assertEquals("Moderator", flair("""{"author_flair_text":":mod: Moderator"}"""))
+        assertEquals("Moderator", flair("""{"author_flair_text":":mod: Moderator"}""")!!.text)
     }
 
     @Test
-    fun `none or only emoji is no flair`() {
+    fun `no flair is null`() {
         assertNull(flair("""{"author_flair_text":null}"""))
-        assertNull(flair("""{"author_flair_richtext":[{"e":"emoji","a":":x:"}],"author_flair_text":":x:"}"""))
+        assertNull(flair("""{"author_flair_text":":x:"}"""))
     }
 }

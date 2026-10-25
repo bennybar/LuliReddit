@@ -1005,8 +1005,8 @@ private val CalmOuter = 28.dp
 private val CalmInner = 6.dp
 /** Gap between a Calm cards post's connected segments. */
 private val CalmGap = 3.dp
-/** Expressive media: round corners with one tighter corner. */
-private val CalmExpressiveMedia = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomEnd = 24.dp, bottomStart = 8.dp)
+/** Calm media and link cards: evenly rounded (the one tighter corner read as a mistake, #33). */
+private val CalmExpressiveMedia = RoundedCornerShape(24.dp)
 
 /**
  * Calm's surfaces. In light mode surfaceContainerLow is almost the page colour,

@@ -1,5 +1,11 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import com.bennybar.luli_for_reddit.model.UserFlair
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.foundation.text.appendInlineContent
+import androidx.compose.foundation.text.InlineTextContent
 import com.bennybar.luli_for_reddit.feature.media.GalleryM3Carousel
 import androidx.compose.foundation.layout.widthIn
 import com.bennybar.luli_for_reddit.feature.feed.ReminderLine
@@ -1467,17 +1473,35 @@ private fun Badge(text: String, bg: Color, fg: Color, size: androidx.compose.ui.
     )
 }
 
-/** A user's flair in this community, next to their name (#31). */
+/** A user's flair in this community, next to their name (#31): its text, with its emoji drawn inline. */
 @Composable
-private fun FlairChip(text: String) {
+private fun FlairChip(flair: UserFlair) {
     val cs = MaterialTheme.colorScheme
+    val (text, emoji) = remember(flair) {
+        val emoji = LinkedHashMap<String, InlineTextContent>()
+        val text = buildAnnotatedString {
+            flair.parts.forEachIndexed { i, p ->
+                if (p.emojiUrl != null) {
+                    val id = "e$i"
+                    appendInlineContent(id, "□")
+                    emoji[id] = InlineTextContent(Placeholder(14.sp, 14.sp, PlaceholderVerticalAlign.TextCenter)) {
+                        AsyncImage(p.emojiUrl, null, Modifier.fillMaxSize())
+                    }
+                } else {
+                    append(p.text.orEmpty())
+                }
+            }
+        }
+        text to emoji
+    }
     Text(
         text,
-        Modifier.widthIn(max = 140.dp).clip(RoundedCornerShape(6.dp)).background(cs.surfaceContainerHighest).padding(horizontal = 6.dp, vertical = 1.dp),
+        Modifier.widthIn(max = 160.dp).clip(RoundedCornerShape(6.dp)).background(cs.surfaceContainerHighest).padding(horizontal = 6.dp, vertical = 1.dp),
         fontSize = 11.sp,
         color = cs.onSurfaceVariant,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
+        inlineContent = emoji,
     )
 }
 

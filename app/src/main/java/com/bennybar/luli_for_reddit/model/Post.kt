@@ -57,7 +57,7 @@ data class Post(
     val bodyMedia: Map<String, String> = emptyMap(),
     val pollOptions: List<String> = emptyList(),
     /** The author's user flair in this community, as text (null: none). */
-    val authorFlair: String? = null,
+    val authorFlair: UserFlair? = null,
     /** Votes per option, same order; empty while Reddit hides them (before you vote or it ends). */
     val pollVotes: List<Int> = emptyList(),
     /** Which option you voted for, if you did. */

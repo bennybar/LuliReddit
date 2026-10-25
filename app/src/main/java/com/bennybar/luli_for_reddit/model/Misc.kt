@@ -30,19 +30,44 @@ data class Multireddit(
     }
 }
 
+/** One piece of a user flair: some text, or an emoji (an image Reddit hosts). */
+@Immutable
+data class FlairPart(val text: String? = null, val emojiUrl: String? = null)
+
+/** A user's flair (#31): its text and emoji, in order. */
+@Immutable
+data class UserFlair(val parts: List<FlairPart>) {
+    /** Just the words, for where images can't go. */
+    val text: String get() = parts.mapNotNull { it.text }.joinToString("").replace(Regex("\\s+"), " ").trim()
+}
+
 /**
- * A user's flair as text (#31): the richtext's text parts, else the plain
- * text without its :emoji: codes (the emoji are images we don't draw).
- * Null when there's none.
+ * A user's flair from a post or comment: the richtext's text and emoji
+ * parts; else the plain text without its :emoji: codes (no image links
+ * there). Null when there's none.
  */
-fun authorFlairOf(d: JsonElement?): String? {
+fun authorFlairOf(d: JsonElement?): UserFlair? {
     val rich = d["author_flair_richtext"].arr()
-    val text = if (!rich.isNullOrEmpty()) {
-        rich.filter { it["e"].str() == "text" }.joinToString("") { it["t"].str().orEmpty() }
+    val parts = if (!rich.isNullOrEmpty()) {
+        rich.mapNotNull { p ->
+            when (p["e"].str()) {
+                "text" -> p["t"].str()?.takeIf { it.isNotEmpty() }?.let { FlairPart(text = it) }
+                "emoji" -> p["u"].str()?.takeIf { it.startsWith("http") }?.let { FlairPart(emojiUrl = it) }
+                else -> null
+            }
+        }
     } else {
-        d["author_flair_text"].str().orEmpty().replace(Regex(":[\\w-]+:"), "")
+        listOfNotNull(
+            d["author_flair_text"].str()?.replace(Regex(":[\\w-]+:"), "")?.replace(Regex("\\s+"), " ")?.trim()
+                ?.takeIf { it.isNotEmpty() }?.let { FlairPart(text = it) },
+        )
     }
-    return text.replace(Regex("\\s+"), " ").trim().ifEmpty { null }
+    // Tidy the ends: no leading / trailing spaces around the emoji.
+    val tidy = parts.mapIndexed { i, p ->
+        if (p.text == null) p
+        else p.copy(text = p.text.let { t -> if (i == 0) t.trimStart() else t }.let { t -> if (i == parts.lastIndex) t.trimEnd() else t })
+    }.filter { it.emojiUrl != null || !it.text.isNullOrEmpty() }
+    return tidy.takeIf { it.isNotEmpty() }?.let(::UserFlair)
 }
 
 /** A choice of user flair in a community, and whether you may write your own text in it. */

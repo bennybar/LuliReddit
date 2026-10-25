@@ -32,7 +32,7 @@ data class Comment(
     val saved: Boolean = false,
     val likes: Boolean? = null,
     /** The author's user flair in this community, as text (null: none). */
-    val authorFlair: String? = null,
+    val authorFlair: UserFlair? = null,
     // Present on user/saved comment listings — link back to the parent post.
     val linkTitle: String = "",
     val permalink: String = "",
