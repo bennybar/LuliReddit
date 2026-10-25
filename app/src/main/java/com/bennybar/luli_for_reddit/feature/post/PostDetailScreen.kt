@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import androidx.compose.foundation.layout.widthIn
 import com.bennybar.luli_for_reddit.feature.feed.ReminderLine
 import com.bennybar.luli_for_reddit.feature.reminders.PostReminders
 import com.bennybar.luli_for_reddit.feature.feed.PollOptions
@@ -986,12 +987,18 @@ private fun PostHeader(post: Post, fresh: Boolean) {
             color = cs.primary,
         )
         Spacer(Modifier.height(2.dp))
-        Text(
-            "u/${p.author} · ${timeAgo(p.createdUtc)}",
-            Modifier.clickable { nav.openUser(p.author) },
-            fontSize = 12.sp,
-            color = cs.onSurfaceVariant,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "u/${p.author} · ${timeAgo(p.createdUtc)}",
+                Modifier.clickable { nav.openUser(p.author) },
+                fontSize = 12.sp,
+                color = cs.onSurfaceVariant,
+            )
+            p.authorFlair?.let {
+                Spacer(Modifier.width(6.dp))
+                FlairChip(it)
+            }
+        }
         Spacer(Modifier.height(12.dp))
         Text(p.title, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, lineHeight = 1.3.em))
         p.linkFlairText?.let { flair ->
@@ -1094,14 +1101,20 @@ private fun CalmPostHeader(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    "u/${p.author} · ${timeAgo(p.createdUtc)}",
-                    Modifier.clickable { nav.openUser(p.author) },
-                    fontSize = 12.5.sp,
-                    color = cs.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "u/${p.author} · ${timeAgo(p.createdUtc)}",
+                        Modifier.clickable { nav.openUser(p.author) },
+                        fontSize = 12.5.sp,
+                        color = cs.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    p.authorFlair?.let {
+                        Spacer(Modifier.width(6.dp))
+                        FlairChip(it)
+                    }
+                }
             }
             if (signedIn && joined != null) {
                 Spacer(Modifier.width(8.dp))
@@ -1398,6 +1411,10 @@ private fun CommentTile(
                     Spacer(Modifier.width(6.dp))
                     Badge("PINNED", cs.secondaryContainer, cs.onSecondaryContainer, 10.sp)
                 }
+                comment.authorFlair?.let {
+                    Spacer(Modifier.width(6.dp))
+                    FlairChip(it)
+                }
                 Spacer(Modifier.width(8.dp))
                 Text("· ${timeAgo(comment.createdUtc)}", fontSize = 12.5.sp, color = cs.onSurfaceVariant, maxLines = 1)
                 if (isNew) {
@@ -1445,6 +1462,20 @@ private fun Badge(text: String, bg: Color, fg: Color, size: androidx.compose.ui.
         fontWeight = FontWeight.ExtraBold,
         color = fg,
         maxLines = 1,
+    )
+}
+
+/** A user's flair in this community, next to their name (#31). */
+@Composable
+private fun FlairChip(text: String) {
+    val cs = MaterialTheme.colorScheme
+    Text(
+        text,
+        Modifier.widthIn(max = 140.dp).clip(RoundedCornerShape(6.dp)).background(cs.surfaceContainerHighest).padding(horizontal = 6.dp, vertical = 1.dp),
+        fontSize = 11.sp,
+        color = cs.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
     )
 }
 
@@ -1670,6 +1701,10 @@ private fun CalmCommentRow(
                 if (comment.stickied) {
                     Spacer(Modifier.width(6.dp))
                     Badge("PINNED", cs.secondaryContainer, cs.onSecondaryContainer, 10.sp)
+                }
+                comment.authorFlair?.let {
+                    Spacer(Modifier.width(6.dp))
+                    FlairChip(it)
                 }
                 Spacer(Modifier.width(6.dp))
                 Text("· ${timeAgo(comment.createdUtc)}", fontSize = 13.sp, color = cs.onSurfaceVariant, maxLines = 1)

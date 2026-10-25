@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit
 
+import com.bennybar.luli_for_reddit.feature.feed.CustomFeedsScreen
 import com.bennybar.luli_for_reddit.feature.about.WhatsNewScreen
 import android.view.KeyEvent
 import android.content.Intent
@@ -312,6 +313,7 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
                 screen<Route.ContentFilters> { ContentFiltersScreen() }
                 screen<Route.Policy> { PolicyScreen() }
                 screen<Route.WhatsNew> { WhatsNewScreen() }
+                screen<Route.CustomFeeds> { CustomFeedsScreen() }
                 screen<Route.History> { HistoryScreen() }
                 screen<Route.Summaries> { SummariesScreen() }
                 screen<Route.Saved> { SavedScreen() }

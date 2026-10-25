@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -204,7 +205,10 @@ internal fun ExploreTab() {
             if (multiList.isNotEmpty() || !anonymous) {
                 item(key = "multis") {
                     Column {
-                        SectionHeader("Custom feeds", Modifier.padding(start = 16.dp, top = 14.dp, end = 16.dp, bottom = 2.dp))
+                        Row(Modifier.padding(start = 16.dp, top = 6.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            SectionHeader("Custom feeds", Modifier.weight(1f))
+                            if (!anonymous) TextButton(onClick = { nav.push(Route.CustomFeeds) }) { Text("See all") }
+                        }
                         LazyRow(
                             Modifier.height(48.dp),
                             contentPadding = PaddingValues(horizontal = 12.dp),
@@ -251,7 +255,7 @@ internal fun ExploreTab() {
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.ExtraBold,
                     )
-                    TabMenuButton()
+                    SettingsButton()
                 }
             }
             item(key = "filter") {

@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import androidx.compose.material.icons.rounded.DynamicFeed
 import kotlinx.coroutines.launch
 import com.bennybar.luli_for_reddit.auth.SessionState
 import androidx.compose.material.icons.rounded.EditNote
@@ -362,6 +363,7 @@ private fun SideBar(selected: Int, unread: Int, onTab: (Int) -> Unit, onPick: ((
             HorizontalDivider(Modifier.padding(vertical = 12.dp, horizontal = 16.dp))
             val more = buildList {
                 if (!anonymous) add(Triple(Icons.Outlined.BookmarkBorder, "Saved", Route.Saved))
+                if (!anonymous) add(Triple(Icons.Rounded.DynamicFeed, "Custom feeds", Route.CustomFeeds))
                 add(Triple(Icons.Rounded.History, "History", Route.History))
                 add(Triple(Icons.Rounded.OfflinePin, "Read later", Route.Offline))
                 add(Triple(Icons.Rounded.EditNote, "Drafts", Route.Drafts))

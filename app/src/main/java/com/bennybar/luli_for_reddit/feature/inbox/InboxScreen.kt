@@ -5,7 +5,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.outlined.Notifications
-import com.bennybar.luli_for_reddit.feature.home.TabMenuButton
+import com.bennybar.luli_for_reddit.feature.home.SettingsButton
 import com.bennybar.luli_for_reddit.feature.web.rememberWebSignIn
 import com.bennybar.luli_for_reddit.feature.web.RedditWeb
 import androidx.compose.material.icons.automirrored.outlined.Chat
@@ -153,7 +153,7 @@ fun InboxScreen(reselect: Int) {
                                 }
                             }
                         }) { Icon(Icons.Outlined.MarkEmailRead, "Mark all read") }
-                        TabMenuButton()
+                        SettingsButton()
                     },
                 )
                 PrimaryScrollableTabRow(

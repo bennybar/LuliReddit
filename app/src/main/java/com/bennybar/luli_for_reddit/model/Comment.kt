@@ -31,6 +31,8 @@ data class Comment(
     val scoreHidden: Boolean = false,
     val saved: Boolean = false,
     val likes: Boolean? = null,
+    /** The author's user flair in this community, as text (null: none). */
+    val authorFlair: String? = null,
     // Present on user/saved comment listings — link back to the parent post.
     val linkTitle: String = "",
     val permalink: String = "",
@@ -83,6 +85,7 @@ data class Comment(
                 fullname = d["name"].str() ?: "t1_${d["id"].str()?.removePrefix("t1_")}",
                 parentId = d["parent_id"].str() ?: "",
                 author = d["author"].str() ?: "[deleted]",
+                authorFlair = authorFlairOf(d),
                 body = d["body"].str() ?: "",
                 score = d["score"].int() ?: 0,
                 createdUtc = (d["created_utc"].long() ?: 0L) * 1000,

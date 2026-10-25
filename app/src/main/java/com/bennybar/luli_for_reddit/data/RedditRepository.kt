@@ -1,8 +1,11 @@
 package com.bennybar.luli_for_reddit.data
 
+import com.bennybar.luli_for_reddit.model.UserFlairSelector
+import com.bennybar.luli_for_reddit.model.UserFlairChoice
 import com.bennybar.luli_for_reddit.app
 import com.bennybar.luli_for_reddit.core.arr
 import com.bennybar.luli_for_reddit.core.get
+import com.bennybar.luli_for_reddit.core.isTrue
 import com.bennybar.luli_for_reddit.core.net.Http
 import com.bennybar.luli_for_reddit.core.net.RedditApiException
 import com.bennybar.luli_for_reddit.core.net.RedditClient
@@ -548,6 +551,42 @@ class RedditRepository(val client: RedditClient) {
 
     // --- Flair ---
 
+    /**
+     * Your user flair in [subreddit] (from its About, which carries it for the
+     * signed-in user) and the choices it offers (user_flair_v2; empty when it
+     * has none for you, or won't let you pick).
+     */
+    suspend fun getUserFlairSelector(subreddit: String): UserFlairSelector {
+        val about = client.get("/r/$subreddit/about")["data"]
+        val choices = try {
+            // ".json": the website session's www host 404s this path without it.
+            client.get("/r/$subreddit/api/user_flair_v2.json").arr().orEmpty().mapNotNull { c ->
+                UserFlairChoice(
+                    id = c["id"].str() ?: return@mapNotNull null,
+                    text = c["text"].str()?.trim().orEmpty(),
+                    editable = c["text_editable"].isTrue(),
+                )
+            }
+        } catch (_: Exception) {
+            emptyList() // 403: no user flair here for you
+        }
+        return UserFlairSelector(
+            currentText = about["user_flair_text"].str()?.replace(Regex(":[\\w-]+:"), "")?.trim()?.ifEmpty { null },
+            currentId = about["user_flair_template_id"].str()?.ifEmpty { null },
+            choices = choices,
+        )
+    }
+
+    /** Sets your user flair in [subreddit] ([choice] null: no flair). [text]: your words, for an editable choice. */
+    suspend fun setUserFlair(subreddit: String, username: String, choice: UserFlairChoice?, text: String?) {
+        val data = linkedMapOf<String, Any?>("api_type" to "json", "name" to username)
+        if (choice != null) {
+            data["flair_template_id"] = choice.id
+            if (choice.editable && text != null) data["text"] = text
+        }
+        throwIfErrors(client.post("/r/$subreddit/api/selectflair", data))
+    }
+
     suspend fun getLinkFlairs(subreddit: String): List<Flair> = try {
         (client.get("/r/$subreddit/api/link_flair").arr() ?: emptyList()).map(Flair::fromJson).filter { it.text.isNotEmpty() }
     } catch (_: Exception) {
@@ -661,6 +700,29 @@ class RedditRepository(val client: RedditClient) {
     }
 
     suspend fun deleteMultireddit(multipath: String) { client.delete("/api/multi$multipath") }
+
+    /** Renames / re-describes a custom feed, or makes it public or private (its communities stay). */
+    suspend fun updateMultireddit(multi: Multireddit, displayName: String, description: String, visibility: String) {
+        val multipath = multi.path.trimEnd('/')
+        val model = buildJsonObject {
+            put("display_name", displayName)
+            put("description_md", description)
+            put("visibility", visibility)
+            put("subreddits", JsonArray(multi.subreddits.map { buildJsonObject { put("name", it) } }))
+        }
+        throwIfErrors(client.putForm("/api/multi$multipath", mapOf("model" to model.toString(), "multipath" to multipath, "api_type" to "json")))
+    }
+
+    /** Copies someone's (public) custom feed into yours as [displayName]. */
+    suspend fun copyMultireddit(fromPath: String, username: String, displayName: String) {
+        val name = displayName.lowercase().replace(Regex("[^a-z0-9_]+"), "_").trim('_').take(50).ifEmpty { "feed" }
+        throwIfErrors(
+            client.post(
+                "/api/multi/copy",
+                mapOf("from" to fromPath.trimEnd('/'), "to" to "/user/$username/m/$name", "display_name" to displayName, "api_type" to "json"),
+            ),
+        )
+    }
 
     suspend fun addSubredditToMulti(multipath: String, subreddit: String) {
         client.put("/api/multi$multipath/r/$subreddit", buildJsonObject { put("name", subreddit) }.toString())

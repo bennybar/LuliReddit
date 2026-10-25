@@ -30,6 +30,29 @@ data class Multireddit(
     }
 }
 
+/**
+ * A user's flair as text (#31): the richtext's text parts, else the plain
+ * text without its :emoji: codes (the emoji are images we don't draw).
+ * Null when there's none.
+ */
+fun authorFlairOf(d: JsonElement?): String? {
+    val rich = d["author_flair_richtext"].arr()
+    val text = if (!rich.isNullOrEmpty()) {
+        rich.filter { it["e"].str() == "text" }.joinToString("") { it["t"].str().orEmpty() }
+    } else {
+        d["author_flair_text"].str().orEmpty().replace(Regex(":[\\w-]+:"), "")
+    }
+    return text.replace(Regex("\\s+"), " ").trim().ifEmpty { null }
+}
+
+/** A choice of user flair in a community, and whether you may write your own text in it. */
+@Immutable
+data class UserFlairChoice(val id: String, val text: String, val editable: Boolean)
+
+/** Your flair in a community now, and what you can pick from. */
+@Immutable
+data class UserFlairSelector(val currentText: String?, val currentId: String?, val choices: List<UserFlairChoice>)
+
 /** A subreddit link flair template. */
 @Immutable
 data class Flair(val id: String, val text: String) {

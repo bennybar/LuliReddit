@@ -48,10 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathFillType
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
@@ -314,23 +311,6 @@ fun CenterMessage(text: String, modifier: Modifier = Modifier) {
     Box(modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
         Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
-}
-
-/** Material's `edit_square` (pencil in a square), missing from the Compose icon set. */
-val EditSquareIcon: ImageVector by lazy {
-    ImageVector.Builder("EditSquare", 24.dp, 24.dp, 960f, 960f).apply {
-        addGroup(translationY = 960f)
-        addPath(
-            pathData = addPathNodes(
-                "M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h357L357-640v280h280l203-203v363" +
-                    "q0 33-23.5 56.5T760-120H200Zm160-240v-170l367-367q12-12 27-18t30-6q16 0 30.5 6t26.5 18l56 57" +
-                    "q11 12 17 26.5t6 29.5q0 15-5.5 29.5T897-728L530-360H360Z",
-            ),
-            fill = SolidColor(Color.Black),
-            pathFillType = PathFillType.NonZero,
-        )
-        clearGroup()
-    }.build()
 }
 
 /** Spacing helper for vertical lists of cards. */

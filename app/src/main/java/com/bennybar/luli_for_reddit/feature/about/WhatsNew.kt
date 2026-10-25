@@ -45,6 +45,15 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.34", "Oct 25, 2026",
+        listOf(
+            "User flairs next to names in posts and comments, and set your own flair from a community's About",
+            "Custom feeds: one screen with all of them, rename, describe, make public or private, share, copy someone's public feed, and tap a community to open it",
+            "A ⚙ button opens Settings directly; the Expandable top bar gets a search button",
+            "Neater ☰ alignment and a cleaner New post icon",
+        ),
+    ),
+    Release(
         "2.0.33", "Oct 22, 2026",
         listOf("And the other way: replies you opened in Reddit's notifications show as read in Ilay's Inbox (website sign-in)"),
     ),

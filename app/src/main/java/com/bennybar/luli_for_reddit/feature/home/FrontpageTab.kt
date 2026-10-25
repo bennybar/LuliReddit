@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import androidx.compose.material.icons.outlined.PostAdd
 import androidx.compose.material.icons.outlined.Settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -68,7 +69,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.bennybar.luli_for_reddit.app
 import com.bennybar.luli_for_reddit.auth.SessionState
-import com.bennybar.luli_for_reddit.feature.feed.EditSquareIcon
 import com.bennybar.luli_for_reddit.feature.feed.GlassSurface
 import com.bennybar.luli_for_reddit.feature.feed.LetterAvatar
 import com.bennybar.luli_for_reddit.feature.feed.PostListView
@@ -132,7 +132,12 @@ internal fun FrontpageTab(chromeVisible: Boolean) {
             modifier = Modifier.weight(1f),
             header = {
                 Row(
-                    Modifier.fillMaxWidth().padding(start = 16.dp, top = if (expandable) 10.dp else 8.dp, end = if (expandable) 4.dp else 16.dp),
+                    Modifier.fillMaxWidth().padding(
+                        // With the ☰ there, line it up with the other tabs' (4dp + the button's own inset).
+                        start = if (expandable && LocalSideBar.current != null) 4.dp else 16.dp,
+                        top = if (expandable) 10.dp else 8.dp,
+                        end = if (expandable) 4.dp else 16.dp,
+                    ),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     // Full mode has it in the action row above.
@@ -155,8 +160,9 @@ internal fun FrontpageTab(chromeVisible: Boolean) {
                     } else {
                         Spacer(Modifier.weight(1f))
                     }
-                    // Expandable mode: one button that floats the toolbar in.
+                    // Expandable mode: search right here, and one button that floats the toolbar in.
                     if (expandable) {
+                        IconButton(onClick = { nav.push(Route.Search()) }) { Icon(Icons.Rounded.Search, "Search") }
                         IconButton(onClick = { showFloatingToolbar(nav, username) }) {
                             Icon(Icons.Rounded.MoreHoriz, "Toolbar")
                         }
@@ -173,7 +179,7 @@ private fun NewPostButton(onClick: () -> Unit) {
     FilledIconButton(
         onClick = onClick,
         colors = IconButtonDefaults.filledIconButtonColors(containerColor = cs.primary, contentColor = cs.onPrimary),
-    ) { Icon(EditSquareIcon, "New post", Modifier.size(22.dp)) }
+    ) { Icon(Icons.Outlined.PostAdd, "New post", Modifier.size(22.dp)) }
 }
 
 @Composable
@@ -336,7 +342,7 @@ private fun ToolbarPanel(username: String, onSearch: () -> Unit, onNewPost: () -
                 ProfileAvatar(username, 44.dp, onProfile)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                PanelButton(EditSquareIcon, "New post", Modifier.weight(1f), onNewPost)
+                PanelButton(Icons.Outlined.PostAdd, "New post", Modifier.weight(1f), onNewPost)
                 PanelButton(Icons.Outlined.Settings, "Settings", Modifier.weight(1f), onSettings)
             }
             Column(

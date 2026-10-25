@@ -56,6 +56,8 @@ data class Post(
     /** Images / GIFs referenced inside the body (`media_metadata`), by id — shown inline, not as links. */
     val bodyMedia: Map<String, String> = emptyMap(),
     val pollOptions: List<String> = emptyList(),
+    /** The author's user flair in this community, as text (null: none). */
+    val authorFlair: String? = null,
     /** Votes per option, same order; empty while Reddit hides them (before you vote or it ends). */
     val pollVotes: List<Int> = emptyList(),
     /** Which option you voted for, if you did. */
@@ -112,6 +114,7 @@ data class Post(
                 subredditIcon = (d["sr_detail"]["community_icon"].str()?.ifEmpty { null } ?: d["sr_detail"]["icon_img"].str()?.ifEmpty { null })
                     ?.replace("&amp;", "&"),
                 author = d["author"].str() ?: "[deleted]",
+                authorFlair = authorFlairOf(d),
                 score = d["score"].int() ?: 0,
                 numComments = d["num_comments"].int() ?: 0,
                 upvoteRatio = d["upvote_ratio"].double() ?: 0.0,

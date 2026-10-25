@@ -103,7 +103,7 @@ internal fun ProfileTab() {
                     Icon(Icons.Rounded.PeopleAlt, "Switch / add account")
                 }
             }
-            TabMenuButton()
+            SettingsButton()
         }
         if (anonymous || username.isEmpty()) {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 130.dp)) {

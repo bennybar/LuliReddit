@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
@@ -88,8 +90,24 @@ fun ManageMultiredditScreen(username: String, name: String) {
     Scaffold(
         topBar = {
             BloomTopBar(
-                name,
+                (async as? Async.Data)?.value?.displayName?.ifEmpty { null } ?: name,
                 actions = {
+                    IconButton(onClick = {
+                        val multi = (async as? Async.Data)?.value ?: return@IconButton
+                        scope.launch {
+                            val e = editFeedDialog("Edit feed", "Save", multi.displayName, multi.descriptionMd, multi.visibility) ?: return@launch
+                            try {
+                                repo.updateMultireddit(multi, e.displayName, e.description, e.visibility)
+                                vm.reload()
+                                app.feed.loadMultireddits(force = true)
+                            } catch (ex: Exception) {
+                                nav.showActionError("update the feed", ex)
+                            }
+                        }
+                    }) { Icon(Icons.Rounded.Edit, "Edit name, description, visibility") }
+                    IconButton(onClick = { nav.share("https://www.reddit.com/user/$username/m/$name/") }) {
+                        Icon(Icons.Outlined.Share, "Share link")
+                    }
                     IconButton(onClick = {
                         val multi = (async as? Async.Data)?.value ?: return@IconButton
                         scope.launch {
@@ -131,6 +149,14 @@ fun ManageMultiredditScreen(username: String, name: String) {
                     } else {
                         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
                             item {
+                                Text(
+                                    (if (multi.visibility == "public") "Public: anyone with the link can see it" else "Private: only you can see it") +
+                                        multi.descriptionMd.takeIf { it.isNotBlank() }?.let { "\n\n$it" }.orEmpty(),
+                                    Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            item {
                                 FilledTonalButton(
                                     onClick = {
                                         scope.launch {
@@ -155,6 +181,7 @@ fun ManageMultiredditScreen(username: String, name: String) {
                                 Tile(
                                     title = { Text("r/$sr") },
                                     leading = { Icon(Icons.Rounded.SubdirectoryArrowRight, null) },
+                                    onClick = { nav.openSubreddit(sr) },
                                     trailing = {
                                         IconButton(onClick = {
                                             scope.launch {

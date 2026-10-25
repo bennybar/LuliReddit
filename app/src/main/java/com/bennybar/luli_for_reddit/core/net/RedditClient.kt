@@ -253,6 +253,16 @@ class RedditClient(
         return parseOrThrow(status, text)
     }
 
+    /** Form-encoded PUT (e.g. updating a multireddit's model). */
+    suspend fun putForm(path: String, data: Map<String, Any?>): JsonElement? {
+        ensureConfig()
+        val form = FormBody.Builder().apply {
+            for ((k, v) in data) if (v != null) add(k, v.toString())
+        }.build()
+        val (status, text) = execute("PUT", buildUrl(path, isGet = false, emptyMap()), form)
+        return parseOrThrow(status, text)
+    }
+
     suspend fun put(path: String, json: String): JsonElement? {
         ensureConfig()
         val (status, text) = execute("PUT", buildUrl(path, isGet = false, emptyMap()), json.toRequestBody(JSON))

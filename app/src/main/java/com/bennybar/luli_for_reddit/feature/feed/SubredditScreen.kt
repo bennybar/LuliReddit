@@ -1,5 +1,12 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.runtime.remember
+import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.rounded.CheckCircle
+import com.bennybar.luli_for_reddit.feature.settings.TextResult
+import com.bennybar.luli_for_reddit.feature.settings.textDialog
+import com.bennybar.luli_for_reddit.model.UserFlairChoice
+import com.bennybar.luli_for_reddit.model.UserFlairSelector
 import com.bennybar.luli_for_reddit.auth.SessionState
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.animation.AnimatedVisibility
@@ -185,6 +192,8 @@ private suspend fun showAbout(name: String, about: Subreddit?) {
     Overlays.show<Unit> { done ->
         val cs = MaterialTheme.colorScheme
         ModalBottomSheet(onDismissRequest = { done(null) }) {
+            val session by app.session.state.collectAsStateWithLifecycle()
+            val signedIn = (session as? SessionState.LoggedIn)?.session?.anonymous == false
             val rules by produceState<List<Pair<String, String>>?>(null) {
                 value = runCatching { app.repository.getSubredditRules(name) }.getOrDefault(emptyList())
             }
@@ -197,6 +206,7 @@ private suspend fun showAbout(name: String, about: Subreddit?) {
                     if (about != null) {
                         Text("${compactNumber(about.subscribers)} members", Modifier.padding(top = 4.dp), color = cs.onSurfaceVariant)
                     }
+                    if (signedIn) YourFlair(name)
                     if (about != null && about.description.isNotEmpty()) {
                         Spacer(Modifier.height(12.dp))
                         Text(about.description)
@@ -233,5 +243,91 @@ private fun RuleTile(index: Int, title: String, description: String) {
         AnimatedVisibility(open) {
             if (description.isNotEmpty()) Text(description, Modifier.padding(bottom = 12.dp))
         }
+    }
+}
+
+/**
+ * Your user flair in r/[sub] (#31): what it is, and Change when the
+ * community offers flair you can pick (No flair, a choice, or your own words
+ * where a choice allows it).
+ */
+@Composable
+private fun YourFlair(sub: String) {
+    val cs = MaterialTheme.colorScheme
+    val scope = rememberCoroutineScope()
+    var version by remember { mutableStateOf(0) }
+    val selector by produceState<Result<UserFlairSelector>?>(null, version) {
+        value = runCatching { app.repository.getUserFlairSelector(sub) }
+    }
+    val s = selector?.getOrNull()
+    Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            when {
+                selector == null -> "Your flair: …"
+                s == null -> "Your flair: couldn't load"
+                s.currentText != null -> "Your flair: ${s.currentText}"
+                s.choices.isEmpty() -> "No user flair in this community"
+                else -> "Your flair: none"
+            },
+            Modifier.weight(1f),
+            color = cs.onSurfaceVariant,
+        )
+        if (s != null && s.choices.isNotEmpty()) {
+            TextButton(onClick = {
+                scope.launch {
+                    if (pickUserFlair(sub, s)) version++
+                }
+            }) { Text("Change") }
+        }
+    }
+}
+
+private object NoFlair
+
+/** Picks and sets your flair in [sub]; true if it changed. */
+@OptIn(ExperimentalMaterial3Api::class)
+private suspend fun pickUserFlair(sub: String, s: UserFlairSelector): Boolean {
+    val picked = Overlays.show<Any> { done ->
+        val cs = MaterialTheme.colorScheme
+        ModalBottomSheet(onDismissRequest = { done(null) }) {
+            LazyColumn(Modifier.navigationBarsPadding().padding(bottom = 8.dp)) {
+                item {
+                    Text(
+                        "Your flair in r/$sub",
+                        Modifier.padding(start = 20.dp, top = 4.dp, end = 20.dp, bottom = 8.dp),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                item {
+                    Tile(title = { Text("No flair") }, onClick = { done(NoFlair) },
+                        trailing = { if (s.currentId == null && s.currentText == null) Icon(Icons.Rounded.CheckCircle, null, tint = cs.primary) })
+                }
+                items(s.choices.size) { i ->
+                    val c = s.choices[i]
+                    Tile(
+                        title = { Text(c.text.ifEmpty { "(write your own)" }) },
+                        subtitle = if (c.editable) ({ Text("You can change the text") }) else null,
+                        trailing = { if (c.id == s.currentId) Icon(Icons.Rounded.CheckCircle, null, tint = cs.primary) },
+                        onClick = { done(c) },
+                    )
+                }
+            }
+        }
+    } ?: return false
+    val choice = picked as? UserFlairChoice
+    var text: String? = null
+    if (choice != null && choice.editable) {
+        val r = textDialog("Flair text", initial = if (choice.id == s.currentId) s.currentText ?: choice.text else choice.text) as? TextResult.Save
+            ?: return false
+        text = r.text.trim()
+    }
+    return try {
+        app.repository.setUserFlair(sub, app.session.username, choice, text)
+        app.navigatorOrNull?.showSnackbar(if (choice == null) "Flair removed" else "Flair set")
+        true
+    } catch (e: Exception) {
+        app.navigatorOrNull?.showActionError("set your flair", e)
+        false
     }
 }
