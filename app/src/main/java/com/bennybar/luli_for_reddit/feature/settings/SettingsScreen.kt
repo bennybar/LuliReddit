@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.settings
 
+import androidx.compose.material.icons.rounded.ViewCarousel
 import com.bennybar.luli_for_reddit.ui.PickOneMenu
 import androidx.compose.material.icons.rounded.CropFree
 import androidx.compose.material.icons.rounded.Menu
@@ -549,6 +550,10 @@ fun SettingsList(
                 Icons.AutoMirrored.Rounded.VolumeUp, s.autoplaySound, ctrl::setAutoplaySound,
             )
         }
+        switch(
+            "Gallery carousel in feeds", "Galleries show a big image with the next ones beside it. Off: one image at a time",
+            Icons.Rounded.ViewCarousel, s.feedGalleryCarousel, ctrl::setFeedGalleryCarousel,
+        )
         switch("Blur NSFW media", "Tap to reveal blurred images", Icons.Rounded.BlurOn, s.blurNsfw, ctrl::setBlurNsfw)
         switch(
             "Data-saver thumbnails", "Load smaller preview images in feeds (faster, less data)",

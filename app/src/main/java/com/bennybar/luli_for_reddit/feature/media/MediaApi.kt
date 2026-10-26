@@ -138,12 +138,12 @@ suspend fun saveMediaToGallery(url: String, isVideo: Boolean) = saveMedia(url, i
 /**
  * A gallery as a Material 3 carousel (#30), for the post screen: a large
  * image with the next ones peeking beside it, each opening the full-screen
- * viewer at that image. Feeds keep [GalleryCarousel] (one image at a time),
- * which is lighter while scrolling.
+ * viewer at that image. Feeds use it too unless Settings › Gallery carousel
+ * in feeds is off (then [GalleryCarousel], one image at a time).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GalleryM3Carousel(images: List<GalleryImage>, modifier: Modifier = Modifier, title: String? = null) {
+fun GalleryM3Carousel(images: List<GalleryImage>, modifier: Modifier = Modifier, title: String? = null, height: Dp = 300.dp) {
     if (images.isEmpty()) return
     val nav = LocalNavigator.current
     val cs = MaterialTheme.colorScheme
@@ -156,7 +156,7 @@ fun GalleryM3Carousel(images: List<GalleryImage>, modifier: Modifier = Modifier,
             itemSpacing = 8.dp,
             // A fling moves several images, not one: long galleries go quicker.
             flingBehavior = CarouselDefaults.multiBrowseFlingBehavior(state),
-            modifier = Modifier.fillMaxWidth().height(300.dp),
+            modifier = Modifier.fillMaxWidth().height(height),
         ) { i ->
             var failed by remember { mutableStateOf(false) }
             Box(

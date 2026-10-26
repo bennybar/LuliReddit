@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.feature.media.GalleryM3Carousel
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.Role
@@ -560,7 +561,7 @@ private fun BannerMedia(p: Post, a: PostActions, s: Settings, height: Dp) {
     val blur = blurOf(p, s)
     if (p.type == PostType.GALLERY && p.gallery.isNotEmpty()) {
         NsfwBlur(blur, Modifier.padding(bottom = 4.dp), label = blurLabel(p, s)) {
-            GalleryCarousel(p.gallery, title = p.title, height = height)
+            FeedGallery(p, s, height = height)
         }
         return
     }
@@ -693,6 +694,20 @@ private fun Flair(text: String) {
     )
 }
 
+/**
+ * A gallery in a feed card: the Material 3 carousel (2+ images, Settings ›
+ * Gallery carousel in feeds), else one image at a time. [height]: the card's
+ * media height; the carousel keeps it between 220 and 340dp.
+ */
+@Composable
+private fun FeedGallery(p: Post, s: Settings, modifier: Modifier = Modifier, height: Dp? = null) {
+    if (s.feedGalleryCarousel && p.gallery.size > 1) {
+        GalleryM3Carousel(p.gallery, title = p.title, height = (height ?: 300.dp).coerceIn(220.dp, 340.dp))
+    } else {
+        GalleryCarousel(p.gallery, modifier, title = p.title, height = height)
+    }
+}
+
 /** "Reminder tomorrow at 09:00" on a post you asked to be reminded about (cards and the post screen); tap to change or cancel. */
 @Composable
 fun ReminderLine(p: Post) {
@@ -785,7 +800,7 @@ private fun Media(p: Post, a: PostActions, s: Settings) {
     when (p.type) {
         PostType.GALLERY -> if (p.gallery.isNotEmpty()) {
             NsfwBlur(blur, Modifier.padding(bottom = 4.dp), label = blurLabel(p, s)) {
-                GalleryCarousel(p.gallery, title = p.title)
+                FeedGallery(p, s)
             }
         } else {
             NsfwBlur(blur, blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, s)) { MediaPreview(p, a, s) }
@@ -1370,7 +1385,7 @@ private fun CalmMedia(p: Post, a: PostActions, s: Settings, shape: androidx.comp
         val height = maxWidth / aspect
         if (p.type == PostType.GALLERY && p.gallery.isNotEmpty()) {
             NsfwBlur(blur, label = blurLabel(p, s)) {
-                GalleryCarousel(p.gallery, Modifier.clip(shape), title = p.title, height = height)
+                FeedGallery(p, s, Modifier.clip(shape), height = height)
             }
             return@BoxWithConstraints
         }

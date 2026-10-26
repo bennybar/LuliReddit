@@ -45,6 +45,10 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.40", "Oct 26, 2026",
+        listOf("Galleries in your feeds use the carousel too (turn it off in Settings → Media → Gallery carousel in feeds)"),
+    ),
+    Release(
         "2.0.39", "Oct 26, 2026",
         listOf(
             "Material 3 Expressive menus: grouped, with the current choice highlighted (Display, sort, comment ⋯)",
