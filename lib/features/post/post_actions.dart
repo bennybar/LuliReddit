@@ -290,6 +290,8 @@ void alreadySeen(BuildContext context, WidgetRef ref, Post post) {
   messenger.clearSnackBars();
   messenger.showSnackBar(SnackBar(
     content: const Text('Marked as seen'),
+    // An action would otherwise keep it on screen until dismissed.
+    persist: false,
     action: SnackBarAction(
       label: 'Undo',
       onPressed: () {
@@ -314,6 +316,8 @@ Future<void> hidePost(BuildContext context, WidgetRef ref, Post post) async {
     messenger.clearSnackBars();
     messenger.showSnackBar(SnackBar(
       content: const Text('Post hidden'),
+      // An action would otherwise keep it on screen until dismissed.
+      persist: false,
       action: SnackBarAction(
         label: 'Undo',
         onPressed: () async {

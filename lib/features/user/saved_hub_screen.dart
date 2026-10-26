@@ -123,6 +123,8 @@ class _SavedHubScreenState extends ConsumerState<SavedHubScreen> {
     repo.setSaved(fullname, false).then((_) {
       messenger.showSnackBar(SnackBar(
         content: const Text('Removed from Saved'),
+        // An action would otherwise keep it on screen until dismissed.
+        persist: false,
         action: SnackBarAction(
           label: 'Undo',
           onPressed: () {

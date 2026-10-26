@@ -20,6 +20,8 @@ void showTuneSheet(BuildContext context, WidgetRef ref, Post post) {
     messenger.clearSnackBars();
     messenger.showSnackBar(SnackBar(
       content: Text(msg),
+      // An action would otherwise keep it on screen until dismissed.
+      persist: false,
       action: SnackBarAction(
         label: 'Manage',
         onPressed: () => context.push('/manage_for_you'),

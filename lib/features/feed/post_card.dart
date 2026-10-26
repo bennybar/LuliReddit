@@ -58,6 +58,8 @@ void _undoSnack(BuildContext context, String msg, VoidCallback undo) {
   messenger.clearSnackBars();
   messenger.showSnackBar(SnackBar(
     content: Text(msg),
+    // An action would otherwise keep it on screen until dismissed.
+    persist: false,
     action: SnackBarAction(label: 'Undo', onPressed: undo),
   ));
 }

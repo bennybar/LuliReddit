@@ -186,6 +186,8 @@ void offerReminder(BuildContext context, Post post) {
   final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
   messenger.showSnackBar(SnackBar(
     content: const Text('Saved'),
+    // An action would otherwise keep it on screen until dismissed.
+    persist: false,
     action: SnackBarAction(
         label: 'Remind me', onPressed: () => _pick(nav, messenger, post)),
   ));

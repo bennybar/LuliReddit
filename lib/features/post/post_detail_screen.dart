@@ -330,6 +330,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text("Couldn't refresh: ${friendlyError(e)}"),
+        // An action would otherwise keep it on screen until dismissed.
+        persist: false,
         action: SnackBarAction(label: 'Retry', onPressed: _refresh),
       ));
     }
