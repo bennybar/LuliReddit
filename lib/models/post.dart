@@ -1,5 +1,9 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import '../core/media_links.dart' show textWithoutMedia;
+import 'comment.dart' show mediaUrlsOf;
+import 'flair.dart';
+
 part 'post.freezed.dart';
 
 enum PostType { self, image, video, gif, gallery, link }
@@ -57,15 +61,23 @@ class Post with _$Post {
     @Default(<GalleryImage>[]) List<GalleryImage> gallery,
     // vote state: true=up, false=down, null=none
     bool? likes,
+    // the subreddit's icon (sr_detail)
+    String? subredditIcon,
+    UserFlair? authorFlair,
+    // votes per poll option
+    @Default(<int>[]) List<int> pollVotes,
+    int? pollChoice,
+    // images inside the body, by id
+    @Default(<String, String>{}) Map<String, String> bodyMedia,
   }) = _Post;
 
   /// Parses a single listing child's `data` object.
   factory Post.fromData(Map<String, dynamic> d) {
-    final preview = _firstPreviewImage(d);
-    // A crosspost carries no media of its own (is_video false, media null):
-    // the video or gallery lives on the original post. Without this, crossposted
-    // v.redd.it videos showed up as plain links.
+    // A crosspost carries no content of its own: its text, media and link
+    // live on the original post (its own url just points there).
     final parent = _m(_l(d['crosspost_parent_list'])?.firstOrNull);
+    final content = parent ?? d;
+    final preview = _firstPreviewImage(d) ?? _firstPreviewImage(content);
     Map<String, dynamic>? videoOf(Map<String, dynamic>? x) =>
         _m(_m(x?['media'])?['reddit_video']) ??
         _m(_m(x?['secure_media'])?['reddit_video']);
@@ -76,7 +88,7 @@ class Post with _$Post {
         : _parseGallery(parent);
     // A bare v.redd.it link with no video metadata: its HLS stream sits at a
     // fixed address under the video's id.
-    final url = d['url'] as String? ?? '';
+    final url = content['url'] as String? ?? d['url'] as String? ?? '';
     final vreddit = Uri.tryParse(url);
     final bareVreddit = redditVideo == null &&
         vreddit?.host == 'v.redd.it' &&
@@ -85,6 +97,21 @@ class Post with _$Post {
         parent?['is_video'] == true ||
         redditVideo != null ||
         bareVreddit;
+    final poll = _m(content['poll_data']);
+    final pollRaw = [
+      for (final o in _l(poll?['options']) ?? const [])
+        if ((_m(o)?['text'] as String? ?? '').isNotEmpty) _m(o)!
+    ];
+    final pollVotes = [
+      for (final o in pollRaw) (o['vote_count'] as num?)?.toInt() ?? -1
+    ];
+    final selection = poll?['user_selection'];
+    final pollChoice = selection is String
+        ? pollRaw.indexWhere((o) => o['id'] == selection)
+        : -1;
+    final sr = _m(d['sr_detail']);
+    final icon =
+        _nonEmpty(sr?['community_icon']) ?? _nonEmpty(sr?['icon_img']);
 
     return Post(
       id: d['id'] as String? ?? '',
@@ -92,7 +119,9 @@ class Post with _$Post {
       title: (d['title'] as String? ?? '').trim(),
       subreddit: d['subreddit'] as String? ?? '',
       subredditPrefixed: d['subreddit_name_prefixed'] as String? ?? '',
+      subredditIcon: icon?.replaceAll('&amp;', '&'),
       author: d['author'] as String? ?? '[deleted]',
+      authorFlair: authorFlairOf(d),
       score: (d['score'] as num?)?.toInt() ?? 0,
       numComments: (d['num_comments'] as num?)?.toInt() ?? 0,
       upvoteRatio: (d['upvote_ratio'] as num?)?.toDouble() ?? 0,
@@ -101,11 +130,15 @@ class Post with _$Post {
         isUtc: true,
       ),
       permalink: d['permalink'] as String? ?? '',
-      url: d['url'] as String? ?? '',
-      domain: d['domain'] as String? ?? '',
-      type: _detectType(d, isVideo, gallery.isNotEmpty),
+      url: url,
+      domain: content['domain'] as String? ?? d['domain'] as String? ?? '',
+      type: _detectType(content, isVideo, gallery.isNotEmpty),
+      // The crosspost itself is a link post (it can't be edited as text),
+      // even when it shows the original's text.
       isSelf: d['is_self'] == true,
-      selftext: d['selftext'] as String? ?? '',
+      selftext: _nonEmpty(d['selftext']) ??
+          content['selftext'] as String? ??
+          '',
       over18: d['over_18'] == true,
       spoiler: d['spoiler'] == true,
       stickied: d['stickied'] == true,
@@ -116,12 +149,20 @@ class Post with _$Post {
           ? null
           : d['link_flair_text'] as String?,
       distinguished: d['distinguished'] as String?,
-      crosspostFrom: _crosspostFrom(d),
-      pollOptions: _pollOptions(d),
-      thumbnailUrl: _validThumb(d['thumbnail'] as String?),
+      crosspostFrom: parent?['subreddit'] as String?,
+      bodyMedia: mediaUrlsOf(content['media_metadata']),
+      pollOptions: [for (final o in pollRaw) o['text'] as String],
+      // Empty while Reddit hides the counts (before you vote or it ends).
+      pollVotes: pollVotes.isNotEmpty && pollVotes.every((v) => v >= 0)
+          ? pollVotes
+          : const [],
+      pollChoice: pollChoice >= 0 ? pollChoice : null,
+      thumbnailUrl: _validThumb(d['thumbnail'] as String?) ??
+          _validThumb(content['thumbnail'] as String?),
       previewUrl: preview?.url,
-      previewMedUrl: _medPreviewUrl(d) ?? preview?.url,
-      blurredPreviewUrl: _blurredPreviewUrl(d),
+      previewMedUrl:
+          _medPreviewUrl(d) ?? _medPreviewUrl(content) ?? preview?.url,
+      blurredPreviewUrl: _blurredPreviewUrl(d) ?? _blurredPreviewUrl(content),
       previewWidth: preview?.width,
       previewHeight: preview?.height,
       hlsUrl: redditVideo?['hls_url'] as String? ??
@@ -130,7 +171,7 @@ class Post with _$Post {
               : null),
       fallbackVideoUrl: redditVideo?['fallback_url'] as String?,
       gifMp4Url:
-          _m(_m(d['preview'])?['reddit_video_preview'])?['fallback_url']
+          _m(_m(content['preview'])?['reddit_video_preview'])?['fallback_url']
               as String?,
       gallery: gallery,
       likes: d['likes'] as bool?,
@@ -139,7 +180,15 @@ class Post with _$Post {
 
   bool get hasMedia =>
       previewUrl != null || gallery.isNotEmpty || type == PostType.video;
+
+  /// The body as a feed card previews it: without image / video links that
+  /// the post view shows as media.
+  String get snippet => bodyMedia.isEmpty && !selftext.contains('http')
+      ? selftext
+      : textWithoutMedia(selftext);
 }
+
+String? _nonEmpty(dynamic v) => v is String && v.isNotEmpty ? v : null;
 
 /// Safe casts for Reddit's polymorphic fields (a value can be a Map, "", false,
 /// or null depending on the post — never assume).
@@ -147,20 +196,6 @@ Map<String, dynamic>? _m(dynamic v) => v is Map<String, dynamic>
     ? v
     : (v is Map ? Map<String, dynamic>.from(v) : null);
 List<dynamic>? _l(dynamic v) => v is List ? v : null;
-
-String? _crosspostFrom(Map<String, dynamic> d) {
-  final list = _l(d['crosspost_parent_list']);
-  if (list == null || list.isEmpty) return null;
-  return _m(list.first)?['subreddit'] as String?;
-}
-
-List<String> _pollOptions(Map<String, dynamic> d) {
-  final opts = _l(_m(d['poll_data'])?['options']);
-  if (opts == null) return const [];
-  return [
-    for (final o in opts) _m(o)?['text'] as String? ?? '',
-  ]..removeWhere((e) => e.isEmpty);
-}
 
 PostType _detectType(Map<String, dynamic> d, bool isVideo, bool hasGallery) {
   if (d['is_self'] == true) return PostType.self;

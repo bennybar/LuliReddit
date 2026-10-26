@@ -93,7 +93,7 @@ class Comment with _$Comment {
       linkTitle: (d['link_title'] as String?)?.trim() ?? '',
       permalink: d['permalink'] as String? ?? '',
       subreddit: d['subreddit'] as String? ?? '',
-      media: _mediaUrls(d['media_metadata']),
+      media: mediaUrlsOf(d['media_metadata']),
       replies: replies,
     );
   }
@@ -102,7 +102,7 @@ class Comment with _$Comment {
 /// Resolves a comment's `media_metadata` (GIFs from Reddit's GIF picker,
 /// uploaded images) to one URL per id. Emotes are left out: they're meant to
 /// sit inline in the text, not as full-width media.
-Map<String, String> _mediaUrls(dynamic raw) {
+Map<String, String> mediaUrlsOf(dynamic raw) {
   if (raw is! Map) return const {};
   final out = <String, String>{};
   raw.forEach((key, value) {

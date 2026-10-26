@@ -10,9 +10,14 @@ import '../../core/share.dart';
 import '../../core/widgets/error_view.dart';
 import '../../core/widgets/tap_guard.dart';
 import '../../models/post.dart';
+import '../feed/expiring_ids.dart';
+import '../feed/post_card.dart' show filterOutSub, hideSubFromHome;
 import '../foryou/for_you_learner.dart';
 import '../foryou/tune_sheet.dart';
+import '../history/history_store.dart';
+import '../media/share_media.dart';
 import '../offline/offline_store.dart';
+import '../settings/settings_controller.dart';
 
 /// Bottom sheet of secondary actions for a post: hide, report, crosspost, open.
 void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post) {
@@ -49,6 +54,17 @@ void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post) {
                   context, 'https://reddit.com${post.permalink}', post.title);
             },
           ),
+          if (canShareAsMedia(post))
+            ListTile(
+              leading: const Icon(Icons.perm_media_outlined),
+              title: const Text('Share as media'),
+              subtitle: const Text('The image or video itself, not a link'),
+              onTap: () {
+                Navigator.pop(ctx);
+                ref.read(forYouLearnerProvider).share(post);
+                shareAsMedia(context, post);
+              },
+            ),
           ListTile(
             leading: const Icon(Icons.visibility_off_outlined),
             title: const Text('Hide'),
@@ -57,6 +73,54 @@ void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post) {
               hidePost(context, ref, post);
             },
           ),
+          ListTile(
+            leading: const Icon(Icons.done_all_rounded),
+            title: const Text('Already seen elsewhere'),
+            subtitle: const Text('Mark as read and drop it from your feeds '
+                '(e.g. read in the Reddit app)'),
+            onTap: () {
+              Navigator.pop(ctx);
+              alreadySeen(context, ref, post);
+            },
+          ),
+          if (post.subreddit.isNotEmpty) ...[
+            ListTile(
+              leading: const Icon(Icons.do_not_disturb_on_rounded),
+              title: Text('Hide r/${post.subreddit} for 7 days'),
+              subtitle: const Text(
+                  'From your front page: Home, For You, Best / Hot / New'),
+              onTap: () {
+                Navigator.pop(ctx);
+                hideSubFromHome(context, ref, post);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.filter_alt_outlined),
+              title: Text('Filter out r/${post.subreddit}'),
+              subtitle: const Text(
+                  'From every feed, for good (Settings → Content filters)'),
+              onTap: () {
+                Navigator.pop(ctx);
+                filterOutSub(context, ref, post);
+              },
+            ),
+          ],
+          // The Calm card has no read toggle of its own: it lives here.
+          if (ref.read(settingsControllerProvider).postDisplay.isCalm)
+            Builder(builder: (_) {
+              final seen = ref.read(historyContainsProvider(post.id));
+              return ListTile(
+                leading: Icon(seen
+                    ? Icons.check_circle_rounded
+                    : Icons.check_circle_outline_rounded),
+                title: Text(seen ? 'Mark as unread' : 'Mark as read'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  final h = ref.read(historyControllerProvider.notifier);
+                  seen ? h.removeViewed(post.id) : h.markViewed(post);
+                },
+              );
+            }),
           Consumer(builder: (_, ref, __) {
             final saved = ref.watch(offlineProvider).any((t) => t.id == post.id);
             return ListTile(
@@ -173,25 +237,48 @@ void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post) {
   );
 }
 
-/// Posts hidden this session, filtered out of every feed straight away
-/// (hiding on Reddit only takes effect on the next fetch).
-final hiddenPostsProvider = StateProvider<Set<String>>((ref) => const {});
+/// "Already seen elsewhere" (read in the official app, on the web…): marks
+/// it read, so For You treats it as opened and won't bring it back, and drops
+/// it from the feeds on screen. Local only — Reddit isn't told.
+void alreadySeen(BuildContext context, WidgetRef ref, Post post) {
+  final history = ref.read(historyControllerProvider.notifier);
+  final hidden = ref.read(hiddenPostsProvider.notifier);
+  final wasRead = ref.read(historyContainsProvider(post.id));
+  history.markViewed(post);
+  hidden.add(post.id);
+  final messenger = ScaffoldMessenger.of(context);
+  messenger.clearSnackBars();
+  messenger.showSnackBar(SnackBar(
+    content: const Text('Marked as seen'),
+    action: SnackBarAction(
+      label: 'Undo',
+      onPressed: () {
+        hidden.remove(post.id);
+        if (!wasRead) history.removeViewed(post.id);
+      },
+    ),
+  ));
+}
 
-/// Hides [post] on Reddit and in the open feeds, with Undo.
+/// Hides [post] on Reddit and in the open feeds (for Settings → Hide posts
+/// for), with Undo.
 Future<void> hidePost(BuildContext context, WidgetRef ref, Post post) async {
   final messenger = ScaffoldMessenger.of(context);
   final repo = ref.read(redditRepositoryProvider);
   final hidden = ref.read(hiddenPostsProvider.notifier);
-  hidden.state = {...hidden.state, post.id};
+  final learner = ref.read(forYouLearnerProvider);
+  hidden.add(post.id);
   try {
     await repo.setHidden(post.fullname, true);
+    learner.hidePost(post); // a clear "not for me"
     messenger.clearSnackBars();
     messenger.showSnackBar(SnackBar(
       content: const Text('Post hidden'),
       action: SnackBarAction(
         label: 'Undo',
         onPressed: () async {
-          hidden.state = {...hidden.state}..remove(post.id);
+          hidden.remove(post.id);
+          learner.hidePost(post, undo: true);
           try {
             await repo.setHidden(post.fullname, false);
           } catch (_) {/* best effort */}
@@ -199,7 +286,7 @@ Future<void> hidePost(BuildContext context, WidgetRef ref, Post post) async {
       ),
     ));
   } catch (e) {
-    hidden.state = {...hidden.state}..remove(post.id);
+    hidden.remove(post.id);
     _snack(messenger, "Couldn't hide: ${friendlyError(e)}");
   }
 }

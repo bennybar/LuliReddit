@@ -5,8 +5,9 @@ import 'package:visibility_detector/visibility_detector.dart';
 
 import '../../core/widgets/image_decode.dart';
 
-/// A feed video that autoplays (muted, looping) while it's on screen and pauses
-/// when scrolled away. Tap opens the full-screen viewer (with sound).
+/// A feed video that autoplays (muted unless Autoplay with sound, looping)
+/// while it's on screen and pauses when scrolled away. Tap opens the
+/// full-screen viewer (with sound).
 class InlineVideo extends StatefulWidget {
   const InlineVideo({
     super.key,
@@ -14,12 +15,14 @@ class InlineVideo extends StatefulWidget {
     required this.height,
     required this.onTap,
     this.poster,
+    this.startMuted = true,
   });
 
   final String url;
   final double height;
   final VoidCallback onTap;
   final String? poster;
+  final bool startMuted; // Settings → Autoplay with sound turns it off
 
   @override
   State<InlineVideo> createState() => _InlineVideoState();
@@ -28,7 +31,7 @@ class InlineVideo extends StatefulWidget {
 class _InlineVideoState extends State<InlineVideo> {
   VideoPlayerController? _c;
   bool _ready = false;
-  bool _muted = true;
+  late bool _muted = widget.startMuted;
   bool _visible = false;
   // The first frame has been decoded. Until then the video surface is blank,
   // so swapping the poster out as soon as the controller initialises made the

@@ -11,8 +11,11 @@ import '../../core/analytics.dart';
 import '../../core/format.dart';
 import '../../core/open_link.dart';
 import '../../core/providers.dart';
+import '../../core/share.dart';
 import '../../core/widgets/error_view.dart';
 import '../../core/widgets/image_decode.dart';
+import 'expiring_ids.dart';
+import 'content_filters.dart';
 import 'inline_video.dart';
 import 'post_overrides.dart';
 import '../../core/theme/app_theme.dart';
@@ -21,6 +24,7 @@ import '../history/history_store.dart';
 import '../media/gallery_carousel.dart';
 import '../media/media_viewers.dart';
 import '../media/nsfw_blur.dart';
+import '../media/share_media.dart';
 import '../post/compose_sheet.dart';
 import '../foryou/for_you_learner.dart';
 import '../foryou/tune_sheet.dart';
@@ -28,9 +32,98 @@ import '../post/post_actions.dart';
 import '../settings/settings_controller.dart';
 import 'swipe_actions.dart';
 
+/// Feed preview URL, mid-resolution when the data-saver setting is on.
+String? _cardImg(Post p, Settings s) {
+  final preview =
+      s.midResThumbnails ? (p.previewMedUrl ?? p.previewUrl) : p.previewUrl;
+  if (preview != null) return preview;
+  // Direct image links (preview.redd.it / i.redd.it / i.imgur.com) carry no
+  // preview block — use the URL itself.
+  if (p.type == PostType.image || p.type == PostType.gif) return p.url;
+  return null;
+}
+
+/// The image URL a full-width card shows (shared with the list's prefetcher).
+String? feedImageUrl(Post p, Settings s) =>
+    _cardImg(p, s) ?? (p.gallery.isNotEmpty ? p.gallery.first.url : null);
+
+bool _blurOf(Post p, Settings s) => (p.over18 && s.blurNsfw) || p.spoiler;
+String _blurLabel(Post p, Settings s) =>
+    p.over18 && s.blurNsfw ? 'NSFW' : 'Spoiler';
+
+void _undoSnack(BuildContext context, String msg, VoidCallback undo) {
+  final messenger = ScaffoldMessenger.of(context);
+  messenger.clearSnackBars();
+  messenger.showSnackBar(SnackBar(
+    content: Text(msg),
+    action: SnackBarAction(label: 'Undo', onPressed: undo),
+  ));
+}
+
+/// Removes [post] from Home / For You for a day (local only), with Undo.
+void dismissPost(BuildContext context, WidgetRef ref, Post post) {
+  final dismissed = ref.read(dismissedPostsProvider.notifier);
+  final learner = ref.read(forYouLearnerProvider);
+  dismissed.add(post.id);
+  learner.dismiss(post);
+  _undoSnack(context, 'Dismissed for today', () {
+    dismissed.remove(post.id);
+    learner.dismiss(post, undo: true);
+  });
+}
+
+/// Hides [post]'s subreddit from the front page for 7 days (local only), with
+/// Undo.
+void hideSubFromHome(BuildContext context, WidgetRef ref, Post post) {
+  final sub = post.subreddit.toLowerCase();
+  if (sub.isEmpty) return;
+  final hidden = ref.read(hiddenHomeSubsProvider.notifier);
+  final learner = ref.read(forYouLearnerProvider);
+  hidden.add(sub);
+  learner.hideSubreddit(post);
+  _undoSnack(
+      context, 'r/${post.subreddit} hidden from your front page for 7 days',
+      () {
+    hidden.remove(sub);
+    learner.hideSubreddit(post, undo: true);
+  });
+}
+
+/// Adds [post]'s subreddit to the content filters: hidden from every feed but
+/// its own, for good, with Undo.
+void filterOutSub(BuildContext context, WidgetRef ref, Post post) {
+  final sub = post.subreddit.toLowerCase();
+  if (sub.isEmpty) return;
+  final filters = ref.read(contentFiltersProvider.notifier);
+  final learner = ref.read(forYouLearnerProvider);
+  filters.add('subreddit', sub);
+  learner.filterOutSubreddit(post);
+  _undoSnack(context, 'r/${post.subreddit} filtered out of your feeds', () {
+    filters.remove('subreddit', sub);
+    learner.filterOutSubreddit(post, undo: true);
+  });
+}
+
+/// "tomorrow at 09:00" for a post you asked to be reminded about, or null.
+// TODO(reminders): the reminders area replaces this with the pending
+// reminders store; until then no post has one.
+final pendingReminderLabelProvider =
+    Provider.family<String?, String>((ref, postId) => null);
+
+/// A post in a feed, in the layout chosen in Settings (Default / Cards / Mini
+/// cards / Calm / Calm cards). [dismissible]: Home / For You, where the
+/// "Dismiss" swipe applies; [frontpage]: Home, For You, Best / Hot / New,
+/// where "Hide subreddit for 7 days" applies.
 class PostCard extends ConsumerStatefulWidget {
-  const PostCard({super.key, required this.post});
+  const PostCard({
+    super.key,
+    required this.post,
+    this.dismissible = false,
+    this.frontpage = false,
+  });
   final Post post;
+  final bool dismissible;
+  final bool frontpage;
 
   @override
   ConsumerState<PostCard> createState() => _PostCardState();
@@ -39,14 +132,15 @@ class PostCard extends ConsumerStatefulWidget {
 class _PostCardState extends ConsumerState<PostCard> {
   // Tapping the "u/author" part of the header opens their profile.
   late final TapGestureRecognizer _authorTap = TapGestureRecognizer()
-    ..onTap = () {
-      final a = widget.post.author;
-      if (a.isNotEmpty && a != '[deleted]') context.push('/u/$a');
-    };
+    ..onTap = _openAuthor;
 
   // Counts the For You impression once the card has stayed mostly on screen
   // for a moment.
   Timer? _impressionTimer;
+
+  // A read post with Settings → Dim read posts → Text only: its title and
+  // text fade (images stay bright). Set in build.
+  bool _dimText = false;
 
   @override
   void dispose() {
@@ -102,6 +196,8 @@ class _PostCardState extends ConsumerState<PostCard> {
     final next = !_ov.saved;
     overrides.setSaved(widget.post, next);
     final learner = ref.read(forYouLearnerProvider)..save(widget.post, next);
+    // TODO(reminders): Kotlin offers a reminder on save (PostReminders.offer)
+    // and cancels it on unsave.
     try {
       await ref.read(redditRepositoryProvider).setSaved(widget.post.fullname, next);
     } catch (e) {
@@ -141,6 +237,7 @@ class _PostCardState extends ConsumerState<PostCard> {
       case PostType.gallery:
         openGalleryViewer(context, p.gallery, title: p.title);
       case PostType.video:
+        // External videos (YouTube…) open in their own app.
         openPostVideo(context, p);
       case PostType.link:
         openInBrowser(context, Uri.parse(p.url));
@@ -149,17 +246,45 @@ class _PostCardState extends ConsumerState<PostCard> {
     }
   }
 
+  void _openSubreddit() => context.push('/r/${widget.post.subreddit}');
+
+  void _openAuthor() {
+    final a = widget.post.author;
+    if (a.isNotEmpty && a != '[deleted]') context.push('/u/$a');
+  }
+
+  void _more() => showPostActionsSheet(context, ref, widget.post);
+
+  void _share() {
+    // Sharing is a strong interest signal (as in the ⋮ sheet).
+    ref.read(forYouLearnerProvider).share(widget.post);
+    shareUrl(context, 'https://reddit.com${widget.post.permalink}',
+        subject: widget.post.title);
+  }
+
+  /// The image(s) / video themselves, downloaded, rather than a link.
+  void _shareMedia() {
+    ref.read(forYouLearnerProvider).share(widget.post);
+    shareAsMedia(context, widget.post);
+  }
+
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsControllerProvider);
     final seen = ref.watch(historyContainsProvider(widget.post.id));
+    // Settings → Dim read posts: the whole card (veil), or only its title and
+    // text so images and videos stay bright.
+    final dimRead = seen && settings.trackHistory;
+    _dimText = dimRead && settings.dimReadTextOnly;
     Widget card = switch (settings.postDisplay) {
-      PostDisplay.large => _largeCard(context),
-      PostDisplay.card => _cardsCard(context),
-      PostDisplay.mini => _miniCard(context),
+      PostDisplay.large => _largeCard(context, settings),
+      PostDisplay.card => _cardsCard(context, settings),
+      PostDisplay.mini => _miniCard(context, settings),
+      PostDisplay.calm => _calmCard(context, settings),
+      PostDisplay.calmCards => _calmCardsCard(context, settings),
     };
     // Dim already-viewed posts when history tracking is on.
-    if (seen && settings.trackHistory) {
+    if (dimRead && !settings.dimReadTextOnly) {
       // A page-colour veil looks the same as Opacity(0.55) — the card sits on
       // the page surface — but Opacity re-renders the whole card, images and
       // all, into an offscreen layer on every frame it scrolls.
@@ -173,57 +298,13 @@ class _PostCardState extends ConsumerState<PostCard> {
         child: card,
       );
     }
-    // "Why you're seeing this" banner (For You feed only).
+    // "Why you're seeing this" banner (For You feed only). Calm shows the
+    // reason in the card header instead.
     final reason = widget.post.feedReason;
-    if (reason != null) {
-      final cs = Theme.of(context).colorScheme;
+    if (reason != null && !settings.postDisplay.isCalm) {
       card = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 2, 8, 0),
-            child: Row(
-              children: [
-                Icon(Icons.auto_awesome_rounded, size: 13, color: cs.primary),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    reason,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                        color: cs.primary),
-                  ),
-                ),
-                // Discoverable entry to the feed-tuning sheet (also on long-press)
-                // so "show less from this subreddit" isn't hidden.
-                InkWell(
-                  onTap: _showTuneSheet,
-                  borderRadius: BorderRadius.circular(20),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 2),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.tune_rounded, size: 13, color: cs.primary),
-                        const SizedBox(width: 4),
-                        Text('Tune',
-                            style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w600,
-                                color: cs.primary)),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          card,
-        ],
+        children: [_reasonRow(context, reason), card],
       );
     }
     // For You impressions (shown-but-never-opened posts get demoted on the
@@ -235,6 +316,7 @@ class _PostCardState extends ConsumerState<PostCard> {
         child: card,
       );
     }
+    // The whole card, "why" banner included, is the swipe target.
     return GestureDetector(
       onLongPress: _showTuneSheet,
       child: SwipeActions(
@@ -242,6 +324,51 @@ class _PostCardState extends ConsumerState<PostCard> {
         start: _swipe(settings.swipePostStart),
         end: _swipe(settings.swipePostEnd),
         child: card,
+      ),
+    );
+  }
+
+  Widget _reasonRow(BuildContext context, String reason) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 2, 8, 0),
+      child: Row(
+        children: [
+          Icon(Icons.info_outline, size: 13, color: cs.primary),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              reason,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: cs.primary),
+            ),
+          ),
+          // Discoverable entry to the feed-tuning sheet (also on long-press)
+          // so "show less from this subreddit" isn't hidden.
+          InkWell(
+            onTap: _showTuneSheet,
+            borderRadius: BorderRadius.circular(20),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.tune_rounded, size: 13, color: cs.primary),
+                  const SizedBox(width: 4),
+                  Text('Tune',
+                      style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: cs.primary)),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -265,6 +392,15 @@ class _PostCardState extends ConsumerState<PostCard> {
         }),
       SwipeAction.hide =>
         SwipeSpec(action.icon, cs.error, () => hidePost(context, ref, p)),
+      // Only Home / For You can dismiss; elsewhere this side does nothing.
+      SwipeAction.dismiss => widget.dismissible
+          ? SwipeSpec(
+              action.icon, cs.secondary, () => dismissPost(context, ref, p))
+          : null,
+      SwipeAction.hideSub => widget.frontpage
+          ? SwipeSpec(action.icon, cs.tertiary,
+              () => hideSubFromHome(context, ref, p))
+          : null,
       SwipeAction.collapse || SwipeAction.none => null,
     };
   }
@@ -272,211 +408,264 @@ class _PostCardState extends ConsumerState<PostCard> {
   /// Long-press → "Tune For You": why it's here, and explicit More/Less.
   void _showTuneSheet() => showTuneSheet(context, ref, widget.post);
 
-  Widget _largeCard(BuildContext context) {
+  /// Fades a read post's title / text when only text is dimmed.
+  Widget _readDim(Widget child) =>
+      _dimText ? Opacity(opacity: 0.5, child: child) : child;
+
+  /// A Bloom card: filled, radius 28 unless [shape] is given; the whole card
+  /// is the ink target.
+  Widget _bloomCard(Widget child, {BorderRadius? radius, Color? color}) {
+    final shape = RoundedRectangleBorder(
+        borderRadius: radius ?? BorderRadius.circular(28));
+    return Card(
+      color: color,
+      shape: shape,
+      // The ink is clipped to the shape; the card itself isn't (a clip per
+      // card costs while scrolling).
+      child: InkWell(onTap: _openDetail, customBorder: shape, child: child),
+    );
+  }
+
+  Widget _title(BuildContext context, {int? maxLines, bool small = false}) {
+    final t = Theme.of(context).textTheme;
+    return _readDim(Text(
+      widget.post.title,
+      maxLines: maxLines,
+      overflow: maxLines == null ? null : TextOverflow.ellipsis,
+      style: (small ? t.titleSmall : t.titleMedium)
+          ?.copyWith(fontWeight: FontWeight.w700, height: 1.25),
+    ));
+  }
+
+  Widget _snippet(BuildContext context, int maxLines) => Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: _readDim(Text(
+          widget.post.snippet,
+          maxLines: maxLines,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant),
+        )),
+      );
+
+  Widget _largeCard(BuildContext context, Settings s) {
     final p = widget.post;
     final cs = Theme.of(context).colorScheme;
-    return Card(
-      child: InkWell(
-        onTap: _openDetail,
-        borderRadius: BorderRadius.circular(28),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 8, 6),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _header(cs),
-              const SizedBox(height: 10),
-              Text(
-                p.title,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w700, height: 1.25),
-              ),
-              if (p.linkFlairText != null) ...[
-                const SizedBox(height: 8),
-                _flair(cs, p.linkFlairText!),
-              ],
-              const SizedBox(height: 12),
-              _media(cs),
-              if (p.selftext.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(
-                  p.selftext,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(color: cs.onSurfaceVariant),
-                ),
-              ],
-              _actions(cs),
-            ],
-          ),
-        ),
+    return _bloomCard(Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 8, 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _header(cs, s),
+          const SizedBox(height: 10),
+          _title(context),
+          if (p.linkFlairText != null) ...[
+            const SizedBox(height: 8),
+            _flair(cs, p.linkFlairText!),
+          ],
+          CrosspostLine(post: p),
+          ReminderLine(post: p),
+          const SizedBox(height: 12),
+          _media(cs, s),
+          PollOptions(post: p),
+          if (p.snippet.isNotEmpty) _snippet(context, 3),
+          _actions(cs),
+        ],
       ),
-    );
+    ));
   }
 
   /// "Cards" — a full-width card like the default, but with media capped to a
   /// shorter banner height so cards stay compact and scannable.
-  Widget _cardsCard(BuildContext context) {
+  Widget _cardsCard(BuildContext context, Settings s) {
     final p = widget.post;
     final cs = Theme.of(context).colorScheme;
-    return Card(
-      child: InkWell(
-        onTap: _openDetail,
-        borderRadius: BorderRadius.circular(28),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 8, 6),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _header(cs),
-              const SizedBox(height: 10),
-              Text(
-                p.title,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w700, height: 1.25),
-              ),
-              if (p.linkFlairText != null) ...[
-                const SizedBox(height: 8),
-                _flair(cs, p.linkFlairText!),
-              ],
-              const SizedBox(height: 12),
-              _bannerMedia(cs, 180),
-              if (p.selftext.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(
-                  p.selftext,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(color: cs.onSurfaceVariant),
-                ),
-              ],
-              _actions(cs),
-            ],
-          ),
-        ),
+    return _bloomCard(Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 8, 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _header(cs, s),
+          const SizedBox(height: 10),
+          _title(context),
+          if (p.linkFlairText != null) ...[
+            const SizedBox(height: 8),
+            _flair(cs, p.linkFlairText!),
+          ],
+          CrosspostLine(post: p),
+          ReminderLine(post: p),
+          const SizedBox(height: 12),
+          _bannerMedia(cs, s, 180),
+          PollOptions(post: p),
+          if (p.snippet.isNotEmpty) _snippet(context, 2),
+          _actions(cs),
+        ],
       ),
-    );
+    ));
   }
 
   /// "Mini cards" — compact: header + title with a small side thumbnail, full
   /// action row below.
-  Widget _miniCard(BuildContext context) {
+  Widget _miniCard(BuildContext context, Settings s) {
     final p = widget.post;
     final cs = Theme.of(context).colorScheme;
-    final thumb = _thumb(cs, 88);
-    return Card(
-      child: InkWell(
-        onTap: _openDetail,
-        borderRadius: BorderRadius.circular(28),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 12, 6, 4),
-          child: Column(
+    final thumb = _thumb(cs, s, 88);
+    return _bloomCard(Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 6, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _header(cs, s),
+          const SizedBox(height: 8),
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _header(cs),
-              const SizedBox(height: 8),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          p.title,
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w700, height: 1.25),
-                        ),
-                        if (p.linkFlairText != null) ...[
-                          const SizedBox(height: 6),
-                          _flair(cs, p.linkFlairText!),
-                        ],
-                      ],
-                    ),
-                  ),
-                  if (thumb != null) ...[
-                    const SizedBox(width: 12),
-                    thumb,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _title(context, maxLines: 3, small: true),
+                    if (p.linkFlairText != null) ...[
+                      const SizedBox(height: 6),
+                      _flair(cs, p.linkFlairText!),
+                    ],
+                    CrosspostLine(post: p),
+                    ReminderLine(post: p),
                   ],
-                ],
+                ),
               ),
-              _actions(cs),
+              if (thumb != null) ...[
+                const SizedBox(width: 12),
+                thumb,
+              ],
             ],
           ),
-        ),
+          _actions(cs),
+        ],
       ),
+    ));
+  }
+
+  /// A cover-cropped feed image decoded at screen width (the prefetcher uses
+  /// the same size).
+  Widget _feedImage(ColorScheme cs, String url, {bool brokenIcon = false}) =>
+      CachedNetworkImage(
+        imageUrl: url,
+        fit: BoxFit.cover,
+        memCacheWidth: feedDecodeWidth(context),
+        placeholder: (_, __) => Container(color: cs.surfaceContainerHighest),
+        errorWidget: (_, __, ___) => Container(
+          color: cs.surfaceContainerHighest,
+          child: brokenIcon
+              ? Icon(Icons.broken_image_outlined, color: cs.onSurfaceVariant)
+              : null,
+        ),
+      );
+
+  /// The overlays on a media preview: play badge, external-video / GIF /
+  /// gallery pills.
+  List<Widget> _mediaBadges({bool gifTopStart = false, bool gifIcon = true}) {
+    final p = widget.post;
+    return [
+      if (p.type == PostType.video ||
+          (p.type == PostType.gif && !gifTopStart))
+        const Center(child: _PlayBadge()),
+      // "YouTube ↗" on a video that opens outside Ilay, so the tap's result
+      // isn't a surprise.
+      if (p.type == PostType.video && isExternalVideo(p))
+        Positioned(
+          top: 8,
+          right: 8,
+          child: _Pill(
+              icon: Icons.open_in_new_rounded,
+              label: externalVideoSource(p)),
+        ),
+      if (p.type == PostType.gif)
+        Positioned(
+          top: 8,
+          left: gifTopStart ? 8 : null,
+          right: gifTopStart ? null : 8,
+          child: _Pill(icon: gifIcon ? Icons.gif_rounded : null, label: 'GIF'),
+        ),
+      if (p.type == PostType.gallery)
+        Positioned(
+          top: 8,
+          right: 8,
+          child: _Pill(
+              icon: Icons.collections_rounded, label: '${p.gallery.length}'),
+        ),
+    ];
+  }
+
+  /// The inline autoplaying video for a video post, or null when it isn't
+  /// one (or autoplay is off / it's blurred / it plays outside Ilay).
+  Widget? _inlineVideo(Settings s, double height, String? poster) {
+    final p = widget.post;
+    if (p.type != PostType.video ||
+        _blurOf(p, s) ||
+        !s.autoplayMedia ||
+        isExternalVideo(p)) {
+      return null;
+    }
+    final vurl = postVideoUrl(p);
+    if (vurl.isEmpty || vurl.toLowerCase().endsWith('.gif')) return null;
+    return InlineVideo(
+      key: ValueKey('iv_${p.id}'),
+      url: vurl,
+      poster: poster,
+      height: height,
+      onTap: _openMedia,
+      startMuted: !s.autoplaySound,
     );
   }
 
-  /// Full-width media constrained to [height] (cover-cropped). Falls back to the
-  /// link preview / nothing for non-image posts.
-  /// Feed preview URL, mid-resolution when the data-saver setting is on.
-  String? _cardImg(Post p) {
-    final preview = ref.read(settingsControllerProvider).midResThumbnails
-        ? (p.previewMedUrl ?? p.previewUrl)
-        : p.previewUrl;
-    if (preview != null) return preview;
-    // Direct image links (preview.redd.it / i.redd.it / i.imgur.com) carry no
-    // preview block — use the URL itself.
-    if (p.type == PostType.image || p.type == PostType.gif) return p.url;
-    return null;
+  /// A gallery in a feed card: the Material 3 carousel (2+ images, Settings ›
+  /// Gallery carousel in feeds), else one image at a time. [height]: the
+  /// card's media height; the carousel keeps it between 220 and 340.
+  Widget _feedGallery(Settings s, {double? height, BorderRadius? clip}) {
+    final p = widget.post;
+    if (s.feedGalleryCarousel && p.gallery.length > 1) {
+      return GalleryM3Carousel(
+          images: p.gallery,
+          title: p.title,
+          height: (height ?? 300).clamp(220.0, 340.0));
+    }
+    final g =
+        GalleryCarousel(images: p.gallery, title: p.title, height: height);
+    return clip == null ? g : ClipRRect(borderRadius: clip, child: g);
   }
 
-  Widget _bannerMedia(ColorScheme cs, double height) {
+  /// Full-width media for the "Cards" layout, cover-cropped to [height].
+  Widget _bannerMedia(ColorScheme cs, Settings s, double height) {
     final p = widget.post;
     if (p.type == PostType.self) return const SizedBox.shrink();
     if (p.type == PostType.link) return _linkPreview(cs);
-    final blur = (p.over18 && ref.watch(settingsControllerProvider).blurNsfw) || p.spoiler;
+    final blur = _blurOf(p, s);
     if (p.type == PostType.gallery && p.gallery.isNotEmpty) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 4),
         child: NsfwBlur(
           blur: blur,
-          child: GalleryCarousel(
-              images: p.gallery, title: p.title, height: height),
+          label: _blurLabel(p, s),
+          child: _feedGallery(s, height: height),
         ),
       );
     }
-    final url =
-        _cardImg(p) ?? (p.gallery.isNotEmpty ? p.gallery.first.url : null);
+    final url = feedImageUrl(p, s);
     // Inline autoplay for videos (when enabled and not NSFW-blurred).
-    if (p.type == PostType.video &&
-        !blur &&
-        ref.watch(settingsControllerProvider).autoplayMedia) {
-      final vurl = postVideoUrl(p);
-      if (vurl.isNotEmpty && !vurl.toLowerCase().endsWith('.gif')) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 4),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: InlineVideo(
-              key: ValueKey('iv_${p.id}'),
-              url: vurl,
-              poster: url,
-              height: height,
-              onTap: _openMedia,
-            ),
-          ),
-        );
-      }
+    final video = _inlineVideo(s, height, url);
+    if (video != null) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: ClipRRect(borderRadius: BorderRadius.circular(16), child: video),
+      );
     }
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: NsfwBlur(
         blur: blur,
         blurredImageUrl: p.blurredPreviewUrl,
+        label: _blurLabel(p, s),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
           child: GestureDetector(
@@ -488,33 +677,10 @@ class _PostCardState extends ConsumerState<PostCard> {
                 fit: StackFit.expand,
                 children: [
                   if (url != null)
-                    CachedNetworkImage(
-                      imageUrl: url,
-                      fit: BoxFit.cover,
-                      memCacheWidth: feedDecodeWidth(context),
-                      placeholder: (_, __) =>
-                          Container(color: cs.surfaceContainerHighest),
-                      errorWidget: (_, __, ___) =>
-                          Container(color: cs.surfaceContainerHighest),
-                    )
+                    _feedImage(cs, url)
                   else
                     Container(color: cs.surfaceContainerHighest),
-                  if (p.type == PostType.video || p.type == PostType.gif)
-                    const Center(child: _PlayBadge()),
-                  if (p.type == PostType.gif)
-                    const Positioned(
-                      top: 8,
-                      right: 8,
-                      child: _Pill(icon: Icons.gif_rounded, label: 'GIF'),
-                    ),
-                  if (p.type == PostType.gallery)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: _Pill(
-                          icon: Icons.collections_rounded,
-                          label: '${p.gallery.length}'),
-                    ),
+                  ..._mediaBadges(),
                 ],
               ),
             ),
@@ -524,13 +690,13 @@ class _PostCardState extends ConsumerState<PostCard> {
     );
   }
 
-  /// Small square thumbnail for compact / mini layouts (null if no media).
-  Widget? _thumb(ColorScheme cs, double size) {
+  /// Small square thumbnail for the mini layout (null if no media).
+  Widget? _thumb(ColorScheme cs, Settings s, double size) {
     final p = widget.post;
     if (p.type == PostType.self) return null;
-    final url =
-        _cardImg(p) ?? (p.gallery.isNotEmpty ? p.gallery.first.url : p.thumbnailUrl);
-    final blur = (p.over18 && ref.watch(settingsControllerProvider).blurNsfw) || p.spoiler;
+    final url = _cardImg(p, s) ??
+        (p.gallery.isNotEmpty ? p.gallery.first.url : p.thumbnailUrl);
+    final blur = _blurOf(p, s);
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
       child: SizedBox(
@@ -575,32 +741,29 @@ class _PostCardState extends ConsumerState<PostCard> {
     );
   }
 
-  Widget _header(ColorScheme cs) {
+  Widget _header(ColorScheme cs, Settings s) {
     final p = widget.post;
     return Row(
       children: [
         GestureDetector(
-          onTap: () => context.push('/r/${p.subreddit}'),
-          child: CircleAvatar(
-            radius: 14,
-            backgroundColor: cs.secondaryContainer,
-            child: Text(
-              p.subreddit.isNotEmpty ? p.subreddit[0].toUpperCase() : '?',
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: cs.onSecondaryContainer),
-            ),
+          onTap: _openSubreddit,
+          child: _LetterAvatar(
+            name: p.subreddit,
+            imageUrl: s.subredditIcons ? p.subredditIcon : null,
+            size: 28,
+            container: cs.secondaryContainer,
+            content: cs.onSecondaryContainer,
+            fontSize: 13,
           ),
         ),
         const SizedBox(width: 10),
         Expanded(
           child: GestureDetector(
-            onTap: () => context.push('/r/${p.subreddit}'),
-            child: RichText(
+            onTap: _openSubreddit,
+            child: Text.rich(
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              text: TextSpan(
+              TextSpan(
                 style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
                 children: [
                   TextSpan(
@@ -623,19 +786,7 @@ class _PostCardState extends ConsumerState<PostCard> {
         ),
         if (p.stickied)
           Icon(Icons.push_pin_rounded, size: 16, color: cs.primary),
-        if (p.over18)
-          Container(
-            margin: const EdgeInsets.only(left: 6),
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-                color: cs.errorContainer,
-                borderRadius: BorderRadius.circular(6)),
-            child: Text('NSFW',
-                style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: cs.onErrorContainer)),
-          ),
+        if (p.over18) const _NsfwTag(),
       ],
     );
   }
@@ -649,9 +800,11 @@ class _PostCardState extends ConsumerState<PostCard> {
             style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
       );
 
-  Widget _media(ColorScheme cs) {
+  /// Default layout media: gallery carousel, aspect-correct preview, or link
+  /// card.
+  Widget _media(ColorScheme cs, Settings s) {
     final p = widget.post;
-    final blur = (p.over18 && ref.watch(settingsControllerProvider).blurNsfw) || p.spoiler;
+    final blur = _blurOf(p, s);
     switch (p.type) {
       case PostType.gallery:
         if (p.gallery.isNotEmpty) {
@@ -659,21 +812,24 @@ class _PostCardState extends ConsumerState<PostCard> {
             padding: const EdgeInsets.only(bottom: 4),
             child: NsfwBlur(
               blur: blur,
-              child: GalleryCarousel(images: p.gallery, title: p.title),
+              label: _blurLabel(p, s),
+              child: _feedGallery(s),
             ),
           );
         }
         return NsfwBlur(
             blur: blur,
             blurredImageUrl: p.blurredPreviewUrl,
-            child: _mediaPreview(cs));
+            label: _blurLabel(p, s),
+            child: _mediaPreview(cs, s));
       case PostType.image:
       case PostType.gif:
       case PostType.video:
         return NsfwBlur(
             blur: blur,
             blurredImageUrl: p.blurredPreviewUrl,
-            child: _mediaPreview(cs));
+            label: _blurLabel(p, s),
+            child: _mediaPreview(cs, s));
       case PostType.link:
         return _linkPreview(cs);
       case PostType.self:
@@ -681,64 +837,59 @@ class _PostCardState extends ConsumerState<PostCard> {
     }
   }
 
-  Widget _mediaPreview(ColorScheme cs) {
+  Widget _mediaPreview(ColorScheme cs, Settings s) {
     final p = widget.post;
     // Mid-res when the data-saver setting is on, like the other layouts.
-    final preview = ref.read(settingsControllerProvider).midResThumbnails
-        ? (p.previewMedUrl ?? p.previewUrl)
-        : p.previewUrl;
+    final preview =
+        s.midResThumbnails ? (p.previewMedUrl ?? p.previewUrl) : p.previewUrl;
     final url = preview ?? (p.gallery.isNotEmpty ? p.gallery.first.url : null);
-    final aspect = (p.previewWidth != null &&
-            p.previewHeight != null &&
-            p.previewHeight! > 0)
-        ? p.previewWidth! / p.previewHeight!
-        : 16 / 9;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: GestureDetector(
-          onTap: _openMedia,
-          child: AspectRatio(
-            aspectRatio: aspect.clamp(0.5, 2.0),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (url != null)
-                  CachedNetworkImage(
-                    imageUrl: url,
-                    fit: BoxFit.cover,
-                    memCacheWidth: feedDecodeWidth(context),
-                    placeholder: (_, __) =>
-                        Container(color: cs.surfaceContainerHighest),
-                    errorWidget: (_, __, ___) => Container(
-                      color: cs.surfaceContainerHighest,
-                      child: Icon(Icons.broken_image_outlined,
-                          color: cs.onSurfaceVariant),
-                    ),
-                  )
-                else
-                  Container(color: cs.surfaceContainerHighest),
-                if (p.type == PostType.video)
-                  const Center(child: _PlayBadge()),
-                if (p.type == PostType.gallery)
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: _Pill(
-                        icon: Icons.collections_rounded,
-                        label: '${p.gallery.length}'),
-                  ),
-                if (p.type == PostType.gif)
-                  const Positioned(
-                      top: 8, left: 8, child: _Pill(label: 'GIF')),
-              ],
+    final aspect = ((p.previewWidth != null &&
+                p.previewHeight != null &&
+                p.previewHeight! > 0)
+            ? p.previewWidth! / p.previewHeight!
+            : 16 / 9)
+        .clamp(0.5, 2.0);
+    // Inline autoplay for videos (when enabled and not NSFW-blurred), as in
+    // the Cards and Calm layouts.
+    if (p.type == PostType.video &&
+        !_blurOf(p, s) &&
+        s.autoplayMedia &&
+        !isExternalVideo(p)) {
+      return LayoutBuilder(builder: (context, c) {
+        final video = _inlineVideo(s, c.maxWidth / aspect, url);
+        if (video == null) return _previewBox(cs, url, aspect);
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child:
+              ClipRRect(borderRadius: BorderRadius.circular(16), child: video),
+        );
+      });
+    }
+    return _previewBox(cs, url, aspect);
+  }
+
+  Widget _previewBox(ColorScheme cs, String? url, double aspect) => Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: GestureDetector(
+            onTap: _openMedia,
+            child: AspectRatio(
+              aspectRatio: aspect,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (url != null)
+                    _feedImage(cs, url, brokenIcon: true)
+                  else
+                    Container(color: cs.surfaceContainerHighest),
+                  ..._mediaBadges(gifTopStart: true, gifIcon: false),
+                ],
+              ),
             ),
           ),
         ),
-      ),
-    );
-  }
+      );
 
   Widget _linkPreview(ColorScheme cs) {
     final p = widget.post;
@@ -762,6 +913,9 @@ class _PostCardState extends ConsumerState<PostCard> {
                     width: 72,
                     height: 72,
                     fit: BoxFit.cover,
+                    memCacheWidth:
+                        (72 * MediaQuery.devicePixelRatioOf(context) * 2)
+                            .round(),
                     errorWidget: (_, __, ___) =>
                         const SizedBox(width: 72, height: 72),
                   ),
@@ -794,44 +948,931 @@ class _PostCardState extends ConsumerState<PostCard> {
     );
   }
 
-  Widget _actions(ColorScheme cs) {
-    // Live values from the shared overrides store (kept in sync with the detail).
+  /// Live vote / save / comment state (optimistic overrides first).
+  ({bool? likes, int score, bool saved, int numComments}) _live() {
     final ov = ref.watch(
         postOverridesProvider.select((m) => m[widget.post.id]));
-    final likes = ov != null ? ov.likes : widget.post.likes;
-    final score = ov?.score ?? widget.post.score;
-    final saved = ov?.saved ?? widget.post.saved;
-    final numComments = ov?.numComments ?? widget.post.numComments;
+    final p = widget.post;
+    return (
+      likes: ov != null ? ov.likes : p.likes,
+      score: ov?.score ?? p.score,
+      saved: ov?.saved ?? p.saved,
+      numComments: ov?.numComments ?? p.numComments,
+    );
+  }
+
+  Widget _actions(ColorScheme cs) {
+    // Live values from the shared overrides store (kept in sync with the detail).
+    final live = _live();
     return Row(
       children: [
         _VotePill(
-          score: score,
-          likes: likes,
+          score: live.score,
+          likes: live.likes,
           onUp: () => _vote(1),
           onDown: () => _vote(-1),
         ),
         const SizedBox(width: 8),
         _ActionChip(
           icon: Icons.mode_comment_outlined,
-          label: compactNumber(numComments),
+          label: compactNumber(live.numComments),
           onTap: _openDetail,
         ),
         const Spacer(),
         _ReadToggle(post: widget.post),
         IconButton(
           onPressed: _toggleSave,
-          icon: Icon(saved
+          tooltip: live.saved ? 'Unsave' : 'Save',
+          icon: Icon(live.saved
               ? Icons.bookmark_rounded
               : Icons.bookmark_border_rounded),
-          color: saved ? cs.primary : null,
+          color: live.saved ? cs.primary : cs.onSurfaceVariant,
         ),
         IconButton(
-          onPressed: () => showPostActionsSheet(context, ref, widget.post),
+          onPressed: _more,
+          tooltip: 'More',
           icon: const Icon(Icons.more_vert_rounded),
+          color: cs.onSurfaceVariant,
         ),
       ],
     );
   }
+
+  // -------------------------------------------------------------------------
+  // Calm layout
+  // -------------------------------------------------------------------------
+
+  /// "Calm" — one card per post: a rounded-square avatar header, a bold
+  /// title, a flair pill, media at its full aspect ratio (not cropped) and a
+  /// connected [↑ score][↓][comments] group. Mark-read lives in the ⋮ sheet.
+  Widget _calmCard(BuildContext context, Settings s) {
+    return _bloomCard(
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 10, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: _calmBody(context, s,
+                  mediaRadius: BorderRadius.circular(_calmMediaRadius)),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Row(
+                children: [
+                  _calmActionGroup(context, withComments: true),
+                  const Spacer(),
+                  ..._calmShareSave(context),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      radius: BorderRadius.circular(_calmOuter),
+      color: _calmCardColor(context),
+    );
+  }
+
+  /// "Calm cards" — each post its own connected group: the content, the media
+  /// (edge to edge) and the actions as separate segments, 3 apart.
+  Widget _calmCardsCard(BuildContext context, Settings s) {
+    final p = widget.post;
+    final color = _calmCardColor(context);
+    const outer = Radius.circular(_calmOuter);
+    const inner = Radius.circular(_calmInner);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _bloomCard(
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+              child: _calmBody(context, s),
+            ),
+            radius: const BorderRadius.only(
+                topLeft: outer,
+                topRight: outer,
+                bottomLeft: inner,
+                bottomRight: inner),
+            color: color,
+          ),
+          if (p.type != PostType.self) ...[
+            const SizedBox(height: _calmGap),
+            _calmMedia(context, s, BorderRadius.circular(_calmInner),
+                topPad: 0),
+          ],
+          const SizedBox(height: _calmGap),
+          _bloomCard(
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
+              child: Row(
+                children: [
+                  _calmActionGroup(context, withComments: false),
+                  const SizedBox(width: 8),
+                  _CalmButtonGroup(buttons: [
+                    _CalmButton(
+                        icon: Icons.mode_comment_outlined,
+                        label: compactNumber(_live().numComments),
+                        onTap: _openDetail),
+                  ]),
+                  const Spacer(),
+                  ..._calmShareSave(context),
+                ],
+              ),
+            ),
+            radius: const BorderRadius.only(
+                topLeft: inner,
+                topRight: inner,
+                bottomLeft: outer,
+                bottomRight: outer),
+            color: color,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Header, title, flair, crosspost, media (when [mediaRadius] is set), poll
+  /// and selftext.
+  Widget _calmBody(BuildContext context, Settings s,
+      {BorderRadius? mediaRadius}) {
+    final p = widget.post;
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _calmHeader(context, s),
+        Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: _readDim(Text(
+            p.title,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              height: 1.3,
+              letterSpacing: -0.1,
+              color: cs.onSurface,
+            ),
+          )),
+        ),
+        if (p.linkFlairText != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: CalmFlair(raw: p.linkFlairText!),
+          ),
+        CrosspostLine(post: p),
+        ReminderLine(post: p),
+        if (mediaRadius != null) _calmMedia(context, s, mediaRadius),
+        if (p.pollOptions.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          PollOptions(post: p),
+        ],
+        if (p.snippet.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: _readDim(Text(
+              p.snippet,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant),
+            )),
+          ),
+      ],
+    );
+  }
+
+  Widget _calmHeader(BuildContext context, Settings s) {
+    final p = widget.post;
+    final cs = Theme.of(context).colorScheme;
+    // The subreddit is already the line above: drop a trailing " · r/sub"
+    // from the reason.
+    String? reason = p.feedReason;
+    for (final suffix in [
+      ' · r/${p.subreddit}',
+      ' · ${p.subredditPrefixed}'
+    ]) {
+      if (reason != null && reason.endsWith(suffix)) {
+        reason = reason.substring(0, reason.length - suffix.length);
+      }
+    }
+    // Expressive: a rounded-square avatar in one of three tonal pairs, picked
+    // per subreddit so a sub keeps its colour.
+    final (bg, fg) = switch (_javaHash(p.subreddit.toLowerCase()) % 3) {
+      0 => (cs.primaryContainer, cs.onPrimaryContainer),
+      1 => (cs.secondaryContainer, cs.onSecondaryContainer),
+      _ => (cs.tertiaryContainer, cs.onTertiaryContainer),
+    };
+    final age = timeAgo(p.created);
+    return Row(
+      children: [
+        GestureDetector(
+          onTap: _openSubreddit,
+          child: _LetterAvatar(
+            name: p.subreddit,
+            imageUrl: s.subredditIcons ? p.subredditIcon : null,
+            size: 36,
+            container: bg,
+            content: fg,
+            radius: 12,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              GestureDetector(
+                onTap: _openSubreddit,
+                child: Text(
+                  p.subredditPrefixed.isNotEmpty
+                      ? p.subredditPrefixed
+                      : 'r/${p.subreddit}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurface),
+                ),
+              ),
+              if (reason != null)
+                // For You: why it's here, in place of the author, then the
+                // post's age (kept visible when the reason is long). Tap →
+                // the "why you're seeing this" / tune sheet.
+                GestureDetector(
+                  onTap: _showTuneSheet,
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, size: 13, color: cs.primary),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          reason,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: cs.primary),
+                        ),
+                      ),
+                      Text(' · $age',
+                          maxLines: 1,
+                          style: TextStyle(
+                              fontSize: 12, color: cs.onSurfaceVariant)),
+                    ],
+                  ),
+                )
+              else
+                GestureDetector(
+                  onTap: _openAuthor,
+                  child: Text(
+                    'u/${p.author} · $age',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style:
+                        TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (p.stickied)
+          Icon(Icons.push_pin_rounded, size: 16, color: cs.primary),
+        if (p.over18) const _NsfwTag(),
+        SizedBox(
+          width: 36,
+          height: 36,
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: _more,
+            child: Icon(Icons.more_vert_rounded,
+                size: 20,
+                color: cs.onSurfaceVariant,
+                semanticLabel: 'More'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Calm media in [radius]: the preview's own aspect ratio (clamped 1:2 …
+  /// 2:1; 16:10 when unknown) — galleries, inline video, or a link block.
+  Widget _calmMedia(BuildContext context, Settings s, BorderRadius radius,
+      {double topPad = 10}) {
+    final p = widget.post;
+    final cs = Theme.of(context).colorScheme;
+    if (p.type == PostType.self) return const SizedBox.shrink();
+    final blur = _blurOf(p, s);
+    if (p.type == PostType.link) {
+      final img = _cardImg(p, s) ?? p.thumbnailUrl;
+      return Padding(
+        padding: EdgeInsets.only(top: topPad),
+        child: Material(
+          color: _calmControlColor(context),
+          borderRadius: radius,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: _openMedia,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (img != null)
+                  NsfwBlur(
+                    blur: blur,
+                    blurredImageUrl: p.blurredPreviewUrl,
+                    label: _blurLabel(p, s),
+                    child: AspectRatio(
+                        aspectRatio: 2, child: _feedImage(cs, img)),
+                  ),
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Row(
+                    children: [
+                      Icon(Icons.link_rounded,
+                          size: 14, color: cs.onSurfaceVariant),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(p.domain,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: 12, color: cs.onSurfaceVariant)),
+                      ),
+                      Icon(Icons.open_in_new_rounded,
+                          size: 14, color: cs.onSurfaceVariant),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    return Padding(
+      padding: EdgeInsets.only(top: topPad),
+      child: LayoutBuilder(builder: (context, c) {
+        // The media's own shape, like the Default layout (galleries often
+        // have no preview size: use the first image's).
+        final first = p.gallery.isNotEmpty ? p.gallery.first : null;
+        final w = p.previewWidth ?? first?.width;
+        final h = p.previewHeight ?? first?.height;
+        final aspect = w != null && h != null && h > 0
+            ? (w / h).clamp(0.5, 2.0)
+            : 16 / 10;
+        final height = c.maxWidth / aspect;
+        if (p.type == PostType.gallery && p.gallery.isNotEmpty) {
+          return NsfwBlur(
+            blur: blur,
+            label: _blurLabel(p, s),
+            child: _feedGallery(s, height: height, clip: radius),
+          );
+        }
+        final url = feedImageUrl(p, s);
+        // Inline autoplay for videos (when enabled and not NSFW-blurred).
+        final video = _inlineVideo(s, height, url);
+        if (video != null) {
+          return ClipRRect(borderRadius: radius, child: video);
+        }
+        return NsfwBlur(
+          blur: blur,
+          blurredImageUrl: p.blurredPreviewUrl,
+          label: _blurLabel(p, s),
+          child: ClipRRect(
+            borderRadius: radius,
+            child: GestureDetector(
+              onTap: _openMedia,
+              child: SizedBox(
+                height: height,
+                width: double.infinity,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (url != null)
+                      _feedImage(cs, url, brokenIcon: true)
+                    else
+                      Container(color: cs.surfaceContainerHighest),
+                    ..._mediaBadges(),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
+  /// [↑ score][↓] (+ [comments] when [withComments]) as one connected button
+  /// group.
+  Widget _calmActionGroup(BuildContext context, {required bool withComments}) {
+    final votes = Theme.of(context).extension<VoteColors>()!;
+    final live = _live();
+    final up = live.likes == true;
+    final down = live.likes == false;
+    return _CalmButtonGroup(buttons: [
+      _CalmButton(
+        icon: Icons.arrow_upward_rounded,
+        label: compactNumber(live.score),
+        semanticLabel: 'Upvote',
+        toggled: up,
+        tint: up ? votes.up : null,
+        labelTint: down ? votes.down : null,
+        onTap: () => _vote(1),
+      ),
+      _CalmButton(
+        icon: Icons.arrow_downward_rounded,
+        semanticLabel: 'Downvote',
+        toggled: down,
+        tint: down ? votes.down : null,
+        onTap: () => _vote(-1),
+      ),
+      if (withComments)
+        _CalmButton(
+            icon: Icons.mode_comment_outlined,
+            label: compactNumber(live.numComments),
+            onTap: _openDetail),
+    ]);
+  }
+
+  List<Widget> _calmShareSave(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final p = widget.post;
+    final saved = _live().saved;
+    return [
+      if (canShareAsMedia(p))
+        _CalmGhost(
+          icon: p.type == PostType.video || p.type == PostType.gif
+              ? Icons.movie_outlined
+              : Icons.image_outlined,
+          label: 'Share as media',
+          color: cs.onSurfaceVariant,
+          onTap: _shareMedia,
+        ),
+      _CalmGhost(
+          icon: Icons.share_rounded,
+          label: 'Share',
+          color: cs.onSurfaceVariant,
+          onTap: _share),
+      _CalmGhost(
+        icon: saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+        label: saved ? 'Unsave' : 'Save',
+        color: saved ? cs.primary : cs.onSurfaceVariant,
+        onTap: _toggleSave,
+      ),
+    ];
+  }
+}
+
+/// Outer corner of a Calm card; a Calm cards post's segments meet at
+/// [_calmInner], [_calmGap] apart.
+const double _calmOuter = 28;
+const double _calmInner = 6;
+const double _calmGap = 3;
+
+/// Calm media and link cards: evenly rounded.
+const double _calmMediaRadius = 24;
+
+bool _isLight(ColorScheme cs) => cs.surface.computeLuminance() > 0.5;
+
+/// Calm's surfaces. In light mode surfaceContainerLow is almost the page
+/// colour, so cards were lost in one off-white sheet: cards use a clearly
+/// tinted container. Dark mode already contrasts.
+Color _calmCardColor(BuildContext context) {
+  final cs = Theme.of(context).colorScheme;
+  return _isLight(cs) ? cs.surfaceContainerHigh : cs.surfaceContainerLow;
+}
+
+/// Controls inside a Calm card go a lighter tint (light mode) to stand out
+/// from the card.
+Color _calmControlColor(BuildContext context) {
+  final cs = Theme.of(context).colorScheme;
+  return _isLight(cs) ? cs.surfaceContainerLow : cs.surfaceContainerHigh;
+}
+
+/// The feed's Calm button groups: a solid secondary tone (deepened a touch
+/// in light mode, where secondaryContainer is close to the card).
+Color _calmButtonColor(BuildContext context) {
+  final cs = Theme.of(context).colorScheme;
+  return _isLight(cs)
+      ? Color.alphaBlend(
+          cs.primary.withValues(alpha: 0.10), cs.secondaryContainer)
+      : cs.secondaryContainer;
+}
+
+/// Java's String.hashCode, so a subreddit gets the same avatar colour as in
+/// the Android app.
+int _javaHash(String s) {
+  var h = 0;
+  for (final c in s.codeUnits) {
+    h = (31 * h + c) & 0xFFFFFFFF;
+  }
+  return h >= 0x80000000 ? h - 0x100000000 : h;
+}
+
+final _flairShortcode = RegExp(r':[A-Za-z0-9_+\-]+:');
+final _whitespace = RegExp(r'\s+');
+
+/// Flair text without Reddit's `:emoji:` shortcodes (":Discussion:
+/// Discussion" → "Discussion").
+String cleanFlair(String text) =>
+    text.replaceAll(_flairShortcode, ' ').replaceAll(_whitespace, ' ').trim();
+
+/// A small icon matching common flair words (the flair's emoji images aren't
+/// in its text).
+IconData _flairIcon(String text) {
+  final t = text.toLowerCase();
+  if (t.contains('discuss')) return Icons.mode_comment_outlined;
+  if (t.contains('question') || t.contains('help')) {
+    return Icons.help_outline_rounded;
+  }
+  if (t.contains('news')) return Icons.newspaper_rounded;
+  if (t.contains('meme') || t.contains('humor') || t.contains('funny')) {
+    return Icons.sentiment_satisfied_rounded;
+  }
+  if (t == 'oc' ||
+      t.contains('image') ||
+      t.contains('photo') ||
+      t.contains('art')) {
+    return Icons.image_rounded;
+  }
+  if (t.contains('video')) return Icons.play_arrow_rounded;
+  return Icons.sell_rounded;
+}
+
+/// Calm flair pill: 26 tall, icon + cleaned text. Nothing when it's only
+/// emoji.
+class CalmFlair extends StatelessWidget {
+  const CalmFlair({super.key, required this.raw});
+  final String raw;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = cleanFlair(raw);
+    if (text.isEmpty) return const SizedBox.shrink();
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      height: 26,
+      padding: const EdgeInsets.only(left: 8, right: 10),
+      decoration: BoxDecoration(
+          color: _calmControlColor(context),
+          borderRadius: BorderRadius.circular(13)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(_flairIcon(text), size: 14, color: cs.primary),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: cs.onSurfaceVariant)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Crossposted from r/x" (the media comes from the original post).
+class CrosspostLine extends StatelessWidget {
+  const CrosspostLine({super.key, required this.post});
+  final Post post;
+
+  @override
+  Widget build(BuildContext context) {
+    final from = post.crosspostFrom;
+    if (from == null) return const SizedBox.shrink();
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        children: [
+          Icon(Icons.repeat_rounded, size: 14, color: cs.onSurfaceVariant),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text('Crossposted from r/$from',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Reminder tomorrow at 09:00" on a post you asked to be reminded about
+/// (cards and the post screen).
+// TODO(reminders): tap to change or cancel (PostReminders.manage).
+class ReminderLine extends ConsumerWidget {
+  const ReminderLine({super.key, required this.post});
+  final Post post;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final when = ref.watch(pendingReminderLabelProvider(post.id));
+    if (when == null) return const SizedBox.shrink();
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Row(
+        children: [
+          Icon(Icons.schedule_rounded, size: 14, color: cs.primary),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text('Reminder $when',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12, color: cs.primary)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A poll's options, with results once Reddit shows them.
+class PollOptions extends StatelessWidget {
+  const PollOptions({super.key, required this.post});
+  final Post post;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = post;
+    if (p.pollOptions.isEmpty) return const SizedBox.shrink();
+    final cs = Theme.of(context).colorScheme;
+    final total = p.pollVotes.fold<int>(0, (a, b) => a + b);
+    final n = p.pollOptions.length;
+    final muted = TextStyle(fontSize: 12, color: cs.onSurfaceVariant);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (var i = 0; i < n; i++)
+            _option(cs, i, n, total),
+          if (p.pollChoice != null)
+            Text('You voted · ${compactNumber(total)} votes', style: muted)
+          else if (p.pollVotes.isNotEmpty)
+            Text('${compactNumber(total)} votes', style: muted)
+          else
+            // TODO(poll voting): Reddit's API can't vote in polls. With the
+            // website sign-in Kotlin offers "Vote on Reddit", which opens the
+            // post signed in (needs the web-session pages, a later area).
+            Text('Vote in the official app', style: muted),
+        ],
+      ),
+    );
+  }
+
+  Widget _option(ColorScheme cs, int i, int n, int total) {
+    final votes = i < post.pollVotes.length ? post.pollVotes[i] : null;
+    final chosen = post.pollChoice == i;
+    final share = votes != null && total > 0 ? votes / total : 0.0;
+    // A segmented list: one block, round outside, tight between options.
+    const big = Radius.circular(20), small = Radius.circular(4);
+    final first = i == 0, last = i == n - 1;
+    return Padding(
+      padding: EdgeInsets.only(bottom: last ? 8 : 2),
+      child: ClipRRect(
+        borderRadius: BorderRadius.only(
+          topLeft: first ? big : small,
+          topRight: first ? big : small,
+          bottomLeft: last ? big : small,
+          bottomRight: last ? big : small,
+        ),
+        child: ColoredBox(
+          color: cs.surfaceContainerHigh,
+          child: Stack(
+            children: [
+              if (votes != null)
+                Positioned.fill(
+                  child: FractionallySizedBox(
+                    alignment: AlignmentDirectional.centerStart,
+                    widthFactor: share,
+                    child: ColoredBox(
+                        color: chosen
+                            ? cs.primaryContainer
+                            : cs.surfaceContainerHighest),
+                  ),
+                ),
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(post.pollOptions[i],
+                          style: TextStyle(
+                              fontWeight: chosen ? FontWeight.bold : null)),
+                    ),
+                    if (votes != null)
+                      Text('${(share * 100).round()}%',
+                          style: TextStyle(
+                              fontSize: 13, color: cs.onSurfaceVariant)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A subreddit avatar showing [imageUrl] or the first letter of [name].
+class _LetterAvatar extends StatelessWidget {
+  const _LetterAvatar({
+    required this.name,
+    required this.size,
+    required this.container,
+    required this.content,
+    this.imageUrl,
+    this.fontSize,
+    this.radius,
+  });
+  final String name;
+  final double size;
+  final Color container;
+  final Color content;
+  final String? imageUrl;
+  final double? fontSize;
+  final double? radius; // null = a circle
+
+  @override
+  Widget build(BuildContext context) {
+    final letter = Text(
+      name.isNotEmpty ? name[0].toUpperCase() : '?',
+      style: TextStyle(
+          color: content,
+          fontWeight: FontWeight.bold,
+          fontSize: fontSize ?? size * 0.42),
+    );
+    final url = imageUrl;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius ?? size / 2),
+      child: Container(
+        width: size,
+        height: size,
+        color: container,
+        alignment: Alignment.center,
+        child: url == null
+            ? letter
+            : CachedNetworkImage(
+                imageUrl: url,
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+                memCacheWidth:
+                    (size * MediaQuery.devicePixelRatioOf(context) * 2)
+                        .round(),
+                errorWidget: (_, __, ___) => Center(child: letter),
+              ),
+      ),
+    );
+  }
+}
+
+class _NsfwTag extends StatelessWidget {
+  const _NsfwTag();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(left: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+          color: cs.errorContainer, borderRadius: BorderRadius.circular(6)),
+      child: Text('NSFW',
+          style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: cs.onErrorContainer)),
+    );
+  }
+}
+
+class _CalmButton {
+  const _CalmButton({
+    required this.icon,
+    required this.onTap,
+    this.label,
+    this.semanticLabel,
+    this.toggled,
+    this.tint,
+    this.labelTint,
+  });
+  final IconData icon;
+  final VoidCallback onTap;
+  final String? label;
+  final String? semanticLabel;
+  final bool? toggled; // the vote segments are toggles for screen readers
+  final Color? tint; // a vote colour: fills the button at 22%, colours it
+  final Color? labelTint;
+}
+
+/// M3 Expressive connected button group: 40 tall, outer corners round,
+/// inner 6, 3 apart.
+class _CalmButtonGroup extends StatelessWidget {
+  const _CalmButtonGroup({required this.buttons});
+  final List<_CalmButton> buttons;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final base = _calmButtonColor(context);
+    const height = 40.0;
+    const r = Radius.circular(height / 2);
+    const inner = Radius.circular(_calmInner);
+    final last = buttons.length - 1;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < buttons.length; i++) ...[
+          if (i > 0) const SizedBox(width: _calmGap),
+          Builder(builder: (_) {
+            final b = buttons[i];
+            final start = i == 0 ? r : inner;
+            final end = i == last ? r : inner;
+            final bg = b.tint != null
+                ? Color.alphaBlend(b.tint!.withValues(alpha: 0.22), base)
+                : base;
+            final fg = b.tint ?? cs.onSecondaryContainer;
+            return Semantics(
+              button: true,
+              toggled: b.toggled,
+              label: b.semanticLabel,
+              child: Material(
+                color: bg,
+                borderRadius: BorderRadiusDirectional.horizontal(
+                        start: start, end: end)
+                    .resolve(Directionality.of(context)),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: b.onTap,
+                  child: Container(
+                    height: height,
+                    padding: EdgeInsetsDirectional.only(
+                        start: i == 0 ? 14 : 12, end: i == last ? 14 : 12),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(b.icon, size: 19, color: fg),
+                        if (b.label != null) ...[
+                          const SizedBox(width: 6),
+                          Text(b.label!,
+                              style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: b.labelTint ?? fg)),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        ],
+      ],
+    );
+  }
+}
+
+/// A borderless icon button (Calm's share / save).
+class _CalmGhost extends StatelessWidget {
+  const _CalmGhost({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: 40,
+        height: 40,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: Icon(icon, size: 19, color: color, semanticLabel: label),
+        ),
+      );
 }
 
 /// "Read" toggle shown on every post card (left of Save). Marks the post as
@@ -885,21 +1926,30 @@ class _VotePill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _miniBtn(Icons.arrow_upward_rounded, up ? votes.up : cs.onSurfaceVariant, onUp),
+          _miniBtn(Icons.arrow_upward_rounded,
+              up ? votes.up : cs.onSurfaceVariant, 'Upvote', up, onUp),
           Text(compactNumber(score),
               style: TextStyle(fontWeight: FontWeight.w700, color: countColor)),
           _miniBtn(Icons.arrow_downward_rounded,
-              down ? votes.down : cs.onSurfaceVariant, onDown),
+              down ? votes.down : cs.onSurfaceVariant, 'Downvote', down,
+              onDown),
         ],
       ),
     );
   }
 
-  Widget _miniBtn(IconData icon, Color fg, VoidCallback onTap) => IconButton(
-        onPressed: onTap,
-        visualDensity: VisualDensity.compact,
-        iconSize: 20,
-        icon: Icon(icon, color: fg),
+  // A toggle for screen readers ("Upvote, on").
+  Widget _miniBtn(IconData icon, Color fg, String label, bool on,
+          VoidCallback onTap) =>
+      Semantics(
+        toggled: on,
+        child: IconButton(
+          onPressed: onTap,
+          tooltip: label,
+          visualDensity: VisualDensity.compact,
+          iconSize: 20,
+          icon: Icon(icon, color: fg),
+        ),
       );
 }
 
@@ -943,7 +1993,7 @@ class _PlayBadge extends StatelessWidget {
         decoration: BoxDecoration(
             color: Colors.black54, shape: BoxShape.circle),
         child: const Icon(Icons.play_arrow_rounded,
-            color: Colors.white, size: 36),
+            color: Colors.white, size: 36, semanticLabel: 'Play'),
       );
 }
 

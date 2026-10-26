@@ -88,6 +88,21 @@ class ForYouLearner {
   /// Backed out within 3 seconds.
   void bounce(Post p) => _learn(p, -0.5, 0);
 
+  /// The "no" signals: hiding a post, the Dismiss swipe, hiding its subreddit
+  /// for 7 days, filtering it out. They used to only remove things from view.
+  /// [undo] reverses one (its snackbar's Undo).
+  void hidePost(Post p, {bool undo = false}) =>
+      _learn(p, undo ? 2 : -2, undo ? 0.8 : -0.8);
+
+  void dismiss(Post p, {bool undo = false}) =>
+      _learn(p, undo ? 1 : -1, undo ? 0.4 : -0.4);
+
+  void hideSubreddit(Post p, {bool undo = false}) =>
+      _learn(p, undo ? 3 : -3, 0);
+
+  void filterOutSubreddit(Post p, {bool undo = false}) =>
+      _learn(p, undo ? 4 : -4, 0);
+
   /// Explicit "More/Less from r/x" (+1 / −1 / 0 to clear).
   void subPreference(Post p, int value) {
     _ref.read(explicitPrefsProvider.notifier).setSub(p.subreddit, value);

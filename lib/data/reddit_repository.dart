@@ -304,7 +304,7 @@ class RedditRepository {
     if (fullnames.isEmpty) return const [];
     final res = await _client.get<Map<String, dynamic>>(
         '/by_id/${fullnames.join(',')}',
-        query: {'limit': fullnames.length});
+        query: {'limit': fullnames.length, 'sr_detail': true});
     final byId = {
       for (final p in _parsePostListing(res.data!).items) 't3_${p.id}': p
     };
@@ -325,8 +325,10 @@ class RedditRepository {
     final base = subreddit == null ? '' : '/r/$subreddit';
     final res = await _client.get<Map<String, dynamic>>(
       '$base/${sort.path}',
+      // sr_detail: each post carries its subreddit's icon for the card.
       query: {
         'limit': limit,
+        'sr_detail': true,
         if (after != null) 'after': after,
         if (sort.needsTime) 't': time.param,
       },
@@ -347,6 +349,7 @@ class RedditRepository {
       '$base/${sort.path}',
       query: {
         'limit': limit,
+        'sr_detail': true,
         if (sort.needsTime) 't': time.param,
       },
     );
@@ -474,7 +477,11 @@ class RedditRepository {
       {String where = 'submitted', String? after, int limit = 25}) async {
     final res = await _client.get<Map<String, dynamic>>(
       '/user/$username/$where',
-      query: {'limit': limit, if (after != null) 'after': after},
+      query: {
+        'limit': limit,
+        'sr_detail': true,
+        if (after != null) 'after': after,
+      },
     );
     return _parsePostListing(res.data!);
   }
@@ -503,7 +510,11 @@ class RedditRepository {
       {String? after, int limit = 25}) async {
     final res = await _client.get<Map<String, dynamic>>(
       '/user/$username/saved',
-      query: {'limit': limit, if (after != null) 'after': after},
+      query: {
+        'limit': limit,
+        'sr_detail': true,
+        if (after != null) 'after': after,
+      },
     );
     final data = res.data?['data'] as Map<String, dynamic>?;
     final children = (data?['children'] as List?) ?? const [];
@@ -533,6 +544,7 @@ class RedditRepository {
         'sort': sort,
         't': time,
         'limit': 25,
+        'sr_detail': true,
         if (subreddit != null) 'restrict_sr': true,
         if (after != null) 'after': after,
       },
@@ -1038,8 +1050,10 @@ class RedditRepository {
   }) async {
     final res = await _client.get<Map<String, dynamic>>(
       '/user/$username/m/$multiname/${sort.path}',
+      // sr_detail: each post carries its subreddit's icon for the card.
       query: {
         'limit': limit,
+        'sr_detail': true,
         if (after != null) 'after': after,
         if (sort.needsTime) 't': time.param,
       },

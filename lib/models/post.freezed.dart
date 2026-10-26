@@ -60,7 +60,15 @@ mixin _$Post {
       throw _privateConstructorUsedError; // reddit's mp4 variant for GIF posts (much smaller)
   List<GalleryImage> get gallery =>
       throw _privateConstructorUsedError; // vote state: true=up, false=down, null=none
-  bool? get likes => throw _privateConstructorUsedError;
+  bool? get likes =>
+      throw _privateConstructorUsedError; // the subreddit's icon (sr_detail)
+  String? get subredditIcon => throw _privateConstructorUsedError;
+  UserFlair? get authorFlair =>
+      throw _privateConstructorUsedError; // votes per poll option
+  List<int> get pollVotes => throw _privateConstructorUsedError;
+  int? get pollChoice =>
+      throw _privateConstructorUsedError; // images inside the body, by id
+  Map<String, String> get bodyMedia => throw _privateConstructorUsedError;
 
   /// Create a copy of Post
   /// with the given fields replaced by the non-null parameter values.
@@ -112,6 +120,11 @@ abstract class $PostCopyWith<$Res> {
     String? gifMp4Url,
     List<GalleryImage> gallery,
     bool? likes,
+    String? subredditIcon,
+    UserFlair? authorFlair,
+    List<int> pollVotes,
+    int? pollChoice,
+    Map<String, String> bodyMedia,
   });
 }
 
@@ -168,6 +181,11 @@ class _$PostCopyWithImpl<$Res, $Val extends Post>
     Object? gifMp4Url = freezed,
     Object? gallery = null,
     Object? likes = freezed,
+    Object? subredditIcon = freezed,
+    Object? authorFlair = freezed,
+    Object? pollVotes = null,
+    Object? pollChoice = freezed,
+    Object? bodyMedia = null,
   }) {
     return _then(
       _value.copyWith(
@@ -323,6 +341,26 @@ class _$PostCopyWithImpl<$Res, $Val extends Post>
                 ? _value.likes
                 : likes // ignore: cast_nullable_to_non_nullable
                       as bool?,
+            subredditIcon: freezed == subredditIcon
+                ? _value.subredditIcon
+                : subredditIcon // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            authorFlair: freezed == authorFlair
+                ? _value.authorFlair
+                : authorFlair // ignore: cast_nullable_to_non_nullable
+                      as UserFlair?,
+            pollVotes: null == pollVotes
+                ? _value.pollVotes
+                : pollVotes // ignore: cast_nullable_to_non_nullable
+                      as List<int>,
+            pollChoice: freezed == pollChoice
+                ? _value.pollChoice
+                : pollChoice // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            bodyMedia: null == bodyMedia
+                ? _value.bodyMedia
+                : bodyMedia // ignore: cast_nullable_to_non_nullable
+                      as Map<String, String>,
           )
           as $Val,
     );
@@ -376,6 +414,11 @@ abstract class _$$PostImplCopyWith<$Res> implements $PostCopyWith<$Res> {
     String? gifMp4Url,
     List<GalleryImage> gallery,
     bool? likes,
+    String? subredditIcon,
+    UserFlair? authorFlair,
+    List<int> pollVotes,
+    int? pollChoice,
+    Map<String, String> bodyMedia,
   });
 }
 
@@ -429,6 +472,11 @@ class __$$PostImplCopyWithImpl<$Res>
     Object? gifMp4Url = freezed,
     Object? gallery = null,
     Object? likes = freezed,
+    Object? subredditIcon = freezed,
+    Object? authorFlair = freezed,
+    Object? pollVotes = null,
+    Object? pollChoice = freezed,
+    Object? bodyMedia = null,
   }) {
     return _then(
       _$PostImpl(
@@ -584,6 +632,26 @@ class __$$PostImplCopyWithImpl<$Res>
             ? _value.likes
             : likes // ignore: cast_nullable_to_non_nullable
                   as bool?,
+        subredditIcon: freezed == subredditIcon
+            ? _value.subredditIcon
+            : subredditIcon // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        authorFlair: freezed == authorFlair
+            ? _value.authorFlair
+            : authorFlair // ignore: cast_nullable_to_non_nullable
+                  as UserFlair?,
+        pollVotes: null == pollVotes
+            ? _value._pollVotes
+            : pollVotes // ignore: cast_nullable_to_non_nullable
+                  as List<int>,
+        pollChoice: freezed == pollChoice
+            ? _value.pollChoice
+            : pollChoice // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        bodyMedia: null == bodyMedia
+            ? _value._bodyMedia
+            : bodyMedia // ignore: cast_nullable_to_non_nullable
+                  as Map<String, String>,
       ),
     );
   }
@@ -631,8 +699,15 @@ class _$PostImpl extends _Post {
     this.gifMp4Url,
     final List<GalleryImage> gallery = const <GalleryImage>[],
     this.likes,
+    this.subredditIcon,
+    this.authorFlair,
+    final List<int> pollVotes = const <int>[],
+    this.pollChoice,
+    final Map<String, String> bodyMedia = const <String, String>{},
   }) : _pollOptions = pollOptions,
        _gallery = gallery,
+       _pollVotes = pollVotes,
+       _bodyMedia = bodyMedia,
        super._();
 
   @override
@@ -743,10 +818,38 @@ class _$PostImpl extends _Post {
   // vote state: true=up, false=down, null=none
   @override
   final bool? likes;
+  // the subreddit's icon (sr_detail)
+  @override
+  final String? subredditIcon;
+  @override
+  final UserFlair? authorFlair;
+  // votes per poll option
+  final List<int> _pollVotes;
+  // votes per poll option
+  @override
+  @JsonKey()
+  List<int> get pollVotes {
+    if (_pollVotes is EqualUnmodifiableListView) return _pollVotes;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_pollVotes);
+  }
+
+  @override
+  final int? pollChoice;
+  // images inside the body, by id
+  final Map<String, String> _bodyMedia;
+  // images inside the body, by id
+  @override
+  @JsonKey()
+  Map<String, String> get bodyMedia {
+    if (_bodyMedia is EqualUnmodifiableMapView) return _bodyMedia;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(_bodyMedia);
+  }
 
   @override
   String toString() {
-    return 'Post(id: $id, fullname: $fullname, title: $title, subreddit: $subreddit, subredditPrefixed: $subredditPrefixed, author: $author, score: $score, numComments: $numComments, upvoteRatio: $upvoteRatio, created: $created, permalink: $permalink, url: $url, domain: $domain, type: $type, isSelf: $isSelf, selftext: $selftext, over18: $over18, spoiler: $spoiler, stickied: $stickied, locked: $locked, saved: $saved, canModPost: $canModPost, linkFlairText: $linkFlairText, distinguished: $distinguished, feedReason: $feedReason, crosspostFrom: $crosspostFrom, pollOptions: $pollOptions, thumbnailUrl: $thumbnailUrl, previewUrl: $previewUrl, previewMedUrl: $previewMedUrl, blurredPreviewUrl: $blurredPreviewUrl, previewWidth: $previewWidth, previewHeight: $previewHeight, hlsUrl: $hlsUrl, fallbackVideoUrl: $fallbackVideoUrl, gifMp4Url: $gifMp4Url, gallery: $gallery, likes: $likes)';
+    return 'Post(id: $id, fullname: $fullname, title: $title, subreddit: $subreddit, subredditPrefixed: $subredditPrefixed, author: $author, score: $score, numComments: $numComments, upvoteRatio: $upvoteRatio, created: $created, permalink: $permalink, url: $url, domain: $domain, type: $type, isSelf: $isSelf, selftext: $selftext, over18: $over18, spoiler: $spoiler, stickied: $stickied, locked: $locked, saved: $saved, canModPost: $canModPost, linkFlairText: $linkFlairText, distinguished: $distinguished, feedReason: $feedReason, crosspostFrom: $crosspostFrom, pollOptions: $pollOptions, thumbnailUrl: $thumbnailUrl, previewUrl: $previewUrl, previewMedUrl: $previewMedUrl, blurredPreviewUrl: $blurredPreviewUrl, previewWidth: $previewWidth, previewHeight: $previewHeight, hlsUrl: $hlsUrl, fallbackVideoUrl: $fallbackVideoUrl, gifMp4Url: $gifMp4Url, gallery: $gallery, likes: $likes, subredditIcon: $subredditIcon, authorFlair: $authorFlair, pollVotes: $pollVotes, pollChoice: $pollChoice, bodyMedia: $bodyMedia)';
   }
 
   @override
@@ -815,7 +918,21 @@ class _$PostImpl extends _Post {
             (identical(other.gifMp4Url, gifMp4Url) ||
                 other.gifMp4Url == gifMp4Url) &&
             const DeepCollectionEquality().equals(other._gallery, _gallery) &&
-            (identical(other.likes, likes) || other.likes == likes));
+            (identical(other.likes, likes) || other.likes == likes) &&
+            (identical(other.subredditIcon, subredditIcon) ||
+                other.subredditIcon == subredditIcon) &&
+            (identical(other.authorFlair, authorFlair) ||
+                other.authorFlair == authorFlair) &&
+            const DeepCollectionEquality().equals(
+              other._pollVotes,
+              _pollVotes,
+            ) &&
+            (identical(other.pollChoice, pollChoice) ||
+                other.pollChoice == pollChoice) &&
+            const DeepCollectionEquality().equals(
+              other._bodyMedia,
+              _bodyMedia,
+            ));
   }
 
   @override
@@ -859,6 +976,11 @@ class _$PostImpl extends _Post {
     gifMp4Url,
     const DeepCollectionEquality().hash(_gallery),
     likes,
+    subredditIcon,
+    authorFlair,
+    const DeepCollectionEquality().hash(_pollVotes),
+    pollChoice,
+    const DeepCollectionEquality().hash(_bodyMedia),
   ]);
 
   /// Create a copy of Post
@@ -910,6 +1032,11 @@ abstract class _Post extends Post {
     final String? gifMp4Url,
     final List<GalleryImage> gallery,
     final bool? likes,
+    final String? subredditIcon,
+    final UserFlair? authorFlair,
+    final List<int> pollVotes,
+    final int? pollChoice,
+    final Map<String, String> bodyMedia,
   }) = _$PostImpl;
   const _Post._() : super._();
 
@@ -988,7 +1115,17 @@ abstract class _Post extends Post {
   @override
   List<GalleryImage> get gallery; // vote state: true=up, false=down, null=none
   @override
-  bool? get likes;
+  bool? get likes; // the subreddit's icon (sr_detail)
+  @override
+  String? get subredditIcon;
+  @override
+  UserFlair? get authorFlair; // votes per poll option
+  @override
+  List<int> get pollVotes;
+  @override
+  int? get pollChoice; // images inside the body, by id
+  @override
+  Map<String, String> get bodyMedia;
 
   /// Create a copy of Post
   /// with the given fields replaced by the non-null parameter values.

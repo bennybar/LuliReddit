@@ -1223,7 +1223,9 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
         padding: const EdgeInsets.only(bottom: 12),
         child: NsfwBlur(
           blur: blur,
-          child: GalleryCarousel(images: p.gallery, title: p.title),
+          child: p.gallery.length > 1
+              ? GalleryM3Carousel(images: p.gallery, title: p.title)
+              : GalleryCarousel(images: p.gallery, title: p.title),
         ),
       );
     }
@@ -1352,7 +1354,11 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
         SwipeSpec(action.icon, cs.tertiary, widget.onReply),
       SwipeAction.collapse =>
         SwipeSpec(action.icon, cs.secondary, widget.onToggle),
-      SwipeAction.hide || SwipeAction.none => null,
+      SwipeAction.hide ||
+      SwipeAction.dismiss ||
+      SwipeAction.hideSub ||
+      SwipeAction.none =>
+        null,
     };
   }
 

@@ -17,6 +17,7 @@ import '../../core/providers.dart';
 import '../../core/reddit_constants.dart';
 import '../../data/reddit_repository.dart';
 import '../auth/auth_controller.dart';
+import '../feed/expiring_ids.dart';
 import '../feed/swipe_actions.dart';
 import '../media/media_folder.dart';
 import '../notifications/inbox_poller.dart';
@@ -270,6 +271,15 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             onTap: () => _pickDisplay(context, ctrl, s.postDisplay),
           ),
           SwitchListTile(
+            secondary: const Icon(Icons.image_rounded),
+            title: const Text('Subreddit icons'),
+            subtitle: const Text(
+                "Show each community's icon on posts instead of its first "
+                'letter'),
+            value: s.subredditIcons,
+            onChanged: ctrl.setSubredditIcons,
+          ),
+          SwitchListTile(
             secondary: const Icon(Icons.blur_on_rounded),
             title: const Text('Blur NSFW media'),
             subtitle: const Text('Tap to reveal blurred images'),
@@ -325,14 +335,32 @@ class _SettingsListState extends ConsumerState<SettingsList> {
                     },
             );
           }),
+          ListTile(
+            leading: const Icon(Icons.timer_outlined),
+            title: const Text('Keep feed for'),
+            subtitle: Text('Home / For You: ${_keepLabel(s.feedKeepMinutes)}, '
+                'then a new feed (pull down to refresh anytime)'),
+            onTap: () => _pickInt(context, s.feedKeepMinutes,
+                const [10, 30, 60, 180], _keepLabel, ctrl.setFeedKeepMinutes),
+          ),
           SwitchListTile(
             secondary: const Icon(Icons.visibility_off_outlined),
             title: const Text('Hide read posts'),
             subtitle: const Text(
-                'Skip posts you\'ve already read when feeds load or refresh'),
+                'Skip posts you\'ve already read when your front page and '
+                'custom feeds load or refresh'),
             value: s.hideReadPosts,
             onChanged: ctrl.setHideReadPosts,
           ),
+          if (s.hideReadPosts)
+            SwitchListTile(
+              secondary: const Icon(Icons.visibility_off_outlined),
+              title: const Text('Also in subreddits'),
+              subtitle: const Text(
+                  'Hide read posts when browsing a single subreddit too'),
+              value: s.hideReadInSubreddits,
+              onChanged: ctrl.setHideReadInSubreddits,
+            ),
           SwitchListTile(
             secondary: const Icon(Icons.done_all_rounded),
             title: const Text('Mark read as you scroll'),
@@ -351,9 +379,32 @@ class _SettingsListState extends ConsumerState<SettingsList> {
           ListTile(
             leading: const Icon(Icons.filter_alt_outlined),
             title: const Text('Content filters'),
-            subtitle: const Text('Hide posts by keyword, domain or flair'),
+            subtitle: const Text(
+                'Hide posts by keyword, domain, flair or subreddit'),
             onTap: () => context.push('/content_filters'),
           ),
+          ListTile(
+            leading: const Icon(Icons.visibility_off_outlined),
+            title: const Text('Hide posts for'),
+            subtitle: Text('Posts you hide stay out of every feed for '
+                '${_dayLabel(s.hiddenPostDays)}'),
+            onTap: () => _pickInt(context, s.hiddenPostDays,
+                const [1, 3, 7, 30, 90], _dayLabel, (v) {
+              ctrl.setHiddenPostDays(v);
+              ref.read(hiddenPostsProvider.notifier).refresh();
+            }),
+          ),
+          Builder(builder: (context) {
+            final n = ref.watch(hiddenHomeSubsProvider).length;
+            return ListTile(
+              leading: const Icon(Icons.do_not_disturb_on_rounded),
+              title: const Text('Hidden subreddits'),
+              subtitle: Text('Hidden from your front page for 7 days'
+                  '${n == 0 ? ' · none now' : ' · $n now'}'),
+              onTap: () => showDialog<void>(
+                  context: context, builder: (_) => const _HiddenSubsDialog()),
+            );
+          }),
           SwitchListTile(
             secondary: const Icon(Icons.swipe_rounded),
             title: const Text('Swipe actions'),
@@ -378,9 +429,28 @@ class _SettingsListState extends ConsumerState<SettingsList> {
           SwitchListTile(
             secondary: const Icon(Icons.play_circle_outline_rounded),
             title: const Text('Autoplay videos'),
-            subtitle: const Text('Play videos muted as you scroll the feed'),
+            subtitle: Text(s.autoplaySound
+                ? 'Play videos as you scroll the feed'
+                : 'Play videos muted as you scroll the feed'),
             value: s.autoplayMedia,
             onChanged: ctrl.setAutoplayMedia,
+          ),
+          if (s.autoplayMedia)
+            SwitchListTile(
+              secondary: const Icon(Icons.volume_up_rounded),
+              title: const Text('Autoplay with sound'),
+              subtitle: const Text(
+                  'Feed videos start with sound; tap the speaker to mute one'),
+              value: s.autoplaySound,
+              onChanged: ctrl.setAutoplaySound,
+            ),
+          SwitchListTile(
+            secondary: const Icon(Icons.view_carousel_rounded),
+            title: const Text('Gallery carousel in feeds'),
+            subtitle: const Text('Galleries show a big image with the next '
+                'ones beside it. Off: one image at a time'),
+            value: s.feedGalleryCarousel,
+            onChanged: ctrl.setFeedGalleryCarousel,
           ),
           if (Platform.isAndroid) const _MediaFolderTile(),
           SwitchListTile(
@@ -485,6 +555,15 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             value: s.trackHistory,
             onChanged: ctrl.setTrackHistory,
           ),
+          if (s.trackHistory)
+            ListTile(
+              leading: const Icon(Icons.visibility_outlined),
+              title: const Text('Dim read posts'),
+              subtitle: Text(s.dimReadTextOnly
+                  ? 'Text only: titles and text fade, images stay bright'
+                  : 'Whole card'),
+              onTap: () => _pickDimRead(context, ctrl, s.dimReadTextOnly),
+            ),
           SwitchListTile(
             secondary: const Icon(Icons.cloud_off_rounded),
             title: const Text('Offline cache'),
@@ -880,6 +959,58 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             children: [
               for (final m in options)
                 RadioListTile<int>(value: m, title: Text('$m minutes')),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _pickInt(BuildContext context, int current, List<int> options,
+      String Function(int) label, void Function(int) onPick) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: RadioGroup<int>(
+          groupValue: current,
+          onChanged: (v) {
+            if (v != null) onPick(v);
+            Navigator.pop(ctx);
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final o in options)
+                RadioListTile<int>(value: o, title: Text(label(o))),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _pickDimRead(
+      BuildContext context, SettingsController ctrl, bool current) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: RadioGroup<bool>(
+          groupValue: current,
+          onChanged: (v) {
+            if (v != null) ctrl.setDimReadTextOnly(v);
+            Navigator.pop(ctx);
+          },
+          child: const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RadioListTile<bool>(value: false, title: Text('Whole card')),
+              RadioListTile<bool>(
+                value: true,
+                title: Text('Text only'),
+                subtitle: Text('Images and videos stay bright'),
+              ),
             ],
           ),
         ),
@@ -1304,8 +1435,11 @@ class _SwipeSettingsSheet extends ConsumerWidget {
     final startLabel = rtl ? 'Swipe left' : 'Swipe right';
     final endLabel = rtl ? 'Swipe right' : 'Swipe left';
     Widget row(String label, String key, SwipeAction value, bool forPosts) {
-      final options = SwipeAction.values.where((a) =>
-          a != (forPosts ? SwipeAction.collapse : SwipeAction.hide));
+      final options = SwipeAction.values.where((a) => forPosts
+          ? a != SwipeAction.collapse
+          : a != SwipeAction.hide &&
+              a != SwipeAction.dismiss &&
+              a != SwipeAction.hideSub);
       return ListTile(
         title: Text(label),
         trailing: DropdownButton<SwipeAction>(
@@ -1414,6 +1548,55 @@ class _RateLimitTile extends ConsumerWidget {
       subtitle: Text(rl == null
           ? 'Reddit allows roughly 100 requests/minute. No data yet.'
           : '${rl.used}/${rl.total} used this window · resets in ${rl.resetSeconds}s'),
+    );
+  }
+}
+
+String _keepLabel(int minutes) => minutes < 60
+    ? '$minutes minutes'
+    : minutes == 60
+        ? '1 hour'
+        : '${minutes ~/ 60} hours';
+
+String _dayLabel(int days) => days == 1 ? '1 day' : '$days days';
+
+/// The subreddits hidden from the front page ("Hide r/… for 7 days"), each
+/// with Unhide.
+class _HiddenSubsDialog extends ConsumerWidget {
+  const _HiddenSubsDialog();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final subs = ref.watch(hiddenHomeSubsProvider).toList()..sort();
+    return AlertDialog(
+      title: const Text('Hidden subreddits'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (subs.isEmpty)
+              const Text("None. Hide one from a post's ⋮ menu or a swipe; it "
+                  'comes back after 7 days.'),
+            for (final sub in subs)
+              Row(
+                children: [
+                  Expanded(child: Text('r/$sub')),
+                  TextButton(
+                    onPressed: () =>
+                        ref.read(hiddenHomeSubsProvider.notifier).remove(sub),
+                    child: const Text('Unhide'),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Done')),
+      ],
     );
   }
 }

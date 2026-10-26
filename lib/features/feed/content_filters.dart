@@ -34,12 +34,23 @@ class ContentFilters {
       subreddits.isEmpty &&
       !hideNsfw;
 
-  /// Whole-word, any-script match: "cat" no longer hides "vacation".
-  static bool _hasWord(String text, String word) => RegExp(
-        '(?<![\\p{L}\\p{N}])${RegExp.escape(word)}(?![\\p{L}\\p{N}])',
-        unicode: true,
-        caseSensitive: false,
-      ).hasMatch(text);
+  /// All keywords as one whole-word, any-script pattern ("cat" doesn't hide
+  /// "vacation"), compiled once per filter set — it used to be compiled per
+  /// keyword per post, each time a feed list was recomputed.
+  static final _regexCache = Expando<RegExp>();
+  RegExp? get _keywordRegex {
+    if (_regexCache[this] case final r?) return r;
+    final words = [
+      for (final k in keywords)
+        if (k.isNotEmpty) RegExp.escape(k)
+    ];
+    if (words.isEmpty) return null;
+    return _regexCache[this] = RegExp(
+      '(?<![\\p{L}\\p{N}])(?:${words.join('|')})(?![\\p{L}\\p{N}])',
+      unicode: true,
+      caseSensitive: false,
+    );
+  }
 
   /// Whether [p] is hidden. A filtered subreddit still shows on its own page
   /// ([viewingSubreddit]) — it's meant to keep it out of everything else.
@@ -49,9 +60,7 @@ class ContentFilters {
     if (subreddits.contains(sub) && viewingSubreddit?.toLowerCase() != sub) {
       return true;
     }
-    for (final k in keywords) {
-      if (k.isNotEmpty && _hasWord(p.title, k)) return true;
-    }
+    if (_keywordRegex?.hasMatch(p.title) == true) return true;
     final domain = p.domain.toLowerCase();
     for (final d in domains) {
       if (d.isNotEmpty && domain.contains(d)) return true;

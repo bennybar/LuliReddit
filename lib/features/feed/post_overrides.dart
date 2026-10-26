@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/post.dart';
+import 'local_votes.dart';
 
 /// The current, user-visible state of a post that can change after it's fetched
 /// (vote, score, saved, comment count). Lives in a shared store keyed by post id
@@ -51,13 +52,15 @@ class PostOverridesController extends Notifier<Map<String, PostOverride>> {
   // otherwise, so scores don't freeze at whatever was first seen.
   final _localAt = <String, DateTime>{};
   void _touch(String id) => _localAt[id] = DateTime.now();
+  final _votes = LocalVotes();
 
   /// Applies a vote (toggling off if the same direction is tapped again).
   void setVote(Post p, int targetDir) {
     final cur = effective(p);
-    final curDir = cur.likes == true ? 1 : (cur.likes == false ? -1 : 0);
+    final curDir = dirOf(cur.likes);
     if (targetDir == curDir) return;
     _touch(p.id);
+    _votes.record(p.id, targetDir, p.score, p.likes);
     _set(
       p.id,
       cur.copyWith(
@@ -77,20 +80,21 @@ class PostOverridesController extends Notifier<Map<String, PostOverride>> {
       _set(p.id, effective(p).copyWith(numComments: effective(p).numComments + delta));
 
   /// Refresh from a freshly-fetched post (e.g. when the detail opens). The
-  /// server copy wins, except vote/score/saved the user changed in the last
-  /// couple of minutes — a request may still be in flight, or Reddit's copy
-  /// may not reflect it yet.
+  /// server copy wins, except a vote Reddit's copy doesn't show yet
+  /// ([LocalVotes]) and saved changed in the last couple of minutes (a
+  /// request may still be in flight).
   void syncFromServer(Post p) {
     final existing = state[p.id];
     final at = _localAt[p.id];
     final recentLocal = existing != null &&
         at != null &&
         DateTime.now().difference(at) < const Duration(minutes: 2);
+    final (likes, score) = _votes.reconcile(p.id, p.likes, p.score);
     _set(
       p.id,
       PostOverride(
-        likes: recentLocal ? existing.likes : p.likes,
-        score: recentLocal ? existing.score : p.score,
+        likes: likes,
+        score: score,
         numComments: p.numComments,
         saved: recentLocal ? existing.saved : p.saved,
       ),

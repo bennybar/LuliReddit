@@ -9,6 +9,11 @@ enum SwipeAction {
   save('Save', Icons.bookmark_rounded),
   reply('Reply', Icons.reply_rounded),
   hide('Hide', Icons.visibility_off_rounded), // posts only
+  // Posts only; local, a day.
+  dismiss('Dismiss (Home / For You)', Icons.close_rounded),
+  // Posts only; local.
+  hideSub('Hide subreddit 7 days (front page)',
+      Icons.do_not_disturb_on_rounded),
   collapse('Collapse', Icons.unfold_less_rounded); // comments only
 
   const SwipeAction(this.label, this.icon);

@@ -85,9 +85,41 @@ String postVideoUrl(Post p) {
   return p.gifMp4Url ?? direct;
 }
 
+/// A video post Ilay can't play itself — a YouTube / Vimeo / other embed with
+/// no Reddit-hosted copy or direct file. It opens in its own app or the
+/// browser (it used to land on a "can't be played" error screen).
+bool isExternalVideo(Post p) {
+  if (p.type != PostType.video ||
+      p.hlsUrl != null ||
+      p.fallbackVideoUrl != null ||
+      p.gifMp4Url != null) {
+    return false;
+  }
+  if (redgifsId(p.url) != null) return false;
+  final u = Uri.tryParse(resolveVideoUrl(p.url));
+  return u == null || !isVideoUrl(u);
+}
+
+/// Where an external video plays, for its feed label ("YouTube").
+String externalVideoSource(Post p) {
+  var d = p.domain.toLowerCase();
+  if (d.startsWith('www.')) d = d.substring(4);
+  if (d.startsWith('m.')) d = d.substring(2);
+  if (d == 'youtu.be' || d.endsWith('youtube.com')) return 'YouTube';
+  if (d.endsWith('vimeo.com')) return 'Vimeo';
+  if (d.endsWith('twitch.tv')) return 'Twitch';
+  if (d.endsWith('streamable.com')) return 'Streamable';
+  return d.isEmpty ? 'Video' : d;
+}
+
 /// Opens a video post full-screen. RedGifs clips are resolved to their HD
 /// file (with sound) first, falling back to Reddit's silent mp4 copy.
 Future<void> openPostVideo(BuildContext context, Post p) async {
+  if (isExternalVideo(p)) {
+    final uri = Uri.tryParse(p.url);
+    if (uri != null) launchUrl(uri, mode: LaunchMode.externalApplication);
+    return;
+  }
   var src = postVideoUrl(p);
   var download = p.fallbackVideoUrl ?? src;
   if (p.hlsUrl == null &&

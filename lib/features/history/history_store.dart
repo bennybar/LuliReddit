@@ -98,7 +98,12 @@ final historyControllerProvider =
     NotifierProvider<HistoryController, List<HistoryEntry>>(
         HistoryController.new);
 
+/// Viewed post ids, for O(1) "seen?" checks (feeds dim read posts).
+final historyIdsProvider = Provider<Set<String>>((ref) {
+  return {for (final e in ref.watch(historyControllerProvider)) e.id};
+});
+
 /// Whether a post id has been viewed (for dimming in feeds).
 final historyContainsProvider = Provider.family<bool, String>((ref, id) {
-  return ref.watch(historyControllerProvider).any((e) => e.id == id);
+  return ref.watch(historyIdsProvider).contains(id);
 });

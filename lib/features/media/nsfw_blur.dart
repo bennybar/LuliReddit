@@ -11,10 +11,15 @@ import 'package:flutter/material.dart';
 /// of the most expensive things a scrolling list can do.
 class NsfwBlur extends StatefulWidget {
   const NsfwBlur(
-      {super.key, required this.blur, required this.child, this.blurredImageUrl});
+      {super.key,
+      required this.blur,
+      required this.child,
+      this.blurredImageUrl,
+      this.label = 'NSFW'});
   final bool blur;
   final Widget child;
   final String? blurredImageUrl;
+  final String label; // "NSFW" or "Spoiler"
 
   @override
   State<NsfwBlur> createState() => _NsfwBlurState();
@@ -57,15 +62,15 @@ class _NsfwBlurState extends State<NsfwBlur> {
                 color: Colors.black.withValues(alpha: 0.25),
                 child: InkWell(
                   onTap: () => setState(() => _revealed = true),
-                  child: const Center(
+                  child: Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.visibility_off_rounded,
+                        const Icon(Icons.visibility_off_rounded,
                             color: Colors.white, size: 32),
-                        SizedBox(height: 8),
-                        Text('NSFW · tap to view',
-                            style: TextStyle(
+                        const SizedBox(height: 8),
+                        Text('${widget.label} · tap to view',
+                            style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold)),
                       ],

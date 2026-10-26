@@ -70,3 +70,23 @@ final _mediaRefRe = RegExp(r'!\[[^\]]*\]\(([^)\s]+)\)');
   });
   return (text: text.trim(), media: found);
 }
+
+final _paragraphRe = RegExp(r'\n\s*\n');
+final _loneLinkRe =
+    RegExp(r'^!?\[[^\]]*\]\((\S+?)\)$|^<?(https?://\S+?)>?$');
+
+/// [body] without its media-only paragraphs and uploaded-media refs: the text
+/// a feed card previews.
+String textWithoutMedia(String body) => body
+    .replaceAll(_mediaRefRe, '')
+    .split(_paragraphRe)
+    .map((p) => p.trim())
+    .where((p) {
+      if (p.isEmpty) return false;
+      final m = _loneLinkRe.firstMatch(p);
+      if (m == null) return true;
+      final lone = m.group(1) ?? m.group(2) ?? '';
+      final u = Uri.tryParse(lone);
+      return !(u != null && u.hasScheme && isMediaUrl(u));
+    })
+    .join('\n\n');

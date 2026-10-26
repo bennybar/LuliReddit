@@ -44,20 +44,27 @@ enum AppFont {
       (jakartaSwitch ? jakarta : googleSans);
 }
 
-/// How posts are laid out in feeds.
-enum PostDisplay { large, card, mini }
+/// How posts are laid out in feeds. Persisted by index (`postDisplay`).
+enum PostDisplay { large, card, mini, calm, calmCards }
 
 extension PostDisplayLabel on PostDisplay {
   String get label => switch (this) {
         PostDisplay.large => 'Default',
         PostDisplay.card => 'Cards',
         PostDisplay.mini => 'Mini cards',
+        PostDisplay.calm => 'Calm',
+        PostDisplay.calmCards => 'Calm cards',
       };
   IconData get icon => switch (this) {
         PostDisplay.large => Icons.view_agenda_outlined,
         PostDisplay.card => Icons.calendar_view_day_rounded,
         PostDisplay.mini => Icons.view_list_rounded,
+        PostDisplay.calm => Icons.spa_rounded,
+        PostDisplay.calmCards => Icons.spa_outlined,
       };
+
+  /// Both Calm layouts share the Calm post view and the ⋮-sheet read toggle.
+  bool get isCalm => this == PostDisplay.calm || this == PostDisplay.calmCards;
 }
 
 class Settings {
@@ -101,6 +108,13 @@ class Settings {
     required this.aiMaxChars,
     required this.aiUseCustomUrl,
     required this.aiBaseUrl,
+    required this.feedGalleryCarousel,
+    required this.autoplaySound,
+    required this.hiddenPostDays,
+    required this.feedKeepMinutes,
+    required this.subredditIcons,
+    required this.dimReadTextOnly,
+    required this.hideReadInSubreddits,
     required this.appFont,
     required this.appIcon,
   });
@@ -145,6 +159,13 @@ class Settings {
   final int aiMaxChars; // max thread text sent to the model
   final bool aiUseCustomUrl; // use a custom API base URL
   final String aiBaseUrl; // custom base URL (when enabled)
+  final bool feedGalleryCarousel; // galleries in feeds as the M3 carousel (else one image at a time)
+  final bool autoplaySound; // feed videos start unmuted
+  final int hiddenPostDays; // how long Ilay keeps posts you hid out of every feed (Reddit hides them too)
+  final int feedKeepMinutes; // how long the frontpage keeps its posts before returning to it reloads
+  final bool subredditIcons; // cards show the subreddit's icon (else its first letter)
+  final bool dimReadTextOnly; // read posts: dim only title / text (images stay bright), else the whole card
+  final bool hideReadInSubreddits; // …in single subreddits too (else front page / custom feeds only)
   final AppFont appFont; // the app's typeface
   final String appIcon; // app icon colour (AppIcon key)
 
@@ -188,6 +209,13 @@ class Settings {
     int? aiMaxChars,
     bool? aiUseCustomUrl,
     String? aiBaseUrl,
+    bool? feedGalleryCarousel,
+    bool? autoplaySound,
+    int? hiddenPostDays,
+    int? feedKeepMinutes,
+    bool? subredditIcons,
+    bool? dimReadTextOnly,
+    bool? hideReadInSubreddits,
     AppFont? appFont,
     String? appIcon,
   }) =>
@@ -231,6 +259,13 @@ class Settings {
         aiMaxChars: aiMaxChars ?? this.aiMaxChars,
         aiUseCustomUrl: aiUseCustomUrl ?? this.aiUseCustomUrl,
         aiBaseUrl: aiBaseUrl ?? this.aiBaseUrl,
+        feedGalleryCarousel: feedGalleryCarousel ?? this.feedGalleryCarousel,
+        autoplaySound: autoplaySound ?? this.autoplaySound,
+        hiddenPostDays: hiddenPostDays ?? this.hiddenPostDays,
+        feedKeepMinutes: feedKeepMinutes ?? this.feedKeepMinutes,
+        subredditIcons: subredditIcons ?? this.subredditIcons,
+        dimReadTextOnly: dimReadTextOnly ?? this.dimReadTextOnly,
+        hideReadInSubreddits: hideReadInSubreddits ?? this.hideReadInSubreddits,
         appFont: appFont ?? this.appFont,
         appIcon: appIcon ?? this.appIcon,
       );
@@ -266,7 +301,7 @@ class SettingsController extends Notifier<Settings> {
       defaultSort: PostSort.values[p.getInt('defaultSort') ?? PostSort.best.index],
       defaultCommentSort: p.getString('defaultCommentSort') ?? 'confidence',
       postDisplay:
-          PostDisplay.values[p.getInt('postDisplay') ?? PostDisplay.large.index],
+          PostDisplay.values[p.getInt('postDisplay') ?? PostDisplay.calm.index],
       swipeActions: p.getBool('swipeActions') ?? true,
       trackHistory: p.getBool('trackHistory') ?? true,
       offlineCache: p.getBool('offlineCache') ?? true,
@@ -294,6 +329,13 @@ class SettingsController extends Notifier<Settings> {
       aiMaxChars: p.getInt('aiMaxChars') ?? 100000,
       aiUseCustomUrl: p.getBool('aiUseCustomUrl') ?? false,
       aiBaseUrl: p.getString('aiBaseUrl') ?? 'https://api.openai.com',
+      feedGalleryCarousel: p.getBool('feedGalleryCarousel') ?? true,
+      autoplaySound: p.getBool('autoplaySound') ?? false,
+      hiddenPostDays: p.getInt('hiddenPostDays') ?? 7,
+      feedKeepMinutes: p.getInt('feedKeepMinutes') ?? 30,
+      subredditIcons: p.getBool('subredditIcons') ?? true,
+      dimReadTextOnly: p.getBool('dimReadTextOnly') ?? false,
+      hideReadInSubreddits: p.getBool('hideReadInSubreddits') ?? false,
       appFont: AppFont.parse(p.getString('appFont'), p.getBool('jakartaFont') ?? false),
       appIcon: p.getString('appIcon') ?? 'violet',
     );
@@ -503,6 +545,41 @@ class SettingsController extends Notifier<Settings> {
     // Keeps backups readable by older builds, which only had the switch.
     _prefs.setBool('jakartaFont', v == AppFont.jakarta);
     state = state.copyWith(appFont: v, jakartaFont: v == AppFont.jakarta);
+  }
+
+  void setHideReadInSubreddits(bool v) {
+    _prefs.setBool('hideReadInSubreddits', v);
+    state = state.copyWith(hideReadInSubreddits: v);
+  }
+
+  void setDimReadTextOnly(bool v) {
+    _prefs.setBool('dimReadTextOnly', v);
+    state = state.copyWith(dimReadTextOnly: v);
+  }
+
+  void setSubredditIcons(bool v) {
+    _prefs.setBool('subredditIcons', v);
+    state = state.copyWith(subredditIcons: v);
+  }
+
+  void setFeedKeepMinutes(int v) {
+    _prefs.setInt('feedKeepMinutes', v);
+    state = state.copyWith(feedKeepMinutes: v);
+  }
+
+  void setHiddenPostDays(int v) {
+    _prefs.setInt('hiddenPostDays', v);
+    state = state.copyWith(hiddenPostDays: v);
+  }
+
+  void setAutoplaySound(bool v) {
+    _prefs.setBool('autoplaySound', v);
+    state = state.copyWith(autoplaySound: v);
+  }
+
+  void setFeedGalleryCarousel(bool v) {
+    _prefs.setBool('feedGalleryCarousel', v);
+    state = state.copyWith(feedGalleryCarousel: v);
   }
 }
 

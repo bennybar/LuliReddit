@@ -125,3 +125,74 @@ class _GalleryCarouselState extends State<GalleryCarousel> {
     );
   }
 }
+
+/// A gallery as a Material 3 multi-browse carousel: a large image with the
+/// next ones peeking beside it, each opening the full-screen viewer at that
+/// image. Feeds use it unless Settings › Gallery carousel in feeds is off
+/// (then [GalleryCarousel], one image at a time).
+class GalleryM3Carousel extends StatelessWidget {
+  const GalleryM3Carousel(
+      {super.key, required this.images, this.title, this.height = 300});
+  final List<GalleryImage> images;
+  final String? title;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    if (images.isEmpty) return const SizedBox.shrink();
+    final cs = Theme.of(context).colorScheme;
+    final n = images.length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: height,
+          child: CarouselView.weighted(
+            // One big item, smaller ones beside it.
+            flexWeights: n == 2 ? const [3, 1] : const [3, 2, 1],
+            // 8 between items, as Kotlin's itemSpacing.
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(28)),
+            backgroundColor: cs.surfaceContainerHighest,
+            itemSnapping: true,
+            onTap: (i) => openGalleryViewer(context, images,
+                title: title, initialIndex: i),
+            children: [
+              for (var i = 0; i < n; i++)
+                Semantics(
+                  image: true,
+                  label: 'Image ${i + 1} of $n',
+                  child: CachedNetworkImage(
+                    imageUrl: images[i].url,
+                    fit: BoxFit.cover,
+                    // Gallery images are full size (often 12MP photos):
+                    // decode at screen width, as the feed's prefetcher.
+                    memCacheWidth: feedDecodeWidth(context),
+                    placeholder: (_, __) =>
+                        ColoredBox(color: cs.surfaceContainerHighest),
+                    errorWidget: (_, __, ___) => Center(
+                      child: Icon(Icons.broken_image_outlined,
+                          color: cs.onSurfaceVariant),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(left: 4, top: 8),
+          child: Row(
+            children: [
+              Icon(Icons.collections_rounded,
+                  size: 14, color: cs.onSurfaceVariant),
+              const SizedBox(width: 6),
+              Text('$n images · tap one to view',
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}

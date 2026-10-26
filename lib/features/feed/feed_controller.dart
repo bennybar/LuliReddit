@@ -136,12 +136,15 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
   /// "Hide read posts": drops posts already in history as each page arrives.
   /// Filtering when fetched rather than live keeps a post you've just read
   /// (or scrolled past) from vanishing under you; the next load skips it.
-  /// For You has its own live auto-hide option.
+  /// For You has its own live auto-hide option. Feeds only (front page,
+  /// custom feeds) unless "Also in subreddits" is on: browsing one subreddit
+  /// you often want to see what you've read.
   Listing<Post> _dropRead(Listing<Post> listing) {
-    if (_forYou || !ref.read(settingsControllerProvider).hideReadPosts) {
-      return listing;
-    }
-    final read = {for (final e in ref.read(historyControllerProvider)) e.id};
+    final s = ref.read(settingsControllerProvider);
+    if (_forYou || !s.hideReadPosts) return listing;
+    final subreddit = arg.isNotEmpty && !arg.startsWith('m::');
+    if (subreddit && !s.hideReadInSubreddits) return listing;
+    final read = ref.read(historyIdsProvider);
     if (read.isEmpty) return listing;
     return Listing(
         items: [for (final p in listing.items) if (!read.contains(p.id)) p],
@@ -296,6 +299,10 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
       if (cached == null && _deckMode) cached = await _cachedFirstPage();
       if (cached == null) rethrow;
       _showingCache = false;
+      // Count the attempt as a load: otherwise every return to the feed
+      // (refreshIfExpired) retried at once, swapping in the loading deck and
+      // losing the scroll position each time while offline.
+      _lastLoaded = DateTime.now();
       return FeedState(
           posts: cached.items, sort: _sort!, time: _time, after: cached.after);
     }
@@ -361,6 +368,19 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
   Future<void> refresh() async {
     if (_deckMode) state = const AsyncLoading();
     state = await AsyncValue.guard(() => build(arg));
+  }
+
+  /// Returning to the frontpage (from a post, or the app from the
+  /// background): it keeps its posts for the "Keep feed for" time; after that
+  /// it loads anew, as on a fresh launch. Pull-to-refresh is the way to
+  /// replace it sooner.
+  Future<void> refreshIfExpired() async {
+    if (state.isLoading || state.valueOrNull == null) return;
+    final keep = ref.read(settingsControllerProvider).feedKeepMinutes;
+    if (DateTime.now().difference(_lastLoaded) < Duration(minutes: keep)) {
+      return;
+    }
+    await refresh();
   }
 
   // A freshly-fetched first page staged behind the "New posts" pill.

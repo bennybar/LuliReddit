@@ -10,11 +10,11 @@ import '../../core/widgets/image_decode.dart';
 import '../../data/reddit_repository.dart';
 import '../../models/post.dart';
 import '../history/history_store.dart';
-import '../post/post_actions.dart' show hiddenPostsProvider;
 import '../reddit_home/home_loading.dart';
 import '../reddit_home/reddit_home_loader.dart' show redditHomeNoticeProvider;
 import '../settings/settings_controller.dart';
 import 'content_filters.dart';
+import 'expiring_ids.dart';
 import 'feed_controller.dart';
 import 'post_card.dart';
 import 'post_skeleton.dart';
@@ -34,7 +34,11 @@ class PostListView extends ConsumerStatefulWidget {
   ConsumerState<PostListView> createState() => _PostListViewState();
 }
 
-class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
+/// Feed list side / bottom padding: room for the floating nav / FABs.
+const feedPadding = EdgeInsets.fromLTRB(7, 0, 7, 130);
+
+class _PostListViewState extends ConsumerState<PostListView>
+    with RouteAware, WidgetsBindingObserver {
   // The Home loading deck was just showing: deal the first cards in.
   bool _dealHome = false;
   final _scroll = ScrollController();
@@ -44,6 +48,7 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _scroll.addListener(() {
       if (_scroll.position.pixels >=
           _scroll.position.maxScrollExtent - 600) {
@@ -59,15 +64,28 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
     if (route is PageRoute) appRouteObserver.subscribe(this, route);
   }
 
-  /// Returning to the feed after a pushed route (e.g. a post) is popped:
-  /// pull in fresh posts if the feed has gone stale.
+  /// Returning to the feed after a pushed route (e.g. a post) is popped, or
+  /// to the app: the frontpage keeps its posts for Settings → Keep feed for,
+  /// then loads anew; other feeds stage fresh posts behind a "New posts" pill
+  /// once stale.
+  void _onReturn() {
+    final c = ref.read(feedControllerProvider(widget.feedKey).notifier);
+    widget.feedKey.isEmpty ? c.refreshIfExpired() : c.refreshIfStale();
+  }
+
   @override
-  void didPopNext() {
-    ref.read(feedControllerProvider(widget.feedKey).notifier).refreshIfStale();
+  void didPopNext() => _onReturn();
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Only while this feed is the visible route.
+    final current = ModalRoute.of(context)?.isCurrent ?? false;
+    if (state == AppLifecycleState.resumed && current) _onReturn();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     appRouteObserver.unsubscribe(this);
     _scroll.dispose();
     super.dispose();
@@ -80,10 +98,7 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
     if (settings.postDisplay == PostDisplay.mini) return;
     final width = feedDecodeWidth(context);
     for (final p in posts.skip(index + 1).take(8)) {
-      final url = (settings.midResThumbnails
-              ? (p.previewMedUrl ?? p.previewUrl)
-              : p.previewUrl) ??
-          (p.gallery.isNotEmpty ? p.gallery.first.url : null);
+      final url = feedImageUrl(p, settings);
       if (url == null || !_prefetched.add(url)) continue;
       precacheImage(
           ResizeImage(CachedNetworkImageProvider(url), width: width), context,
@@ -143,7 +158,7 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
           if (deckMode) {
             _dealHome = true;
             return ListView(
-              padding: const EdgeInsets.fromLTRB(10, 0, 10, 130),
+              padding: feedPadding,
               children: [
                 if (widget.header != null) widget.header!,
                 const SizedBox(height: 120),
@@ -152,7 +167,7 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
             );
           }
           return ListView(
-            padding: const EdgeInsets.fromLTRB(10, 0, 10, 130),
+            padding: feedPadding,
             children: [
               if (widget.header != null) widget.header!,
               const SizedBox(height: 8),
@@ -178,19 +193,42 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
           final homeOn = settings.redditHomeAllowed && settings.redditHomeFeed;
           var posts = state.posts;
           // Auto-hide already-read items in the For You feed (live: rebuilds
-          // when history changes).
-          if (settings.autoHideReadForYou) {
-            final seen = {for (final e in ref.watch(historyControllerProvider)) e.id};
+          // when history changes). Not in Reddit Home: its recommended posts
+          // carry Reddit's reason too, and opening one made it vanish on
+          // return.
+          if (settings.autoHideReadForYou && !homeOn) {
+            final seen = ref.watch(historyIdsProvider);
             posts = posts
                 .where((p) => !(p.feedReason != null && seen.contains(p.id)))
                 .toList();
           }
-          // Posts hidden this session (Hide / swipe-to-hide).
+          // Posts you hid (Hide / swipe-to-hide), for Settings → Hide posts
+          // for.
           final hiddenIds = ref.watch(hiddenPostsProvider);
           if (hiddenIds.isNotEmpty) {
             posts = posts.where((p) => !hiddenIds.contains(p.id)).toList();
           }
-          // User content filters (keywords / domains / flairs).
+          // Home / For You: posts dismissed with the "Dismiss" swipe (kept a
+          // day).
+          final dismissible = widget.feedKey.isEmpty && deckMode;
+          if (dismissible) {
+            final dismissed = ref.watch(dismissedPostsProvider);
+            if (dismissed.isNotEmpty) {
+              posts = posts.where((p) => !dismissed.contains(p.id)).toList();
+            }
+          }
+          // Subreddits hidden for 7 days: anywhere on the front page (Home,
+          // For You and Best / Hot / New).
+          final frontpage = widget.feedKey.isEmpty;
+          if (frontpage) {
+            final subs = ref.watch(hiddenHomeSubsProvider);
+            if (subs.isNotEmpty) {
+              posts = posts
+                  .where((p) => !subs.contains(p.subreddit.toLowerCase()))
+                  .toList();
+            }
+          }
+          // User content filters (keywords / domains / flairs / subreddits).
           final filters = ref.watch(contentFiltersProvider);
           if (!filters.isEmpty) {
             // A subreddit feed still shows that subreddit's own posts.
@@ -202,6 +240,10 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
                 .where((p) => !filters.hides(p, viewingSubreddit: viewing))
                 .toList();
           }
+          // A page boundary can repeat a post that moved up meanwhile; the
+          // list needs unique keys.
+          final ids = <String>{};
+          posts = posts.where((p) => ids.add(p.id)).toList();
           final hidden = state.posts.length - posts.length;
           // Paging is triggered by building post rows near the end. If the
           // filters hide (almost) everything loaded, there are no rows to
@@ -220,7 +262,7 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
             // Build cards about a screen ahead (the default is 250px), so
             // they're laid out and their images decoding before they appear.
             scrollCacheExtent: const ScrollCacheExtent.pixels(1200),
-            padding: const EdgeInsets.fromLTRB(10, 0, 10, 130),
+            padding: feedPadding,
             itemCount: (widget.header != null ? 1 : 0) + itemCount,
             separatorBuilder: (_, __) => const SizedBox(height: 10),
             itemBuilder: (context, rawIndex) {
@@ -263,9 +305,17 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
                   return DealIn(
                       index: index,
                       animate: deal,
-                      child: PostCard(post: posts[index]));
+                      child: PostCard(
+                          key: ValueKey(posts[index].id),
+                          post: posts[index],
+                          dismissible: dismissible,
+                          frontpage: frontpage));
                 }
-                return PostCard(post: posts[index]);
+                return PostCard(
+                    key: ValueKey(posts[index].id),
+                    post: posts[index],
+                    dismissible: dismissible,
+                    frontpage: frontpage);
               }
               // footer
               final muted = TextStyle(
@@ -380,7 +430,7 @@ class _SortBar extends StatelessWidget {
     final label = redditHome
         ? 'Home'
         : forYou
-            ? 'For You · Beta'
+            ? 'For You'
             : (sort.needsTime ? '${sort.label} · ${time.label}' : sort.label);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
@@ -393,6 +443,10 @@ class _SortBar extends StatelessWidget {
                     : (forYou ? Icons.auto_awesome_rounded : Icons.sort_rounded),
                 size: 18),
             label: Text(label),
+            shape: const StadiumBorder(),
+            side: BorderSide.none,
+            backgroundColor:
+                Theme.of(context).colorScheme.surfaceContainerHigh,
             onPressed: () => _showSortSheet(context),
           ),
         ],
@@ -412,7 +466,7 @@ class _SortBar extends StatelessWidget {
               ListTile(
                 leading: const Icon(Icons.auto_awesome_rounded),
                 title: const Text('For You'),
-                subtitle: const Text('Personalized · Beta'),
+                subtitle: const Text('Personalized on your phone'),
                 trailing: forYou ? const Icon(Icons.check_rounded) : null,
                 onTap: () {
                   Navigator.pop(ctx);
