@@ -24,6 +24,7 @@ mixin _$RedditUser {
   int get commentKarma => throw _privateConstructorUsedError;
   DateTime get created => throw _privateConstructorUsedError;
   String get description => throw _privateConstructorUsedError;
+  bool get following => throw _privateConstructorUsedError;
 
   /// Create a copy of RedditUser
   /// with the given fields replaced by the non-null parameter values.
@@ -47,6 +48,7 @@ abstract class $RedditUserCopyWith<$Res> {
     int commentKarma,
     DateTime created,
     String description,
+    bool following,
   });
 }
 
@@ -72,6 +74,7 @@ class _$RedditUserCopyWithImpl<$Res, $Val extends RedditUser>
     Object? commentKarma = null,
     Object? created = null,
     Object? description = null,
+    Object? following = null,
   }) {
     return _then(
       _value.copyWith(
@@ -103,6 +106,10 @@ class _$RedditUserCopyWithImpl<$Res, $Val extends RedditUser>
                 ? _value.description
                 : description // ignore: cast_nullable_to_non_nullable
                       as String,
+            following: null == following
+                ? _value.following
+                : following // ignore: cast_nullable_to_non_nullable
+                      as bool,
           )
           as $Val,
     );
@@ -126,6 +133,7 @@ abstract class _$$RedditUserImplCopyWith<$Res>
     int commentKarma,
     DateTime created,
     String description,
+    bool following,
   });
 }
 
@@ -150,6 +158,7 @@ class __$$RedditUserImplCopyWithImpl<$Res>
     Object? commentKarma = null,
     Object? created = null,
     Object? description = null,
+    Object? following = null,
   }) {
     return _then(
       _$RedditUserImpl(
@@ -181,6 +190,10 @@ class __$$RedditUserImplCopyWithImpl<$Res>
             ? _value.description
             : description // ignore: cast_nullable_to_non_nullable
                   as String,
+        following: null == following
+            ? _value.following
+            : following // ignore: cast_nullable_to_non_nullable
+                  as bool,
       ),
     );
   }
@@ -197,6 +210,7 @@ class _$RedditUserImpl extends _RedditUser {
     this.commentKarma = 0,
     required this.created,
     this.description = '',
+    this.following = false,
   }) : super._();
 
   @override
@@ -216,10 +230,13 @@ class _$RedditUserImpl extends _RedditUser {
   @override
   @JsonKey()
   final String description;
+  @override
+  @JsonKey()
+  final bool following;
 
   @override
   String toString() {
-    return 'RedditUser(name: $name, iconUrl: $iconUrl, bannerUrl: $bannerUrl, linkKarma: $linkKarma, commentKarma: $commentKarma, created: $created, description: $description)';
+    return 'RedditUser(name: $name, iconUrl: $iconUrl, bannerUrl: $bannerUrl, linkKarma: $linkKarma, commentKarma: $commentKarma, created: $created, description: $description, following: $following)';
   }
 
   @override
@@ -237,7 +254,9 @@ class _$RedditUserImpl extends _RedditUser {
                 other.commentKarma == commentKarma) &&
             (identical(other.created, created) || other.created == created) &&
             (identical(other.description, description) ||
-                other.description == description));
+                other.description == description) &&
+            (identical(other.following, following) ||
+                other.following == following));
   }
 
   @override
@@ -250,6 +269,7 @@ class _$RedditUserImpl extends _RedditUser {
     commentKarma,
     created,
     description,
+    following,
   );
 
   /// Create a copy of RedditUser
@@ -270,6 +290,7 @@ abstract class _RedditUser extends RedditUser {
     final int commentKarma,
     required final DateTime created,
     final String description,
+    final bool following,
   }) = _$RedditUserImpl;
   const _RedditUser._() : super._();
 
@@ -287,6 +308,8 @@ abstract class _RedditUser extends RedditUser {
   DateTime get created;
   @override
   String get description;
+  @override
+  bool get following;
 
   /// Create a copy of RedditUser
   /// with the given fields replaced by the non-null parameter values.

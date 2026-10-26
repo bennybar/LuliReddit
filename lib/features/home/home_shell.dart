@@ -1,14 +1,14 @@
 import 'dart:io';
-import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../core/network/rate_limit.dart';
-import '../../core/widgets/glass_surface.dart';
+import '../../core/widgets/glass_surface.dart' show useLiquidGlass;
+import '../about/whats_new.dart';
 import '../auth/auth_controller.dart';
 import '../explore/explore_screen.dart';
 import '../feed/post_list_view.dart';
@@ -19,11 +19,22 @@ import '../notifications/notification_service.dart';
 import '../settings/settings_controller.dart';
 import '../updates/update_checker.dart';
 import 'account_tab.dart';
+import 'frontpage_tab.dart';
+import 'tab_menu.dart';
 import 'tab_signals.dart';
 
 /// SharedPreferences flag: have we shown the one-time notifications suggestion?
 const String _kNotifPromptedPref = 'notifyInboxPrompted';
 
+const _navItems = [
+  (Icons.home_outlined, Icons.home_rounded, 'Posts'),
+  (Icons.explore_outlined, Icons.explore_rounded, 'Explore'),
+  (Icons.mail_outline_rounded, Icons.mail_rounded, 'Inbox'),
+  (Icons.account_circle_outlined, Icons.account_circle_rounded, 'Profile'),
+];
+
+/// The home shell: Posts / Explore / Inbox / Profile tabs with the floating
+/// "Pop" pill nav and / or the side bar (Settings › Navigation).
 class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
 
@@ -32,15 +43,21 @@ class HomeShell extends ConsumerStatefulWidget {
 }
 
 class _HomeShellState extends ConsumerState<HomeShell> {
+  final _scaffold = GlobalKey<ScaffoldState>();
   int _index = 0;
-
   bool _chrome = true;
+  DateTime _lastExploreTap = DateTime.fromMillisecondsSinceEpoch(0);
+  // The other tabs are built one frame after the first paint (the Posts tab
+  // shows first); they then stay alive in the IndexedStack.
+  bool _allTabs = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (mounted) setState(() => _allTabs = true);
       await _maybeCheckUpdates();
+      if (mounted) await maybeShowWhatsNew(context, ref);
       if (mounted) await _maybeSuggestNotifications();
     });
   }
@@ -87,7 +104,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     if (!ref.read(settingsControllerProvider).checkUpdates) return;
     final info = await UpdateChecker().check();
     if (info == null || !mounted) return;
-    showDialog(
+    await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Update available — v${info.version}'),
@@ -110,7 +127,9 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   }
 
   bool _onScroll(UserScrollNotification n) {
-    if (n.depth != 0) return false;
+    // Any tab's main list, including those inside a tab's pager (Inbox,
+    // Profile); not the pagers themselves or horizontal carousels.
+    if (n.metrics.axis != Axis.vertical) return false;
     final m = n.metrics;
     // Near the top or overscrolling (iOS rubber-band) — keep chrome shown and
     // don't toggle, so the bar doesn't bounce in/out as you scroll back up.
@@ -126,761 +145,434 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     return false;
   }
 
+  void _selectTab(int i) {
+    // Double-tapping Explore opens search, keyboard up.
+    final now = DateTime.now();
+    if (i == 1 &&
+        now.difference(_lastExploreTap) < const Duration(milliseconds: 400)) {
+      _lastExploreTap = DateTime.fromMillisecondsSinceEpoch(0);
+      context.push('/search');
+      return;
+    }
+    if (i == 1) _lastExploreTap = now;
+    // Re-tapping the active tab scrolls it to top (Posts also refreshes).
+    if (i == _index) {
+      if (i == 0) {
+        ref.read(frontpageScrollSignalProvider.notifier).state++;
+      } else {
+        ref.read(tabReselectProvider(i).notifier).state++;
+      }
+      return;
+    }
+    setState(() {
+      _index = i;
+      _chrome = true; // always reveal chrome when switching tabs
+    });
+  }
+
+  void _openSideBar() => _scaffold.currentState?.openDrawer();
+
+  Widget _tab(int i) {
+    if (!_allTabs && i != _index) return const SizedBox.shrink();
+    return switch (i) {
+      0 => FrontpageTab(chromeVisible: _chrome),
+      1 => const ExploreScreen(),
+      2 => const InboxScreen(),
+      _ => const ProfileTab(),
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final unread = ref.watch(unreadCountProvider).valueOrNull ?? 0;
+    final navStyle =
+        ref.watch(settingsControllerProvider.select((s) => s.navStyle));
     final navLabels =
         ref.watch(settingsControllerProvider.select((s) => s.navLabels));
+    final navOutline =
+        ref.watch(settingsControllerProvider.select((s) => s.navOutline));
+    // Settings › Navigation: the bottom bar, the side bar, or both.
+    final bottomBar = navStyle != 1;
+    final sideBar = navStyle != 0;
+    final surface = Theme.of(context).colorScheme.surface;
     return Scaffold(
+      key: _scaffold,
       // Pop variant: content flows under the detached floating nav.
       extendBody: true,
-      body: NotificationListener<UserScrollNotification>(
-        onNotification: _onScroll,
-        child: SafeArea(
-          bottom: false,
-          child: IndexedStack(
-            index: _index,
-            children: [
-              _FrontpageTab(chromeVisible: _chrome),
-              const ExploreScreen(),
-              const InboxScreen(),
-              const AccountTab(),
-            ],
-          ),
+      // With the side bar on, an edge swipe from the left brings it out
+      // (Android's back gesture does this in Kotlin).
+      drawer: sideBar
+          ? _SideBar(
+              selected: _index,
+              unread: unread,
+              onTab: (i) {
+                _scaffold.currentState?.closeDrawer();
+                _selectTab(i);
+              },
+            )
+          : null,
+      drawerEnableOpenDragGesture: sideBar,
+      body: SideBarScope(
+        open: sideBar ? _openSideBar : null,
+        child: Stack(
+          children: [
+            NotificationListener<UserScrollNotification>(
+              onNotification: _onScroll,
+              child: SafeArea(
+                bottom: false,
+                child: IndexedStack(
+                  index: _index,
+                  children: [for (var i = 0; i < 4; i++) _tab(i)],
+                ),
+              ),
+            ),
+            if (bottomBar)
+              // A fade from the page colour behind the nav, so the pill never
+              // sits directly on a post of the same tone; it hides with the
+              // nav.
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: IgnorePointer(
+                  child: AnimatedOpacity(
+                    opacity: _chrome ? 1 : 0,
+                    duration: const Duration(milliseconds: 220),
+                    child: Container(
+                      height: 130 + MediaQuery.paddingOf(context).bottom,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            surface.withValues(alpha: 0),
+                            surface.withValues(alpha: 0.92),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
-      bottomNavigationBar: AnimatedSlide(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOut,
-        offset: _chrome ? Offset.zero : const Offset(0, 1.4),
-        child: _FloatingNav(
-          selectedIndex: _index,
-          unread: unread,
-          showLabels: navLabels,
-          onSelected: (i) {
-            // Re-tapping the active tab scrolls it to top (Posts also refreshes).
-            if (i == _index) {
-              if (i == 0) {
-                ref.read(frontpageScrollSignalProvider.notifier).state++;
-              } else {
-                ref.read(tabReselectProvider(i).notifier).state++;
-              }
-              return;
-            }
-            setState(() {
-              _index = i;
-              _chrome = true; // always reveal chrome when switching tabs
-            });
-          },
+      bottomNavigationBar: bottomBar
+          ? AnimatedSlide(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOut,
+              offset: _chrome ? Offset.zero : const Offset(0, 1.4),
+              child: _FloatingNav(
+                selected: _index,
+                unread: unread,
+                showLabels: navLabels,
+                outline: navOutline,
+                onSelected: _selectTab,
+              ),
+            )
+          : null,
+    );
+  }
+}
+
+/// The side bar (Settings › Navigation): the four tabs, then your stuff and
+/// Settings. Picking one closes it, then runs the choice.
+class _SideBar extends ConsumerWidget {
+  const _SideBar(
+      {required this.selected, required this.unread, required this.onTab});
+  final int selected;
+  final int unread;
+  final ValueChanged<int> onTab;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
+    final session = ref.watch(authControllerProvider).valueOrNull;
+    final anonymous = session?.anonymous != false;
+    final router = GoRouter.of(context);
+    final more = [
+      if (!anonymous)
+        (Icons.bookmark_border_rounded, 'Saved', '/saved'),
+      if (!anonymous)
+        (Icons.dynamic_feed_rounded, 'Custom feeds', '/custom_feeds'),
+      (Icons.history_rounded, 'History', '/history'),
+      (Icons.offline_pin_rounded, 'Read later', '/offline'),
+      (Icons.edit_note_rounded, 'Drafts', '/drafts'),
+      (Icons.settings_outlined, 'Settings', '/settings'),
+    ];
+    return Drawer(
+      width: 300,
+      child: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(left: 16, top: 20),
+              child: Text('Ilay',
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineSmall
+                      ?.copyWith(fontWeight: FontWeight.w800)),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 2, 0, 16),
+              child: Text(
+                  anonymous
+                      ? 'Browsing without an account'
+                      : 'u/${session?.username}',
+                  style: TextStyle(color: cs.onSurfaceVariant)),
+            ),
+            for (var i = 0; i < _navItems.length; i++)
+              _DrawerItem(
+                icon: i == selected ? _navItems[i].$2 : _navItems[i].$1,
+                label: _navItems[i].$3,
+                selected: i == selected,
+                badge: i == 2 && unread > 0
+                    ? (unread > 99 ? '99+' : '$unread')
+                    : null,
+                onTap: () => onTab(i),
+              ),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              child: Divider(height: 1),
+            ),
+            for (final m in more)
+              _DrawerItem(
+                icon: m.$1,
+                label: m.$2,
+                selected: false,
+                onTap: () {
+                  Scaffold.of(context).closeDrawer();
+                  router.push(m.$3);
+                },
+              ),
+            const SizedBox(height: 16),
+          ],
         ),
       ),
     );
   }
 }
 
-/// "Pop" floating pill navigation. On iOS the selection indicator is a single
-/// Liquid-Glass capsule that fluidly slides + stretches between tabs (the
-/// Apple-Music "drag" effect); on Android it's the standard Material pill.
+/// An M3 navigation drawer item: a 56px stadium, filled when selected.
+class _DrawerItem extends StatelessWidget {
+  const _DrawerItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.badge,
+  });
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final String? badge;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final fg = selected ? cs.onSecondaryContainer : cs.onSurfaceVariant;
+    return Semantics(
+      selected: selected,
+      child: Material(
+        color: selected ? cs.secondaryContainer : Colors.transparent,
+        shape: const StadiumBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: SizedBox(
+            height: 56,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 16, right: 24),
+              child: Row(
+                children: [
+                  Icon(icon, color: fg),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(label,
+                        style: TextStyle(
+                            color: fg,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500)),
+                  ),
+                  if (badge != null)
+                    Text(badge!,
+                        style: TextStyle(
+                            color: fg,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact floating nav: a centred pill of icon buttons; the current tab
+/// expands into a filled primary pill with its label (when labels are on).
+/// Outlined and lifted so it reads apart from the posts behind it. Dragging
+/// a finger along it moves the selection from tab to tab.
 class _FloatingNav extends StatefulWidget {
   const _FloatingNav({
-    required this.selectedIndex,
+    required this.selected,
     required this.unread,
+    required this.showLabels,
+    required this.outline,
     required this.onSelected,
-    this.showLabels = true,
   });
-  final int selectedIndex;
+  final int selected;
   final int unread;
-  final ValueChanged<int> onSelected;
   final bool showLabels;
+  final bool outline;
+  final ValueChanged<int> onSelected;
 
   @override
   State<_FloatingNav> createState() => _FloatingNavState();
 }
 
-class _FloatingNavState extends State<_FloatingNav>
-    with SingleTickerProviderStateMixin {
-  static const _items = [
-    (Icons.home_outlined, Icons.home_rounded, 'Posts'),
-    (Icons.explore_outlined, Icons.explore_rounded, 'Explore'),
-    (Icons.mail_outline_rounded, Icons.mail_rounded, 'Inbox'),
-    (Icons.account_circle_outlined, Icons.account_circle_rounded, 'Account'),
-  ];
+class _FloatingNavState extends State<_FloatingNav> {
+  // Each tab button, for drag hit-testing.
+  final _keys = List.generate(_navItems.length, (_) => GlobalKey());
 
-  late final AnimationController _c;
-  double _from = 0;
-  double _to = 0;
-  // While the user holds & slides their thumb across the bar, the capsule
-  // follows the finger (fractional index); null = not dragging.
-  double? _drag;
-  bool _fromDrag = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _from = _to = widget.selectedIndex.toDouble();
-    _c = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 200));
-  }
-
-  @override
-  void didUpdateWidget(_FloatingNav old) {
-    super.didUpdateWidget(old);
-    if (_fromDrag) {
-      _fromDrag = false; // drag already ran its own snap animation
-      return;
+  // Only switch once the finger is inside another tab, so a tab growing under
+  // it can't bounce the selection back.
+  void _pick(Offset global) {
+    for (var i = 0; i < _keys.length; i++) {
+      final box = _keys[i].currentContext?.findRenderObject() as RenderBox?;
+      if (box == null || !box.hasSize) continue;
+      final left = box.localToGlobal(Offset.zero).dx;
+      if (global.dx >= left && global.dx <= left + box.size.width) {
+        if (i != widget.selected) {
+          HapticFeedback.selectionClick();
+          widget.onSelected(i);
+        }
+        return;
+      }
     }
-    if (old.selectedIndex != widget.selectedIndex) {
-      _from = _displayed; // smooth interrupt mid-flight
-      _to = widget.selectedIndex.toDouble();
-      _c.forward(from: 0);
-    }
-  }
-
-  double get _displayed =>
-      lerpDouble(_from, _to, Curves.easeOutCubic.transform(_c.value))!;
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    const radius = BorderRadius.all(Radius.circular(40));
-    // iOS: sit low like Telegram/Apple Music — ignore the home-indicator safe
-    // area and keep just a small gap, letting the indicator overlap the bar.
-    if (useLiquidGlass) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(18, 0, 18, 20),
-        child: _bar(context, radius),
-      );
-    }
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
-        child: _bar(context, radius),
-      ),
-    );
-  }
-
-  Widget _bar(BuildContext context, BorderRadius radius) {
-    return DecoratedBox(
+    final cs = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    const radius = BorderRadius.all(Radius.circular(32));
+    final bar = Container(
+      height: 64,
       decoration: BoxDecoration(
+        // Fully solid so it stays legible over images.
+        color: dark ? cs.surfaceContainerHigh : cs.surfaceContainer,
         borderRadius: radius,
+        border: widget.outline ? Border.all(color: cs.outlineVariant) : null,
         boxShadow: [
           BoxShadow(
-            // Subtler on iOS — the heavy shadow read as an odd aura.
-            color:
-                Colors.black.withValues(alpha: useLiquidGlass ? 0.10 : 0.22),
-            blurRadius: useLiquidGlass ? 14 : 24,
-            offset: Offset(0, useLiquidGlass ? 4 : 8),
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-      child: GlassSurface(
-        borderRadius: radius,
-        // Nav sits over scrolling content (incl. dark images). Telegram's
-        // tab bar is fully solid — match that so labels are always legible.
-        tintOpacity: 1.0,
-        child: SizedBox(
-          height: 70,
-          child: useLiquidGlass ? _glass(context) : _material(context),
-        ),
-      ),
-    );
-  }
-
-  // Android: standard Material pills.
-  Widget _material(BuildContext context) => Row(
-        children: [
-          for (var i = 0; i < _items.length; i++)
-            Expanded(
-              child: _NavItem(
-                iconOff: _items[i].$1,
-                iconOn: _items[i].$2,
-                label: _items[i].$3,
-                selected: widget.selectedIndex == i,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragStart: (d) => _pick(d.globalPosition),
+        onHorizontalDragUpdate: (d) => _pick(d.globalPosition),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < _navItems.length; i++) ...[
+              if (i > 0) const SizedBox(width: 6),
+              _NavButton(
+                key: _keys[i],
+                item: _navItems[i],
+                selected: widget.selected == i,
                 badge: i == 2 ? widget.unread : 0,
                 showLabel: widget.showLabels,
                 onTap: () => widget.onSelected(i),
               ),
-            ),
-        ],
-      );
-
-  // iOS: a single sliding/stretching glass capsule behind the items.
-  Widget _glass(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    return LayoutBuilder(
-      builder: (context, bc) {
-        final w = bc.maxWidth;
-        final n = _items.length;
-        final iw = w / n;
-        final capBase = iw - 14;
-
-        // Finger x → fractional tab index (capsule centre follows the thumb).
-        double idxFromX(double x) =>
-            ((x - iw / 2) / iw).clamp(0.0, (n - 1).toDouble());
-
-        void onDown(double x) => setState(() => _drag = idxFromX(x));
-        void onMove(double x) => setState(() => _drag = idxFromX(x));
-        void onUp() {
-          final idx = (_drag ?? widget.selectedIndex.toDouble())
-              .round()
-              .clamp(0, n - 1);
-          _from = _drag ?? idx.toDouble();
-          _to = idx.toDouble();
-          _drag = null;
-          _fromDrag = true;
-          _c.forward(from: 0);
-          widget.onSelected(idx);
-        }
-
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onHorizontalDragStart: (d) => onDown(d.localPosition.dx),
-          onHorizontalDragUpdate: (d) => onMove(d.localPosition.dx),
-          onHorizontalDragEnd: (_) => onUp(),
-          onHorizontalDragCancel: () => setState(() => _drag = null),
-          child: AnimatedBuilder(
-            animation: _c,
-            builder: (context, _) {
-              double leftAt(double idx) => idx * iw + (iw - capBase) / 2;
-              double left, width;
-              if (_drag != null) {
-                // Interactive: capsule sits under the finger, base width.
-                width = capBase;
-                left = leftAt(_drag!);
-              } else {
-                final fromL = leftAt(_from), toL = leftAt(_to);
-                final fromR = fromL + capBase, toR = toL + capBase;
-                final t = _c.value;
-                final lead = Curves.easeOutQuart.transform(t);
-                final trail = Curves.easeInQuart.transform(t);
-                final movingRight = _to >= _from;
-                final leftEdge =
-                    lerpDouble(fromL, toL, movingRight ? trail : lead)!;
-                final rightEdge =
-                    lerpDouble(fromR, toR, movingRight ? lead : trail)!;
-                left = leftEdge;
-                width = (rightEdge - leftEdge).clamp(capBase, w);
-              }
-              left = left.clamp(4.0, w - 4 - width);
-              final active =
-                  (_drag != null ? _drag!.round() : widget.selectedIndex)
-                      .clamp(0, n - 1);
-              final dragging = _drag != null;
-              return Stack(
-                children: [
-                  AnimatedPositioned(
-                    duration: dragging
-                        ? const Duration(milliseconds: 90)
-                        : Duration.zero,
-                    curve: Curves.easeOut,
-                    top: 8,
-                    bottom: 8,
-                    left: left,
-                    width: width,
-                    // Lift & grow while held, like iOS.
-                    child: AnimatedScale(
-                      scale: dragging ? 1.09 : 1.0,
-                      duration: const Duration(milliseconds: 170),
-                      curve: Curves.easeOut,
-                      child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 170),
-                      curve: Curves.easeOut,
-                      decoration: BoxDecoration(
-                        // Accent-tinted selection pill so it matches the theme.
-                        // No shadow — it read as an odd grey aura on iOS.
-                        color: cs.primary.withValues(alpha: dark ? 0.30 : 0.16),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                            color: cs.primary.withValues(alpha: dark ? 0.35 : 0.22),
-                            width: 0.5),
-                      ),
-                    ),
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      for (var i = 0; i < n; i++)
-                        Expanded(child: _glassItem(context, i, cs, active)),
-                    ],
-                  ),
-                ],
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _glassItem(
-      BuildContext context, int i, ColorScheme cs, int activeIndex) {
-    final selected = activeIndex == i;
-    final color = selected ? cs.primary : cs.onSurfaceVariant;
-    Widget icon = Icon(selected ? _items[i].$2 : _items[i].$1,
-        size: widget.showLabels ? 24 : 28, color: color);
-    final unread = i == 2 ? widget.unread : 0;
-    if (unread > 0) {
-      icon = Badge(label: Text(unread > 99 ? '99+' : '$unread'), child: icon);
-    }
-    // GestureDetector, NOT InkWell: the Material ripple painted a big circular
-    // ink "aura" over the glass bar on tap — alien on iOS, where tab bars give
-    // no ripple feedback (the sliding pill is the feedback).
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => widget.onSelected(i),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          icon,
-          if (widget.showLabels) ...[
-            const SizedBox(height: 3),
-            Text(_items[i].$3,
-                style: TextStyle(
-                    fontSize: 11, fontWeight: FontWeight.w600, color: color)),
+            ],
           ],
-        ],
+        ),
+      ),
+    );
+    // iOS: sit low like Telegram/Apple Music — ignore the home-indicator safe
+    // area and keep just a small gap.
+    final inset = useLiquidGlass ? 0.0 : MediaQuery.paddingOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: 20 + inset),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [bar],
       ),
     );
   }
 }
 
-class _NavItem extends StatelessWidget {
-  const _NavItem({
-    required this.iconOff,
-    required this.iconOn,
-    required this.label,
+class _NavButton extends StatelessWidget {
+  const _NavButton({
+    super.key,
+    required this.item,
     required this.selected,
     required this.badge,
+    required this.showLabel,
     required this.onTap,
-    this.showLabel = true,
   });
-  final IconData iconOff;
-  final IconData iconOn;
-  final String label;
+  final (IconData, IconData, String) item;
   final bool selected;
   final int badge;
-  final VoidCallback onTap;
   final bool showLabel;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final glass = useLiquidGlass;
-
-    // Apple Music: selected content is tinted with the accent; the capsule is a
-    // subtle translucent glass highlight (NOT an opaque white block).
-    final contentColor = selected
-        ? (glass ? cs.primary : cs.onSecondaryContainer)
-        : cs.onSurfaceVariant;
-
-    Widget iconW = Icon(selected ? iconOn : iconOff,
-        size: showLabel ? 24 : 28, color: contentColor);
+    final fg = selected ? cs.onPrimary : cs.onSurfaceVariant;
+    Widget icon = Icon(selected ? item.$2 : item.$1, size: 24, color: fg);
     if (badge > 0) {
-      iconW = Badge(label: Text(badge > 99 ? '99+' : '$badge'), child: iconW);
+      icon = Badge(label: Text(badge > 99 ? '99+' : '$badge'), child: icon);
     }
-    final labelW = Text(
-      label,
-      style: TextStyle(
-          fontSize: 11, fontWeight: FontWeight.w600, color: contentColor),
-    );
-
-    if (glass) {
-      // Selection capsule wraps the WHOLE item (icon + label), as a soft
-      // translucent glass highlight.
-      return InkWell(
+    final labelled = selected && showLabel;
+    // A tab, for screen readers: "Inbox, selected".
+    return Semantics(
+      selected: selected,
+      button: true,
+      inMutuallyExclusiveGroup: true,
+      label: item.$3,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
-          margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
-          padding: const EdgeInsets.symmetric(vertical: 5),
+          height: 48,
+          padding: EdgeInsets.symmetric(horizontal: labelled ? 18 : 12),
           decoration: BoxDecoration(
-            color: selected
-                ? (dark
-                    ? Colors.white.withValues(alpha: 0.14)
-                    : Colors.white.withValues(alpha: 0.42))
-                : Colors.transparent,
-            // Full capsule, echoing the tab bar's rounded shape (not a squircle).
-            borderRadius: BorderRadius.circular(999),
-            border: selected
-                ? Border.all(
-                    color: Colors.white.withValues(alpha: dark ? 0.12 : 0.5),
-                    width: 0.5)
-                : null,
+            color: selected ? cs.primary : cs.primary.withValues(alpha: 0),
+            borderRadius: BorderRadius.circular(24),
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              iconW,
-              if (showLabel) ...[const SizedBox(height: 3), labelW],
-            ],
-          ),
-        ),
-      );
-    }
-
-    // Material (Android): pill behind the icon, label below.
-    return InkWell(
-      onTap: onTap,
-      customBorder: const StadiumBorder(),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          AnimatedContainer(
+          // The selected pill grows to fit its label with a little bounce.
+          child: AnimatedSize(
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeOutBack,
-            width: 56,
-            height: 30,
-            decoration: BoxDecoration(
-              color: selected ? cs.secondaryContainer : Colors.transparent,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            alignment: Alignment.center,
-            child: iconW,
-          ),
-          if (showLabel) ...[const SizedBox(height: 4), labelW],
-        ],
-      ),
-    );
-  }
-}
-
-/// Three-dot menu to switch the feed's post display type.
-class _DisplayMenu extends ConsumerWidget {
-  const _DisplayMenu();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final s = ref.watch(settingsControllerProvider);
-    final ctrl = ref.read(settingsControllerProvider.notifier);
-    return PopupMenuButton<String>(
-      icon: const Icon(Icons.more_vert_rounded),
-      tooltip: 'Display',
-      onSelected: (v) {
-        if (v == 'autoplay') {
-          ctrl.setAutoplayMedia(!s.autoplayMedia);
-        } else {
-          ctrl.setPostDisplay(
-              PostDisplay.values.firstWhere((d) => d.name == v));
-        }
-      },
-      itemBuilder: (_) => [
-        for (final d in PostDisplay.values)
-          PopupMenuItem(
-            value: d.name,
             child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(d.icon, size: 20),
-                const SizedBox(width: 12),
-                Text(d.label),
-                if (d == s.postDisplay) ...[
-                  const Spacer(),
-                  const Icon(Icons.check_rounded, size: 18),
+                icon,
+                if (labelled) ...[
+                  const SizedBox(width: 8),
+                  Text(item.$3,
+                      maxLines: 1,
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: fg)),
                 ],
               ],
             ),
           ),
-        const PopupMenuDivider(),
-        PopupMenuItem(
-          value: 'autoplay',
-          child: Row(
-            children: [
-              const Icon(Icons.play_circle_outline_rounded, size: 20),
-              const SizedBox(width: 12),
-              const Text('Autoplay media'),
-              const Spacer(),
-              if (s.autoplayMedia) const Icon(Icons.check_rounded, size: 18),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _FrontpageTab extends ConsumerWidget {
-  const _FrontpageTab({this.chromeVisible = true});
-  final bool chromeVisible;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final cs = Theme.of(context).colorScheme;
-    final username =
-        ref.watch(authControllerProvider).valueOrNull?.username ?? '';
-    final settings = ref.watch(settingsControllerProvider);
-    final forYou = settings.forYouFeed;
-    final homeOn = settings.redditHomeAllowed && settings.redditHomeFeed;
-    final mode = settings.topBarMode;
-    final expandable = mode == TopBarMode.expandable;
-    final hasTrailing = expandable;
-    // Full mode pins the action row; Expandable floats it in on demand.
-    final showActionRow = mode == TopBarMode.full;
-    return Column(
-      children: [
-        // Full mode: Google-app style search bar with avatar — collapses on
-        // scroll. Compact mode hides it; Expandable shows it on demand.
-        if (showActionRow)
-          AnimatedSize(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOut,
-          alignment: Alignment.topCenter,
-          child: chromeVisible
-              ? Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: Row(
-            children: [
-              Expanded(
-                child: ref.watch(settingsControllerProvider).showApiUsage
-                    ? _ApiUsagePill()
-                    : GlassSurface(
-                        borderRadius: BorderRadius.circular(28),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(28),
-                          onTap: () => context.push('/search'),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 18, vertical: 14),
-                            child: Row(
-                              children: [
-                                Icon(Icons.search_rounded,
-                                    color: cs.onSurfaceVariant),
-                                const SizedBox(width: 12),
-                                Text('Search Reddit',
-                                    style:
-                                        TextStyle(color: cs.onSurfaceVariant)),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-              ),
-              const SizedBox(width: 4),
-              IconButton.filled(
-                tooltip: 'New post',
-                icon: const Icon(Icons.edit_square, size: 22),
-                style: IconButton.styleFrom(
-                  backgroundColor: cs.primary,
-                  foregroundColor: cs.onPrimary,
-                ),
-                onPressed: () => context.push('/submit'),
-              ),
-              const _DisplayMenu(),
-              const SizedBox(width: 4),
-              Semantics(
-                button: true,
-                label: 'Your profile',
-                child: GestureDetector(
-                  onTap: () => context.push('/u/$username'),
-                  child: CircleAvatar(
-                    radius: 22,
-                    backgroundColor: cs.primaryContainer,
-                    child: Text(
-                      username.isNotEmpty ? username[0].toUpperCase() : '?',
-                      style: TextStyle(
-                          color: cs.onPrimaryContainer,
-                          fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-                )
-              : const SizedBox(width: double.infinity, height: 0),
-        ),
-        Expanded(
-          child: PostListView(
-            feedKey: '',
-            header: Padding(
-              padding: EdgeInsets.fromLTRB(
-                  16, hasTrailing ? 10 : 8, hasTrailing ? 4 : 16, 0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Text(
-                    homeOn ? 'Home' : (forYou ? 'For You' : 'Frontpage'),
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w800),
-                  ),
-                  if (homeOn)
-                    const Spacer()
-                  else if (forYou) ...[
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text('Personalized on-device · Beta',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 12, color: cs.onSurfaceVariant)),
-                    ),
-                  ] else
-                    const Spacer(),
-                  // Expandable mode: one button that floats the toolbar in.
-                  if (expandable)
-                    IconButton(
-                      tooltip: 'Toolbar',
-                      icon: const Icon(Icons.more_horiz_rounded),
-                      onPressed: () =>
-                          _showFloatingToolbar(context, ref, username),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Expandable top-bar mode: floats the full toolbar (search, new post, display,
-/// profile) in from the top as a dismissible overlay — it never displaces the
-/// feed.
-Future<void> _showFloatingToolbar(
-    BuildContext context, WidgetRef ref, String username) {
-  final router = GoRouter.of(context);
-  final cs = Theme.of(context).colorScheme;
-  return showGeneralDialog(
-    context: context,
-    barrierDismissible: true,
-    barrierLabel: 'Toolbar',
-    barrierColor: Colors.black.withValues(alpha: 0.30),
-    transitionDuration: const Duration(milliseconds: 200),
-    pageBuilder: (ctx, _, __) {
-      void close() => Navigator.of(ctx).pop();
-      return SafeArea(
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-            child: GlassSurface(
-              borderRadius: BorderRadius.circular(28),
-              tintOpacity: 1.0,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(24),
-                        onTap: () {
-                          close();
-                          router.push('/search');
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 12),
-                          child: Row(
-                            children: [
-                              Icon(Icons.search_rounded,
-                                  color: cs.onSurfaceVariant),
-                              const SizedBox(width: 12),
-                              Text('Search Reddit',
-                                  style:
-                                      TextStyle(color: cs.onSurfaceVariant)),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    IconButton.filled(
-                      tooltip: 'New post',
-                      icon: const Icon(Icons.edit_square, size: 22),
-                      style: IconButton.styleFrom(
-                        backgroundColor: cs.primary,
-                        foregroundColor: cs.onPrimary,
-                      ),
-                      onPressed: () {
-                        close();
-                        router.push('/submit');
-                      },
-                    ),
-                    const _DisplayMenu(),
-                    const SizedBox(width: 4),
-                    Semantics(
-                      button: true,
-                      label: 'Your profile',
-                      child: GestureDetector(
-                        onTap: () {
-                          close();
-                          router.push('/u/$username');
-                        },
-                        child: CircleAvatar(
-                          radius: 20,
-                          backgroundColor: cs.primaryContainer,
-                          child: Text(
-                            username.isNotEmpty
-                                ? username[0].toUpperCase()
-                                : '?',
-                            style: TextStyle(
-                                color: cs.onPrimaryContainer,
-                                fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-    },
-    transitionBuilder: (ctx, anim, _, child) {
-      final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
-      return FadeTransition(
-        opacity: curved,
-        child: SlideTransition(
-          position: Tween(begin: const Offset(0, -0.06), end: Offset.zero)
-              .animate(curved),
-          child: child,
-        ),
-      );
-    },
-  );
-}
-
-/// Shows live Reddit API rate-limit usage in place of the search bar
-/// (power-user setting). Reddit allows ~100 requests/minute per OAuth client.
-class _ApiUsagePill extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final cs = Theme.of(context).colorScheme;
-    final rl = ref.watch(rateLimitProvider);
-    final String label;
-    if (rl == null) {
-      label = 'API usage · no calls yet';
-    } else {
-      label = 'API ${rl.used}/${rl.total} · resets ${rl.resetSeconds}s';
-    }
-    return GlassSurface(
-      borderRadius: BorderRadius.circular(28),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        child: Row(
-          children: [
-            Icon(Icons.speed_rounded, color: cs.onSurfaceVariant),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: cs.onSurfaceVariant)),
-            ),
-          ],
         ),
       ),
     );

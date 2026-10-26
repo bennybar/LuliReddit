@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'core/route_observer.dart';
+import 'features/about/whats_new.dart';
 import 'features/auth/auth_controller.dart';
 import 'features/settings/settings_controller.dart' show sharedPrefsProvider;
 import 'features/auth/login_screen.dart';
@@ -12,6 +13,7 @@ import 'features/legal/policy_screen.dart';
 import 'features/home/home_shell.dart';
 import 'features/inbox/compose_message_screen.dart';
 import 'features/inbox/message_thread_screen.dart';
+import 'features/multireddit/custom_feeds_screen.dart';
 import 'features/multireddit/manage_multireddit_screen.dart';
 import 'features/multireddit/multireddit_feed_screen.dart';
 import 'features/offline/offline_screen.dart';
@@ -91,6 +93,23 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/summaries', builder: (_, __) => const SummariesScreen()),
       GoRoute(
+          path: '/whats_new', builder: (_, __) => const WhatsNewScreen()),
+      GoRoute(
+          path: '/custom_feeds',
+          builder: (_, __) => const CustomFeedsScreen()),
+      // TODO(drafts): a later area ports Kotlin's DraftsScreen.
+      GoRoute(
+          path: '/drafts',
+          builder: (_, __) => const _StubScreen(title: 'Drafts')),
+      // A reddit.com page in the website session (Reddit settings, chat,
+      // notifications…): /reddit_web?url=…&title=…
+      // TODO(web-pages): a later area builds this page.
+      GoRoute(
+        path: '/reddit_web',
+        builder: (_, state) => _StubScreen(
+            title: state.uri.queryParameters['title'] ?? 'Reddit'),
+      ),
+      GoRoute(
         path: '/search',
         builder: (_, state) => SearchScreen(
           initialSubreddit: state.uri.queryParameters['sr'],
@@ -146,3 +165,15 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+/// Placeholder for a screen a later porting area builds.
+class _StubScreen extends StatelessWidget {
+  const _StubScreen({required this.title});
+  final String title;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: Text(title)),
+        body: const Center(child: Text('Coming soon')),
+      );
+}

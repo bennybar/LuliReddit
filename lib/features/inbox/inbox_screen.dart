@@ -7,6 +7,7 @@ import '../../core/widgets/error_view.dart';
 import '../../models/inbox_item.dart';
 import '../auth/auth_controller.dart';
 import '../home/account_tab.dart' show SignInPrompt;
+import '../home/tab_menu.dart';
 import '../home/tab_signals.dart';
 import 'inbox_controller.dart';
 
@@ -24,7 +25,13 @@ class InboxScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     if (ref.watch(authControllerProvider).valueOrNull?.anonymous ?? false) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Inbox')),
+        appBar: AppBar(
+            toolbarHeight: 64,
+            leading: SideBarScope.of(context) != null
+                ? const SideBarButton()
+                : null,
+            automaticallyImplyLeading: false,
+            title: const Text('Inbox')),
         body: const SignInPrompt(
             message: 'Sign in to see your messages, replies and mentions.'),
       );
@@ -33,6 +40,13 @@ class InboxScreen extends ConsumerWidget {
       length: _tabs.length,
       child: Scaffold(
         appBar: AppBar(
+          // 64 tall, as Kotlin's top app bar: the ☰ sits 8px from the top,
+          // where the other tabs put it.
+          toolbarHeight: 64,
+          leading: SideBarScope.of(context) != null
+              ? const SideBarButton()
+              : null,
+          automaticallyImplyLeading: false,
           title: const Text('Inbox'),
           actions: [
             Builder(builder: (ctx) {
@@ -54,6 +68,7 @@ class InboxScreen extends ConsumerWidget {
                 },
               );
             }),
+            const SettingsButton(),
           ],
           bottom: TabBar(
             isScrollable: true,

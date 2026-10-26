@@ -43,6 +43,15 @@ const _summaryLanguages = [
   ('Hindi', 'Hindi · हिन्दी'),
 ];
 
+/// Settings › Navigation, by persisted index (`navStyle`). iOS has no back
+/// gesture on the main screen, so the side bar comes out with an edge swipe.
+const _navStyles = [
+  ('Bottom bar', 'The floating bar at the bottom'),
+  ('Side bar',
+      'The ☰ at the top of each tab, or swipe from the left edge, opens it'),
+  ('Both', 'The bottom bar, plus the side bar (☰ or edge swipe)'),
+];
+
 const _accentSwatches = <Color>[
   Color(0xFF6750A4), // Bloom lavender (default)
   Color(0xFFEA4335), // red
@@ -65,8 +74,8 @@ class SettingsScreen extends StatelessWidget {
       );
 }
 
-/// The settings list — reusable both as the full Settings screen and embedded
-/// (e.g. inside the Account tab). Pass [embedded] when nesting in a scroll view.
+/// The settings list — reusable both as the full Settings screen and
+/// embedded. Pass [embedded] when nesting in a scroll view.
 class SettingsList extends ConsumerStatefulWidget {
   const SettingsList({super.key, this.embedded = false});
   final bool embedded;
@@ -102,6 +111,140 @@ class _SettingsListState extends ConsumerState<SettingsList> {
         ref.watch(openAiKeyProvider).valueOrNull?.isNotEmpty ?? false;
 
     final all = <Widget>[
+          _section(context, 'Feed'),
+          ListTile(
+            leading: Icon(s.postDisplay.icon),
+            title: const Text('Post display'),
+            subtitle: Text(s.postDisplay.label),
+            onTap: () => _pickDisplay(context, ctrl, s.postDisplay),
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.image_rounded),
+            title: const Text('Subreddit icons'),
+            subtitle: const Text(
+                "Show each community's icon on posts instead of its first "
+                'letter'),
+            value: s.subredditIcons,
+            onChanged: ctrl.setSubredditIcons,
+          ),
+          ListTile(
+            leading: const Icon(Icons.sort_rounded),
+            title: const Text('Default sort'),
+            subtitle: Text(s.defaultSort.label),
+            onTap: () => _pickSort(context, ctrl, s.defaultSort),
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.auto_awesome_rounded),
+            title: const Text('"For You" feed (Beta)'),
+            subtitle: const Text(
+                'Personalized frontpage built on-device. Reddit\'s own '
+                'recommendations aren\'t available to third-party apps.'),
+            value: s.forYouFeed,
+            onChanged: ctrl.setForYouFeed,
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.mark_email_read_outlined),
+            title: const Text('Auto-hide read items in "For You"'),
+            subtitle: const Text('Hide posts you\'ve marked/opened as read'),
+            value: s.autoHideReadForYou,
+            onChanged: ctrl.setAutoHideReadForYou,
+          ),
+          ListTile(
+            leading: const Icon(Icons.tune_rounded),
+            title: const Text('Manage "For You" subreddits'),
+            subtitle: const Text('Review and undo muted / show-less subreddits'),
+            onTap: () => context.push('/manage_for_you'),
+          ),
+          Builder(builder: (context) {
+            final web = ref.watch(authModeProvider).valueOrNull == 'web';
+            final red = Theme.of(context).colorScheme.error;
+            return SwitchListTile(
+              secondary: Icon(Icons.warning_amber_rounded, color: red),
+              title: Text('Reddit Home (experimental)',
+                  style: TextStyle(color: red, fontWeight: FontWeight.w700)),
+              subtitle: Text(
+                  web
+                      ? 'RISK TO YOUR ACCOUNT: against Reddit\'s terms. '
+                          'Shows your real reddit.com Home'
+                      : 'Needs website sign-in',
+                  style: TextStyle(color: red)),
+              activeThumbColor: red,
+              value: s.redditHomeAllowed,
+              onChanged: !web && !s.redditHomeAllowed
+                  ? null
+                  : (v) async {
+                      if (!v) return ctrl.setRedditHomeAllowed(false);
+                      if (await _confirmRedditHome(context)) {
+                        ctrl.setRedditHomeAllowed(true);
+                      }
+                    },
+            );
+          }),
+          ListTile(
+            leading: const Icon(Icons.timer_outlined),
+            title: const Text('Keep feed for'),
+            subtitle: Text('Home / For You: ${_keepLabel(s.feedKeepMinutes)}, '
+                'then a new feed (pull down to refresh anytime)'),
+            onTap: () => _pickInt(context, s.feedKeepMinutes,
+                const [10, 30, 60, 180], _keepLabel, ctrl.setFeedKeepMinutes),
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.visibility_off_outlined),
+            title: const Text('Hide read posts'),
+            subtitle: const Text(
+                'Skip posts you\'ve already read when your front page and '
+                'custom feeds load or refresh'),
+            value: s.hideReadPosts,
+            onChanged: ctrl.setHideReadPosts,
+          ),
+          if (s.hideReadPosts)
+            SwitchListTile(
+              secondary: const Icon(Icons.visibility_off_outlined),
+              title: const Text('Also in subreddits'),
+              subtitle: const Text(
+                  'Hide read posts when browsing a single subreddit too'),
+              value: s.hideReadInSubreddits,
+              onChanged: ctrl.setHideReadInSubreddits,
+            ),
+          SwitchListTile(
+            secondary: const Icon(Icons.done_all_rounded),
+            title: const Text('Mark read as you scroll'),
+            subtitle: Text(s.trackHistory
+                ? 'A post you scroll past counts as read'
+                : 'Needs history tracking turned on'),
+            value: s.markReadOnScroll,
+            onChanged: s.trackHistory ? ctrl.setMarkReadOnScroll : null,
+          ),
+          ListTile(
+            leading: const Icon(Icons.filter_alt_outlined),
+            title: const Text('Content filters'),
+            subtitle: const Text(
+                'Hide posts by keyword, domain, flair or subreddit'),
+            onTap: () => context.push('/content_filters'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.visibility_off_outlined),
+            title: const Text('Hide posts for'),
+            subtitle: Text('Posts you hide stay out of every feed for '
+                '${_dayLabel(s.hiddenPostDays)}'),
+            onTap: () => _pickInt(context, s.hiddenPostDays,
+                const [1, 3, 7, 30, 90], _dayLabel, (v) {
+              ctrl.setHiddenPostDays(v);
+              ref.read(hiddenPostsProvider.notifier).refresh();
+            }),
+          ),
+          Builder(builder: (context) {
+            final n = ref.watch(hiddenHomeSubsProvider).length;
+            return ListTile(
+              leading: const Icon(Icons.do_not_disturb_on_rounded),
+              title: const Text('Hidden subreddits'),
+              subtitle: Text('Hidden from your front page for 7 days'
+                  '${n == 0 ? ' · none now' : ' · $n now'}'),
+              onTap: () => showDialog<void>(
+                  context: context, builder: (_) => const _HiddenSubsDialog()),
+            );
+          }),
+          const Divider(),
           _section(context, 'Appearance'),
           ListTile(
             leading: const Icon(Icons.brightness_6_rounded),
@@ -112,20 +255,6 @@ class _SettingsListState extends ConsumerState<SettingsList> {
               ThemeMode.dark => 'Dark',
             }),
             onTap: () => _pickTheme(context, ctrl, s.themeMode),
-          ),
-          ListTile(
-            leading: AppIconPreview(AppIcon.parse(s.appIcon)),
-            title: const Text('App icon'),
-            subtitle: Text(AppIcon.parse(s.appIcon).label),
-            onTap: () async {
-              final picked =
-                  await _pickAppIcon(context, AppIcon.parse(s.appIcon));
-              if (picked == null) return;
-              ctrl.setAppIcon(picked.name);
-              try {
-                await AppIcon.apply(picked);
-              } catch (_) {}
-            },
           ),
           SwitchListTile(
             secondary: const Icon(Icons.dark_mode_rounded),
@@ -215,6 +344,20 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             ),
           ),
           ListTile(
+            leading: AppIconPreview(AppIcon.parse(s.appIcon)),
+            title: const Text('App icon'),
+            subtitle: Text(AppIcon.parse(s.appIcon).label),
+            onTap: () async {
+              final picked =
+                  await _pickAppIcon(context, AppIcon.parse(s.appIcon));
+              if (picked == null) return;
+              ctrl.setAppIcon(picked.name);
+              try {
+                await AppIcon.apply(picked);
+              } catch (_) {}
+            },
+          ),
+          ListTile(
             leading: const Icon(Icons.format_size_rounded),
             title: const Text('Font size'),
             subtitle: Text('${(s.textScale * 100).round()}% of normal'),
@@ -251,21 +394,32 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             subtitle: Text(s.topBarMode.label),
             onTap: () => _pickTopBar(context, ctrl, s.topBarMode),
           ),
-          SwitchListTile(
-            secondary: const Icon(Icons.label_outline_rounded),
-            title: const Text('Bottom bar labels'),
-            subtitle: const Text('Show text labels under the navigation icons'),
-            value: s.navLabels,
-            onChanged: ctrl.setNavLabels,
-          ),
-          const Divider(),
-          _section(context, 'Feed'),
           ListTile(
-            leading: const Icon(Icons.sort_rounded),
-            title: const Text('Default sort'),
-            subtitle: Text(s.defaultSort.label),
-            onTap: () => _pickSort(context, ctrl, s.defaultSort),
+            leading: const Icon(Icons.menu_rounded),
+            title: const Text('Navigation'),
+            subtitle: Text(_navStyles[s.navStyle.clamp(0, 2)].$1),
+            onTap: () => _pickNavStyle(context, ctrl, s.navStyle),
           ),
+          if (s.navStyle != 1)
+            SwitchListTile(
+              secondary: const Icon(Icons.label_outline_rounded),
+              title: const Text('Bottom bar labels'),
+              subtitle:
+                  const Text('Show text labels under the navigation icons'),
+              value: s.navLabels,
+              onChanged: ctrl.setNavLabels,
+            ),
+          if (s.navStyle != 1)
+            SwitchListTile(
+              secondary: const Icon(Icons.crop_free_rounded),
+              title: const Text('Bottom bar outline'),
+              subtitle: const Text('A thin outline around the bottom bar. '
+                  'Off: just its shadow, Material 3 style'),
+              value: s.navOutline,
+              onChanged: ctrl.setNavOutline,
+            ),
+          const Divider(),
+          _section(context, 'Posts & comments'),
           ListTile(
             leading: const Icon(Icons.forum_outlined),
             title: const Text('Default comment sort'),
@@ -300,147 +454,6 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             value: s.collapseTopLevel,
             onChanged: ctrl.setCollapseTopLevel,
           ),
-          ListTile(
-            leading: Icon(s.postDisplay.icon),
-            title: const Text('Post display'),
-            subtitle: Text(s.postDisplay.label),
-            onTap: () => _pickDisplay(context, ctrl, s.postDisplay),
-          ),
-          SwitchListTile(
-            secondary: const Icon(Icons.image_rounded),
-            title: const Text('Subreddit icons'),
-            subtitle: const Text(
-                "Show each community's icon on posts instead of its first "
-                'letter'),
-            value: s.subredditIcons,
-            onChanged: ctrl.setSubredditIcons,
-          ),
-          SwitchListTile(
-            secondary: const Icon(Icons.blur_on_rounded),
-            title: const Text('Blur NSFW media'),
-            subtitle: const Text('Tap to reveal blurred images'),
-            value: s.blurNsfw,
-            onChanged: ctrl.setBlurNsfw,
-          ),
-          SwitchListTile(
-            secondary: const Icon(Icons.image_outlined),
-            title: const Text('Data-saver thumbnails'),
-            subtitle: const Text(
-                'Load smaller preview images in feeds (faster, less data)'),
-            value: s.midResThumbnails,
-            onChanged: ctrl.setMidResThumbnails,
-          ),
-          SwitchListTile(
-            secondary: const Icon(Icons.auto_awesome_rounded),
-            title: const Text('"For You" feed (Beta)'),
-            subtitle: const Text(
-                'Personalized frontpage built on-device. Reddit\'s own '
-                'recommendations aren\'t available to third-party apps.'),
-            value: s.forYouFeed,
-            onChanged: ctrl.setForYouFeed,
-          ),
-          SwitchListTile(
-            secondary: const Icon(Icons.mark_email_read_outlined),
-            title: const Text('Auto-hide read items in "For You"'),
-            subtitle: const Text('Hide posts you\'ve marked/opened as read'),
-            value: s.autoHideReadForYou,
-            onChanged: ctrl.setAutoHideReadForYou,
-          ),
-          Builder(builder: (context) {
-            final web = ref.watch(authModeProvider).valueOrNull == 'web';
-            final red = Theme.of(context).colorScheme.error;
-            return SwitchListTile(
-              secondary: Icon(Icons.warning_amber_rounded, color: red),
-              title: Text('Reddit Home (experimental)',
-                  style: TextStyle(color: red, fontWeight: FontWeight.w700)),
-              subtitle: Text(
-                  web
-                      ? 'RISK TO YOUR ACCOUNT: against Reddit\'s terms. '
-                          'Shows your real reddit.com Home'
-                      : 'Needs website sign-in',
-                  style: TextStyle(color: red)),
-              activeThumbColor: red,
-              value: s.redditHomeAllowed,
-              onChanged: !web && !s.redditHomeAllowed
-                  ? null
-                  : (v) async {
-                      if (!v) return ctrl.setRedditHomeAllowed(false);
-                      if (await _confirmRedditHome(context)) {
-                        ctrl.setRedditHomeAllowed(true);
-                      }
-                    },
-            );
-          }),
-          ListTile(
-            leading: const Icon(Icons.timer_outlined),
-            title: const Text('Keep feed for'),
-            subtitle: Text('Home / For You: ${_keepLabel(s.feedKeepMinutes)}, '
-                'then a new feed (pull down to refresh anytime)'),
-            onTap: () => _pickInt(context, s.feedKeepMinutes,
-                const [10, 30, 60, 180], _keepLabel, ctrl.setFeedKeepMinutes),
-          ),
-          SwitchListTile(
-            secondary: const Icon(Icons.visibility_off_outlined),
-            title: const Text('Hide read posts'),
-            subtitle: const Text(
-                'Skip posts you\'ve already read when your front page and '
-                'custom feeds load or refresh'),
-            value: s.hideReadPosts,
-            onChanged: ctrl.setHideReadPosts,
-          ),
-          if (s.hideReadPosts)
-            SwitchListTile(
-              secondary: const Icon(Icons.visibility_off_outlined),
-              title: const Text('Also in subreddits'),
-              subtitle: const Text(
-                  'Hide read posts when browsing a single subreddit too'),
-              value: s.hideReadInSubreddits,
-              onChanged: ctrl.setHideReadInSubreddits,
-            ),
-          SwitchListTile(
-            secondary: const Icon(Icons.done_all_rounded),
-            title: const Text('Mark read as you scroll'),
-            subtitle: Text(s.trackHistory
-                ? 'A post you scroll past counts as read'
-                : 'Needs history tracking turned on'),
-            value: s.markReadOnScroll,
-            onChanged: s.trackHistory ? ctrl.setMarkReadOnScroll : null,
-          ),
-          ListTile(
-            leading: const Icon(Icons.tune_rounded),
-            title: const Text('Manage "For You" subreddits'),
-            subtitle: const Text('Review and undo muted / show-less subreddits'),
-            onTap: () => context.push('/manage_for_you'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.filter_alt_outlined),
-            title: const Text('Content filters'),
-            subtitle: const Text(
-                'Hide posts by keyword, domain, flair or subreddit'),
-            onTap: () => context.push('/content_filters'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.visibility_off_outlined),
-            title: const Text('Hide posts for'),
-            subtitle: Text('Posts you hide stay out of every feed for '
-                '${_dayLabel(s.hiddenPostDays)}'),
-            onTap: () => _pickInt(context, s.hiddenPostDays,
-                const [1, 3, 7, 30, 90], _dayLabel, (v) {
-              ctrl.setHiddenPostDays(v);
-              ref.read(hiddenPostsProvider.notifier).refresh();
-            }),
-          ),
-          Builder(builder: (context) {
-            final n = ref.watch(hiddenHomeSubsProvider).length;
-            return ListTile(
-              leading: const Icon(Icons.do_not_disturb_on_rounded),
-              title: const Text('Hidden subreddits'),
-              subtitle: Text('Hidden from your front page for 7 days'
-                  '${n == 0 ? ' · none now' : ' · $n now'}'),
-              onTap: () => showDialog<void>(
-                  context: context, builder: (_) => const _HiddenSubsDialog()),
-            );
-          }),
           SwitchListTile(
             secondary: const Icon(Icons.swipe_rounded),
             title: const Text('Swipe actions'),
@@ -462,6 +475,17 @@ class _SettingsListState extends ConsumerState<SettingsList> {
                 builder: (_) => const _SwipeSettingsSheet(),
               ),
             ),
+          SwitchListTile(
+            secondary: const Icon(Icons.open_in_browser_rounded),
+            title: const Text('Open links inside the app'),
+            subtitle: const Text(
+                'Web links open in an in-app browser tab instead of your '
+                'browser app'),
+            value: s.inAppBrowser,
+            onChanged: ctrl.setInAppBrowser,
+          ),
+          const Divider(),
+          _section(context, 'Media'),
           SwitchListTile(
             secondary: const Icon(Icons.play_circle_outline_rounded),
             title: const Text('Autoplay videos'),
@@ -488,28 +512,22 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             value: s.feedGalleryCarousel,
             onChanged: ctrl.setFeedGalleryCarousel,
           ),
+          SwitchListTile(
+            secondary: const Icon(Icons.blur_on_rounded),
+            title: const Text('Blur NSFW media'),
+            subtitle: const Text('Tap to reveal blurred images'),
+            value: s.blurNsfw,
+            onChanged: ctrl.setBlurNsfw,
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.image_outlined),
+            title: const Text('Data-saver thumbnails'),
+            subtitle: const Text(
+                'Load smaller preview images in feeds (faster, less data)'),
+            value: s.midResThumbnails,
+            onChanged: ctrl.setMidResThumbnails,
+          ),
           if (Platform.isAndroid) const _MediaFolderTile(),
-          SwitchListTile(
-            secondary: const Icon(Icons.open_in_browser_rounded),
-            title: const Text('Open links inside the app'),
-            subtitle: const Text(
-                'Web links open in an in-app browser tab instead of your '
-                'browser app'),
-            value: s.inAppBrowser,
-            onChanged: ctrl.setInAppBrowser,
-          ),
-          const Divider(),
-          _section(context, 'Power-user features'),
-          SwitchListTile(
-            secondary: const Icon(Icons.speed_rounded),
-            title: const Text('Show API usage instead of search'),
-            subtitle: const Text(
-                'Replace the search bar on the Posts screen with your live '
-                'Reddit API rate-limit usage'),
-            value: s.showApiUsage,
-            onChanged: ctrl.setShowApiUsage,
-          ),
-          _RateLimitTile(),
           const Divider(),
           _section(context, 'Notifications'),
           SwitchListTile(
@@ -585,27 +603,8 @@ class _SettingsListState extends ConsumerState<SettingsList> {
               subtitle: Text(s.aiBaseUrl),
               onTap: () => _editAiBaseUrl(context, ctrl, s.aiBaseUrl),
             ),
-          // TODO(profile): the Profile tab's "Your stuff" links here too.
-          ListTile(
-            leading: const Icon(Icons.auto_awesome_outlined),
-            title: const Text('Summaries'),
-            subtitle: const Text('Every post you summarized with AI'),
-            onTap: () => context.push('/summaries'),
-          ),
           const Divider(),
-          _section(context, 'History & data'),
-          ListTile(
-            leading: const Icon(Icons.bookmark_outline_rounded),
-            title: const Text('Saved'),
-            subtitle: const Text('Search your saved posts & comments'),
-            onTap: () => context.push('/saved'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.history_rounded),
-            title: const Text('History'),
-            subtitle: const Text('Recently viewed (stored on this device)'),
-            onTap: () => context.push('/history'),
-          ),
+          _section(context, 'Data & storage'),
           SwitchListTile(
             secondary: const Icon(Icons.visibility_outlined),
             title: const Text('Track history'),
@@ -670,7 +669,66 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             onTap: () => _restoreData(context, ref),
           ),
           const Divider(),
+          _section(context, 'Account & keys'),
+          ListTile(
+            leading: Icon(ref.watch(authModeProvider).valueOrNull == 'web'
+                ? Icons.public_rounded
+                : Icons.api_rounded),
+            title: const Text('Login method'),
+            subtitle: Text(ref.watch(authModeProvider).valueOrNull == 'web'
+                ? 'Website session (no API key) — unofficial'
+                : 'Reddit API key (recommended)'),
+            onTap: () => _showLoginMethodInfo(
+                context, ref.read(authModeProvider).valueOrNull == 'web'),
+          ),
+          if (ref.watch(authModeProvider).valueOrNull == 'web')
+            ListTile(
+              leading: const Icon(Icons.manage_accounts_rounded),
+              title: const Text('Reddit account settings'),
+              subtitle: const Text("Reddit's own settings: Home "
+                  'recommendations, notifications, muted communities'),
+              onTap: () => context.push(Uri(path: '/reddit_web',
+                  queryParameters: {
+                    'url': 'https://www.reddit.com/settings',
+                    'title': 'Reddit settings',
+                  }).toString()),
+            ),
+          ListTile(
+            leading: const Icon(Icons.vpn_key_rounded),
+            title: const Text('Reddit API credentials'),
+            subtitle: const Text('Re-enter your Client ID / Redirect URI'),
+            onTap: () => _reenterCredentials(context, ref),
+          ),
+          ListTile(
+            leading: Icon(Icons.delete_forever_rounded,
+                color: Theme.of(context).colorScheme.error),
+            title: Text('Clear all data',
+                style:
+                    TextStyle(color: Theme.of(context).colorScheme.error)),
+            subtitle: const Text('Wipes credentials, tokens and login'),
+            onTap: () => _clearAll(context, ref),
+          ),
+          const Divider(),
+          _section(context, 'Power-user features'),
+          SwitchListTile(
+            secondary: const Icon(Icons.speed_rounded),
+            title: const Text('Show API usage instead of search'),
+            subtitle: const Text(
+                'Replace the search bar on the Posts screen with your live '
+                'Reddit API rate-limit usage'),
+            value: s.showApiUsage,
+            onChanged: ctrl.setShowApiUsage,
+          ),
+          _RateLimitTile(),
+          const Divider(),
           _section(context, 'About'),
+          ListTile(
+            leading: const Icon(Icons.new_releases_rounded),
+            title: const Text("What's new"),
+            subtitle: const Text('Ilay ${RedditConstants.appVersion} · what '
+                'changed in each release'),
+            onTap: () => context.push('/whats_new'),
+          ),
           SwitchListTile(
             secondary: const Icon(Icons.system_update_rounded),
             title: const Text('Check for updates'),
@@ -695,34 +753,6 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             leading: const Icon(Icons.gavel_rounded),
             title: const Text('Content & conduct policy'),
             onTap: () => context.push('/policy'),
-          ),
-          const Divider(),
-          _section(context, 'Account'),
-          ListTile(
-            leading: Icon(ref.watch(authModeProvider).valueOrNull == 'web'
-                ? Icons.public_rounded
-                : Icons.api_rounded),
-            title: const Text('Login method'),
-            subtitle: Text(ref.watch(authModeProvider).valueOrNull == 'web'
-                ? 'Website session (no API key) — unofficial'
-                : 'Reddit API key (recommended)'),
-            onTap: () => _showLoginMethodInfo(
-                context, ref.read(authModeProvider).valueOrNull == 'web'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.vpn_key_rounded),
-            title: const Text('Reddit API credentials'),
-            subtitle: const Text('Re-enter your Client ID / Redirect URI'),
-            onTap: () => _reenterCredentials(context, ref),
-          ),
-          ListTile(
-            leading: Icon(Icons.delete_forever_rounded,
-                color: Theme.of(context).colorScheme.error),
-            title: Text('Clear all data',
-                style:
-                    TextStyle(color: Theme.of(context).colorScheme.error)),
-            subtitle: const Text('Wipes credentials, tokens and login'),
-            onTap: () => _clearAll(context, ref),
           ),
           const SizedBox(height: 24),
     ];
@@ -1124,6 +1154,34 @@ class _SettingsListState extends ConsumerState<SettingsList> {
                   value: m,
                   title: Text(m.label),
                   subtitle: Text(m.description),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _pickNavStyle(
+      BuildContext context, SettingsController ctrl, int current) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: RadioGroup<int>(
+          groupValue: current,
+          onChanged: (v) {
+            if (v != null) ctrl.setNavStyle(v);
+            Navigator.pop(ctx);
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < _navStyles.length; i++)
+                RadioListTile<int>(
+                  value: i,
+                  title: Text(_navStyles[i].$1),
+                  subtitle: Text(_navStyles[i].$2),
                 ),
             ],
           ),

@@ -12,12 +12,15 @@ class PagedList<T> extends StatefulWidget {
     required this.itemBuilder,
     this.padding = const EdgeInsets.fromLTRB(10, 8, 10, 130),
     this.emptyLabel = 'Nothing here',
+    this.staleAfter = const Duration(minutes: 5),
   });
 
   final Future<Listing<T>> Function(String? after) fetch;
   final Widget Function(BuildContext, T) itemBuilder;
   final EdgeInsets padding;
   final String emptyLabel;
+  // How old the list may get before returning to it reloads it.
+  final Duration staleAfter;
 
   @override
   State<PagedList<T>> createState() => _PagedListState<T>();
@@ -55,8 +58,7 @@ class _PagedListState<T> extends State<PagedList<T>> with RouteAware {
   @override
   void didPopNext() {
     if (!_loading &&
-        DateTime.now().difference(_lastLoaded) >
-            const Duration(minutes: 5)) {
+        DateTime.now().difference(_lastLoaded) > widget.staleAfter) {
       _load(silent: true);
     }
   }

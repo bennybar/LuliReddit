@@ -14,6 +14,8 @@ class RedditUser with _$RedditUser {
     @Default(0) int commentKarma,
     required DateTime created,
     @Default('') String description,
+    // Following a user = subscribed to their profile (u_<name>).
+    @Default(false) bool following,
   }) = _RedditUser;
 
   factory RedditUser.fromData(Map<String, dynamic> d) {
@@ -32,6 +34,7 @@ class RedditUser with _$RedditUser {
         isUtc: true,
       ),
       description: (sub?['public_description'] as String? ?? '').trim(),
+      following: sub?['user_is_subscriber'] == true,
     );
   }
 }

@@ -108,6 +108,8 @@ class Settings {
     required this.aiMaxChars,
     required this.aiUseCustomUrl,
     required this.aiBaseUrl,
+    required this.navOutline,
+    required this.navStyle,
     required this.collapseBelowScore,
     required this.aiSummaryLanguage,
     required this.collapseTopLevel,
@@ -162,6 +164,8 @@ class Settings {
   final int aiMaxChars; // max thread text sent to the model
   final bool aiUseCustomUrl; // use a custom API base URL
   final String aiBaseUrl; // custom base URL (when enabled)
+  final bool navOutline; // thin outline around the floating bottom bar
+  final int navStyle; // 0 bottom bar, 1 side bar, 2 both
   // Comments scoring below this start collapsed (null = off).
   final int? collapseBelowScore;
   // English name of the language summaries are written in; '' = the
@@ -219,6 +223,8 @@ class Settings {
     int? aiMaxChars,
     bool? aiUseCustomUrl,
     String? aiBaseUrl,
+    bool? navOutline,
+    int? navStyle,
     int? collapseBelowScore,
     bool clearCollapseBelowScore = false,
     String? aiSummaryLanguage,
@@ -273,6 +279,8 @@ class Settings {
         aiMaxChars: aiMaxChars ?? this.aiMaxChars,
         aiUseCustomUrl: aiUseCustomUrl ?? this.aiUseCustomUrl,
         aiBaseUrl: aiBaseUrl ?? this.aiBaseUrl,
+        navOutline: navOutline ?? this.navOutline,
+        navStyle: navStyle ?? this.navStyle,
         collapseBelowScore: clearCollapseBelowScore
             ? null
             : (collapseBelowScore ?? this.collapseBelowScore),
@@ -348,6 +356,8 @@ class SettingsController extends Notifier<Settings> {
       aiMaxChars: p.getInt('aiMaxChars') ?? 100000,
       aiUseCustomUrl: p.getBool('aiUseCustomUrl') ?? false,
       aiBaseUrl: p.getString('aiBaseUrl') ?? 'https://api.openai.com',
+      navOutline: p.getBool('navOutline') ?? true,
+      navStyle: (p.getInt('navStyle') ?? 0).clamp(0, 2),
       collapseBelowScore: p.getInt('collapseBelowScore'),
       aiSummaryLanguage: p.getString('aiSummaryLanguage') ?? '',
       collapseTopLevel: p.getBool('collapseTopLevel') ?? false,
@@ -620,6 +630,16 @@ class SettingsController extends Notifier<Settings> {
         : _prefs.setInt('collapseBelowScore', v);
     state = state.copyWith(
         collapseBelowScore: v, clearCollapseBelowScore: v == null);
+  }
+
+  void setNavStyle(int v) {
+    _prefs.setInt('navStyle', v);
+    state = state.copyWith(navStyle: v);
+  }
+
+  void setNavOutline(bool v) {
+    _prefs.setBool('navOutline', v);
+    state = state.copyWith(navOutline: v);
   }
 }
 

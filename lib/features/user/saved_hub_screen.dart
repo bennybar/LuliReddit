@@ -13,6 +13,8 @@ import '../../models/comment.dart';
 import '../../models/post.dart';
 import '../auth/auth_controller.dart';
 import '../feed/post_card.dart';
+import '../feed/post_overrides.dart';
+import '../feed/swipe_actions.dart';
 
 /// A dedicated, searchable hub for the user's Saved items, with a type filter
 /// (all / posts / comments) and live text search over what's loaded.
@@ -33,6 +35,9 @@ class _SavedHubScreenState extends ConsumerState<SavedHubScreen> {
 
   String _query = '';
   String _type = 'all'; // all | posts | comments
+  // Unsaved here (swipe either way): gone from the list at once, Undo
+  // restores.
+  Set<String> _removed = {};
 
   @override
   void initState() {
@@ -98,11 +103,47 @@ class _SavedHubScreenState extends ConsumerState<SavedHubScreen> {
     }
   }
 
+  static String _fullname(Object it) =>
+      it is Post ? it.fullname : (it as Comment).fullname;
+
+  void _unsave(String fullname, Post? post) {
+    final repo = ref.read(redditRepositoryProvider);
+    final overrides = ref.read(postOverridesProvider.notifier);
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _removed = {..._removed, fullname});
+    if (post != null) overrides.setSaved(post, false);
+    void restore() {
+      if (mounted) {
+        setState(() => _removed = {..._removed}..remove(fullname));
+      }
+      if (post != null) overrides.setSaved(post, true);
+    }
+
+    repo.setSaved(fullname, false).then((_) {
+      messenger.showSnackBar(SnackBar(
+        content: const Text('Removed from Saved'),
+        action: SnackBarAction(
+          label: 'Undo',
+          onPressed: () {
+            restore();
+            repo.setSaved(fullname, true).catchError((_) {});
+          },
+        ),
+      ));
+    }, onError: (Object e) {
+      restore();
+      if (mounted) showActionError(context, 'unsave', e);
+    });
+  }
+
   List<Object> get _filtered {
     final q = _query.trim().toLowerCase();
+    final ids = <String>{};
     return [
       for (final it in _items)
-        if ((_type == 'all' ||
+        if (!_removed.contains(_fullname(it)) &&
+            ids.add(_fullname(it)) &&
+            (_type == 'all' ||
                 (_type == 'posts' && it is Post) ||
                 (_type == 'comments' && it is Comment)) &&
             (q.isEmpty ||
@@ -116,6 +157,17 @@ class _SavedHubScreenState extends ConsumerState<SavedHubScreen> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final filtered = _filtered;
+    final unsaveColor = cs.tertiary;
+    // A type filter or unsaving can leave too few rows to scroll (or none):
+    // keep fetching, within a bound, until there's a screenful.
+    if (filtered.length < 10 &&
+        (_after?.isNotEmpty ?? false) &&
+        !_loading &&
+        !_loadingMore &&
+        _error == null &&
+        _items.length < 500) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadMore());
+    }
     return Scaffold(
       appBar: AppBar(title: const Text('Saved')),
       body: Column(
@@ -175,7 +227,8 @@ class _SavedHubScreenState extends ConsumerState<SavedHubScreen> {
                       )
                     : filtered.isEmpty
                         ? Center(
-                            child: Text(_items.isEmpty
+                            child: Text(_items.isEmpty ||
+                                    (_query.trim().isEmpty && _type == 'all')
                                 ? 'Nothing saved'
                                 : 'No matches'))
                         : ListView.separated(
@@ -195,9 +248,27 @@ class _SavedHubScreenState extends ConsumerState<SavedHubScreen> {
                                     : const SizedBox.shrink();
                               }
                               final it = filtered[i];
-                              return it is Post
-                                  ? PostCard(post: it)
-                                  : _SavedComment(comment: it as Comment);
+                              if (it is Post) {
+                                final spec = SwipeSpec(
+                                    Icons.bookmark_remove_rounded,
+                                    unsaveColor,
+                                    () => _unsave(it.fullname, it));
+                                return PostCard(
+                                    key: ValueKey(it.fullname),
+                                    post: it,
+                                    swipeOverride: (spec, spec));
+                              }
+                              final c = it as Comment;
+                              final spec = SwipeSpec(
+                                  Icons.bookmark_remove_rounded,
+                                  unsaveColor,
+                                  () => _unsave(c.fullname, null));
+                              return SwipeActions(
+                                key: ValueKey(c.fullname),
+                                start: spec,
+                                end: spec,
+                                child: _SavedComment(comment: c),
+                              );
                             },
                           ),
           ),

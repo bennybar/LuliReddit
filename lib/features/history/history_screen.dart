@@ -128,10 +128,12 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                               onPressed: () => ctrl.removeViewed(e.id),
                             ),
                             onTap: () {
+                              final sub =
+                                  e.subreddit.isEmpty ? '_' : e.subreddit;
                               final route = e.permalink.isNotEmpty
                                   ? routeForRedditUrl(Uri.parse(
                                       'https://reddit.com${e.permalink}'))
-                                  : '/comments/${e.subreddit}/${e.id}';
+                                  : '/comments/$sub/${e.id}';
                               if (route != null) context.push(route);
                             },
                           );

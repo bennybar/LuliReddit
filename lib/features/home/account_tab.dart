@@ -6,179 +6,96 @@ import '../../core/providers.dart';
 import '../auth/auth_controller.dart';
 import '../auth/web_login_screen.dart';
 import '../multireddit/multireddit_providers.dart';
-import '../settings/settings_screen.dart';
+import '../user/user_screen.dart';
+import 'tab_menu.dart';
 
-class AccountTab extends ConsumerWidget {
-  const AccountTab({super.key});
+/// The Profile tab: your profile (Posts, Comments, Saved, Upvoted) under a
+/// bar with the account switcher and Settings, and a "Your stuff" row for
+/// what's kept on this device. Browsing without an account: sign in, plus
+/// your stuff.
+class ProfileTab extends ConsumerWidget {
+  const ProfileTab({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final cs = Theme.of(context).colorScheme;
-    final session = ref.watch(authControllerProvider).valueOrNull;
-    final username = session?.username ?? '';
-    final anonymous = session?.anonymous ?? false;
+    final username = ref.watch(
+            authControllerProvider.select((a) => a.valueOrNull?.username)) ??
+        '';
+    final anonymous = ref.watch(authControllerProvider
+            .select((a) => a.valueOrNull?.anonymous)) ??
+        false;
+    final sideBar = SideBarScope.of(context) != null;
 
-    return ListView(
-      padding: EdgeInsets.zero,
+    return Column(
       children: [
-        if (anonymous) const SignInPrompt(
-            message: 'You\'re browsing without an account. Sign in to vote, '
-                'comment, save, see your inbox and get your own frontpage.'),
-        // Profile header
-        if (!anonymous) Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+        Padding(
+          padding: EdgeInsets.fromLTRB(sideBar ? 4 : 16, 8, 4, 0),
           child: Row(
             children: [
-              CircleAvatar(
-                radius: 28,
-                backgroundColor: cs.primaryContainer,
-                child: Text(
-                  username.isNotEmpty ? username[0].toUpperCase() : '?',
-                  style: TextStyle(
-                      fontSize: 22,
-                      color: cs.onPrimaryContainer,
-                      fontWeight: FontWeight.bold),
-                ),
-              ),
-              const SizedBox(width: 16),
+              const SideBarButton(),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    InkWell(
-                      onTap: () => _showAccountSheet(context, ref, username),
-                      borderRadius: BorderRadius.circular(8),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Flexible(
-                            child: Text('u/$username',
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleLarge
-                                    ?.copyWith(fontWeight: FontWeight.w700)),
-                          ),
-                          const Icon(Icons.unfold_more_rounded, size: 20),
-                        ],
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => context.push('/u/$username'),
-                      style: TextButton.styleFrom(
-                          padding: EdgeInsets.zero,
-                          minimumSize: const Size(0, 0),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                      child: const Text('View profile'),
-                    ),
-                  ],
+                child: Text('Profile',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w800)),
+              ),
+              if (!anonymous)
+                IconButton(
+                  tooltip: 'Switch / add account',
+                  icon: const Icon(Icons.people_alt_rounded),
+                  onPressed: () => _showAccountSheet(context, ref, username),
                 ),
-              ),
-              IconButton.filledTonal(
-                tooltip: 'Switch / add account',
-                onPressed: () => _showAccountSheet(context, ref, username),
-                icon: const Icon(Icons.people_alt_rounded),
-              ),
+              const SettingsButton(),
             ],
           ),
         ),
-
-        ListTile(
-          leading: const Icon(Icons.offline_pin_rounded),
-          title: const Text('Read later'),
-          subtitle: const Text('Threads saved for offline reading'),
-          onTap: () => context.push('/offline'),
-        ),
-
-        // Settings (primary)
-        const SettingsList(embedded: true),
-
-        const Divider(),
-
-        // Custom feeds (secondary)
-        if (!anonymous) ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text('Custom feeds',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleSmall
-                          ?.copyWith(
-                              color: cs.primary, fontWeight: FontWeight.w700)),
-                ),
-                TextButton.icon(
-                  onPressed: () => _createMulti(context, ref, username),
-                  icon: const Icon(Icons.add_rounded, size: 18),
-                  label: const Text('New'),
-                ),
-              ],
-            ),
-          ),
-          ref.watch(myMultiredditsProvider).when(
-                loading: () => const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Center(child: CircularProgressIndicator())),
-                error: (e, _) => const SizedBox.shrink(),
-                data: (multis) => Column(
+        Expanded(
+          child: anonymous || username.isEmpty
+              ? ListView(
+                  padding: const EdgeInsets.only(bottom: 130),
                   children: [
-                    for (final m in multis)
-                      ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: cs.tertiaryContainer,
-                          foregroundColor: cs.onTertiaryContainer,
-                          child: const Icon(Icons.dynamic_feed_rounded, size: 20),
-                        ),
-                        title: Text(m.displayName),
-                        subtitle: Text('${m.subreddits.length} subreddits'),
-                        onTap: () => context.push('/m/$username/${m.name}'),
-                      ),
+                    const SignInPrompt(
+                        message: 'You\'re browsing without an account. Sign '
+                            'in to vote, comment, save, see your inbox and get '
+                            'your own frontpage.'),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                      child: Text('Your stuff',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleSmall
+                              ?.copyWith(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  fontWeight: FontWeight.w700)),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.history_rounded),
+                      title: const Text('History'),
+                      subtitle:
+                          const Text('Recently viewed (stored on this device)'),
+                      onTap: () => context.push('/history'),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.offline_pin_rounded),
+                      title: const Text('Read later'),
+                      subtitle: const Text('Threads saved for offline reading'),
+                      onTap: () => context.push('/offline'),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.auto_awesome_rounded),
+                      title: const Text('Summaries'),
+                      subtitle: const Text(
+                          'Posts you summarized with AI, and their summaries'),
+                      onTap: () => context.push('/summaries'),
+                    ),
                   ],
-                ),
-              ),
-        ],
-        const SizedBox(height: 130),
+                )
+              : UserProfileBody(
+                  username: username, belowHeader: const _YourStuffRow()),
+        ),
       ],
     );
-  }
-
-  Future<void> _createMulti(
-      BuildContext context, WidgetRef ref, String username) async {
-    final controller = TextEditingController();
-    final name = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('New custom feed'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: 'Feed name'),
-          onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-              child: const Text('Create')),
-        ],
-      ),
-    );
-    if (name == null || name.isEmpty) return;
-    try {
-      await ref
-          .read(redditRepositoryProvider)
-          .createMultireddit(username: username, name: name);
-      ref.invalidate(myMultiredditsProvider);
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content:
-                Text('Could not create feed: ${'$e'.replaceFirst('Exception: ', '')}')));
-      }
-    }
   }
 
   void _showAccountSheet(BuildContext context, WidgetRef ref, String current) {
@@ -300,6 +217,89 @@ class AccountTab extends ConsumerWidget {
     if (ok == true) {
       await ref.read(authControllerProvider.notifier).removeAccount(username);
     }
+  }
+}
+
+/// History, Read later, Drafts, Summaries and saved search, as one row of
+/// chips.
+class _YourStuffRow extends StatelessWidget {
+  const _YourStuffRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    // TODO(drafts): Kotlin shows "Drafts · n"; the Flutter drafts store
+    // can't list its drafts yet.
+    const chips = [
+      (Icons.history_rounded, 'History', '/history'),
+      (Icons.offline_pin_rounded, 'Read later', '/offline'),
+      (Icons.edit_note_rounded, 'Drafts', '/drafts'),
+      (Icons.auto_awesome_rounded, 'Summaries', '/summaries'),
+      (Icons.bookmark_border_rounded, 'Search saved', '/saved'),
+    ];
+    return SizedBox(
+      height: 44,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        itemCount: chips.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, i) => Center(
+          child: ActionChip(
+            key: ValueKey(chips[i].$3),
+            onPressed: () => context.push(chips[i].$3),
+            avatar: Icon(chips[i].$1, size: 18, color: cs.onSecondaryContainer),
+            label: Text(chips[i].$2),
+            shape: const StadiumBorder(),
+            side: BorderSide.none,
+            backgroundColor: cs.surfaceContainerHigh,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Asks for a name and creates a custom feed (holding [subreddits]); true if
+/// it was created.
+Future<bool> createMulti(BuildContext context, WidgetRef ref, String username,
+    [List<String> subreddits = const []]) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final controller = TextEditingController();
+  final name = await showDialog<String>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('New custom feed'),
+      content: TextField(
+        controller: controller,
+        autofocus: true,
+        decoration: InputDecoration(
+          labelText: 'Feed name',
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(18)),
+        ),
+        onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+        FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Create')),
+      ],
+    ),
+  );
+  controller.dispose();
+  if (name == null || name.isEmpty) return false;
+  try {
+    await ref.read(redditRepositoryProvider).createMultireddit(
+        username: username, name: name, subreddits: subreddits);
+    ref.invalidate(myMultiredditsProvider);
+    return true;
+  } catch (e) {
+    messenger.showSnackBar(SnackBar(
+        content: Text(
+            'Could not create feed: ${'$e'.replaceFirst('Exception: ', '')}')));
+    return false;
   }
 }
 

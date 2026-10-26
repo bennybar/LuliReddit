@@ -10,6 +10,7 @@ import '../../models/subreddit.dart';
 import '../auth/auth_controller.dart';
 import '../history/history_store.dart';
 import '../home/account_tab.dart' show SignInPrompt;
+import '../home/tab_menu.dart';
 import '../home/tab_signals.dart';
 import '../multireddit/multireddit_providers.dart';
 
@@ -41,6 +42,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final subs = ref.watch(subscribedSubredditsProvider);
+    final sideBar = SideBarScope.of(context) != null;
 
     // Re-tapping the Explore tab scrolls back to top.
     ref.listen<int>(tabReselectProvider(1), (_, __) {
@@ -61,8 +63,12 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
               // Search entry
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                  child: Material(
+                  // With the ☰ here: the same spot as on the other tabs.
+                  padding: EdgeInsets.fromLTRB(
+                      sideBar ? 4 : 16, sideBar ? 6 : 12, 16, 4),
+                  child: Row(children: [
+                  const SideBarButton(),
+                  Expanded(child: Material(
                     color: cs.surfaceContainerHigh,
                     borderRadius: BorderRadius.circular(28),
                     child: InkWell(
@@ -82,7 +88,8 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                         ),
                       ),
                     ),
-                  ),
+                  )),
+                  ]),
                 ),
               ),
               SliverToBoxAdapter(
@@ -114,12 +121,17 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
               SliverToBoxAdapter(child: _customFeeds(context, cs)),
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                  child: Text('Explore',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleLarge
-                          ?.copyWith(fontWeight: FontWeight.w800)),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 4, 0),
+                  child: Row(children: [
+                    Expanded(
+                      child: Text('Explore',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w800)),
+                    ),
+                    const SettingsButton(),
+                  ]),
                 ),
               ),
               SliverToBoxAdapter(

@@ -113,17 +113,20 @@ final pendingReminderLabelProvider =
 /// A post in a feed, in the layout chosen in Settings (Default / Cards / Mini
 /// cards / Calm / Calm cards). [dismissible]: Home / For You, where the
 /// "Dismiss" swipe applies; [frontpage]: Home, For You, Best / Hot / New,
-/// where "Hide subreddit for 7 days" applies.
+/// where "Hide subreddit for 7 days" applies. [swipeOverride] replaces the
+/// swipe actions (start, end), e.g. Saved, where both sides unsave.
 class PostCard extends ConsumerStatefulWidget {
   const PostCard({
     super.key,
     required this.post,
     this.dismissible = false,
     this.frontpage = false,
+    this.swipeOverride,
   });
   final Post post;
   final bool dismissible;
   final bool frontpage;
+  final (SwipeSpec?, SwipeSpec?)? swipeOverride;
 
   @override
   ConsumerState<PostCard> createState() => _PostCardState();
@@ -321,8 +324,8 @@ class _PostCardState extends ConsumerState<PostCard> {
       onLongPress: _showTuneSheet,
       child: SwipeActions(
         enabled: settings.swipeActions,
-        start: _swipe(settings.swipePostStart),
-        end: _swipe(settings.swipePostEnd),
+        start: widget.swipeOverride?.$1 ?? _swipe(settings.swipePostStart),
+        end: widget.swipeOverride?.$2 ?? _swipe(settings.swipePostEnd),
         child: card,
       ),
     );

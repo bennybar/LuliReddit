@@ -10,7 +10,9 @@ import '../../core/widgets/image_decode.dart';
 import '../../data/reddit_repository.dart';
 import '../../models/post.dart';
 import '../history/history_store.dart';
+import '../../core/format.dart';
 import '../reddit_home/home_loading.dart';
+import '../reddit_home/home_status.dart';
 import '../reddit_home/reddit_home_loader.dart' show redditHomeNoticeProvider;
 import '../settings/settings_controller.dart';
 import 'content_filters.dart';
@@ -140,6 +142,7 @@ class _PostListViewState extends ConsumerState<PostListView>
     final homeMode = widget.feedKey.isEmpty &&
         ref.watch(settingsControllerProvider
             .select((s) => s.redditHomeAllowed && s.redditHomeFeed));
+    final homeStatus = homeMode ? ref.watch(homeStatusProvider) : null;
     // Home and For You load behind the shuffling deck.
     final deckMode = widget.feedKey.isEmpty &&
         (homeMode ||
@@ -272,7 +275,7 @@ class _PostListViewState extends ConsumerState<PostListView>
                 index -= 1;
               }
               if (index == 0) {
-                return _SortBar(
+                final sortBar = _SortBar(
                   sort: state.sort,
                   time: state.time,
                   onPick: notifier.changeSort,
@@ -284,6 +287,17 @@ class _PostListViewState extends ConsumerState<PostListView>
                       ? notifier.selectRedditHome
                       : null,
                 );
+                // Not your live Home: say what this is instead (until the
+                // next load works).
+                final status = homeStatus;
+                if (status is HomeSaved || status is HomeFellBack) {
+                  return Column(children: [
+                    sortBar,
+                    _HomeStatusStrip(
+                        status: status!, onRetry: notifier.refresh),
+                  ]);
+                }
+                return sortBar;
               }
               index -= 1;
               if (index < posts.length) {
@@ -368,6 +382,66 @@ class _PostListViewState extends ConsumerState<PostListView>
           ),
       ],
     );
+  }
+}
+
+/// "Saved Home, from 2h ago · Refresh" / "Home couldn't load · showing For
+/// You · Retry".
+class _HomeStatusStrip extends StatelessWidget {
+  const _HomeStatusStrip({required this.status, required this.onRetry});
+  final HomeStatus status;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final s = status;
+    final (IconData icon, String text) = switch (s) {
+      HomeSaved(:final at) => (
+          Icons.history_rounded,
+          'Saved Home, from ${_agoPhrase(at)}'
+        ),
+      HomeFellBack(:final signedOut) => (
+          Icons.cloud_off_rounded,
+          signedOut
+              ? 'Website sign-in expired · showing For You'
+              : "Home couldn't load · showing For You"
+        ),
+      HomeLive() => (Icons.home_rounded, ''),
+    };
+    final signIn = s is HomeFellBack && s.signedOut;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.fromLTRB(14, 2, 4, 2),
+      decoration: BoxDecoration(
+        color: cs.secondaryContainer,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: cs.onSecondaryContainer),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(text,
+                maxLines: 2,
+                style:
+                    TextStyle(fontSize: 13, color: cs.onSecondaryContainer)),
+          ),
+          TextButton(
+            // TODO(reddit-home): "Sign in" opens the website sign-in.
+            onPressed: onRetry,
+            child: Text(signIn
+                ? 'Sign in'
+                : (s is HomeSaved ? 'Refresh' : 'Retry')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _agoPhrase(DateTime at) {
+    final t = timeAgo(at.toUtc());
+    return t == 'now' ? 'just now' : '$t ago';
   }
 }
 
