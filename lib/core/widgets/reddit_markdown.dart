@@ -3,8 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:markdown/markdown.dart' as md;
 
+import '../open_link.dart';
+
 /// [MarkdownBody] plus Reddit's own inline syntax: `>!spoilers!<` (hidden
-/// until tapped) and `^superscript` / `^(several words)`.
+/// until tapped) and `^superscript` / `^(several words)`. Links open in the
+/// app ([openLink]) unless [onTapLink] says otherwise, and a mostly
+/// Hebrew / Arabic body lays out right-to-left.
 class RedditMarkdown extends StatefulWidget {
   const RedditMarkdown({
     super.key,
@@ -77,14 +81,15 @@ class _RedditMarkdownState extends State<RedditMarkdown> {
         ? widget.data.replaceAllMapped(
             _spoilerRe, (m) => '$_open${m.group(1)}$_close')
         : widget.data;
-    return MarkdownBody(
+    final body = MarkdownBody(
       // MarkdownBody only re-parses when its data changes; a new key makes a
       // revealed spoiler actually redraw.
       key: ValueKey(_revealed.length),
       data: data,
       selectable: widget.selectable,
       styleSheet: widget.styleSheet,
-      onTapLink: widget.onTapLink,
+      onTapLink:
+          widget.onTapLink ?? (_, href, __) => openLink(context, href),
       inlineSyntaxes: [_SpoilerSyntax(), _SuperscriptSyntax()],
       builders: {
         'spoiler': _SpanBuilder((text, style) => _spoiler(text, style)),
@@ -97,7 +102,57 @@ class _RedditMarkdownState extends State<RedditMarkdown> {
             )),
       },
     );
+    // Hebrew / Arabic / Persian text reads from the right: lay the blocks out
+    // right-to-left (alignment, list bullets, quote bar), not just the
+    // glyphs. Full width, so the text can sit against the right edge.
+    if (!isMostlyRtl(widget.data)) return body;
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Align(alignment: AlignmentDirectional.topStart, child: body),
+    );
   }
+}
+
+/// More right-to-left letters (Hebrew, Arabic…) than left-to-right ones.
+bool isMostlyRtl(String text) {
+  var rtl = 0, ltr = 0;
+  for (final r in text.runes) {
+    if ((r >= 0x0590 && r <= 0x08FF) ||
+        (r >= 0xFB1D && r <= 0xFDFF) ||
+        (r >= 0xFE70 && r <= 0xFEFF)) {
+      rtl++;
+    } else if ((r >= 0x41 && r <= 0x5A) ||
+        (r >= 0x61 && r <= 0x7A) ||
+        (r >= 0xC0 && r <= 0x024F && r != 0xD7 && r != 0xF7) ||
+        (r >= 0x0370 && r <= 0x052F) ||
+        (r >= 0x0900 && r <= 0x1FFF) ||
+        (r >= 0x3040 && r <= 0x9FFF) ||
+        (r >= 0xAC00 && r <= 0xD7AF)) {
+      ltr++; // Latin, Greek, Cyrillic, Indic, CJK, Hangul…
+    }
+  }
+  return rtl > ltr;
+}
+
+/// [markdown] as plain text (for previews cut to a few lines).
+String markdownPlainText(String markdown) {
+  final nodes = md.Document(extensionSet: md.ExtensionSet.gitHubWeb)
+      .parseLines(markdown.split('\n'));
+  final out = StringBuffer();
+  void walk(md.Node n) {
+    if (n is md.Text) {
+      out.write(n.text);
+    } else if (n is md.Element) {
+      n.children?.forEach(walk);
+      if (const ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'pre']
+          .contains(n.tag)) {
+        out.write('\n');
+      }
+    }
+  }
+
+  nodes.forEach(walk);
+  return out.toString().trim();
 }
 
 class _SpoilerSyntax extends md.InlineSyntax {

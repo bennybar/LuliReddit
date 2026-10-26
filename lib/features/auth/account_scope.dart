@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers.dart';
 import '../explore/explore_screen.dart';
 import '../feed/feed_controller.dart';
+import '../feed/local_votes.dart';
 import '../feed/post_overrides.dart';
 import '../inbox/inbox_controller.dart';
 import '../multireddit/multireddit_providers.dart';
@@ -19,4 +20,5 @@ void resetAccountScopedState(WidgetRef ref) {
   ref.invalidate(subscribedSubredditsProvider);
   ref.invalidate(myMultiredditsProvider);
   ref.invalidate(postOverridesProvider);
+  ref.invalidate(commentVotesProvider);
 }

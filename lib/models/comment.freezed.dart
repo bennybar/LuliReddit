@@ -29,7 +29,8 @@ mixin _$Comment {
   bool get stickied => throw _privateConstructorUsedError;
   bool get scoreHidden => throw _privateConstructorUsedError;
   bool get saved => throw _privateConstructorUsedError;
-  bool? get likes =>
+  bool? get likes => throw _privateConstructorUsedError;
+  UserFlair? get authorFlair =>
       throw _privateConstructorUsedError; // Present on user/saved comment listings — link back to the parent post.
   String get linkTitle => throw _privateConstructorUsedError;
   String get permalink => throw _privateConstructorUsedError;
@@ -67,6 +68,7 @@ abstract class $CommentCopyWith<$Res> {
     bool scoreHidden,
     bool saved,
     bool? likes,
+    UserFlair? authorFlair,
     String linkTitle,
     String permalink,
     String subreddit,
@@ -107,6 +109,7 @@ class _$CommentCopyWithImpl<$Res, $Val extends Comment>
     Object? scoreHidden = null,
     Object? saved = null,
     Object? likes = freezed,
+    Object? authorFlair = freezed,
     Object? linkTitle = null,
     Object? permalink = null,
     Object? subreddit = null,
@@ -171,6 +174,10 @@ class _$CommentCopyWithImpl<$Res, $Val extends Comment>
                 ? _value.likes
                 : likes // ignore: cast_nullable_to_non_nullable
                       as bool?,
+            authorFlair: freezed == authorFlair
+                ? _value.authorFlair
+                : authorFlair // ignore: cast_nullable_to_non_nullable
+                      as UserFlair?,
             linkTitle: null == linkTitle
                 ? _value.linkTitle
                 : linkTitle // ignore: cast_nullable_to_non_nullable
@@ -235,6 +242,7 @@ abstract class _$$CommentImplCopyWith<$Res> implements $CommentCopyWith<$Res> {
     bool scoreHidden,
     bool saved,
     bool? likes,
+    UserFlair? authorFlair,
     String linkTitle,
     String permalink,
     String subreddit,
@@ -274,6 +282,7 @@ class __$$CommentImplCopyWithImpl<$Res>
     Object? scoreHidden = null,
     Object? saved = null,
     Object? likes = freezed,
+    Object? authorFlair = freezed,
     Object? linkTitle = null,
     Object? permalink = null,
     Object? subreddit = null,
@@ -338,6 +347,10 @@ class __$$CommentImplCopyWithImpl<$Res>
             ? _value.likes
             : likes // ignore: cast_nullable_to_non_nullable
                   as bool?,
+        authorFlair: freezed == authorFlair
+            ? _value.authorFlair
+            : authorFlair // ignore: cast_nullable_to_non_nullable
+                  as UserFlair?,
         linkTitle: null == linkTitle
             ? _value.linkTitle
             : linkTitle // ignore: cast_nullable_to_non_nullable
@@ -396,6 +409,7 @@ class _$CommentImpl extends _Comment {
     this.scoreHidden = false,
     this.saved = false,
     this.likes,
+    this.authorFlair,
     this.linkTitle = '',
     this.permalink = '',
     this.subreddit = '',
@@ -442,6 +456,8 @@ class _$CommentImpl extends _Comment {
   final bool saved;
   @override
   final bool? likes;
+  @override
+  final UserFlair? authorFlair;
   // Present on user/saved comment listings — link back to the parent post.
   @override
   @JsonKey()
@@ -496,7 +512,7 @@ class _$CommentImpl extends _Comment {
 
   @override
   String toString() {
-    return 'Comment(id: $id, fullname: $fullname, parentId: $parentId, author: $author, body: $body, score: $score, created: $created, depth: $depth, distinguished: $distinguished, stickied: $stickied, scoreHidden: $scoreHidden, saved: $saved, likes: $likes, linkTitle: $linkTitle, permalink: $permalink, subreddit: $subreddit, media: $media, replies: $replies, isMore: $isMore, moreCount: $moreCount, moreChildren: $moreChildren, collapsed: $collapsed)';
+    return 'Comment(id: $id, fullname: $fullname, parentId: $parentId, author: $author, body: $body, score: $score, created: $created, depth: $depth, distinguished: $distinguished, stickied: $stickied, scoreHidden: $scoreHidden, saved: $saved, likes: $likes, authorFlair: $authorFlair, linkTitle: $linkTitle, permalink: $permalink, subreddit: $subreddit, media: $media, replies: $replies, isMore: $isMore, moreCount: $moreCount, moreChildren: $moreChildren, collapsed: $collapsed)';
   }
 
   @override
@@ -522,6 +538,8 @@ class _$CommentImpl extends _Comment {
                 other.scoreHidden == scoreHidden) &&
             (identical(other.saved, saved) || other.saved == saved) &&
             (identical(other.likes, likes) || other.likes == likes) &&
+            (identical(other.authorFlair, authorFlair) ||
+                other.authorFlair == authorFlair) &&
             (identical(other.linkTitle, linkTitle) ||
                 other.linkTitle == linkTitle) &&
             (identical(other.permalink, permalink) ||
@@ -557,6 +575,7 @@ class _$CommentImpl extends _Comment {
     scoreHidden,
     saved,
     likes,
+    authorFlair,
     linkTitle,
     permalink,
     subreddit,
@@ -592,6 +611,7 @@ abstract class _Comment extends Comment {
     final bool scoreHidden,
     final bool saved,
     final bool? likes,
+    final UserFlair? authorFlair,
     final String linkTitle,
     final String permalink,
     final String subreddit,
@@ -629,7 +649,9 @@ abstract class _Comment extends Comment {
   @override
   bool get saved;
   @override
-  bool? get likes; // Present on user/saved comment listings — link back to the parent post.
+  bool? get likes;
+  @override
+  UserFlair? get authorFlair; // Present on user/saved comment listings — link back to the parent post.
   @override
   String get linkTitle;
   @override

@@ -1,5 +1,8 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import '../core/media_links.dart' show giphyUrl;
+import 'flair.dart';
+
 part 'comment.freezed.dart';
 
 /// A node in the comment tree. `kind: t1` is a comment; `kind: more` is a
@@ -22,6 +25,8 @@ class Comment with _$Comment {
     @Default(false) bool scoreHidden,
     @Default(false) bool saved,
     bool? likes,
+    // The author's user flair in this community (null: none).
+    UserFlair? authorFlair,
     // Present on user/saved comment listings — link back to the parent post.
     @Default('') String linkTitle,
     @Default('') String permalink,
@@ -43,9 +48,15 @@ class Comment with _$Comment {
 
     if (kind == 'more') {
       final children = (d['children'] as List?)?.cast<String>() ?? const [];
+      // "Continue this thread" stubs all come as id "_" / name "t1__": give
+      // each a unique id from its parent, or two in one thread would share a
+      // list key.
+      final stub = d['id'] == '_';
+      final parent = d['parent_id'] as String? ?? '';
       return Comment(
-        id: d['id'] as String? ?? 'more',
-        fullname: d['name'] as String? ?? 'more_${d['id']}',
+        id: stub ? 'more_$parent' : d['id'] as String? ?? 'more',
+        fullname:
+            stub ? 'more_$parent' : d['name'] as String? ?? 'more_${d['id']}',
         parentId: d['parent_id'] as String? ?? '',
         author: '',
         body: '',
@@ -73,11 +84,15 @@ class Comment with _$Comment {
       }
     }
 
+    // Some responses (a website-session /api/comment) give the id already
+    // prefixed ("t1_abc") and no name.
+    final id = (d['id'] as String? ?? '').replaceFirst(RegExp('^t1_'), '');
     return Comment(
-      id: d['id'] as String? ?? '',
-      fullname: d['name'] as String? ?? 't1_${d['id']}',
+      id: id,
+      fullname: d['name'] as String? ?? 't1_$id',
       parentId: d['parent_id'] as String? ?? '',
       author: d['author'] as String? ?? '[deleted]',
+      authorFlair: authorFlairOf(d),
       body: d['body'] as String? ?? '',
       score: (d['score'] as num?)?.toInt() ?? 0,
       created: DateTime.fromMillisecondsSinceEpoch(
@@ -107,7 +122,13 @@ Map<String, String> mediaUrlsOf(dynamic raw) {
   final out = <String, String>{};
   raw.forEach((key, value) {
     if (key is! String || key.startsWith('emote|') || value is! Map) return;
-    if (value['status'] != 'valid') return;
+    if (value['status'] != 'valid') {
+      // Reddit often sends GIF-picker GIFs as "invalid" with no URL (its own
+      // apps still show them): use Giphy's copy by id.
+      final giphy = giphyUrl(key);
+      if (giphy != null) out[key] = giphy;
+      return;
+    }
     final s = value['s'];
     if (s is! Map) return;
     final url = (s['gif'] ?? s['u'] ?? s['mp4']) as String?;

@@ -108,6 +108,9 @@ class Settings {
     required this.aiMaxChars,
     required this.aiUseCustomUrl,
     required this.aiBaseUrl,
+    required this.collapseBelowScore,
+    required this.aiSummaryLanguage,
+    required this.collapseTopLevel,
     required this.feedGalleryCarousel,
     required this.autoplaySound,
     required this.hiddenPostDays,
@@ -159,6 +162,13 @@ class Settings {
   final int aiMaxChars; // max thread text sent to the model
   final bool aiUseCustomUrl; // use a custom API base URL
   final String aiBaseUrl; // custom base URL (when enabled)
+  // Comments scoring below this start collapsed (null = off).
+  final int? collapseBelowScore;
+  // English name of the language summaries are written in; '' = the
+  // thread's own.
+  final String aiSummaryLanguage;
+  // Threads open with top-level comments' replies collapsed.
+  final bool collapseTopLevel;
   final bool feedGalleryCarousel; // galleries in feeds as the M3 carousel (else one image at a time)
   final bool autoplaySound; // feed videos start unmuted
   final int hiddenPostDays; // how long Ilay keeps posts you hid out of every feed (Reddit hides them too)
@@ -209,6 +219,10 @@ class Settings {
     int? aiMaxChars,
     bool? aiUseCustomUrl,
     String? aiBaseUrl,
+    int? collapseBelowScore,
+    bool clearCollapseBelowScore = false,
+    String? aiSummaryLanguage,
+    bool? collapseTopLevel,
     bool? feedGalleryCarousel,
     bool? autoplaySound,
     int? hiddenPostDays,
@@ -259,6 +273,11 @@ class Settings {
         aiMaxChars: aiMaxChars ?? this.aiMaxChars,
         aiUseCustomUrl: aiUseCustomUrl ?? this.aiUseCustomUrl,
         aiBaseUrl: aiBaseUrl ?? this.aiBaseUrl,
+        collapseBelowScore: clearCollapseBelowScore
+            ? null
+            : (collapseBelowScore ?? this.collapseBelowScore),
+        aiSummaryLanguage: aiSummaryLanguage ?? this.aiSummaryLanguage,
+        collapseTopLevel: collapseTopLevel ?? this.collapseTopLevel,
         feedGalleryCarousel: feedGalleryCarousel ?? this.feedGalleryCarousel,
         autoplaySound: autoplaySound ?? this.autoplaySound,
         hiddenPostDays: hiddenPostDays ?? this.hiddenPostDays,
@@ -329,6 +348,9 @@ class SettingsController extends Notifier<Settings> {
       aiMaxChars: p.getInt('aiMaxChars') ?? 100000,
       aiUseCustomUrl: p.getBool('aiUseCustomUrl') ?? false,
       aiBaseUrl: p.getString('aiBaseUrl') ?? 'https://api.openai.com',
+      collapseBelowScore: p.getInt('collapseBelowScore'),
+      aiSummaryLanguage: p.getString('aiSummaryLanguage') ?? '',
+      collapseTopLevel: p.getBool('collapseTopLevel') ?? false,
       feedGalleryCarousel: p.getBool('feedGalleryCarousel') ?? true,
       autoplaySound: p.getBool('autoplaySound') ?? false,
       hiddenPostDays: p.getInt('hiddenPostDays') ?? 7,
@@ -580,6 +602,24 @@ class SettingsController extends Notifier<Settings> {
   void setFeedGalleryCarousel(bool v) {
     _prefs.setBool('feedGalleryCarousel', v);
     state = state.copyWith(feedGalleryCarousel: v);
+  }
+
+  void setCollapseTopLevel(bool v) {
+    _prefs.setBool('collapseTopLevel', v);
+    state = state.copyWith(collapseTopLevel: v);
+  }
+
+  void setAiSummaryLanguage(String v) {
+    _prefs.setString('aiSummaryLanguage', v);
+    state = state.copyWith(aiSummaryLanguage: v);
+  }
+
+  void setCollapseBelowScore(int? v) {
+    v == null
+        ? _prefs.remove('collapseBelowScore')
+        : _prefs.setInt('collapseBelowScore', v);
+    state = state.copyWith(
+        collapseBelowScore: v, clearCollapseBelowScore: v == null);
   }
 }
 

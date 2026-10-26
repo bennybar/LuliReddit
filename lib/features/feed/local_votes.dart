@@ -1,3 +1,7 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../models/comment.dart';
+
 /// −1 / 0 / +1 for a `likes` value (false / null / true).
 int dirOf(bool? likes) => likes == true ? 1 : (likes == false ? -1 : 0);
 
@@ -61,3 +65,52 @@ class LocalVotes {
     _seen.clear();
   }
 }
+
+/// A comment's vote and score as shown.
+class CommentVote {
+  const CommentVote(this.likes, this.score);
+  final bool? likes;
+  final int score;
+}
+
+/// Your comment votes, keyed by comment id, so a thread you go back into and
+/// your profile's comments show them (a thread used to keep them only while
+/// open). Reset with the account (resetAccountScopedState).
+class CommentVotes extends Notifier<Map<String, CommentVote>> {
+  final _votes = LocalVotes();
+
+  @override
+  Map<String, CommentVote> build() => {};
+
+  CommentVote effective(Comment c) =>
+      state[c.id] ?? CommentVote(c.likes, c.score);
+
+  /// Applies a vote (−1, 0, +1) on [c] as shown.
+  void setVote(Comment c, int target) {
+    final cur = effective(c);
+    _votes.record(c.id, target, c.score, c.likes);
+    state = {
+      ...state,
+      c.id: CommentVote(likesOf(target), cur.score + target - dirOf(cur.likes)),
+    };
+  }
+
+  /// Fresh comments from Reddit, with the votes it hasn't caught up with
+  /// yet.
+  List<Comment> apply(List<Comment> comments) =>
+      state.isEmpty ? comments : [for (final c in comments) _applyOne(c)];
+
+  Comment _applyOne(Comment c) {
+    final withReplies = c.replies.isEmpty
+        ? c
+        : c.copyWith(replies: [for (final r in c.replies) _applyOne(r)]);
+    if (c.isMore || !state.containsKey(c.id)) return withReplies;
+    final (likes, score) = _votes.reconcile(c.id, c.likes, c.score);
+    if (!_votes.isPending(c.id)) state = {...state}..remove(c.id);
+    return withReplies.copyWith(likes: likes, score: score);
+  }
+}
+
+final commentVotesProvider =
+    NotifierProvider<CommentVotes, Map<String, CommentVote>>(
+        CommentVotes.new);

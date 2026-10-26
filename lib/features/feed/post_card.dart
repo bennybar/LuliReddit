@@ -747,7 +747,7 @@ class _PostCardState extends ConsumerState<PostCard> {
       children: [
         GestureDetector(
           onTap: _openSubreddit,
-          child: _LetterAvatar(
+          child: LetterAvatar(
             name: p.subreddit,
             imageUrl: s.subredditIcons ? p.subredditIcon : null,
             size: 28,
@@ -1031,7 +1031,7 @@ class _PostCardState extends ConsumerState<PostCard> {
         ),
       ),
       radius: BorderRadius.circular(_calmOuter),
-      color: _calmCardColor(context),
+      color: calmCardColor(context),
     );
   }
 
@@ -1039,7 +1039,7 @@ class _PostCardState extends ConsumerState<PostCard> {
   /// (edge to edge) and the actions as separate segments, 3 apart.
   Widget _calmCardsCard(BuildContext context, Settings s) {
     final p = widget.post;
-    final color = _calmCardColor(context);
+    final color = calmCardColor(context);
     const outer = Radius.circular(_calmOuter);
     const inner = Radius.circular(_calmInner);
     return Padding(
@@ -1072,8 +1072,8 @@ class _PostCardState extends ConsumerState<PostCard> {
                 children: [
                   _calmActionGroup(context, withComments: false),
                   const SizedBox(width: 8),
-                  _CalmButtonGroup(buttons: [
-                    _CalmButton(
+                  CalmButtonGroup(buttons: [
+                    CalmButton(
                         icon: Icons.mode_comment_outlined,
                         label: compactNumber(_live().numComments),
                         onTap: _openDetail),
@@ -1170,7 +1170,7 @@ class _PostCardState extends ConsumerState<PostCard> {
       children: [
         GestureDetector(
           onTap: _openSubreddit,
-          child: _LetterAvatar(
+          child: LetterAvatar(
             name: p.subreddit,
             imageUrl: s.subredditIcons ? p.subredditIcon : null,
             size: 36,
@@ -1375,8 +1375,8 @@ class _PostCardState extends ConsumerState<PostCard> {
     final live = _live();
     final up = live.likes == true;
     final down = live.likes == false;
-    return _CalmButtonGroup(buttons: [
-      _CalmButton(
+    return CalmButtonGroup(buttons: [
+      CalmButton(
         icon: Icons.arrow_upward_rounded,
         label: compactNumber(live.score),
         semanticLabel: 'Upvote',
@@ -1385,7 +1385,7 @@ class _PostCardState extends ConsumerState<PostCard> {
         labelTint: down ? votes.down : null,
         onTap: () => _vote(1),
       ),
-      _CalmButton(
+      CalmButton(
         icon: Icons.arrow_downward_rounded,
         semanticLabel: 'Downvote',
         toggled: down,
@@ -1393,7 +1393,7 @@ class _PostCardState extends ConsumerState<PostCard> {
         onTap: () => _vote(-1),
       ),
       if (withComments)
-        _CalmButton(
+        CalmButton(
             icon: Icons.mode_comment_outlined,
             label: compactNumber(live.numComments),
             onTap: _openDetail),
@@ -1406,7 +1406,7 @@ class _PostCardState extends ConsumerState<PostCard> {
     final saved = _live().saved;
     return [
       if (canShareAsMedia(p))
-        _CalmGhost(
+        CalmGhost(
           icon: p.type == PostType.video || p.type == PostType.gif
               ? Icons.movie_outlined
               : Icons.image_outlined,
@@ -1414,12 +1414,12 @@ class _PostCardState extends ConsumerState<PostCard> {
           color: cs.onSurfaceVariant,
           onTap: _shareMedia,
         ),
-      _CalmGhost(
+      CalmGhost(
           icon: Icons.share_rounded,
           label: 'Share',
           color: cs.onSurfaceVariant,
           onTap: _share),
-      _CalmGhost(
+      CalmGhost(
         icon: saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
         label: saved ? 'Unsave' : 'Save',
         color: saved ? cs.primary : cs.onSurfaceVariant,
@@ -1443,7 +1443,7 @@ bool _isLight(ColorScheme cs) => cs.surface.computeLuminance() > 0.5;
 /// Calm's surfaces. In light mode surfaceContainerLow is almost the page
 /// colour, so cards were lost in one off-white sheet: cards use a clearly
 /// tinted container. Dark mode already contrasts.
-Color _calmCardColor(BuildContext context) {
+Color calmCardColor(BuildContext context) {
   final cs = Theme.of(context).colorScheme;
   return _isLight(cs) ? cs.surfaceContainerHigh : cs.surfaceContainerLow;
 }
@@ -1691,8 +1691,9 @@ class PollOptions extends StatelessWidget {
 }
 
 /// A subreddit avatar showing [imageUrl] or the first letter of [name].
-class _LetterAvatar extends StatelessWidget {
-  const _LetterAvatar({
+class LetterAvatar extends StatelessWidget {
+  const LetterAvatar({
+    super.key,
     required this.name,
     required this.size,
     required this.container,
@@ -1763,8 +1764,8 @@ class _NsfwTag extends StatelessWidget {
   }
 }
 
-class _CalmButton {
-  const _CalmButton({
+class CalmButton {
+  const CalmButton({
     required this.icon,
     required this.onTap,
     this.label,
@@ -1784,9 +1785,9 @@ class _CalmButton {
 
 /// M3 Expressive connected button group: 40 tall, outer corners round,
 /// inner 6, 3 apart.
-class _CalmButtonGroup extends StatelessWidget {
-  const _CalmButtonGroup({required this.buttons});
-  final List<_CalmButton> buttons;
+class CalmButtonGroup extends StatelessWidget {
+  const CalmButtonGroup({super.key, required this.buttons});
+  final List<CalmButton> buttons;
 
   @override
   Widget build(BuildContext context) {
@@ -1851,8 +1852,9 @@ class _CalmButtonGroup extends StatelessWidget {
 }
 
 /// A borderless icon button (Calm's share / save).
-class _CalmGhost extends StatelessWidget {
-  const _CalmGhost({
+class CalmGhost extends StatelessWidget {
+  const CalmGhost({
+    super.key,
     required this.icon,
     required this.label,
     required this.color,

@@ -5,6 +5,7 @@ import '../../core/drafts.dart';
 import '../../core/network/catbox.dart';
 import '../../core/providers.dart';
 import '../../models/comment.dart';
+import '../auth/auth_controller.dart';
 import '../../core/widgets/markdown_toolbar.dart';
 import '../media/attachment.dart';
 import '../media/attachment_bar.dart';
@@ -33,11 +34,13 @@ Future<Comment?> showReplySheet(
       draftKey: 'reply_$parentFullname',
       onSubmitMedia: (text, media) async {
         final repo = ref.read(redditRepositoryProvider);
+        final me = ref.read(authControllerProvider).valueOrNull?.username ?? '';
         if (media == null) {
           return repo.reply(
               parentFullname: parentFullname,
               text: text,
-              depth: parentDepth + 1);
+              depth: parentDepth + 1,
+              me: me);
         }
         if (media.isVideo) {
           final url =
@@ -46,7 +49,8 @@ Future<Comment?> showReplySheet(
           return repo.reply(
               parentFullname: parentFullname,
               text: body,
-              depth: parentDepth + 1);
+              depth: parentDepth + 1,
+              me: me);
         }
         return repo.replyWithImage(
           parentFullname: parentFullname,
@@ -55,6 +59,7 @@ Future<Comment?> showReplySheet(
           filename: media.filename,
           mimeType: media.mimeType,
           depth: parentDepth + 1,
+          me: me,
         );
       },
     ),

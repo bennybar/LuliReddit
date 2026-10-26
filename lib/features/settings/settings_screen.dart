@@ -25,6 +25,24 @@ import '../notifications/notification_service.dart';
 import '../updates/update_checker.dart';
 import 'settings_controller.dart';
 
+/// Summary languages: (English name the prompt uses, label). '' = the
+/// thread's own.
+const _summaryLanguages = [
+  ('', 'Same as the thread'),
+  ('English', 'English'),
+  ('Hebrew', 'Hebrew · עברית'),
+  ('Spanish', 'Spanish · Español'),
+  ('French', 'French · Français'),
+  ('German', 'German · Deutsch'),
+  ('Portuguese', 'Portuguese · Português'),
+  ('Italian', 'Italian · Italiano'),
+  ('Russian', 'Russian · Русский'),
+  ('Arabic', 'Arabic · العربية'),
+  ('Simplified Chinese', 'Chinese · 中文'),
+  ('Japanese', 'Japanese · 日本語'),
+  ('Hindi', 'Hindi · हिन्दी'),
+];
+
 const _accentSwatches = <Color>[
   Color(0xFF6750A4), // Bloom lavender (default)
   Color(0xFFEA4335), // red
@@ -265,6 +283,24 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             onChanged: ctrl.setTapToCollapse,
           ),
           ListTile(
+            leading: const Icon(Icons.unfold_less_rounded),
+            title: const Text('Collapse low-scoring comments'),
+            subtitle: Text(s.collapseBelowScore == null
+                ? 'Off'
+                : 'Comments below ${s.collapseBelowScore} points start '
+                    'collapsed'),
+            onTap: () =>
+                _pickCollapseBelow(context, ctrl, s.collapseBelowScore),
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.unfold_less_rounded),
+            title: const Text('Open threads collapsed'),
+            subtitle: const Text('Top-level comments show without their '
+                'replies, each with a "Show replies" button'),
+            value: s.collapseTopLevel,
+            onChanged: ctrl.setCollapseTopLevel,
+          ),
+          ListTile(
             leading: Icon(s.postDisplay.icon),
             title: const Text('Post display'),
             subtitle: Text(s.postDisplay.label),
@@ -489,11 +525,14 @@ class _SettingsListState extends ConsumerState<SettingsList> {
           _section(context, 'AI summaries'),
           ListTile(
             leading: const Icon(Icons.key_rounded),
-            title: const Text('OpenAI API key'),
+            // With a custom endpoint the key is that provider's (Groq,
+            // OpenRouter, a LiteLLM key…).
+            title: Text(s.aiUseCustomUrl ? 'API key' : 'OpenAI API key'),
             subtitle: Text(aiKeySet
                 ? 'Key set — tap to change or remove'
                 : 'Add a key to enable thread summaries'),
-            onTap: () => _editOpenAiKey(context, ref, aiKeySet),
+            onTap: () =>
+                _editOpenAiKey(context, ref, aiKeySet, s.aiUseCustomUrl),
           ),
           ListTile(
             enabled: aiKeySet,
@@ -513,6 +552,18 @@ class _SettingsListState extends ConsumerState<SettingsList> {
           ),
           ListTile(
             enabled: aiKeySet,
+            leading: const Icon(Icons.translate_rounded),
+            title: const Text('Summary language'),
+            subtitle: Text(_summaryLanguages
+                    .where((l) => l.$1 == s.aiSummaryLanguage)
+                    .firstOrNull
+                    ?.$2 ??
+                s.aiSummaryLanguage),
+            onTap: () =>
+                _pickSummaryLanguage(context, ctrl, s.aiSummaryLanguage),
+          ),
+          ListTile(
+            enabled: aiKeySet,
             leading: const Icon(Icons.straighten_rounded),
             title: const Text('Max thread size'),
             subtitle: Text('${(s.aiMaxChars / 1000).round()}k characters '
@@ -522,8 +573,8 @@ class _SettingsListState extends ConsumerState<SettingsList> {
           SwitchListTile(
             secondary: const Icon(Icons.dns_rounded),
             title: const Text('Custom API base URL'),
-            subtitle: const Text(
-                'Advanced — use an OpenAI-compatible endpoint (e.g. LiteLLM)'),
+            subtitle: const Text('Advanced — use an OpenAI-compatible '
+                'endpoint (e.g. Groq, OpenRouter, LiteLLM)'),
             value: s.aiUseCustomUrl,
             onChanged: ctrl.setAiUseCustomUrl,
           ),
@@ -534,6 +585,13 @@ class _SettingsListState extends ConsumerState<SettingsList> {
               subtitle: Text(s.aiBaseUrl),
               onTap: () => _editAiBaseUrl(context, ctrl, s.aiBaseUrl),
             ),
+          // TODO(profile): the Profile tab's "Your stuff" links here too.
+          ListTile(
+            leading: const Icon(Icons.auto_awesome_outlined),
+            title: const Text('Summaries'),
+            subtitle: const Text('Every post you summarized with AI'),
+            onTap: () => context.push('/summaries'),
+          ),
           const Divider(),
           _section(context, 'History & data'),
           ListTile(
@@ -1100,12 +1158,12 @@ class _SettingsListState extends ConsumerState<SettingsList> {
   }
 
   Future<void> _editOpenAiKey(
-      BuildContext context, WidgetRef ref, bool hasKey) async {
+      BuildContext context, WidgetRef ref, bool hasKey, bool custom) async {
     final ctrl = TextEditingController();
     final action = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('OpenAI API key'),
+        title: Text(custom ? 'API key' : 'OpenAI API key'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1115,7 +1173,8 @@ class _SettingsListState extends ConsumerState<SettingsList> {
               obscureText: true,
               autocorrect: false,
               enableSuggestions: false,
-              decoration: const InputDecoration(hintText: 'sk-…'),
+              decoration: InputDecoration(
+                  hintText: custom ? "Your provider's API key" : 'sk-…'),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -1148,10 +1207,12 @@ class _SettingsListState extends ConsumerState<SettingsList> {
     ref.invalidate(openAiKeyProvider);
   }
 
-  void _pickAiModel(
-      BuildContext context, SettingsController ctrl, String current) {
-    const models = ['gpt-6.1-sol', 'gpt-5.5', 'gpt-5.4-mini', 'gpt-5.4-nano'];
-    showModalBottomSheet(
+  Future<void> _pickAiModel(
+      BuildContext context, SettingsController ctrl, String current) async {
+    // The presets are OpenAI's; any other provider's model is typed in.
+    const presets = ['gpt-6.1-sol', 'gpt-5.5', 'gpt-5.4-mini', 'gpt-5.4-nano'];
+    final models = [...presets, if (!presets.contains(current)) current];
+    final custom = await showModalBottomSheet<bool>(
       context: context,
       showDragHandle: true,
       builder: (ctx) => SafeArea(
@@ -1165,6 +1226,97 @@ class _SettingsListState extends ConsumerState<SettingsList> {
                     m == current ? const Icon(Icons.check_rounded) : null,
                 onTap: () {
                   ctrl.setAiModel(m);
+                  Navigator.pop(ctx);
+                },
+              ),
+            ListTile(
+              title: const Text('Custom model…'),
+              subtitle: const Text("Type your provider's model ID"),
+              onTap: () => Navigator.pop(ctx, true),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (custom != true || !context.mounted) return;
+    final c = TextEditingController(text: current);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Model ID'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: c,
+              autofocus: true,
+              autocorrect: false,
+              decoration: const InputDecoration(
+                  hintText: 'e.g. llama-3.3-70b-versatile'),
+            ),
+            const SizedBox(height: 8),
+            const Text('Exactly as your provider names it.',
+                style: TextStyle(fontSize: 12)),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Save')),
+        ],
+      ),
+    );
+    if (ok == true && c.text.trim().isNotEmpty) ctrl.setAiModel(c.text.trim());
+  }
+
+  void _pickSummaryLanguage(
+      BuildContext context, SettingsController ctrl, String current) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (ctx) => SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final (value, label) in _summaryLanguages)
+                ListTile(
+                  title: Text(label),
+                  trailing: value == current
+                      ? const Icon(Icons.check_rounded)
+                      : null,
+                  onTap: () {
+                    ctrl.setAiSummaryLanguage(value);
+                    Navigator.pop(ctx);
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _pickCollapseBelow(
+      BuildContext context, SettingsController ctrl, int? current) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final v in const <int?>[null, 1, 0, -5, -10])
+              ListTile(
+                title: Text(v == null ? 'Off' : 'Below $v points'),
+                trailing:
+                    v == current ? const Icon(Icons.check_rounded) : null,
+                onTap: () {
+                  ctrl.setCollapseBelowScore(v);
                   Navigator.pop(ctx);
                 },
               ),
@@ -1238,8 +1390,11 @@ class _SettingsListState extends ConsumerState<SettingsList> {
           autofocus: true,
           autocorrect: false,
           keyboardType: TextInputType.url,
-          decoration:
-              const InputDecoration(hintText: 'https://your-litellm-host'),
+          decoration: const InputDecoration(
+              hintText: 'https://api.groq.com/openai/v1',
+              helperText: 'With or without /v1, as your provider shows it. '
+                  'Then set the Model to one of theirs.',
+              helperMaxLines: 3),
         ),
         actions: [
           TextButton(

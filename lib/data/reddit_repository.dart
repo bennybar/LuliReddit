@@ -366,12 +366,14 @@ class RedditRepository {
     required String postId,
     String sort = 'confidence',
     String? focusCommentId,
+    int limit = 100,
   }) async =>
       parseThread(await getCommentsRaw(
           subreddit: subreddit,
           postId: postId,
           sort: sort,
-          focusCommentId: focusCommentId));
+          focusCommentId: focusCommentId,
+          limit: limit));
 
   /// The raw comments response — kept as-is for offline reading.
   Future<List<dynamic>> getCommentsRaw({
@@ -673,12 +675,14 @@ class RedditRepository {
   }
 
   /// Posts a reply to [parentFullname] (a t3_ post or t1_ comment). Returns the
-  /// created comment, ready to splice into the tree at [depth].
+  /// created comment, ready to splice into the tree at [depth]. [me]: your
+  /// username, for a reply Reddit returns without its author.
   Future<Comment> reply({
     required String parentFullname,
     required String text,
     String? richtextJson,
     int depth = 0,
+    String me = '',
   }) async {
     final res = await _client.post<Map<String, dynamic>>('/api/comment', data: {
       'api_type': 'json',
@@ -687,9 +691,35 @@ class RedditRepository {
     });
     final errors = _apiErrors(res.data);
     if (errors.isNotEmpty) throw Exception(errors.first);
-    final things =
-        (((res.data?['json'] as Map)['data'] as Map)['things'] as List);
-    return Comment.fromChild(things.first as Map<String, dynamic>, depth);
+    final things = ((((res.data?['json'] as Map?)?['data']) as Map?)?['things']
+        as List?);
+    if (things == null || things.isEmpty) {
+      throw Exception('Reddit did not return the new comment.');
+    }
+    final c = Comment.fromChild(
+        (things.first as Map).cast<String, dynamic>(), depth);
+    // A website session gets the legacy reply format: id + rendered HTML, no
+    // author, body or timestamp. Fill those in from what was sent, or the new
+    // comment shows up blank (it looked like the reply vanished).
+    if (c.body.isNotEmpty && c.author != '[deleted]') return c;
+    return c.copyWith(
+      author: me,
+      body: text,
+      parentId: c.parentId.isEmpty ? parentFullname : c.parentId,
+      created: DateTime.now(),
+      score: 1,
+      likes: true,
+    );
+  }
+
+  /// Reddit's answer when a subreddit doesn't allow images in comments.
+  bool _isImageRefusal(String? message) {
+    final m = message?.toLowerCase();
+    if (m == null) return false;
+    return m.contains('image') ||
+        m.contains('media') ||
+        m.contains('richtext') ||
+        m.contains('not allowed');
   }
 
   /// Posts a comment reply with an inline image, hosted by Reddit via the
@@ -703,10 +733,24 @@ class RedditRepository {
     required String filename,
     required String mimeType,
     int depth = 0,
+    String me = '',
   }) async {
+    Future<Comment> viaCatbox() async {
+      final url = await uploadToCatbox(bytes: bytes, filename: filename);
+      final body = text.isEmpty ? url : '$text\n\n$url';
+      return reply(
+          parentFullname: parentFullname, text: body, depth: depth, me: me);
+    }
+
+    // Reddit wouldn't take the image (upload failed): host it on Catbox.
+    final ({String url, String assetId}) asset;
     try {
-      final asset = await uploadMediaAsset(
+      asset = await uploadMediaAsset(
           bytes: bytes, filename: filename, mimeType: mimeType);
+    } catch (_) {
+      return viaCatbox();
+    }
+    try {
       final doc = {
         'document': [
           if (text.isNotEmpty)
@@ -724,11 +768,20 @@ class RedditRepository {
         text: text,
         richtextJson: jsonEncode(doc),
         depth: depth,
+        me: me,
       );
-    } catch (_) {
-      final url = await uploadToCatbox(bytes: bytes, filename: filename);
-      final body = text.isEmpty ? url : '$text\n\n$url';
-      return reply(parentFullname: parentFullname, text: body, depth: depth);
+    } on RedditApiException catch (e) {
+      // Only when the subreddit refuses images in comments. Anything else
+      // (rate limit, locked thread, a network error after Reddit may have
+      // accepted it) is reported as-is: falling back then published the
+      // image on Catbox and could post the comment twice.
+      if (!_isImageRefusal(e.message)) rethrow;
+      return viaCatbox();
+    } on DioException {
+      rethrow;
+    } catch (e) {
+      if (!_isImageRefusal('$e')) rethrow;
+      return viaCatbox();
     }
   }
 

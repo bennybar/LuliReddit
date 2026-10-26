@@ -37,18 +37,19 @@ void main() {
     }, 0);
 
     expect(c.media.keys, ['giphy|3o7btPCcdNniyf0ArS|downsized']);
-    final split = splitMediaRefs(c.body, c.media);
-    expect(split.text, isEmpty);
-    expect(split.media.single.toString(),
+    final segs = bodySegments(c.body, c.media, 3);
+    expect(segs.where((s) => s.markdown != null), isEmpty);
+    final media = segs.single.media!;
+    expect(media.toString(),
         'https://external-preview.redd.it/abc.gif?width=200&height=200&s=x');
-    expect(isImageUrl(split.media.single), isTrue);
-    expect(isGifUrl(split.media.single), isTrue);
+    expect(isImageUrl(media), isTrue);
+    expect(isGifUrl(media), isTrue);
   });
 
   test('text around a media ref is kept; unknown refs are left alone', () {
-    final split = splitMediaRefs('lol ![gif](giphy|a) and ![img](missing)',
-        {'giphy|a': 'https://i.redd.it/a.gif'});
-    expect(split.text, 'lol  and ![img](missing)');
-    expect(split.media.single.toString(), 'https://i.redd.it/a.gif');
+    final segs = bodySegments('lol ![gif](giphy|a) and ![img](missing)',
+        {'giphy|a': 'https://i.redd.it/a.gif'}, 3);
+    expect([for (final s in segs) s.markdown ?? s.media.toString()],
+        ['lol', 'https://i.redd.it/a.gif', 'and ![img](missing)']);
   });
 }

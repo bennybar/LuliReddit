@@ -77,6 +77,16 @@ class ForYouLearner {
   /// Commenting is the strongest engagement signal there is.
   void comment(Post p) => _learn(p, 2.5, 1);
 
+  // Posts whose comments you upvoted this session.
+  final _commentVoted = <String>{};
+
+  /// Upvoted a comment in [p]'s thread: interest in the thread's subreddit
+  /// (once per post per session).
+  void commentUpvote(Post p) {
+    if (_commentVoted.add(p.id)) _learn(p, 0.75, 0);
+    _engage(p, 'commentvote');
+  }
+
   void share(Post p) => _learn(p, 1.5, 0.75);
 
   /// Time in the thread: 30s+ ([long] = 2min+, on top of it).

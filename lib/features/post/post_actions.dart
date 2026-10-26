@@ -297,26 +297,35 @@ Widget _modTile(WidgetRef ref, Post post, String label, IconData icon,
     return ListTile(
       leading: Icon(icon),
       title: Text(label),
-      onTap: () async {
+      onTap: () {
         final messenger = ScaffoldMessenger.of(ctx);
         Navigator.pop(ctx);
-        try {
-          await action(ref.read(redditRepositoryProvider));
-          _snack(messenger, done);
-        } on RedditApiException catch (e) {
-          _snack(
-              messenger,
-              e.statusCode == 403
-                  ? "Reddit refused that. If you moderate this community, "
-                      'sign out and back in so Ilay can request moderator '
-                      'permission.'
-                  : friendlyError(e));
-        } catch (e) {
-          _snack(messenger, friendlyError(e));
-        }
+        modAction(messenger, ref, done, action);
       },
     );
   });
+}
+
+/// Runs a moderator action and reports the outcome. True when it went
+/// through.
+Future<bool> modAction(ScaffoldMessengerState messenger, WidgetRef ref,
+    String doneMsg, Future<void> Function(dynamic repo) action) async {
+  try {
+    await action(ref.read(redditRepositoryProvider));
+    _snack(messenger, doneMsg);
+    return true;
+  } on RedditApiException catch (e) {
+    _snack(
+        messenger,
+        e.statusCode == 403
+            ? "Reddit refused that. If you moderate this community, "
+                'sign out and back in so Ilay can request moderator '
+                'permission.'
+            : friendlyError(e));
+  } catch (e) {
+    _snack(messenger, friendlyError(e));
+  }
+  return false;
 }
 
 const _reportReasons = [

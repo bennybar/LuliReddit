@@ -133,10 +133,21 @@ Future<void> openPostVideo(BuildContext context, Post p) async {
       title: p.title, downloadUrl: download, externalUrl: p.url);
 }
 
-/// Normalizes common host quirks to a directly-playable video URL
-/// (e.g. Imgur `.gifv` → `.mp4`).
+/// The playable URL for a video link: imgur `.gifv` → `.mp4`; a bare
+/// v.redd.it video (or one embedded in a post / comment as
+/// `reddit.com/link/…/video/<id>/player`) → its HLS playlist, which the
+/// player streams with sound; everything else unchanged.
 String resolveVideoUrl(String url) {
-  if (url.endsWith('.gifv')) return url.replaceAll('.gifv', '.mp4');
+  final u = Uri.tryParse(url);
+  final v = (u == null ? null : inlineRedditVideo(u)) ??
+      (u != null && u.host.toLowerCase() == 'v.redd.it' ? u : null);
+  final segs = v?.pathSegments.where((s) => s.isNotEmpty).toList();
+  if (segs != null && segs.length == 1) {
+    return 'https://v.redd.it/${segs.first}/HLSPlaylist.m3u8';
+  }
+  if (url.toLowerCase().split('?').first.endsWith('.gifv')) {
+    return url.replaceAll(RegExp(r'\.gifv', caseSensitive: false), '.mp4');
+  }
   return url;
 }
 

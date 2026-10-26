@@ -16,6 +16,7 @@ import 'features/multireddit/manage_multireddit_screen.dart';
 import 'features/multireddit/multireddit_feed_screen.dart';
 import 'features/offline/offline_screen.dart';
 import 'features/post/post_detail_screen.dart';
+import 'features/post/summaries_screen.dart';
 import 'features/search/search_screen.dart';
 import 'features/settings/content_filters_screen.dart';
 import 'features/settings/manage_for_you_screen.dart';
@@ -87,6 +88,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/history', builder: (_, __) => const HistoryScreen()),
       GoRoute(path: '/saved', builder: (_, __) => const SavedHubScreen()),
       GoRoute(path: '/offline', builder: (_, __) => const OfflineScreen()),
+      GoRoute(
+          path: '/summaries', builder: (_, __) => const SummariesScreen()),
       GoRoute(
         path: '/search',
         builder: (_, state) => SearchScreen(

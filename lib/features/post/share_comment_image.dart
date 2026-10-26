@@ -11,6 +11,7 @@ import '../../core/widgets/markdown_style.dart';
 import '../../core/widgets/reddit_markdown.dart';
 import '../../models/comment.dart';
 import '../../models/post.dart';
+import 'comment_tree.dart';
 
 /// Previews a comment and its parent chain as an image card, then shares it
 /// as a PNG. Usernames can be hidden before sharing.
@@ -113,11 +114,7 @@ class _ChainCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final muted = TextStyle(fontSize: 12, color: cs.onSurfaceVariant);
-    // Hidden names become "Commenter 1, 2…", consistent within the image.
-    final names = <String, String>{};
-    String name(String author) => hideNames
-        ? names.putIfAbsent(author, () => 'Commenter ${names.length + 1}')
-        : 'u/$author';
+    final names = CommentTree.shareNames(chain, hideNames);
     return Container(
       color: cs.surface,
       padding: const EdgeInsets.all(14),
@@ -134,31 +131,41 @@ class _ChainCard extends StatelessWidget {
           for (var i = 0; i < chain.length; i++)
             Padding(
               padding: EdgeInsetsDirectional.only(start: i * 10.0, bottom: 8),
-              child: Container(
-                padding: const EdgeInsetsDirectional.fromSTEB(10, 6, 6, 6),
-                decoration: BoxDecoration(
-                  color: cs.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(12),
-                  border: BorderDirectional(
-                      start: BorderSide(
-                          color: i == chain.length - 1
-                              ? cs.primary
-                              : cs.outlineVariant,
-                          width: 3)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                        '${name(chain[i].author)} · '
-                        '${compactNumber(chain[i].score)} points',
-                        style: muted.copyWith(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 4),
-                    RedditMarkdown(
-                        data: chain[i].body,
-                        styleSheet: redditMarkdownStyle(context, fontSize: 14)),
-                  ],
-                ),
+              // A Stack for the start bar: a one-sided border can't take
+              // rounded corners.
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Stack(children: [
+                  Container(
+                    width: double.infinity,
+                    color: cs.surfaceContainerLow,
+                    padding: const EdgeInsetsDirectional.fromSTEB(10, 6, 6, 6),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                            '${names[i]} · '
+                            '${compactNumber(chain[i].score)} points',
+                            style: muted.copyWith(fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 4),
+                        RedditMarkdown(
+                            data: chain[i].body,
+                            styleSheet:
+                                redditMarkdownStyle(context, fontSize: 14)),
+                      ],
+                    ),
+                  ),
+                  PositionedDirectional(
+                    start: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: 3,
+                    child: ColoredBox(
+                        color: i == chain.length - 1
+                            ? cs.primary
+                            : cs.outlineVariant),
+                  ),
+                ]),
               ),
             ),
           Align(

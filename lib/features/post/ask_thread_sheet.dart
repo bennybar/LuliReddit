@@ -2,27 +2,245 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/open_link.dart';
+import '../../core/widgets/markdown_style.dart';
 import '../../core/widgets/reddit_markdown.dart';
-
 import '../../data/ai_service.dart';
+import '../../models/comment.dart';
+import '../../models/post.dart';
+import '../auth/auth_controller.dart';
+import '../settings/settings_controller.dart';
+import 'summary_store.dart';
+
+String _aiBaseUrl(Settings s) =>
+    s.aiUseCustomUrl ? s.aiBaseUrl : 'https://api.openai.com';
+
+/// Runs an AI thread summary and shows the result (markdown) with copy.
+void showSummarySheet(
+    BuildContext context, WidgetRef ref, Post post, List<Comment> comments) {
+  final key = ref.read(openAiKeyProvider).valueOrNull;
+  if (key == null || key.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Add an OpenAI key in Settings → AI summaries.')));
+    return;
+  }
+  final s = ref.read(settingsControllerProvider);
+  final style = SummaryStyle
+      .values[s.aiSummaryStyle.clamp(0, SummaryStyle.values.length - 1)];
+  final threadText = AiService.buildThreadText(post, comments, s.aiMaxChars);
+  showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (_) => _SummarySheet(
+      post: post,
+      baseUrl: _aiBaseUrl(s),
+      apiKey: key,
+      model: s.aiModel,
+      style: style,
+      language: s.aiSummaryLanguage,
+      threadText: threadText,
+      store: ref.read(summaryStoreProvider.notifier),
+    ),
+  );
+}
+
+class _SummarySheet extends StatefulWidget {
+  const _SummarySheet({
+    required this.post,
+    required this.baseUrl,
+    required this.apiKey,
+    required this.model,
+    required this.style,
+    required this.language,
+    required this.threadText,
+    required this.store,
+  });
+  final Post post;
+  final String baseUrl;
+  final String apiKey;
+  final String model;
+  final SummaryStyle style;
+  final String language;
+  final String threadText;
+  final SummaryStore store;
+
+  @override
+  State<_SummarySheet> createState() => _SummarySheetState();
+}
+
+class _SummarySheetState extends State<_SummarySheet> {
+  bool _loading = true;
+  String? _result;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _run();
+  }
+
+  Future<void> _run() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final out = await AiService.summarize(
+        baseUrl: widget.baseUrl,
+        apiKey: widget.apiKey,
+        model: widget.model,
+        style: widget.style,
+        threadText: widget.threadText,
+        language: widget.language,
+      );
+      // Kept in Summaries, with a link back to the post.
+      final p = widget.post;
+      widget.store.add(SavedSummary(
+        postId: p.id,
+        subreddit: p.subreddit,
+        title: p.title,
+        permalink: p.permalink,
+        style: widget.style.label,
+        model: widget.model,
+        text: out,
+        createdAt: DateTime.now().millisecondsSinceEpoch,
+      ));
+      if (mounted) {
+        setState(() {
+          _result = out;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = '$e'.replaceFirst('Exception: ', '');
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    // Opens fully, at most 92% tall, and scrolls inside, so the end of a long
+    // summary can always be scrolled into view.
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.92),
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(
+            20, 4, 20, 28 + MediaQuery.paddingOf(context).bottom),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.auto_awesome_rounded, size: 18, color: cs.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('AI summary · ${widget.style.label}',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w700)),
+                ),
+                if (_result != null && !_loading)
+                  IconButton(
+                    tooltip: 'Copy',
+                    icon: const Icon(Icons.content_copy_rounded, size: 18),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: _result!));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Copied')));
+                    },
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.all(28),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_error != null) ...[
+              Text(_error!, style: TextStyle(color: cs.error)),
+              const SizedBox(height: 12),
+              FilledButton(onPressed: _run, child: const Text('Retry')),
+            ] else
+              RedditMarkdown(
+                  data: _result ?? '',
+                  selectable: true,
+                  styleSheet: redditMarkdownStyle(context)),
+            if (!_loading && _error == null) ...[
+              const SizedBox(height: 16),
+              Text('Generated by ${widget.model}. AI summaries can be wrong.',
+                  style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 /// "Ask about this thread": a short chat with the AI about the post and its
 /// comments. Follow-up questions keep the conversation; nothing is kept after
-/// the sheet closes.
+/// the sheet closes. A cited comment's link closes the sheet and calls
+/// [onOpenComment] with its fullname.
+void showAskSheet(BuildContext context, WidgetRef ref, Post post,
+    List<Comment> comments, void Function(String fullname) onOpenComment) {
+  final key = ref.read(openAiKeyProvider).valueOrNull;
+  if (key == null || key.isEmpty) return;
+  final s = ref.read(settingsControllerProvider);
+  final thread = AiService.buildCitedThread(post, comments, s.aiMaxChars);
+  // What the answers can draw on: the comments that fit, of those loaded, of
+  // the thread's total.
+  final total =
+      post.numComments > thread.loaded ? post.numComments : thread.loaded;
+  final coverage =
+      'Reads ${thread.included} of $total comments, most upvoted first';
+  showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (sheet) => AskThreadSheet(
+      baseUrl: _aiBaseUrl(s),
+      apiKey: key,
+      model: s.aiModel,
+      thread: thread,
+      coverage: coverage,
+      onOpenComment: (fullname) {
+        Navigator.pop(sheet);
+        onOpenComment(fullname);
+      },
+    ),
+  );
+}
+
 class AskThreadSheet extends StatefulWidget {
   const AskThreadSheet({
     super.key,
     required this.baseUrl,
     required this.apiKey,
     required this.model,
-    required this.threadText,
+    required this.thread,
+    required this.coverage,
+    required this.onOpenComment,
   });
 
   final String baseUrl;
   final String apiKey;
   final String model;
-  final String threadText;
+  final CitedThread thread;
+  final String coverage;
+  final void Function(String fullname) onOpenComment;
 
   @override
   State<AskThreadSheet> createState() => _AskThreadSheetState();
@@ -67,13 +285,17 @@ class _AskThreadSheetState extends State<AskThreadSheet> {
         baseUrl: widget.baseUrl,
         apiKey: widget.apiKey,
         model: widget.model,
-        threadText: widget.threadText,
+        threadText: widget.thread.text,
         history: history,
         question: question,
       );
       if (!mounted) return;
       setState(() {
-        _messages.add((fromUser: false, text: answer));
+        // Citations ([c3]) become links that jump to that comment.
+        _messages.add((
+          fromUser: false,
+          text: AiService.linkCitations(answer, widget.thread.refs)
+        ));
         _waiting = false;
       });
     } catch (e) {
@@ -131,6 +353,9 @@ class _AskThreadSheetState extends State<AskThreadSheet> {
                       Text('${widget.model} · answers can be wrong',
                           style: TextStyle(
                               fontSize: 12, color: cs.onSurfaceVariant)),
+                      Text(widget.coverage,
+                          style: TextStyle(
+                              fontSize: 12, color: cs.onSurfaceVariant)),
                     ],
                   ),
                 ),
@@ -151,7 +376,9 @@ class _AskThreadSheetState extends State<AskThreadSheet> {
                         ActionChip(label: Text(q), onPressed: () => _send(q)),
                     ]),
                   ],
-                  for (final m in _messages) _Bubble(message: m),
+                  for (final m in _messages)
+                    _Bubble(
+                        message: m, onOpenComment: widget.onOpenComment),
                   if (_waiting) const _Thinking(),
                   if (_error != null)
                     Padding(
@@ -427,8 +654,9 @@ class _ReelRow extends StatelessWidget {
 }
 
 class _Bubble extends StatelessWidget {
-  const _Bubble({required this.message});
+  const _Bubble({required this.message, required this.onOpenComment});
   final ({bool fromUser, String text}) message;
+  final void Function(String fullname) onOpenComment;
 
   @override
   Widget build(BuildContext context) {
@@ -449,7 +677,19 @@ class _Bubble extends StatelessWidget {
         child: mine
             ? Text(message.text,
                 style: TextStyle(color: cs.onPrimaryContainer))
-            : RedditMarkdown(data: message.text, selectable: true),
+            : RedditMarkdown(
+                data: message.text,
+                selectable: true,
+                onTapLink: (_, href, __) {
+                  if (href != null &&
+                      href.startsWith(AiService.commentLink)) {
+                    onOpenComment(
+                        href.substring(AiService.commentLink.length));
+                  } else {
+                    openLink(context, href);
+                  }
+                },
+              ),
       ),
     );
   }

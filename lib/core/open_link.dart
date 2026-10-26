@@ -24,6 +24,13 @@ void openLink(BuildContext context, String? href) {
   }
   final uri = Uri.tryParse(raw);
   if (uri == null) return;
+  if (isShareLink(uri)) {
+    resolveShareLink(uri).then((u) {
+      if (!context.mounted) return;
+      u != null ? openLink(context, u.toString()) : openInBrowser(context, uri);
+    });
+    return;
+  }
   if (isVideoUrl(uri)) {
     openVideoViewer(context, resolveVideoUrl(raw), externalUrl: raw);
     return;

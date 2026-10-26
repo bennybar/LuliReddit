@@ -40,10 +40,16 @@ class AiService {
     required String model,
     required SummaryStyle style,
     required String threadText,
+    String language = '',
   }) async {
+    // Settings → AI summaries → Summary language ('' = the thread's own).
+    final lang = language.isEmpty
+        ? 'Write the summary in the same language as the thread.'
+        : 'Write the summary in $language, whatever language the thread is '
+            'in.';
     final system =
         'You summarize Reddit threads accurately and neutrally. Do not invent '
-        'details. ${style.instruction}';
+        'details. ${style.instruction} $lang';
     return _chat(
       baseUrl: baseUrl,
       apiKey: apiKey,
@@ -70,8 +76,10 @@ class AiService {
         'You answer questions about one Reddit thread: the post and its '
         'comments, given in the first user message. Use only what the thread '
         'says. If it doesn\'t answer the question, say so plainly instead of '
-        'guessing. Mention the u/username when a point comes from a specific '
-        'comment. Be concise and use markdown.';
+        'guessing. When a point comes from a specific comment, cite it with '
+        "that comment's tag right after the point, like [c3] (several: [c3] "
+        "[c7]); don't write the tags any other way. Be concise and use "
+        'markdown.';
     return _chat(
       baseUrl: baseUrl,
       apiKey: apiKey,
@@ -98,7 +106,7 @@ class AiService {
     required String model,
     required List<Map<String, String>> messages,
   }) async {
-    final url = '${baseUrl.replaceAll(RegExp(r'/+$'), '')}/v1/chat/completions';
+    final url = chatUrl(baseUrl);
     final dio = Dio(BaseOptions(
       connectTimeout: const Duration(seconds: 20),
       receiveTimeout: const Duration(seconds: 90),
@@ -138,6 +146,49 @@ class AiService {
     return text;
   }
 
+  /// The thread for Ask: like [buildThreadText], but each comment is tagged
+  /// [c1], [c2]… so answers can cite them, plus the refs (tag → comment) to
+  /// turn those citations into links, and how many comments went in.
+  static CitedThread buildCitedThread(
+      Post post, List<Comment> comments, int maxChars) {
+    final sb = StringBuffer();
+    sb.writeln('POST in r/${post.subreddit} by u/${post.author} — score '
+        '${post.score}, ${post.numComments} comments');
+    sb.writeln('TITLE: ${post.title}');
+    if (post.isSelf && post.selftext.trim().isNotEmpty) {
+      sb.writeln('BODY: ${post.selftext.trim()}');
+    }
+    sb.writeln('\nTOP COMMENTS (most upvoted first), each with its tag:');
+    final ranked = [
+      for (final c in comments)
+        if (!c.isMore && c.body.trim().isNotEmpty) c
+    ]..sort((a, b) => b.score.compareTo(a.score));
+    final refs = <String, Comment>{};
+    for (final c in ranked) {
+      final tag = 'c${refs.length + 1}';
+      final line = '\n[$tag] [${c.score}] u/${c.author}: '
+          '${c.body.replaceAll('\n', ' ').trim()}';
+      if (sb.length + line.length > maxChars) break;
+      sb.write(line);
+      refs[tag] = c;
+    }
+    sb.write('\n\n(Included ${refs.length} of ${ranked.length} comments, '
+        'highest-scored first.)');
+    return CitedThread(sb.toString(), refs, refs.length, ranked.length);
+  }
+
+  /// A link to a comment in this thread, inside an Ask answer.
+  static const commentLink = 'ilay-comment:';
+  static final _citation = RegExp(r'\[(c\d+)\]');
+
+  /// Turns the answer's [c12] citations into links to those comments
+  /// (`ilay-comment:<fullname>`); unknown tags are dropped.
+  static String linkCitations(String answer, Map<String, Comment> refs) =>
+      answer.replaceAllMapped(_citation, (m) {
+        final c = refs[m.group(1)];
+        return c == null ? '' : '[u/${c.author}]($commentLink${c.fullname})';
+      });
+
   /// Builds the thread text to summarize: the post, then comments ordered by
   /// score (most upvoted first) until [maxChars] is reached.
   static String buildThreadText(Post post, List<Comment> comments, int maxChars) {
@@ -167,4 +218,24 @@ class AiService {
         'highest-scored first.)');
     return sb.toString();
   }
+}
+
+/// The thread as Ask sends it ([text]), its comment tags ([refs]), and how
+/// many comments went in of those loaded.
+class CitedThread {
+  const CitedThread(this.text, this.refs, this.included, this.loaded);
+  final String text;
+  final Map<String, Comment> refs;
+  final int included;
+  final int loaded;
+}
+
+/// The chat endpoint under [baseUrl]. Providers document their base either
+/// without the version (api.openai.com, a LiteLLM host) or with it
+/// (api.groq.com/openai/v1): don't add a second /v1.
+String chatUrl(String baseUrl) {
+  final base = baseUrl.trim().replaceAll(RegExp(r'/+$'), '');
+  return RegExp(r'/v\d+$').hasMatch(base)
+      ? '$base/chat/completions'
+      : '$base/v1/chat/completions';
 }
