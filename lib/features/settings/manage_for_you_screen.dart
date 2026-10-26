@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../foryou/for_you_stores.dart';
 import '../history/interest_store.dart';
 
-/// Everything that shapes the "For You (Beta)" feed, visible and undoable:
+/// Everything that shapes the "For You" feed, visible and undoable:
 /// explicit choices, mutes, learned topics and communities, and a full reset.
 /// All local and per-account. Long-press the title for local metrics.
 class ManageForYouScreen extends ConsumerWidget {
@@ -185,6 +185,7 @@ class ManageForYouScreen extends ConsumerWidget {
     ref.read(impressionStoreProvider.notifier).clear();
     ref.read(explicitPrefsProvider.notifier).clear();
     ref.read(subStatsProvider.notifier).clear();
+    ref.read(typeStatsProvider.notifier).clear();
   }
 
   /// Local, never-uploaded counters for judging For You changes.

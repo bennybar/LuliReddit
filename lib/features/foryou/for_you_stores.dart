@@ -86,9 +86,9 @@ final explicitPrefsProvider =
 /// keep scrolling past fades on its own, and a niche one you always open
 /// rises even with few impressions. Decays like the interest model.
 class SubStatsController extends Notifier<Map<String, (double, double)>> {
-  static const _base = 'fy_substats';
   static const _decayPerDay = 0.95;
   static const _cap = 400;
+  String get _base => 'fy_substats';
   late String _key;
   int? _ts;
 
@@ -96,13 +96,21 @@ class SubStatsController extends Notifier<Map<String, (double, double)>> {
   Map<String, (double, double)> build() {
     _key = userScopedPrefsKey(ref, _base);
     final m = _readJson(ref, _key);
-    _ts = (m['_ts'] as num?)?.toInt();
-    final f = decayFactor(_ts, _decayPerDay);
-    return {
-      for (final e in m.entries)
-        if (!e.key.startsWith('_'))
-          e.key: ((e.value[0] as num) * f, (e.value[1] as num) * f),
-    };
+    try {
+      _ts = (m['_ts'] as num?)?.toInt();
+      final f = decayFactor(_ts, _decayPerDay);
+      final out = {
+        for (final e in m.entries)
+          if (!e.key.startsWith('_'))
+            e.key: ((e.value[0] as num) * f, (e.value[1] as num) * f),
+      };
+      // The decay owed is applied: don't apply it again.
+      if (_ts != null) _ts = DateTime.now().millisecondsSinceEpoch;
+      return out;
+    } catch (_) {
+      _ts = null;
+      return {};
+    }
   }
 
   void _add(String sub, double impr, double eng) {
@@ -139,6 +147,17 @@ final subStatsProvider =
     NotifierProvider<SubStatsController, Map<String, (double, double)>>(
         SubStatsController.new);
 
+/// The same per post type ("image", "video", "text", "link"): which kinds you
+/// open.
+class TypeStatsController extends SubStatsController {
+  @override
+  String get _base => 'fy_typestats';
+}
+
+final typeStatsProvider =
+    NotifierProvider<TypeStatsController, Map<String, (double, double)>>(
+        TypeStatsController.new);
+
 // ---------------------------------------------------------------------------
 // Word rarity (IDF)
 // ---------------------------------------------------------------------------
@@ -158,13 +177,22 @@ class DocFreqController extends Notifier<Map<String, double>> {
   Map<String, double> build() {
     _key = userScopedPrefsKey(ref, _base);
     final m = _readJson(ref, _key);
-    _ts = (m['_ts'] as num?)?.toInt();
-    final f = decayFactor(_ts, _decayPerDay);
-    _docs = ((m['_n'] as num?)?.toDouble() ?? 0) * f;
-    return {
-      for (final e in m.entries)
-        if (!e.key.startsWith('_')) e.key: (e.value as num).toDouble() * f,
-    };
+    try {
+      _ts = (m['_ts'] as num?)?.toInt();
+      final f = decayFactor(_ts, _decayPerDay);
+      _docs = ((m['_n'] as num?)?.toDouble() ?? 0) * f;
+      final out = {
+        for (final e in m.entries)
+          if (!e.key.startsWith('_')) e.key: (e.value as num).toDouble() * f,
+      };
+      // The decay owed is applied: don't apply it again.
+      if (_ts != null) _ts = DateTime.now().millisecondsSinceEpoch;
+      return out;
+    } catch (_) {
+      _ts = null;
+      _docs = 0;
+      return {};
+    }
   }
 
   void observe(Iterable<String> titles) {
@@ -174,8 +202,11 @@ class DocFreqController extends Notifier<Map<String, double>> {
     for (final t in titles) {
       docs += 1;
       for (final w in titleKeywords(t).toSet()) {
-        next.remove(w);
-        next[w] = (state[w] ?? 0) * f + 1; // re-insert: recency order
+        // The running count (already decayed above), +1 for this title: the
+        // stored count used to be read for every title, so a word in 100
+        // titles of one batch was counted once.
+        final c = next.remove(w) ?? 0;
+        next[w] = c + 1; // re-insert: recency order
       }
     }
     while (next.length > _cap) {
@@ -298,7 +329,8 @@ class ForYouMeta {
     required this.position,
     required this.why,
   });
-  final String source; // best / rising / popular / favourite / interest / community
+  // best / rising / popular / favourite / interest / community / home / carry
+  final String source;
   final bool discovery;
   final int position; // 0-based slot on its page
   final List<String> why;

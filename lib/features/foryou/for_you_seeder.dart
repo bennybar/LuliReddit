@@ -83,6 +83,16 @@ Future<void> saveForYouPage(String user, List<Post> posts,
   } catch (_) {/* best effort */}
 }
 
+/// When the saved page was written, or null if there is none.
+Future<DateTime?> savedPageTime(String user, {String feed = 'foryou'}) async {
+  try {
+    final f = await _cacheFile(user, feed);
+    return await f.exists() ? await f.lastModified() : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 /// The saved page, minus posts opened since (they'd only be demoted now).
 Future<List<Post>?> loadForYouPage(String user, Set<String> opened,
     {String feed = 'foryou'}) async {

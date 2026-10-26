@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/post.dart';
+import '../auth/auth_controller.dart';
 import '../history/interest_store.dart';
+import 'for_you_ranker.dart' show postTypeKey;
 import 'for_you_stores.dart';
 
 /// The one place For You learns from what the user does. Every call site
@@ -16,6 +18,12 @@ class ForYouLearner {
   final Ref _ref;
   final _seen = <String>{}; // impressions counted this session
   final _engaged = <String>{}; // posts already counted as engaged
+  final _passive = <String>{}; // "signal:postId" already learned this session
+
+  /// Passive signals (open, media, reading time, bounce) count once per post
+  /// per session: reopening the same thread kept adding interest. Votes,
+  /// saves, comments and shares are deliberate and always count.
+  bool _once(Post p, String signal) => _passive.add('$signal:${p.id}');
 
   InterestStore get _interest => _ref.read(interestStoreProvider.notifier);
   KeywordStore get _keywords => _ref.read(keywordStoreProvider.notifier);
@@ -31,20 +39,24 @@ class ForYouLearner {
     if (titleDelta != 0) _keywords.bumpTitle(p.title, titleDelta);
   }
 
-  /// Opened, read 30s+, or voted: counts once per post toward the
-  /// subreddit's engagement rate.
+  /// Opened, read 30s+, or upvoted: counts once per post toward the
+  /// subreddit's engagement rate — only for a post For You showed this
+  /// session, so the rate is "liked what For You showed" (engagement from
+  /// other feeds, with no matching impression, used to inflate it).
   void _engage(Post p, String event) {
     _metrics.count('$event.${_group(p)}');
-    if (_engaged.add(p.id)) {
+    if (_seen.contains(p.id) && _engaged.add(p.id)) {
       _ref.read(subStatsProvider.notifier).engaged(p.subreddit);
+      _ref.read(typeStatsProvider.notifier).engaged(postTypeKey(p));
     }
   }
 
-  /// A For You card that stayed on screen for a second.
+  /// A For You card that stayed ≥60% on screen for a second.
   void impression(Post p) {
     _ref.read(impressionStoreProvider.notifier).record(p.id);
     if (!_seen.add(p.id)) return;
     _ref.read(subStatsProvider.notifier).impression(p.subreddit);
+    _ref.read(typeStatsProvider.notifier).impression(postTypeKey(p));
     final m = _ref.read(forYouMetaProvider)[p.id];
     _metrics.count('impr.${_group(p)}');
     if (m != null) {
@@ -61,29 +73,29 @@ class ForYouLearner {
     double sub(int d) => d == 1 ? 2 : (d == -1 ? -1.5 : 0);
     double kw(int d) => d == 1 ? 1 : (d == -1 ? -0.8 : 0);
     _learn(p, sub(to) - sub(from), kw(to) - kw(from));
-    if (to != 0) _engage(p, 'vote');
+    // A downvote isn't engagement (it counted as liking the subreddit).
+    if (to == 1) _engage(p, 'vote');
   }
 
   void save(Post p, bool saved) =>
       _learn(p, saved ? 3 : -3, saved ? 1.5 : -1.5);
 
   void open(Post p) {
-    _learn(p, 0.5, 0);
+    if (_once(p, 'open')) _learn(p, 0.5, 0);
     _engage(p, 'open');
   }
 
-  void viewMedia(Post p) => _learn(p, 1, 0);
+  void viewMedia(Post p) {
+    if (_once(p, 'media')) _learn(p, 1, 0);
+  }
 
   /// Commenting is the strongest engagement signal there is.
   void comment(Post p) => _learn(p, 2.5, 1);
 
-  // Posts whose comments you upvoted this session.
-  final _commentVoted = <String>{};
-
   /// Upvoted a comment in [p]'s thread: interest in the thread's subreddit
   /// (once per post per session).
   void commentUpvote(Post p) {
-    if (_commentVoted.add(p.id)) _learn(p, 0.75, 0);
+    if (_once(p, 'commentvote')) _learn(p, 0.75, 0);
     _engage(p, 'commentvote');
   }
 
@@ -91,12 +103,16 @@ class ForYouLearner {
 
   /// Time in the thread: 30s+ ([long] = 2min+, on top of it).
   void read(Post p, {bool long = false}) {
-    _learn(p, long ? 1.5 : 1, long ? 1 : 0.5);
+    if (_once(p, long ? 'read2m' : 'read30')) {
+      _learn(p, long ? 1.5 : 1, long ? 1 : 0.5);
+    }
     if (!long) _engage(p, 'read30');
   }
 
   /// Backed out within 3 seconds.
-  void bounce(Post p) => _learn(p, -0.5, 0);
+  void bounce(Post p) {
+    if (_once(p, 'bounce')) _learn(p, -0.5, 0);
+  }
 
   /// The "no" signals: hiding a post, the Dismiss swipe, hiding its subreddit
   /// for 7 days, filtering it out. They used to only remove things from view.
@@ -126,4 +142,9 @@ class ForYouLearner {
   }
 }
 
-final forYouLearnerProvider = Provider<ForYouLearner>(ForYouLearner.new);
+final forYouLearnerProvider = Provider<ForYouLearner>((ref) {
+  // Per account: what this session already counted starts over.
+  ref.watch(authControllerProvider
+      .select((s) => s.valueOrNull?.username ?? ''));
+  return ForYouLearner(ref);
+});

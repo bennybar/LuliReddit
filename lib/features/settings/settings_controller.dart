@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../core/analytics.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/reddit_repository.dart';
 import '../feed/swipe_actions.dart';
@@ -108,6 +109,9 @@ class Settings {
     required this.aiMaxChars,
     required this.aiUseCustomUrl,
     required this.aiBaseUrl,
+    required this.blendReddit,
+    required this.blendHome,
+    required this.forYouDiscovery,
     required this.navOutline,
     required this.navStyle,
     required this.collapseBelowScore,
@@ -144,7 +148,7 @@ class Settings {
   final bool trackHistory;
   final bool offlineCache;
   final bool checkUpdates;
-  final bool forYouFeed; // frontpage uses the "For You (Beta)" feed
+  final bool forYouFeed; // frontpage uses the "For You" feed
   // Experimental Reddit Home: the user accepted its risk warning in Settings
   // (allowed), and the frontpage currently shows it (feed).
   final bool redditHomeAllowed;
@@ -164,6 +168,13 @@ class Settings {
   final int aiMaxChars; // max thread text sent to the model
   final bool aiUseCustomUrl; // use a custom API base URL
   final String aiBaseUrl; // custom base URL (when enabled)
+  // Blend: Reddit ↔ Ilay — 0 mostly Ilay, 1 balanced, 2 mostly Reddit.
+  final int blendReddit;
+  // With forYouFeed + Reddit Home allowed: Blend, For You ranking over your
+  // Reddit Home too.
+  final bool blendHome;
+  // For You's Familiar (-2) ↔ Discover (+2) slider; 0 = adaptive default.
+  final int forYouDiscovery;
   final bool navOutline; // thin outline around the floating bottom bar
   final int navStyle; // 0 bottom bar, 1 side bar, 2 both
   // Comments scoring below this start collapsed (null = off).
@@ -223,6 +234,9 @@ class Settings {
     int? aiMaxChars,
     bool? aiUseCustomUrl,
     String? aiBaseUrl,
+    int? blendReddit,
+    bool? blendHome,
+    int? forYouDiscovery,
     bool? navOutline,
     int? navStyle,
     int? collapseBelowScore,
@@ -279,6 +293,9 @@ class Settings {
         aiMaxChars: aiMaxChars ?? this.aiMaxChars,
         aiUseCustomUrl: aiUseCustomUrl ?? this.aiUseCustomUrl,
         aiBaseUrl: aiBaseUrl ?? this.aiBaseUrl,
+        blendReddit: blendReddit ?? this.blendReddit,
+        blendHome: blendHome ?? this.blendHome,
+        forYouDiscovery: forYouDiscovery ?? this.forYouDiscovery,
         navOutline: navOutline ?? this.navOutline,
         navStyle: navStyle ?? this.navStyle,
         collapseBelowScore: clearCollapseBelowScore
@@ -356,6 +373,9 @@ class SettingsController extends Notifier<Settings> {
       aiMaxChars: p.getInt('aiMaxChars') ?? 100000,
       aiUseCustomUrl: p.getBool('aiUseCustomUrl') ?? false,
       aiBaseUrl: p.getString('aiBaseUrl') ?? 'https://api.openai.com',
+      blendReddit: (p.getInt('blendReddit') ?? 1).clamp(0, 2),
+      blendHome: p.getBool('blendHome') ?? false,
+      forYouDiscovery: (p.getInt('forYouDiscovery') ?? 0).clamp(-2, 2),
       navOutline: p.getBool('navOutline') ?? true,
       navStyle: (p.getInt('navStyle') ?? 0).clamp(0, 2),
       collapseBelowScore: p.getInt('collapseBelowScore'),
@@ -435,6 +455,11 @@ class SettingsController extends Notifier<Settings> {
 
   /// Turning Reddit Home off in Settings also takes the frontpage off it.
   void setRedditHomeAllowed(bool v) {
+    // Anonymous: how many opt in to Home after the warning, and turn it off
+    // again.
+    if (v != state.redditHomeAllowed) {
+      Analytics.track('home_toggled', {'on': v});
+    }
     _prefs.setBool('redditHomeAllowed', v);
     state = state.copyWith(redditHomeAllowed: v);
     if (!v) setRedditHomeFeed(false);
@@ -640,6 +665,21 @@ class SettingsController extends Notifier<Settings> {
   void setNavOutline(bool v) {
     _prefs.setBool('navOutline', v);
     state = state.copyWith(navOutline: v);
+  }
+
+  void setForYouDiscovery(int v) {
+    _prefs.setInt('forYouDiscovery', v);
+    state = state.copyWith(forYouDiscovery: v);
+  }
+
+  void setBlendHome(bool v) {
+    _prefs.setBool('blendHome', v);
+    state = state.copyWith(blendHome: v);
+  }
+
+  void setBlendReddit(int v) {
+    _prefs.setInt('blendReddit', v);
+    state = state.copyWith(blendReddit: v);
   }
 }
 

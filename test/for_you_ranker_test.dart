@@ -8,13 +8,18 @@ final _now = DateTime.utc(2026, 10, 8, 12);
 var _n = 0;
 
 Post _p(String sub, String title,
-    {int score = 500, double hoursOld = 3, String? url, double ratio = 0.9}) {
+    {int score = 500,
+    double hoursOld = 3,
+    String? url,
+    double ratio = 0.9,
+    int comments = 0}) {
   final id = 'p${_n++}';
   return Post.fromData({
     'id': id,
     'title': title,
     'subreddit': sub,
     'score': score,
+    'num_comments': comments,
     'upvote_ratio': ratio,
     'created_utc':
         _now.subtract(Duration(minutes: (hoursOld * 60).round())).millisecondsSinceEpoch ~/ 1000,
@@ -26,6 +31,11 @@ Post _p(String sub, String title,
 
 List<Candidate> _c(List<Post> ps, [String src = 'best']) =>
     [for (final p in ps) Candidate(p, src)];
+
+// Distinct titles (shared words would make them one "story", allowed twice).
+String _title(int i) => 'w${i}alpha w${i}beta w${i}gamma w${i}delta';
+Post _titled(String sub, int i, {int score = 500}) =>
+    _p(sub, _title(i), score: score);
 
 void main() {
   test('B5: a strongly disliked topic never flips the ordering', () {
@@ -137,5 +147,119 @@ void main() {
     expect(titleKeywords('F1 and NBA news on PS5'), containsAll(['f1', 'nba', 'ps5']));
     expect(titleKeywords('New Pokémon game announced'), contains('pokémon'));
     expect(titleKeywords('this is just the help'), isNot(contains('this')));
+  });
+
+  test('the Familiar ↔ Discover setting changes how much discovery is placed',
+      () {
+    // 60 subscribed posts across 12 subs, 60 discovery ones across 12 others.
+    final pool = [
+      ..._c([for (var i = 0; i < 60; i++) _p('mine${i % 12}', _title(i))]),
+      ..._c([for (var i = 0; i < 60; i++) _p('new${i % 12}', _title(100 + i))],
+          'popular'),
+    ];
+    final subs = {for (var i = 0; i < 12; i++) 'mine$i'};
+    int discoveryShare(int mix) {
+      final r = rankForYou(
+          pool, RankInputs(subscribed: subs, now: _now, discoveryMix: mix),
+          pageSize: 40);
+      return r.ranked.where((p) => r.meta[p.id]?.discovery ?? false).length;
+    }
+
+    final familiar = discoveryShare(-2);
+    final balanced = discoveryShare(0);
+    final discover = discoveryShare(2);
+    expect(familiar, lessThan(balanced));
+    expect(balanced, lessThan(discover));
+  });
+
+  test('post types you open a lot rank higher', () {
+    final text = _p('pics', _title(1));
+    final link = _p('pics', _title(2), url: 'https://example.com/a');
+    final r = rankForYou(
+        _c([text, link]),
+        RankInputs(
+          subscribed: {'pics'},
+          now: _now,
+          // You open most link posts and almost no text posts.
+          typeStats: {'link': (40, 30), 'text': (40, 1)},
+        ));
+    expect(r.ranked.first.id, link.id);
+  });
+
+  test('a lively discussion ranks above a silent twin', () {
+    final busy = _p('pics', _title(3), comments: 400);
+    final quiet = _p('pics', _title(4));
+    final r = rankForYou(
+        _c([quiet, busy]), RankInputs(subscribed: {'pics'}, now: _now));
+    expect(r.ranked.first.id, busy.id);
+  });
+
+  test('a third copy of a story stays out across pages', () {
+    const title = 'Starship launch succeeds orbital flight test';
+    final r = rankForYou(
+        _c([_p('space', title)]),
+        RankInputs(
+            subscribed: {'space'}, previousTitles: [title, title], now: _now));
+    expect(r.ranked, isEmpty, reason: 'two previous copies exclude a third');
+  });
+
+  test("Blend: a Reddit Home pick from a sub you don't follow beats plain "
+      'discovery and says why', () {
+    final fromHome = _p('watches', _title(5));
+    final fromPopular = _p('watches', _title(6));
+    final r = rankForYou(
+        [..._c([fromHome], 'home'), ..._c([fromPopular], 'popular')],
+        RankInputs(now: _now));
+    expect(r.ranked.first.id, fromHome.id);
+    expect(r.meta[fromHome.id]!.discovery, isTrue,
+        reason: "a community you don't follow stays discovery, even when "
+            'Reddit recommends it');
+    expect(r.ranked.first.feedReason, startsWith('Recommended by Reddit'));
+  });
+
+  test('Blend: a Home post from a sub you follow says it came from your '
+      'Reddit Home', () {
+    final post = _p('running', _title(7));
+    final r = rankForYou(
+        _c([post], 'home'), RankInputs(subscribed: {'running'}, now: _now));
+    expect(r.ranked.first.feedReason, 'In your Reddit Home · r/running');
+  });
+
+  test('Blend: at most Familiar, a flood of unfamiliar Home picks stays '
+      'limited', () {
+    final subs = {for (var i = 0; i < 10; i++) 'mine$i'};
+    final pool = [
+      ..._c([for (var i = 0; i < 40; i++) _titled('mine${i % 10}', i)]),
+      ..._c([for (var i = 0; i < 40; i++) _titled('strange${i % 10}', 100 + i)],
+          'home'),
+    ];
+    final r = rankForYou(
+        pool,
+        RankInputs(
+            subscribed: subs, now: _now, discoveryMix: -2, blendReddit: 1),
+        pageSize: 40);
+    final unfamiliar =
+        r.ranked.where((p) => p.subreddit.startsWith('strange')).length;
+    expect(unfamiliar, lessThanOrEqualTo(4));
+  });
+
+  test('Blend: Mostly Reddit gives your Home more spots than Mostly Ilay', () {
+    final subs = {for (var i = 0; i < 10; i++) 'mine$i'};
+    // Same communities from both sources; Home's are a little less popular.
+    final pool = [
+      ..._c([for (var i = 0; i < 40; i++) _titled('mine${i % 10}', i)]),
+      ..._c([
+        for (var i = 0; i < 40; i++)
+          _titled('mine${i % 10}', 200 + i, score: 300)
+      ], 'home'),
+    ];
+    int homeCount(int preset) {
+      final r = rankForYou(pool,
+          RankInputs(subscribed: subs, now: _now, blendReddit: preset),
+          pageSize: 30);
+      return r.ranked.where((p) => r.meta[p.id]?.source == 'home').length;
+    }
+
+    expect(homeCount(0), lessThan(homeCount(2)));
   });
 }

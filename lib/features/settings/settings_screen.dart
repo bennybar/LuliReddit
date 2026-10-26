@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:io' show Platform;
 
 import 'package:file_picker/file_picker.dart';
@@ -41,6 +42,13 @@ const _summaryLanguages = [
   ('Simplified Chinese', 'Chinese · 中文'),
   ('Japanese', 'Japanese · 日本語'),
   ('Hindi', 'Hindi · हिन्दी'),
+];
+
+/// Blend's Reddit ↔ Ilay presets, by persisted index (`blendReddit`).
+const _blendPresets = [
+  ('Mostly Ilay', "Reddit's picks get a small nudge, no reserved spots"),
+  ('Balanced', 'About 1 post in 5 is from your Reddit Home'),
+  ('Mostly Reddit', 'About 1 in 3 from your Reddit Home, and they count more'),
 ];
 
 /// Settings › Navigation, by persisted index (`navStyle`). iOS has no back
@@ -135,10 +143,9 @@ class _SettingsListState extends ConsumerState<SettingsList> {
           ),
           SwitchListTile(
             secondary: const Icon(Icons.auto_awesome_rounded),
-            title: const Text('"For You" feed (Beta)'),
-            subtitle: const Text(
-                'Personalized frontpage built on-device. Reddit\'s own '
-                'recommendations aren\'t available to third-party apps.'),
+            title: const Text('"For You" feed'),
+            subtitle: const Text('A personalized frontpage, built on your '
+                'phone from what you read and like'),
             value: s.forYouFeed,
             onChanged: ctrl.setForYouFeed,
           ),
@@ -149,6 +156,8 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             value: s.autoHideReadForYou,
             onChanged: ctrl.setAutoHideReadForYou,
           ),
+          _ForYouMixSlider(
+              value: s.forYouDiscovery, onChanged: ctrl.setForYouDiscovery),
           ListTile(
             leading: const Icon(Icons.tune_rounded),
             title: const Text('Manage "For You" subreddits'),
@@ -157,18 +166,19 @@ class _SettingsListState extends ConsumerState<SettingsList> {
           ),
           Builder(builder: (context) {
             final web = ref.watch(authModeProvider).valueOrNull == 'web';
-            final red = Theme.of(context).colorScheme.error;
+            final amber = _homeAmber(context);
             return SwitchListTile(
-              secondary: Icon(Icons.warning_amber_rounded, color: red),
+              secondary: Icon(Icons.warning_amber_rounded, color: amber),
               title: Text('Reddit Home (experimental)',
-                  style: TextStyle(color: red, fontWeight: FontWeight.w700)),
+                  style: TextStyle(color: amber)),
               subtitle: Text(
                   web
-                      ? 'RISK TO YOUR ACCOUNT: against Reddit\'s terms. '
-                          'Shows your real reddit.com Home'
+                      ? 'Unofficial, against Reddit\'s terms. Shows your real '
+                          'reddit.com Home'
                       : 'Needs website sign-in',
-                  style: TextStyle(color: red)),
-              activeThumbColor: red,
+                  style: TextStyle(color: amber)),
+              activeTrackColor: amber,
+              activeThumbColor: Theme.of(context).colorScheme.onError,
               value: s.redditHomeAllowed,
               onChanged: !web && !s.redditHomeAllowed
                   ? null
@@ -180,6 +190,28 @@ class _SettingsListState extends ConsumerState<SettingsList> {
                     },
             );
           }),
+          if (s.redditHomeAllowed)
+            SwitchListTile(
+              secondary: const Icon(Icons.merge_rounded),
+              title: const Text('Blend (Beta)'),
+              subtitle: const Text('For You also ranks your Reddit Home: '
+                  "Reddit's recommendations, under your For You choices"),
+              value: s.forYouFeed && s.blendHome,
+              onChanged: (v) {
+                ctrl.setBlendHome(v);
+                if (v) ctrl.setForYouFeed(true);
+              },
+            ),
+          if (s.redditHomeAllowed && s.forYouFeed && s.blendHome)
+            ListTile(
+              leading: const Icon(Icons.merge_rounded),
+              title: const Text('Reddit ↔ Ilay'),
+              subtitle: Text('${_blendPresets[s.blendReddit].$1}: '
+                  '${_blendPresets[s.blendReddit].$2[0].toLowerCase()}'
+                  '${_blendPresets[s.blendReddit].$2.substring(1)}'),
+              onTap: () =>
+                  _pickBlend(context, s.blendReddit, ctrl.setBlendReddit),
+            ),
           ListTile(
             leading: const Icon(Icons.timer_outlined),
             title: const Text('Keep feed for'),
@@ -1061,6 +1093,35 @@ class _SettingsListState extends ConsumerState<SettingsList> {
     );
   }
 
+  /// Blend's Reddit ↔ Ilay presets, each with what it does.
+  void _pickBlend(
+      BuildContext context, int current, void Function(int) onPick) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: RadioGroup<int>(
+          groupValue: current,
+          onChanged: (v) {
+            if (v != null) onPick(v);
+            Navigator.pop(ctx);
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < _blendPresets.length; i++)
+                RadioListTile<int>(
+                  value: i,
+                  title: Text(_blendPresets[i].$1),
+                  subtitle: Text(_blendPresets[i].$2),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _pickInt(BuildContext context, int current, List<int> options,
       String Function(int) label, void Function(int) onPick) {
     showModalBottomSheet(
@@ -1553,93 +1614,159 @@ class _SettingsListState extends ConsumerState<SettingsList> {
   }
 }
 
-/// The risk warning for the experimental Reddit Home feed. True if accepted.
+/// Reddit Home's amber: a caution, not an error.
+Color _homeAmber(BuildContext context) =>
+    Theme.of(context).colorScheme.surface.computeLuminance() > 0.5
+        ? const Color(0xFF9A6700)
+        : const Color(0xFFFFC94D);
+
+/// What Reddit Home is (unofficial, can break) before turning it on. True to
+/// turn it on.
 Future<bool> _confirmRedditHome(BuildContext context) async {
-  var accepted = false; // the checkbox must be ticked before enabling
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) {
-      final cs = Theme.of(ctx).colorScheme;
-      return StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          backgroundColor: cs.errorContainer,
-          icon: Icon(Icons.warning_amber_rounded, size: 56, color: cs.error),
-          title: Text('Your Reddit account is at risk',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  color: cs.onErrorContainer, fontWeight: FontWeight.w900)),
-          content: SingleChildScrollView(
-            child: DefaultTextStyle.merge(
-              style: TextStyle(color: cs.onErrorContainer, height: 1.4),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: cs.error,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      'Reddit can SUSPEND OR BAN your account for this. '
-                      'Use it only if you accept that risk.',
-                      style: TextStyle(
-                          color: cs.onError,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  const Text(
-                      'Reddit Home shows your real reddit.com Home feed by '
-                      'loading reddit.com in a hidden browser with your '
-                      'website sign-in and reading which posts it shows.'),
-                  const SizedBox(height: 10),
-                  const Text(
-                      '• It is NOT an official API. Reddit\'s User Agreement '
-                      'prohibits automated access to its site.'),
-                  const SizedBox(height: 6),
-                  const Text(
-                      '• It can stop working whenever Reddit changes its site. '
-                      'Ilay then shows For You instead.'),
-                  const SizedBox(height: 6),
-                  const Text('• Website sign-in only. It talks only to '
-                      'reddit.com.'),
-                  const SizedBox(height: 8),
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    activeColor: cs.error,
-                    value: accepted,
-                    onChanged: (v) => setState(() => accepted = v ?? false),
-                    title: Text(
-                        'I understand Reddit may suspend my account',
-                        style: TextStyle(
-                            color: cs.onErrorContainer,
-                            fontWeight: FontWeight.w700)),
-                  ),
-                ],
-              ),
+      const gap = SizedBox(height: 6);
+      return AlertDialog(
+        icon: Icon(Icons.warning_amber_rounded,
+            size: 40, color: _homeAmber(ctx)),
+        title: const Text('About Reddit Home', textAlign: TextAlign.center),
+        content: SingleChildScrollView(
+          child: DefaultTextStyle.merge(
+            style: const TextStyle(height: 20 / 14),
+            child: const Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Reddit Home shows your real reddit.com Home feed. Ilay '
+                    'loads reddit.com in a hidden browser with your website '
+                    'sign-in and reads which posts it shows.'),
+                SizedBox(height: 10),
+                Text("• Unofficial: Reddit's terms don't allow automated use "
+                    'of its site, so use it at your own discretion.'),
+                gap,
+                Text('• It can stop working when Reddit changes its site. '
+                    'Ilay then shows For You.'),
+                gap,
+                Text('• Website sign-in only; it talks only to reddit.com.'),
+              ],
             ),
           ),
-          actions: [
-            FilledButton.tonal(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel')),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                  backgroundColor: cs.error, foregroundColor: cs.onError),
-              onPressed: accepted ? () => Navigator.pop(ctx, true) : null,
-              child: const Text('Enable anyway'),
-            ),
-          ],
         ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Turn on')),
+        ],
       );
     },
   );
   return ok ?? false;
+}
+
+/// For You's Familiar ↔ Discover mix, filled from the centre (Material 3
+/// Expressive's centred track): 0 is Balanced, so the fill shows which way
+/// and how far the mix leans.
+class _ForYouMixSlider extends StatefulWidget {
+  const _ForYouMixSlider({required this.value, required this.onChanged});
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  @override
+  State<_ForYouMixSlider> createState() => _ForYouMixSliderState();
+}
+
+class _ForYouMixSliderState extends State<_ForYouMixSlider> {
+  late double _v = widget.value.toDouble();
+
+  @override
+  void didUpdateWidget(_ForYouMixSlider old) {
+    super.didUpdateWidget(old);
+    if (old.value != widget.value) _v = widget.value.toDouble();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final muted = TextStyle(fontSize: 12, color: cs.onSurfaceVariant);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(56, 8, 24, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('For You mix', style: Theme.of(context).textTheme.bodyLarge),
+          Text(
+            switch (_v.round()) {
+              -2 => 'Almost only your communities',
+              -1 => 'Mostly your communities',
+              1 => "More from communities you don't follow",
+              2 => 'Lots of new communities',
+              _ => 'Balanced: adapts to what you open (next refresh)',
+            },
+            style: Theme.of(context)
+                .textTheme
+                .bodyMedium
+                ?.copyWith(color: cs.onSurfaceVariant),
+          ),
+          SliderTheme(
+            data: SliderTheme.of(context)
+                .copyWith(trackShape: const _CentredTrackShape()),
+            child: Slider(
+              value: _v,
+              min: -2,
+              max: 2,
+              divisions: 4,
+              onChanged: (v) => setState(() => _v = v),
+              onChangeEnd: (v) => widget.onChanged(v.round()),
+            ),
+          ),
+          Row(
+            children: [
+              Expanded(child: Text('Familiar', style: muted)),
+              Text('Discover', style: muted),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A slider track filled from its middle to the thumb, either way.
+class _CentredTrackShape extends SliderTrackShape with BaseSliderTrackShape {
+  const _CentredTrackShape();
+
+  @override
+  void paint(PaintingContext context, Offset offset,
+      {required RenderBox parentBox,
+      required SliderThemeData sliderTheme,
+      required Animation<double> enableAnimation,
+      required Offset thumbCenter,
+      Offset? secondaryOffset,
+      bool isEnabled = false,
+      bool isDiscrete = false,
+      required TextDirection textDirection}) {
+    final rect = getPreferredRect(
+        parentBox: parentBox,
+        offset: offset,
+        sliderTheme: sliderTheme,
+        isEnabled: isEnabled,
+        isDiscrete: isDiscrete);
+    final r = Radius.circular(rect.height / 2);
+    final canvas = context.canvas;
+    canvas.drawRRect(RRect.fromRectAndRadius(rect, r),
+        Paint()..color = sliderTheme.inactiveTrackColor!);
+    final mid = rect.center.dx;
+    final fill = Rect.fromLTRB(math.min(mid, thumbCenter.dx), rect.top,
+        math.max(mid, thumbCenter.dx), rect.bottom);
+    if (fill.width > 0) {
+      canvas.drawRRect(RRect.fromRectAndRadius(fill, r),
+          Paint()..color = sliderTheme.activeTrackColor!);
+    }
+  }
 }
 
 /// Picks what each swipe direction does, for posts and for comments.

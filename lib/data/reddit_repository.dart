@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -8,6 +9,7 @@ import '../core/network/catbox.dart';
 import '../core/network/reddit_client.dart';
 import '../features/foryou/for_you_ranker.dart';
 import '../features/foryou/for_you_stores.dart' show ForYouMeta;
+import '../features/reddit_home/reddit_home_engine.dart';
 import '../models/comment.dart';
 import '../models/flair.dart';
 import '../models/inbox_item.dart';
@@ -89,7 +91,7 @@ class RedditRepository {
   final _rawPosts = <String, Map<String, dynamic>>{};
   Map<String, dynamic>? rawPost(String id) => _rawPosts[id];
 
-  /// "For You (Beta)" — a transparent, client-side personalized feed.
+  /// "For You" — a transparent, client-side personalized feed.
   ///
   /// Reddit's real Home ranking is server-side ML and is NOT exposed to the
   /// API, so this approximates it: fetch candidates from the sources that
@@ -111,6 +113,11 @@ class RedditRepository {
     // subscription call.
     ({Set<String> favourites, Set<String> subscribed})? subsSnapshot,
     void Function(List<Subreddit> subs)? onSubs,
+    // With more than eight favourites: where this load's eight start (each
+    // load takes the next eight in turn).
+    int Function(int favourites)? favouriteStart,
+    // Blend: your Reddit Home as one more source, ranked with the rest.
+    RedditHomeEngine? blend,
   }) async {
     Map<String, dynamic> prev = const {};
     if (cursors != null && cursors.isNotEmpty) {
@@ -122,8 +129,21 @@ class RedditRepository {
     // An empty page (everything failed, or all muted/seen) retries the next
     // cursors once before ending the feed — it used to stop dead.
     for (var attempt = 0; attempt < 2; attempt++) {
-      page = await _forYouPage(inputs, communities, prev, excludeIds,
-          attempt == 0 ? carryOver : const [], onSource, subsSnapshot, onSubs);
+      // First page only without a cursor at all: once every source has run
+      // out the cursor is empty ({}), and the leftovers page on from there.
+      final first = (cursors == null || cursors.isEmpty) && attempt == 0;
+      page = await _forYouPage(
+          inputs,
+          communities,
+          prev,
+          excludeIds,
+          attempt == 0 ? carryOver : const [],
+          first,
+          onSource,
+          subsSnapshot,
+          onSubs,
+          favouriteStart,
+          blend);
       if (page.listing.items.isNotEmpty || page.cursors.isEmpty) break;
       prev = page.cursors;
     }
@@ -136,11 +156,13 @@ class RedditRepository {
     Map<String, dynamic> prev,
     Set<String> excludeIds,
     List<Candidate> carryOver,
+    bool firstPage,
     void Function(int posts)? onSource,
     ({Set<String> favourites, Set<String> subscribed})? subsSnapshot,
     void Function(List<Subreddit> subs)? onSubs,
+    int Function(int favourites)? favouriteStart,
+    RedditHomeEngine? blend,
   ) async {
-    final firstPage = prev.isEmpty;
     final muted = inputs.muted;
 
     // Subreddits you engage with most (learned on-device), even if not
@@ -229,12 +251,29 @@ class RedditRepository {
     }
     // Favourites go out the moment the list is known, while the rest is still
     // in flight. One already fetched as a top interest isn't fetched twice.
+    // Eight per load; with more favourites than that, each load takes the
+    // next eight in turn (only the first eight ever got fetched before).
+    final favs = [
+      for (final f in favourites)
+        if (!topInterest.contains(f) && !muted.contains(f)) f
+    ];
+    final start =
+        favs.length > 8 ? (favouriteStart?.call(favs.length) ?? 0) : 0;
     final favouriteF = [
       if (firstPage)
-        for (final f in favourites.take(8))
-          if (!topInterest.contains(f) && !muted.contains(f))
-            source(getPosts(subreddit: f, sort: PostSort.hot, limit: 10)),
+        for (var k = 0; k < math.min(8, favs.length); k++)
+          source(getPosts(
+              subreddit: favs[(start + k) % favs.length],
+              sort: PostSort.hot,
+              limit: 10)),
     ];
+
+    // Blend: your Reddit Home is one more source, ranked with the rest. It's
+    // slow to read (a hidden browser), so the first page waits only so long
+    // for it; later pages read the next batch.
+    final homeBatch = blend != null && (firstPage || prev.containsKey('home'))
+        ? blend.blendBatch(firstPage)
+        : null;
 
     final best = await bestF, rising = await risingF, popular = await popularF;
     final ids = <String>{...excludeIds};
@@ -245,8 +284,35 @@ class RedditRepository {
       }
     }
 
+    // Blend: Reddit's Home batch first, so a post it also recommends counts
+    // as Reddit's pick whichever source found it too. Wait only so long — the
+    // first page shows the loading deck meanwhile, as Home does; a batch
+    // still loading joins the next page instead.
+    BlendResult? homeResult;
+    if (homeBatch != null) {
+      homeResult = await homeBatch.future.timeout(
+          Duration(seconds: firstPage ? 10 : 12),
+          onTimeout: () => const BlendFailed());
+    }
+    final homeLoading = homeBatch != null && !homeBatch.isCompleted;
+    if (homeLoading) blend!.blendKeep(homeBatch);
+    final home = homeLoading
+        ? null
+        : (homeResult is BlendPosts ? homeResult.posts : null);
+    if (home != null) {
+      for (var k = 0; k < home.length; k++) {
+        if (ids.add(home[k].id)) {
+          pool.add(Candidate(home[k], 'home',
+              homePos: k / math.max(home.length - 1, 1)));
+        }
+      }
+      if (home.isNotEmpty) blend!.blendPrefetch();
+    }
+    // Held over from the last page ("home" ones stay Reddit's picks).
     for (final c in carryOver) {
-      if (ids.add(c.post.id)) pool.add(Candidate(c.post, 'carry'));
+      if (ids.add(c.post.id)) {
+        pool.add(c.source == 'home' ? c : Candidate(c.post, 'carry'));
+      }
     }
     add(best, 'best');
     add(rising, 'rising');
@@ -271,6 +337,32 @@ class RedditRepository {
     // dropped for the rest of the session — one timeout on /best and the
     // feed quietly became r/popular); an exhausted one is left out.
     final next = <String, String>{};
+    // Blend: Home's cursor is the hidden page itself; its value counts misses
+    // in a row. Still loading or a passing failure: try again on the next
+    // page (up to 3 failures, 2 empty batches, as Home allows); signed out:
+    // the rest of this feed is For You's own, and says so.
+    if (homeBatch != null) {
+      final cursor = (prev['home'] as String?) ?? '';
+      final misses = int.tryParse(cursor.replaceFirst('m', '')) ?? 0;
+      BlendState? state;
+      if (homeLoading) {
+        next['home'] = 'm$misses';
+        if (firstPage) state = const BlendLoading();
+      } else if (homeResult is BlendPosts) {
+        next['home'] = 'm0';
+      } else if (homeResult is BlendSignedOut) {
+        state = const BlendUnavailable(signedOut: true);
+      } else if (misses + 1 < (homeResult is BlendEmpty ? 2 : 3)) {
+        next['home'] = 'm${misses + 1}';
+      } else {
+        state = const BlendUnavailable(signedOut: false);
+      }
+      // "8 Reddit Home picks" in the header: placed in this feed so far.
+      final placed = result.ranked
+          .where((p) => result.meta[p.id]?.source == 'home')
+          .length;
+      blend!.blendPlaced(placed, first: firstPage, state: state);
+    }
     for (final (key, listing) in [
       ('best', best),
       ('rising', rising),
@@ -283,13 +375,14 @@ class RedditRepository {
         next[key] = listing.after!;
       }
     }
+    // More while a source has a next page, or ranked posts are still waiting
+    // (once every source ran out, its leftovers used to be unreachable).
+    final hasMore = (result.ranked.isNotEmpty || result.leftovers.isNotEmpty) &&
+        (next.isNotEmpty || result.leftovers.isNotEmpty);
     return ForYouPage(
       listing: Listing(
         items: result.ranked,
-        after: (result.ranked.isNotEmpty || result.leftovers.isNotEmpty) &&
-                next.isNotEmpty
-            ? jsonEncode(next)
-            : null,
+        after: hasMore ? jsonEncode(next) : null,
       ),
       cursors: next,
       leftovers: result.leftovers,

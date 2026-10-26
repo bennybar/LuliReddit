@@ -26,8 +26,6 @@ class HomeFellBack extends HomeStatus {
   final bool signedOut;
 }
 
-/// What the Home feed shows now; null before the first load.
-// TODO(reddit-home): the Reddit Home area sets this from its loader (live,
-// saved page, For You fallback) and drops the redditHomeNoticeProvider
-// snackbar; until then it stays null and no strip shows.
+/// What the Home feed shows now (live, saved page, For You fallback); null
+/// before the first load. Set by the Reddit Home engine and the feed.
 final homeStatusProvider = StateProvider<HomeStatus?>((ref) => null);

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers.dart';
@@ -10,9 +12,9 @@ import '../foryou/for_you_seeder.dart';
 import '../foryou/for_you_stores.dart';
 import '../history/history_store.dart';
 import '../history/interest_store.dart';
-import '../reddit_home/home_loading.dart'
-    show forYouProgressProvider, redditHomeProgressProvider;
-import '../reddit_home/reddit_home_loader.dart';
+import '../reddit_home/home_loading.dart' show forYouProgressProvider;
+import '../reddit_home/home_status.dart';
+import '../reddit_home/reddit_home_engine.dart';
 import '../settings/settings_controller.dart';
 
 class FeedState {
@@ -85,52 +87,30 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
     return _isFrontpage && s.redditHomeAllowed && s.redditHomeFeed;
   }
 
+  /// Blend: For You ranking over your Reddit Home too.
+  bool get _blend {
+    final s = ref.read(settingsControllerProvider);
+    return _forYou && s.blendHome && s.redditHomeAllowed;
+  }
+
   /// Home and For You open with the shuffling deck and deal their cards in,
   /// rather than painting the last saved page and then swapping it out.
   bool get _deckMode => _redditHome || _forYou;
 
-  RedditHomeLoader? _home;
-  // This load fell back to For You (Reddit Home couldn't be read); paging
-  // continues with For You until the next refresh.
-  bool _homeFellBack = false;
-  int _homeEmpty = 0; // consecutive empty "more" batches from Reddit Home
+  RedditHomeEngine get _home => ref.read(redditHomeEngineProvider);
 
-  Future<Listing<Post>> _redditHomePage(String? after) async {
-    final firstPage = after == null;
-    try {
-      final store = ref.read(secureStoreProvider);
-      if (await store.authMode != 'web') {
-        throw StateError('Reddit Home needs website sign-in');
-      }
-      final loader = _home ??= RedditHomeLoader();
-      final progress = ref.read(redditHomeProgressProvider.notifier);
-      if (firstPage) progress.state = 0;
-      final ids = await loader.next(
-          restart: firstPage,
-          cookieHeader: await store.webCookie ?? '',
-          onProgress: firstPage ? (n) => progress.state = n : null);
-      if (ids.isEmpty) {
-        if (firstPage) throw StateError('No posts found on Reddit Home');
-        // One empty batch can just be the page still setting up its "load
-        // more"; only two in a row end the feed.
-        return Listing(items: const [], after: ++_homeEmpty >= 2 ? null : 'home');
-      }
-      _homeEmpty = 0;
-      final posts = await _repo.getPostsByIds(ids);
-      final user = ref.read(authControllerProvider).valueOrNull?.username ?? '';
-      if (firstPage && user.isNotEmpty) {
-        saveForYouPage(user, posts, _repo.rawPost, feed: 'home');
-      }
-      return Listing(items: posts, after: 'home');
-    } catch (e) {
-      if (!firstPage) rethrow; // a failed page keeps its cursor; retry
-      // Reddit changed its page, the session expired, or the site refused:
-      // show For You rather than an empty feed, and say so.
-      _homeFellBack = true;
-      ref.read(redditHomeNoticeProvider.notifier).state =
-          "Couldn't load Reddit Home, showing For You instead.";
-      return _forYouPage(null);
-    }
+  // Reddit Home deals its cards straight from the page; the full posts
+  // (media, video, NSFW…) arrive moments later and replace them in place.
+  StreamSubscription<List<Post>>? _upgrades;
+
+  void _upgrade(List<Post> full) {
+    final cur = state.valueOrNull;
+    if (cur == null) return;
+    final byId = {for (final p in full) p.id: p};
+    if (!cur.posts.any((p) => byId.containsKey(p.id))) return;
+    state = AsyncData(cur.copyWith(
+        posts: [for (final p in cur.posts) byId[p.id] ?? p],
+        after: cur.after));
   }
 
   /// "Hide read posts": drops posts already in history as each page arrives.
@@ -155,10 +135,8 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
       _dropRead(await _fetchRaw(after: after));
 
   Future<Listing<Post>> _fetchRaw({String? after}) {
-    if (_redditHome) {
-      if (after == null) _homeFellBack = false;
-      return _homeFellBack ? _forYouPage(after) : _redditHomePage(after);
-    }
+    // Reddit Home falls back to For You itself, and says so.
+    if (_redditHome) return _home.page(after, _forYouPage);
     if (_forYou) return _forYouPage(after);
     final multi = _multi;
     if (multi != null) {
@@ -203,6 +181,9 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
           firstPage ? const [] : [for (final p in loaded.reversed.take(100)) p.title],
       discoveryAppetite:
           ref.read(forYouMetricsProvider.notifier).discoveryAppetite(),
+      discoveryMix: ref.read(settingsControllerProvider).forYouDiscovery,
+      typeStats: ref.read(typeStatsProvider),
+      blendReddit: ref.read(settingsControllerProvider).blendReddit,
     );
   }
 
@@ -233,6 +214,7 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
     if (firstPage) progress.state = 0;
     if (firstPage) await seedForYouIfNeeded(ref);
     final user = ref.read(authControllerProvider).valueOrNull?.username ?? '';
+    final prefs = ref.read(sharedPrefsProvider);
     final page = await _repo.getForYouFeed(
       onSource: firstPage ? (n) => progress.state += n : null,
       subsSnapshot: await loadSubsSnapshot(user),
@@ -244,6 +226,15 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
           ? const {}
           : {for (final p in state.valueOrNull?.posts ?? const <Post>[]) p.id},
       carryOver: firstPage ? const [] : _leftovers,
+      favouriteStart: (count) {
+        final k = 'fy_fav_rotation'
+            '${user.isEmpty ? '' : '_${user.toLowerCase()}'}';
+        final start = (prefs.getInt(k) ?? 0) % count;
+        prefs.setInt(k, start + 8);
+        return start;
+      },
+      // Blend's Home reads run on the app-wide engine.
+      blend: _blend ? _home : null,
     );
     _leftovers = page.leftovers;
     final meta = ref.read(forYouMetaProvider.notifier);
@@ -262,7 +253,15 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
   @override
   Future<FeedState> build(String arg) async {
     _generation++;
-    ref.onDispose(() => _home?.dispose());
+    if (_isFrontpage && _upgrades == null) {
+      _upgrades = _home.upgrades.listen(_upgrade);
+      ref.onDispose(() {
+        _upgrades?.cancel();
+        _upgrades = null;
+        // The hidden page goes with the feed.
+        _home.close();
+      });
+    }
     if (!_initialized) {
       _sort = ref.read(settingsControllerProvider).defaultSort;
       _initialized = true;
@@ -298,6 +297,12 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
       // still the most useful thing to show, and pull-to-refresh retries.
       if (cached == null && _deckMode) cached = await _cachedFirstPage();
       if (cached == null) rethrow;
+      if (_redditHome) {
+        final at = await _home.cachedFirstPageTime();
+        if (at != null) {
+          ref.read(homeStatusProvider.notifier).state = HomeSaved(at);
+        }
+      }
       _showingCache = false;
       // Count the attempt as a load: otherwise every return to the feed
       // (refreshIfExpired) retried at once, swapping in the loading deck and
@@ -320,11 +325,11 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
     if (_redditHome || _forYou) {
       // The last Home / For You page, minus posts opened since, while the
       // fresh one loads.
+      if (_redditHome) return _home.cachedFirstPage();
       final user = ref.read(authControllerProvider).valueOrNull?.username ?? '';
       if (user.isEmpty) return null;
       final opened = {for (final e in ref.read(historyControllerProvider)) e.id};
-      final posts = await loadForYouPage(user, opened,
-          feed: _redditHome ? 'home' : 'foryou');
+      final posts = await loadForYouPage(user, opened);
       return posts == null ? null : Listing(items: posts, after: null);
     }
     if (_multi != null) return null;
@@ -340,27 +345,42 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
   Future<void> changeSort(PostSort sort, {TopTime? time}) async {
     _sort = sort;
     if (time != null) _time = time;
-    // Persist the frontpage sort + turn off the For You feed.
+    // Persist the frontpage sort + turn off the For You / Home feeds.
     if (_isFrontpage) {
       final s = ref.read(settingsControllerProvider.notifier);
       s.setDefaultSort(sort);
       s.setForYouFeed(false);
+      s.setBlendHome(false);
       s.setRedditHomeFeed(false);
     }
     state = const AsyncLoading();
     state = await AsyncValue.guard(() => build(arg));
   }
 
-  /// Switches the frontpage to the "For You (Beta)" feed (persisted).
+  /// Switches the frontpage to the "For You" feed (persisted).
   Future<void> selectForYou() async {
-    ref.read(settingsControllerProvider.notifier).setForYouFeed(true);
+    ref.read(settingsControllerProvider.notifier)
+      ..setForYouFeed(true)
+      ..setBlendHome(false);
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() => build(arg));
+  }
+
+  /// Switches the frontpage to Blend: For You ranking over your Reddit Home
+  /// too (persisted).
+  Future<void> selectBlend() async {
+    ref.read(settingsControllerProvider.notifier)
+      ..setForYouFeed(true)
+      ..setBlendHome(true);
     state = const AsyncLoading();
     state = await AsyncValue.guard(() => build(arg));
   }
 
   /// Switches the frontpage to the experimental Reddit Home (persisted).
   Future<void> selectRedditHome() async {
-    ref.read(settingsControllerProvider.notifier).setRedditHomeFeed(true);
+    ref.read(settingsControllerProvider.notifier)
+      ..setBlendHome(false)
+      ..setRedditHomeFeed(true);
     state = const AsyncLoading();
     state = await AsyncValue.guard(() => build(arg));
   }

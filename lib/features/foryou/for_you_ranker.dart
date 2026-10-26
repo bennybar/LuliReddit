@@ -6,9 +6,13 @@ import 'for_you_stores.dart';
 
 /// A post fetched for For You, and the request it came from.
 class Candidate {
-  const Candidate(this.post, this.source);
+  const Candidate(this.post, this.source, {this.homePos = 1});
   final Post post;
-  final String source; // best / rising / popular / favourite / interest / community
+  // best / rising / popular / favourite / interest / community / home / carry
+  final String source;
+
+  /// Blend: where Reddit placed it in your Home batch, 0 = top … 1 = bottom.
+  final double homePos;
 }
 
 /// Interest at or above this counts a subreddit as one you engage with — for
@@ -33,6 +37,9 @@ class RankInputs {
     this.previousTop = const {},
     this.previousTitles = const [],
     this.discoveryAppetite = 1,
+    this.discoveryMix = 0,
+    this.typeStats = const {},
+    this.blendReddit = 1,
     DateTime? now,
   }) : now = now ?? DateTime.now().toUtc();
 
@@ -49,6 +56,11 @@ class RankInputs {
   final Set<String> previousTop; // the top 10 before this refresh
   final List<String> previousTitles; // titles already on earlier pages
   final double discoveryAppetite; // discovery vs primary open rate
+  final int discoveryMix; // Settings → Familiar (-2) ↔ Discover (+2)
+  // post type (postTypeKey) → (seen, engaged)
+  final Map<String, (double, double)> typeStats;
+  // Blend: Reddit ↔ Ilay — 0 mostly Ilay, 1 balanced, 2 mostly Reddit
+  final int blendReddit;
   final DateTime now;
 
   /// The same inputs once the subscription list has arrived.
@@ -67,6 +79,9 @@ class RankInputs {
         previousTop: previousTop,
         previousTitles: previousTitles,
         discoveryAppetite: discoveryAppetite,
+        discoveryMix: discoveryMix,
+        typeStats: typeStats,
+        blendReddit: blendReddit,
         now: now,
       );
 }
@@ -78,6 +93,8 @@ class RankResult {
   final Map<String, ForYouMeta> meta;
 }
 
+// Identity semantics on purpose (pools and the dropped set compare by
+// instance).
 class _Scored {
   _Scored(this.c, this.score, this.discovery, this.reason, this.why,
       this.story);
@@ -87,6 +104,13 @@ class _Scored {
   final String reason;
   final List<String> why;
   final Set<String> story; // title keywords, for same-story detection
+}
+
+class _Story {
+  _Story(this.words, this.count, this.lastPos);
+  final Set<String> words;
+  int count;
+  int lastPos;
 }
 
 /// "For You" ranking.
@@ -118,15 +142,61 @@ RankResult rankForYou(List<Candidate> pool, RankInputs i,
   vels.forEach((_, v) => v.sort());
   double velPct(Post p) {
     final v = vels[p.subreddit]!;
-    if (v.length == 1) return 0.7;
+    if (v.length == 1) return 0.5;
     final x = p.score / ageHours(p);
-    var lo = 0, hi = v.length - 1;
-    while (lo < hi) {
-      final mid = (lo + hi) >> 1;
-      v[mid] < x ? lo = mid + 1 : hi = mid;
+    // Average rank among equals: ties (a sub's brand-new posts, all at
+    // 1 point) used to share the lowest percentile, 0.
+    var lo = 0;
+    while (lo < v.length && v[lo] < x) {
+      lo++;
     }
-    return lo / (v.length - 1);
+    var hi = lo;
+    while (hi < v.length && v[hi] == x) {
+      hi++;
+    }
+    final rank = (lo + math.max(hi - 1, lo)) / 2;
+    final raw = rank / (v.length - 1);
+    // A sub with few candidates says little about how good a post is for
+    // it: pulled toward the middle (a single candidate is 0.5, was 0.7).
+    final trust = (v.length - 1) / (v.length + 2);
+    return 0.5 + (raw - 0.5) * trust;
   }
+
+  // How often you engage with each kind of post (image, video, text…) that
+  // For You shows, against your overall rate: learns what you like to see.
+  var typeSeen = 0.0, typeEng = 0.0;
+  for (final v in i.typeStats.values) {
+    typeSeen += v.$1;
+    typeEng += v.$2;
+  }
+  final typeCtr = (typeEng + 1) / (typeSeen + 6);
+  double typeMult(Post p) {
+    final st = i.typeStats[postTypeKey(p)];
+    if (st == null || st.$1 < 8) return 1;
+    final lift =
+        math.log(((st.$2 + 1) / (st.$1 + 6)) / typeCtr).clamp(-0.5, 0.5);
+    return math.exp(0.6 * lift); // ×0.74 … ×1.35
+  }
+
+  // Discussion: comments per hour, as a percentile in this pool (a busy
+  // thread and a silent one used to rank alike).
+  final talk = [for (final c in pool) c.post.numComments / ageHours(c.post)]
+    ..sort();
+  double talkPct(Post p) {
+    if (talk.length < 2) return 0.5;
+    final x = p.numComments / ageHours(p);
+    var lo = 0;
+    while (lo < talk.length && talk[lo] < x) {
+      lo++;
+    }
+    return lo / (talk.length - 1);
+  }
+
+  // Blend presets: how strong Reddit's pick counts, and how often a Home
+  // post gets a guaranteed slot (0 = never; it then competes on score alone).
+  final preset = i.blendReddit.clamp(0, 2);
+  final homeBoost = const [1.1, 1.25, 1.5][preset];
+  final homeEvery = const [0, 5, 3][preset];
 
   String pct(double f) =>
       '×${f.toStringAsFixed(f >= 10 ? 0 : (f >= 1 ? 1 : 2))}';
@@ -159,8 +229,17 @@ RankResult rankForYou(List<Candidate> pool, RankInputs i,
     // were clamped away), heavy use keeps ordering instead of capping out.
     final wInterest = a >= 0 ? 1 + 0.6 * math.log(1 + a / 3) : math.exp(a / 4);
 
+    // Blend: a post from your Reddit Home is Reddit's own pick for you. That
+    // boosts it (one bounded multiplier, set by Reddit ↔ Ilay, plus a little
+    // for being near the top of your Home) but doesn't make its community
+    // familiar: Reddit's picks from communities you don't follow stay
+    // discovery, under Familiar ↔ Discover.
+    final fromHome = c.source == 'home';
     final primary = fav || subd || a >= kEngagedInterest || explicitSub > 0;
     final base = fav ? 4.0 : (subd || explicitSub > 0 ? 2.5 : 0.4);
+    final homeMult = fromHome
+        ? homeBoost * (1 + 0.1 * (1 - c.homePos.clamp(0.0, 1.0)))
+        : 1.0;
     final eSub = explicitSub > 0 ? 1.6 : (explicitSub < 0 ? 0.3 : 1.0);
 
     final kw = i.keywordScore?.call(p.title) ?? 0;
@@ -188,8 +267,12 @@ RankResult rankForYou(List<Candidate> pool, RankInputs i,
     final openedPen = opened != null ? 0.15 : 1.0;
     final churn = i.previousTop.contains(p.id) ? 0.7 : 1.0;
 
+    final tMult = typeMult(p);
+    final tp = talkPct(p);
+    final discussion = 0.92 + 0.16 * tp; // ×0.92 … ×1.08
+
     final s = additive * base * wInterest * eSub * kwMult * eTopic * quality *
-        fatigue * openedPen * churn;
+        fatigue * openedPen * churn * tMult * discussion * homeMult;
 
     // Explanation from what actually moved the score.
     final topKw = i.topKeyword?.call(p.title);
@@ -207,6 +290,11 @@ RankResult rankForYou(List<Candidate> pool, RankInputs i,
       reason = drivers.first.$2;
     } else if (age < 6 && p.score > 1000 && vp > 0.8) {
       reason = '🔥 Trending on Reddit';
+    } else if (fromHome && subd) {
+      // Blend: say it came from your Reddit Home (yours, or Reddit's pick).
+      reason = 'In your Reddit Home · r/${p.subreddit}';
+    } else if (fromHome) {
+      reason = 'Recommended by Reddit · r/${p.subreddit}';
     } else if (subd) {
       reason = 'From r/${p.subreddit}';
     } else if (c.source == 'community') {
@@ -220,7 +308,14 @@ RankResult rankForYou(List<Candidate> pool, RankInputs i,
           ? 'r/${p.subreddit} is one of your favourites'
           : subd
               ? 'You\'re subscribed to r/${p.subreddit}'
-              : 'Discovery: you don\'t follow r/${p.subreddit}',
+              : fromHome
+                  ? 'Reddit recommends r/${p.subreddit} to you (you don\'t '
+                      'follow it)'
+                  : 'Discovery: you don\'t follow r/${p.subreddit}',
+      if (fromHome)
+        'In your Reddit Home'
+            '${p.feedReason != null ? ': “${p.feedReason}”' : ''} '
+            '(${pct(homeMult)})',
       if (explicitSub != 0)
         'You asked for ${explicitSub > 0 ? 'more' : 'less'} from '
             'r/${p.subreddit} (${pct(eSub)})',
@@ -233,6 +328,11 @@ RankResult rankForYou(List<Candidate> pool, RankInputs i,
         'Topics you read${topKw != null ? ', like “$topKw”' : ''} '
             '(${pct(kwMult)})',
       if (vp > 0.8) 'Doing well in r/${p.subreddit} right now',
+      if ((tMult - 1).abs() > 0.05)
+        '${tMult > 1 ? 'You often open' : 'You rarely open'} '
+            '${postTypeKey(p)} posts (${pct(tMult)})',
+      if (tp > 0.85 && p.numComments >= 20)
+        'Lively discussion: ${p.numComments} comments (${pct(discussion)})',
       if (shown >= 0.5)
         'Seen ${shown.round()}× before (${pct(fatigue)})',
       if (opened != null) 'You already opened it (×0.15)',
@@ -265,20 +365,31 @@ RankResult rankForYou(List<Candidate> pool, RankInputs i,
   // Same story told in different subreddits: the second copy is allowed at
   // least 15 slots after the first, a third never. Stories from earlier
   // pages count.
-  final stories = <(Set<String>, int count, int lastPos)>[];
-  for (final t in i.previousTitles) {
-    final w = titleKeywords(t).toSet();
-    if (w.length >= 3) stories.add((w, 1, -1000));
-  }
+  final stories = <_Story>[];
   int? storyOf(Set<String> words) {
     if (words.length < 3) return null;
     for (var k = 0; k < stories.length; k++) {
-      final shared = stories[k].$1.intersection(words).length;
-      if (shared >= 3 && shared / stories[k].$1.union(words).length >= 0.5) {
+      final shared = stories[k].words.intersection(words).length;
+      if (shared >= 3 &&
+          shared / stories[k].words.union(words).length >= 0.5) {
         return k;
       }
     }
     return null;
+  }
+
+  // Earlier pages, newest first: copies of one story count together (each
+  // used to be its own story, so a third copy got through), and the newest
+  // keeps its real distance (j + 1 slots before this page) for the spacing.
+  for (var j = 0; j < i.previousTitles.length; j++) {
+    final w = titleKeywords(i.previousTitles[j]).toSet();
+    if (w.length < 3) continue;
+    final k = storyOf(w);
+    if (k != null) {
+      stories[k].count += 1;
+    } else {
+      stories.add(_Story(w, 1, -(j + 1)));
+    }
   }
 
   // Greedy placement: each slot takes the best remaining post after a
@@ -286,7 +397,14 @@ RankResult rankForYou(List<Candidate> pool, RankInputs i,
   // the last 4), alternating in discovery at an adaptive rate.
   final primaryPool = unique.where((s) => !s.discovery).toList();
   final discoveryPool = unique.where((s) => s.discovery).toList();
-  final every = (6 / i.discoveryAppetite.clamp(0.6, 1.5)).round().clamp(4, 10);
+  // A discovery post every ~6 slots, adapted to how often you open them;
+  // the Familiar ↔ Discover setting scales that (Familiar: ~1 in 20,
+  // Discover: ~1 in 3). The middle keeps the adaptive 4–10 range.
+  final mix = const [0.3, 0.6, 1.0, 1.4, 2.0][i.discoveryMix.clamp(-2, 2) + 2];
+  final appetite = i.discoveryAppetite.clamp(0.6, 1.5);
+  final every = i.discoveryMix == 0
+      ? (6 / appetite).round().clamp(4, 10)
+      : (6 / (appetite * mix)).round().clamp(3, 20);
   final placed = <_Scored>[];
   final dropped = <_Scored>{};
 
@@ -299,8 +417,8 @@ RankResult rankForYou(List<Candidate> pool, RankInputs i,
       if (dropped.contains(s)) continue;
       final k = storyOf(s.story);
       if (k != null &&
-          (stories[k].$2 >= 2 || placed.length - stories[k].$3 < 15)) {
-        if (stories[k].$2 >= 2) dropped.add(s);
+          (stories[k].count >= 2 || placed.length - stories[k].lastPos < 15)) {
+        if (stories[k].count >= 2) dropped.add(s);
         continue;
       }
       final sameSub =
@@ -317,16 +435,30 @@ RankResult rankForYou(List<Candidate> pool, RankInputs i,
 
   while (placed.length < pageSize) {
     final wantDiscovery = (placed.length + 1) % every == 0;
-    final s = (wantDiscovery ? pick(discoveryPool) : null) ??
+    // Blend: every homeEvery-th slot goes to the best Reddit Home post — one
+    // from a community you don't follow only if Familiar ↔ Discover isn't at
+    // its most familiar.
+    final wantHome = !wantDiscovery &&
+        homeEvery > 0 &&
+        (placed.length + 1) % homeEvery == 0;
+    final s = (wantHome
+            ? pick([
+                ...primaryPool.where((s) => s.c.source == 'home'),
+                if (i.discoveryMix > -2)
+                  ...discoveryPool.where((s) => s.c.source == 'home'),
+              ])
+            : null) ??
+        (wantDiscovery ? pick(discoveryPool) : null) ??
         pick(primaryPool) ??
         pick(discoveryPool);
     if (s == null) break;
     (s.discovery ? discoveryPool : primaryPool).remove(s);
     final k = storyOf(s.story);
     if (k != null) {
-      stories[k] = (stories[k].$1, stories[k].$2 + 1, placed.length);
+      stories[k].count += 1;
+      stories[k].lastPos = placed.length;
     } else if (s.story.length >= 3) {
-      stories.add((s.story, 1, placed.length));
+      stories.add(_Story(s.story, 1, placed.length));
     }
     placed.add(s);
   }
@@ -359,6 +491,7 @@ String _sourceLabel(String source) => switch (source) {
       'interest' => 'a community you engage with',
       'community' => 'a community you\'ve visited',
       'carry' => 'held over from the previous page',
+      'home' => 'your Reddit Home (Blend)',
       _ => source,
     };
 
@@ -375,3 +508,12 @@ String? _normalisedUrl(Post p) {
   final q = (query.keys.toList()..sort()).map((k) => '$k=${query[k]}').join('&');
   return '$host${u.path}${q.isEmpty ? '' : '?$q'}';
 }
+
+/// The kind of post, for learning which kinds you open (galleries count as
+/// images, GIFs as videos).
+String postTypeKey(Post p) => switch (p.type) {
+      PostType.image || PostType.gallery => 'image',
+      PostType.video || PostType.gif => 'video',
+      PostType.link => 'link',
+      PostType.self => 'text',
+    };

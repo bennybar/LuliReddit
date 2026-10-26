@@ -7,6 +7,7 @@ import '../../core/widgets/glass_surface.dart';
 import '../auth/auth_controller.dart';
 import '../feed/post_card.dart' show LetterAvatar;
 import '../feed/post_list_view.dart';
+import '../reddit_home/reddit_home_engine.dart';
 import '../settings/settings_controller.dart';
 import 'tab_menu.dart';
 
@@ -26,6 +27,9 @@ class FrontpageTab extends ConsumerWidget {
         ref.watch(settingsControllerProvider.select((s) => s.forYouFeed));
     final homeOn = ref.watch(settingsControllerProvider
         .select((s) => s.redditHomeAllowed && s.redditHomeFeed));
+    final blend = forYou &&
+        ref.watch(settingsControllerProvider
+            .select((s) => s.blendHome && s.redditHomeAllowed));
     final mode =
         ref.watch(settingsControllerProvider.select((s) => s.topBarMode));
     final showApiUsage =
@@ -90,7 +94,11 @@ class FrontpageTab extends ConsumerWidget {
                         offset: const Offset(-3, 0),
                         child: const SideBarButton()),
                   Text(
-                    homeOn ? 'Home' : (forYou ? 'For You' : 'Frontpage'),
+                    homeOn
+                        ? 'Home'
+                        : blend
+                            ? 'Blend'
+                            : (forYou ? 'For You' : 'Frontpage'),
                     style: Theme.of(context)
                         .textTheme
                         .titleLarge
@@ -99,11 +107,13 @@ class FrontpageTab extends ConsumerWidget {
                   if (!homeOn && forYou) ...[
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text('Personalized on your phone',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 12, color: cs.onSurfaceVariant)),
+                      child: blend
+                          ? const _BlendSubtitle()
+                          : Text('Personalized on your phone',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  fontSize: 12, color: cs.onSurfaceVariant)),
                     ),
                   ] else
                     const Spacer(),
@@ -128,6 +138,32 @@ class FrontpageTab extends ConsumerWidget {
         ),
       ],
     );
+  }
+}
+
+/// Blend's header subtitle: what its Reddit Home source is contributing
+/// right now.
+class _BlendSubtitle extends ConsumerWidget {
+  const _BlendSubtitle();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final text = switch (ref.watch(blendStateProvider)) {
+      BlendIncluded(:final count) => count == 0
+          ? 'Beta · no Reddit Home picks yet'
+          : 'Beta · $count Reddit Home pick${count == 1 ? '' : 's'}',
+      BlendLoading() => 'Beta · Reddit Home loading…',
+      BlendUnavailable(:final signedOut) => signedOut
+          ? 'Beta · Reddit Home signed out: showing For You'
+          : 'Beta · Reddit Home unavailable: showing For You',
+      null => 'Your Reddit Home + For You · Beta',
+    };
+    return Text(text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+            fontSize: 12,
+            color: Theme.of(context).colorScheme.onSurfaceVariant));
   }
 }
 

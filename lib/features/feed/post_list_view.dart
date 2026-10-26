@@ -3,17 +3,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 import '../../core/route_observer.dart';
 import '../../core/widgets/error_view.dart';
 import '../../core/widgets/image_decode.dart';
 import '../../data/reddit_repository.dart';
 import '../../models/post.dart';
+import '../auth/auth_controller.dart';
+import '../auth/web_login_screen.dart';
 import '../history/history_store.dart';
 import '../../core/format.dart';
 import '../reddit_home/home_loading.dart';
 import '../reddit_home/home_status.dart';
-import '../reddit_home/reddit_home_loader.dart' show redditHomeNoticeProvider;
+import '../reddit_home/reddit_home_engine.dart';
 import '../settings/settings_controller.dart';
 import 'content_filters.dart';
 import 'expiring_ids.dart';
@@ -108,6 +111,25 @@ class _PostListViewState extends ConsumerState<PostListView>
     }
   }
 
+  /// "Sign in" on the Home strip: the website sign-in expired. Signs in
+  /// again on reddit.com, then loads Home anew.
+  Future<void> _signIn(FeedController notifier) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final cookie = await Navigator.of(context).push<String>(
+        MaterialPageRoute(builder: (_) => const WebLoginScreen()));
+    if (cookie == null || cookie.isEmpty) return;
+    try {
+      await ref
+          .read(authControllerProvider.notifier)
+          .loginWithWebSession(cookie);
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(
+          content: Text("Couldn't sign in: ${friendlyError(e)}")));
+      return;
+    }
+    await notifier.refresh();
+  }
+
   void _scrollToTopOrRefresh() {
     if (!_scroll.hasClients) return;
     if (_scroll.offset > 20) {
@@ -127,13 +149,6 @@ class _PostListViewState extends ConsumerState<PostListView>
     if (widget.feedKey.isEmpty) {
       ref.listen<int>(frontpageScrollSignalProvider,
           (_, __) => _scrollToTopOrRefresh());
-      // "Reddit Home couldn't load, showing For You" and similar.
-      ref.listen<String?>(redditHomeNoticeProvider, (_, msg) {
-        if (msg == null) return;
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(msg)));
-        ref.read(redditHomeNoticeProvider.notifier).state = null;
-      });
     }
     final async = ref.watch(feedControllerProvider(widget.feedKey));
     final notifier =
@@ -143,6 +158,10 @@ class _PostListViewState extends ConsumerState<PostListView>
         ref.watch(settingsControllerProvider
             .select((s) => s.redditHomeAllowed && s.redditHomeFeed));
     final homeStatus = homeMode ? ref.watch(homeStatusProvider) : null;
+    // Blend: For You ranking over your Reddit Home too.
+    final blendMode = widget.feedKey.isEmpty &&
+        ref.watch(settingsControllerProvider.select(
+            (s) => s.forYouFeed && s.blendHome && s.redditHomeAllowed));
     // Home and For You load behind the shuffling deck.
     final deckMode = widget.feedKey.isEmpty &&
         (homeMode ||
@@ -286,6 +305,9 @@ class _PostListViewState extends ConsumerState<PostListView>
                   onRedditHome: settings.redditHomeAllowed
                       ? notifier.selectRedditHome
                       : null,
+                  blend: blendMode,
+                  onBlend:
+                      settings.redditHomeAllowed ? notifier.selectBlend : null,
                 );
                 // Not your live Home: say what this is instead (until the
                 // next load works).
@@ -294,7 +316,9 @@ class _PostListViewState extends ConsumerState<PostListView>
                   return Column(children: [
                     sortBar,
                     _HomeStatusStrip(
-                        status: status!, onRetry: notifier.refresh),
+                        status: status!,
+                        onRetry: notifier.refresh,
+                        onSignIn: () => _signIn(notifier)),
                   ]);
                 }
                 return sortBar;
@@ -309,6 +333,27 @@ class _PostListViewState extends ConsumerState<PostListView>
                   WidgetsBinding.instance
                       .addPostFrameCallback((_) => notifier.loadMore());
                 }
+                Widget card = PostCard(
+                    key: ValueKey(posts[index].id),
+                    post: posts[index],
+                    dismissible: dismissible,
+                    frontpage: frontpage);
+                // Home (and Blend's Home posts): follow the card on screen in
+                // the hidden reddit.com page, so Reddit's own "seen" tracking
+                // matches what was actually read and the next load brings
+                // new posts. (Cards not on its page are ignored there.)
+                if (homeMode || blendMode) {
+                  final id = posts[index].id;
+                  card = VisibilityDetector(
+                    key: Key('home_seen_$id'),
+                    onVisibilityChanged: (info) {
+                      if (info.visibleFraction >= 0.6) {
+                        ref.read(redditHomeEngineProvider).viewing(id);
+                      }
+                    },
+                    child: card,
+                  );
+                }
                 if (deckMode && index < 3) {
                   // The first cards after the loading deck are dealt in.
                   final deal = _dealHome;
@@ -316,20 +361,9 @@ class _PostListViewState extends ConsumerState<PostListView>
                     WidgetsBinding.instance
                         .addPostFrameCallback((_) => _dealHome = false);
                   }
-                  return DealIn(
-                      index: index,
-                      animate: deal,
-                      child: PostCard(
-                          key: ValueKey(posts[index].id),
-                          post: posts[index],
-                          dismissible: dismissible,
-                          frontpage: frontpage));
+                  return DealIn(index: index, animate: deal, child: card);
                 }
-                return PostCard(
-                    key: ValueKey(posts[index].id),
-                    post: posts[index],
-                    dismissible: dismissible,
-                    frontpage: frontpage);
+                return card;
               }
               // footer
               final muted = TextStyle(
@@ -388,9 +422,11 @@ class _PostListViewState extends ConsumerState<PostListView>
 /// "Saved Home, from 2h ago · Refresh" / "Home couldn't load · showing For
 /// You · Retry".
 class _HomeStatusStrip extends StatelessWidget {
-  const _HomeStatusStrip({required this.status, required this.onRetry});
+  const _HomeStatusStrip(
+      {required this.status, required this.onRetry, required this.onSignIn});
   final HomeStatus status;
   final VoidCallback onRetry;
+  final VoidCallback onSignIn;
 
   @override
   Widget build(BuildContext context) {
@@ -428,8 +464,7 @@ class _HomeStatusStrip extends StatelessWidget {
                     TextStyle(fontSize: 13, color: cs.onSecondaryContainer)),
           ),
           TextButton(
-            // TODO(reddit-home): "Sign in" opens the website sign-in.
-            onPressed: onRetry,
+            onPressed: signIn ? onSignIn : onRetry,
             child: Text(signIn
                 ? 'Sign in'
                 : (s is HomeSaved ? 'Refresh' : 'Retry')),
@@ -489,6 +524,8 @@ class _SortBar extends StatelessWidget {
     this.onForYou,
     this.redditHome = false,
     this.onRedditHome,
+    this.blend = false,
+    this.onBlend,
   });
   final PostSort sort;
   final TopTime time;
@@ -498,14 +535,20 @@ class _SortBar extends StatelessWidget {
   final VoidCallback? onForYou;
   final bool redditHome;
   final VoidCallback? onRedditHome; // null unless enabled in Settings
+  final bool blend;
+  final VoidCallback? onBlend; // null unless Reddit Home is enabled
 
   @override
   Widget build(BuildContext context) {
     final label = redditHome
         ? 'Home'
-        : forYou
-            ? 'For You'
-            : (sort.needsTime ? '${sort.label} · ${time.label}' : sort.label);
+        : blend
+            ? 'Blend · Beta'
+            : forYou
+                ? 'For You'
+                : (sort.needsTime
+                    ? '${sort.label} · ${time.label}'
+                    : sort.label);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
       child: Row(
@@ -514,7 +557,11 @@ class _SortBar extends StatelessWidget {
             avatar: Icon(
                 redditHome
                     ? Icons.home_rounded
-                    : (forYou ? Icons.auto_awesome_rounded : Icons.sort_rounded),
+                    : blend
+                        ? Icons.merge_rounded
+                        : (forYou
+                            ? Icons.auto_awesome_rounded
+                            : Icons.sort_rounded),
                 size: 18),
             label: Text(label),
             shape: const StadiumBorder(),
@@ -541,10 +588,24 @@ class _SortBar extends StatelessWidget {
                 leading: const Icon(Icons.auto_awesome_rounded),
                 title: const Text('For You'),
                 subtitle: const Text('Personalized on your phone'),
-                trailing: forYou ? const Icon(Icons.check_rounded) : null,
+                trailing: forYou && !blend
+                    ? const Icon(Icons.check_rounded)
+                    : null,
                 onTap: () {
                   Navigator.pop(ctx);
                   onForYou!();
+                },
+              ),
+            if (isFrontpage && onBlend != null)
+              ListTile(
+                leading: const Icon(Icons.merge_rounded),
+                title: const Text('Blend · Beta'),
+                subtitle:
+                    const Text('Your Reddit Home + For You, ranked for you'),
+                trailing: blend ? const Icon(Icons.check_rounded) : null,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  onBlend!();
                 },
               ),
             if (isFrontpage && onRedditHome != null)
@@ -562,7 +623,7 @@ class _SortBar extends StatelessWidget {
               ListTile(
                 leading: Icon(_iconFor(s)),
                 title: Text(s.label),
-                trailing: (!forYou && !redditHome && s == sort)
+                trailing: (!forYou && !blend && !redditHome && s == sort)
                     ? const Icon(Icons.check_rounded)
                     : null,
                 onTap: () {

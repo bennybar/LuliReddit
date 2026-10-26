@@ -41,7 +41,7 @@ double decayFactor(int? tsMillis, double perDay) {
 
 /// On-device interest model: a per-subreddit affinity score that learns from
 /// the user's own actions (upvote / downvote / save / open / comment / share).
-/// Entirely local — it never leaves the device and powers "For You (Beta)".
+/// Entirely local — it never leaves the device and powers "For You".
 /// Weights decay daily so the feed tracks your *current* taste.
 class InterestStore extends Notifier<Map<String, double>> {
   static const _base = 'interest_weights';
@@ -52,15 +52,19 @@ class InterestStore extends Notifier<Map<String, double>> {
   @override
   Map<String, double> build() {
     _key = userScopedPrefsKey(ref, _base);
+    _ts = null;
     final raw = ref.read(sharedPrefsProvider).getString(_key);
     if (raw == null) return {};
     try {
       final m = jsonDecode(raw) as Map<String, dynamic>;
       _ts = (m['_ts'] as num?)?.toInt();
-      return _decayed({
+      final w = _decayed({
         for (final e in m.entries)
           if (!e.key.startsWith('_')) e.key: (e.value as num).toDouble()
       });
+      // The decay owed is applied: don't apply it again.
+      if (_ts != null) _ts = DateTime.now().millisecondsSinceEpoch;
+      return w;
     } catch (_) {
       return {};
     }
@@ -237,6 +241,8 @@ class KeywordStore extends Notifier<Map<String, double>> {
   @override
   Map<String, double> build() {
     _key = userScopedPrefsKey(ref, _base);
+    _ts = null;
+    _lastUsed = {};
     final raw = ref.read(sharedPrefsProvider).getString(_key);
     if (raw == null) return {};
     try {
@@ -246,10 +252,13 @@ class KeywordStore extends Notifier<Map<String, double>> {
         for (final e in ((m['_lu'] as Map?) ?? const {}).entries)
           '${e.key}': (e.value as num).toInt()
       };
-      return _decayed({
+      final w = _decayed({
         for (final e in m.entries)
           if (!e.key.startsWith('_')) e.key: (e.value as num).toDouble()
       });
+      // The decay owed is applied: don't apply it again.
+      if (_ts != null) _ts = DateTime.now().millisecondsSinceEpoch;
+      return w;
     } catch (_) {
       return {};
     }
@@ -375,32 +384,39 @@ final keywordStoreProvider =
 class ImpressionStore extends Notifier<Map<String, (double, int)>> {
   static const _base = 'fy_impressions';
   static const _cap = 600;
-  late String _key;
+  String? _key;
   final _session = <String>{}; // ids already counted this app session
   final _pending = <String>{};
   bool _flushScheduled = false;
+  // The loaded account's counts (state, readable while switching accounts).
+  Map<String, (double, int)> _counts = const {};
 
   @override
   Map<String, (double, int)> build() {
-    _key = userScopedPrefsKey(ref, _base);
-    final raw = ref.read(sharedPrefsProvider).getString(_key);
-    if (raw == null) return {};
+    // Impressions waiting for the batched save belong to the account that
+    // saw them: save them there before switching, not into the next one.
+    _flush(switching: true);
+    _session.clear();
+    final key = _key = userScopedPrefsKey(ref, _base);
+    final raw = ref.read(sharedPrefsProvider).getString(key);
+    _counts = const {};
+    if (raw == null) return _counts;
     try {
       final now = DateTime.now().millisecondsSinceEpoch;
-      return {
+      return _counts = {
         for (final e in (jsonDecode(raw) as Map<String, dynamic>).entries)
           e.key: e.value is List
               ? ((e.value[0] as num).toDouble(), (e.value[1] as num).toInt())
               : ((e.value as num).toDouble(), now), // legacy: plain count
       };
     } catch (_) {
-      return {};
+      return _counts;
     }
   }
 
   /// How many times [postId] has been seen, faded (halves every 24h).
   double count(String postId) {
-    final v = state[postId];
+    final v = _counts[postId];
     if (v == null) return 0;
     return v.$1 * decayFactor(v.$2, 0.5);
   }
@@ -415,11 +431,12 @@ class ImpressionStore extends Notifier<Map<String, (double, int)>> {
     Future<void>.delayed(const Duration(seconds: 2), _flush);
   }
 
-  void _flush() {
+  void _flush({bool switching = false}) {
     _flushScheduled = false;
-    if (_pending.isEmpty) return;
+    final key = _key;
+    if (_pending.isEmpty || key == null) return;
     final now = DateTime.now().millisecondsSinceEpoch;
-    final next = {...state};
+    final next = {..._counts};
     for (final id in _pending) {
       next.remove(id); // re-insert last: insertion order = recency
       next[id] = (count(id) + 1, now);
@@ -428,14 +445,16 @@ class ImpressionStore extends Notifier<Map<String, (double, int)>> {
     while (next.length > _cap) {
       next.remove(next.keys.first);
     }
-    state = next;
-    ref.read(sharedPrefsProvider).setString(_key,
+    // Mid-switch (from build) only the save goes to the old account.
+    if (!switching) state = _counts = next;
+    ref.read(sharedPrefsProvider).setString(key,
         jsonEncode({for (final e in next.entries) e.key: [e.value.$1, e.value.$2]}));
   }
 
   void clear() {
-    state = {};
-    ref.read(sharedPrefsProvider).remove(_key);
+    state = _counts = {};
+    final key = _key;
+    if (key != null) ref.read(sharedPrefsProvider).remove(key);
   }
 }
 

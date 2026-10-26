@@ -19,6 +19,7 @@ import '../history/history_store.dart';
 import '../media/share_media.dart';
 import '../multireddit/add_to_custom_feed.dart';
 import '../offline/offline_store.dart';
+import '../reddit_home/reddit_home_engine.dart';
 import '../settings/settings_controller.dart';
 
 /// Bottom sheet of secondary actions for a post: hide, report, crosspost, open.
@@ -107,6 +108,31 @@ void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post) {
               },
             ),
           ],
+          // Reddit Home's own "Show fewer posts like this" (recommended posts
+          // only). Watched: Reddit's list can arrive while the sheet is open.
+          Consumer(builder: (_, ref, __) {
+            final offered = ref.watch(
+                homeShowFewerProvider.select((ids) => ids.contains(post.id)));
+            if (!offered) return const SizedBox.shrink();
+            return ListTile(
+              leading: const Icon(Icons.thumb_down_outlined),
+              title: const Text('Show fewer posts like this'),
+              subtitle: const Text('Tells Reddit, like on reddit.com'),
+              onTap: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                final dismissed = ref.read(dismissedPostsProvider.notifier);
+                final engine = ref.read(redditHomeEngineProvider);
+                Navigator.pop(ctx);
+                if (await engine.showFewer(post)) {
+                  dismissed.add(post.id);
+                  _snack(messenger, 'Reddit will show fewer posts like this');
+                } else {
+                  _snack(messenger,
+                      "Couldn't reach Reddit Home, try again after a refresh");
+                }
+              },
+            );
+          }),
           // The Calm card has no read toggle of its own: it lives here.
           if (ref.read(settingsControllerProvider).postDisplay.isCalm)
             Builder(builder: (_) {
