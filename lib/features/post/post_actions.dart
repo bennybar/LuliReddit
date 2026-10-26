@@ -10,12 +10,14 @@ import '../../core/share.dart';
 import '../../core/widgets/error_view.dart';
 import '../../core/widgets/tap_guard.dart';
 import '../../models/post.dart';
+import '../auth/auth_controller.dart';
 import '../feed/expiring_ids.dart';
 import '../feed/post_card.dart' show filterOutSub, hideSubFromHome;
 import '../foryou/for_you_learner.dart';
 import '../foryou/tune_sheet.dart';
 import '../history/history_store.dart';
 import '../media/share_media.dart';
+import '../multireddit/add_to_custom_feed.dart';
 import '../offline/offline_store.dart';
 import '../settings/settings_controller.dart';
 
@@ -187,6 +189,16 @@ void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post) {
               _showCrosspostDialog(context, ref, post);
             },
           ),
+          if (!(ref.read(authControllerProvider).valueOrNull?.anonymous ??
+              true))
+            ListTile(
+              leading: const Icon(Icons.playlist_add_rounded),
+              title: Text('Add r/${post.subreddit} to a custom feed'),
+              onTap: () {
+                Navigator.pop(ctx);
+                showAddToCustomFeed(context, post.subreddit);
+              },
+            ),
           ListTile(
             leading: const Icon(Icons.open_in_new_rounded),
             title: const Text('Open in browser'),

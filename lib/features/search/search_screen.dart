@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/format.dart';
 import '../../core/providers.dart';
+import '../../core/widgets/connected_choice.dart';
 import '../../core/widgets/error_view.dart';
 import '../auth/auth_controller.dart';
 import '../settings/settings_controller.dart';
@@ -12,11 +13,20 @@ import '../../models/post.dart';
 import '../../models/reddit_user.dart';
 import '../../models/subreddit.dart';
 import '../feed/post_card.dart';
+import 'saved_searches.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
-  const SearchScreen({super.key, this.initialSubreddit, this.initialQuery});
+  const SearchScreen(
+      {super.key,
+      this.initialSubreddit,
+      this.initialQuery,
+      this.initialSort,
+      this.initialTime});
   final String? initialSubreddit;
   final String? initialQuery;
+  // A saved search from another subreddit opens with its sort and time.
+  final String? initialSort;
+  final String? initialTime;
 
   @override
   ConsumerState<SearchScreen> createState() => _SearchScreenState();
@@ -75,6 +85,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       prefs.remove(_legacyRecentKey);
     }
     _recent = prefs.getStringList(_recentKey) ?? [];
+    _sort = widget.initialSort ?? _sort;
+    _time = widget.initialTime ?? _time;
     final q = widget.initialQuery?.trim() ?? '';
     if (q.isNotEmpty) {
       _controller.text = q;
@@ -105,7 +117,31 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       _posts = [];
       _subs = [];
       _users = [];
+      _loading = false;
     });
+    _request++;
+  }
+
+  /// A saved search here (same scope) runs in place; another subreddit's
+  /// opens its own search.
+  void _runSaved(SavedSearch s) {
+    final here = widget.initialSubreddit;
+    if ((s.subreddit ?? '').toLowerCase() == (here ?? '').toLowerCase() &&
+        (s.subreddit == null) == (here == null)) {
+      setState(() {
+        _sort = s.sort;
+        _time = s.time;
+      });
+      _search(s.query, saveRecent: false);
+    } else {
+      final q = Uri(queryParameters: {
+        if (s.subreddit != null) 'sr': s.subreddit!,
+        'q': s.query,
+        'sort': s.sort,
+        't': s.time,
+      }).query;
+      context.push('/search?$q');
+    }
   }
 
   Future<void> _search(String q, {bool saveRecent = true}) async {
@@ -115,8 +151,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     FocusScope.of(context).unfocus();
     if (saveRecent) _saveRecent(q);
     final request = ++_request;
+    // A new search: the old one's paging state goes with it — a leftover
+    // _loadingMore otherwise blocked paging for good.
     setState(() {
       _loading = true;
+      _loadingMore = false;
+      _postsAfter = null;
       _error = null;
       _query = q;
     });
@@ -154,7 +194,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Future<void> _loadMorePosts() async {
     final after = _postsAfter;
-    if (after == null || after.isEmpty || _loadingMore) return;
+    if (after == null || after.isEmpty || _loadingMore || _loading) return;
     final request = _request;
     setState(() => _loadingMore = true);
     try {
@@ -180,6 +220,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final restricted = widget.initialSubreddit != null;
+    final saved = ref.watch(savedSearchesProvider);
+    final current =
+        SavedSearch(_query, widget.initialSubreddit, _sort, _time);
+    final isSaved =
+        _query.isNotEmpty && saved.any((s) => s.key == current.key);
     return DefaultTabController(
       length: restricted ? 1 : 3,
       child: Scaffold(
@@ -201,10 +246,39 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               prefixIcon: const Icon(Icons.search_rounded),
               suffixIcon: _controller.text.isEmpty
                   ? null
-                  : IconButton(
-                      icon: const Icon(Icons.clear_rounded),
-                      onPressed: _clear,
-                    ),
+                  : Row(mainAxisSize: MainAxisSize.min, children: [
+                      // Save this search (with its sort and time) to run
+                      // again from here.
+                      if (_query.isNotEmpty &&
+                          _query == _controller.text.trim())
+                        IconButton(
+                          tooltip:
+                              isSaved ? 'Remove saved search' : 'Save search',
+                          icon: Icon(
+                              isSaved
+                                  ? Icons.bookmark_rounded
+                                  : Icons.bookmark_border_rounded,
+                              color: isSaved ? cs.primary : null),
+                          onPressed: () {
+                            final store =
+                                ref.read(savedSearchesProvider.notifier);
+                            if (isSaved) {
+                              store.remove(current);
+                            } else {
+                              store.add(current);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content: Text('Search saved: it\'s '
+                                          'listed here before you type')));
+                            }
+                          },
+                        ),
+                      IconButton(
+                        tooltip: 'Clear',
+                        icon: const Icon(Icons.clear_rounded),
+                        onPressed: _clear,
+                      ),
+                    ]),
               contentPadding: const EdgeInsets.symmetric(vertical: 8),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(28),
@@ -235,7 +309,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     message: _error,
                     onRetry: () => _search(_query, saveRecent: false))
                 : _query.isEmpty
-                    ? _empty(cs)
+                    ? _empty(cs, saved)
                     : TabBarView(
                         children: [
                           _postsTab(),
@@ -247,8 +321,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  Widget _empty(ColorScheme cs) {
-    if (_recent.isEmpty) {
+  Widget _empty(ColorScheme cs, List<SavedSearch> saved) {
+    if (_recent.isEmpty && saved.isEmpty) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -261,63 +335,95 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         ),
       );
     }
-    return ListView(
+    final header =
+        TextStyle(color: cs.onSurfaceVariant, fontWeight: FontWeight.w600);
+    // Saved, then "Recent" with its Clear, then the recent searches.
+    final savedRows = saved.isEmpty ? 0 : saved.length + 1;
+    final recentRows = _recent.isEmpty ? 0 : _recent.length + 1;
+    return ListView.builder(
       padding: const EdgeInsets.only(top: 8, bottom: 130),
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
-          child: Row(
-            children: [
-              Text('Recent',
-                  style: TextStyle(
-                      color: cs.onSurfaceVariant, fontWeight: FontWeight.w600)),
-              const Spacer(),
-              TextButton(
-                onPressed: () {
-                  ref.read(sharedPrefsProvider).remove(_recentKey);
-                  setState(() => _recent = []);
-                },
-                child: const Text('Clear'),
-              ),
-            ],
-          ),
-        ),
-        for (final q in _recent)
-          ListTile(
-            leading: const Icon(Icons.history_rounded),
-            title: Text(q),
+      itemCount: savedRows + recentRows,
+      itemBuilder: (_, i) {
+        if (i < savedRows) {
+          if (i == 0) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+              child: Text('Saved', style: header),
+            );
+          }
+          final s = saved[i - 1];
+          return ListTile(
+            key: ValueKey('s_${s.key}'),
+            leading: Icon(Icons.bookmark_rounded, color: cs.primary),
+            title: Text(s.query),
+            subtitle: Text([
+              s.subreddit != null ? 'in r/${s.subreddit}' : 'all of Reddit',
+              _sorts[s.sort] ?? s.sort,
+              if (s.sort == 'top') _times[s.time] ?? s.time,
+            ].join(' · ')),
             trailing: IconButton(
-              icon: const Icon(Icons.north_west_rounded, size: 18),
-              onPressed: () {
-                _controller.text = q;
-                _search(q, saveRecent: false);
-              },
+              tooltip: 'Remove saved search',
+              icon: const Icon(Icons.close_rounded, size: 18),
+              onPressed: () =>
+                  ref.read(savedSearchesProvider.notifier).remove(s),
             ),
-            onTap: () => _search(q),
+            onTap: () => _runSaved(s),
+          );
+        }
+        final j = i - savedRows;
+        if (j == 0) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
+            child: Row(
+              children: [
+                Text('Recent', style: header),
+                const Spacer(),
+                TextButton(
+                  onPressed: () {
+                    ref.read(sharedPrefsProvider).remove(_recentKey);
+                    setState(() => _recent = []);
+                  },
+                  child: const Text('Clear'),
+                ),
+              ],
+            ),
+          );
+        }
+        final q = _recent[j - 1];
+        return ListTile(
+          key: ValueKey('r_$q'),
+          leading: const Icon(Icons.history_rounded),
+          title: Text(q),
+          trailing: IconButton(
+            icon: const Icon(Icons.north_west_rounded, size: 18),
+            onPressed: () => _search(q, saveRecent: false),
           ),
-      ],
+          onTap: () => _search(q),
+        );
+      },
     );
   }
 
   Widget _filterBar() {
+    final cs = Theme.of(context).colorScheme;
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 2),
       child: Row(
         children: [
-          for (final e in _sorts.entries) ...[
-            ChoiceChip(
-              label: Text(e.value),
-              selected: _sort == e.key,
-              onSelected: (_) {
-                setState(() => _sort = e.key);
-                _search(_query, saveRecent: false);
-              },
-            ),
-            const SizedBox(width: 6),
-          ],
+          // The sort as one connected button group; the time range sits
+          // beside it.
+          ConnectedChoice<String>(
+            options: [for (final e in _sorts.entries) (e.key, e.value)],
+            selected: _sort,
+            fill: false,
+            onSelect: (k) {
+              setState(() => _sort = k);
+              _search(_query, saveRecent: false);
+            },
+          ),
           if (_sort == 'top') ...[
-            const SizedBox(width: 6),
+            const SizedBox(width: 12),
             PopupMenuButton<String>(
               initialValue: _time,
               onSelected: (v) {
@@ -326,11 +432,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               },
               itemBuilder: (_) => [
                 for (final t in _times.entries)
-                  PopupMenuItem(value: t.key, child: Text(t.value)),
+                  CheckedPopupMenuItem(
+                      value: t.key,
+                      checked: t.key == _time,
+                      child: Text(t.value)),
               ],
               child: Chip(
                 avatar: const Icon(Icons.schedule_rounded, size: 16),
                 label: Text(_times[_time] ?? 'All time'),
+                shape: const StadiumBorder(),
+                side: BorderSide.none,
+                backgroundColor: cs.surfaceContainerHigh,
               ),
             ),
           ],
@@ -366,7 +478,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                           WidgetsBinding.instance.addPostFrameCallback(
                               (_) => _loadMorePosts());
                         }
-                        return PostCard(post: _posts[i]);
+                        return PostCard(
+                            key: ValueKey(_posts[i].id), post: _posts[i]);
                       },
                     ),
             ),
@@ -389,12 +502,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             itemBuilder: (_, i) {
               final s = _subs[i];
               return ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: cs.secondaryContainer,
-                  foregroundColor: cs.onSecondaryContainer,
-                  child:
-                      Text(s.name.isNotEmpty ? s.name[0].toUpperCase() : '?'),
-                ),
+                key: ValueKey(s.name),
+                leading: LetterAvatar(
+                    name: s.name,
+                    size: 40,
+                    container: cs.secondaryContainer,
+                    content: cs.onSecondaryContainer),
                 title: Text(s.namePrefixed),
                 subtitle: Text('${compactNumber(s.subscribers)} members'),
                 onTap: () => context.push('/r/${s.name}'),
@@ -419,12 +532,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             itemBuilder: (_, i) {
               final u = _users[i];
               return ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: cs.secondaryContainer,
-                  foregroundColor: cs.onSecondaryContainer,
-                  child:
-                      Text(u.name.isNotEmpty ? u.name[0].toUpperCase() : '?'),
-                ),
+                key: ValueKey(u.name),
+                leading: LetterAvatar(
+                    name: u.name,
+                    size: 40,
+                    container: cs.secondaryContainer,
+                    content: cs.onSecondaryContainer),
                 title: Text('u/${u.name}'),
                 subtitle: Text('${compactNumber(u.linkKarma + u.commentKarma)} karma'),
                 onTap: () => context.push('/u/${u.name}'),

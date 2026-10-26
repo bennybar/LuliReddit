@@ -305,6 +305,18 @@ class RedditClient {
     return res;
   }
 
+  /// PUT with a form-encoded body (updating a custom feed's model).
+  Future<Response<T>> putForm<T>(String path,
+      {Map<String, dynamic>? data}) async {
+    await _ensureConfig();
+    final res = await _dio.put<dynamic>(_reqUrl(path, isGet: false),
+        data: data,
+        options: Options(contentType: Headers.formUrlEncodedContentType));
+    final body = _coerce(res.data);
+    _throwIfError(res.statusCode, body);
+    return _retype<T>(res, body);
+  }
+
   Future<Response<T>> delete<T>(String path,
       {Map<String, dynamic>? query}) async {
     await _ensureConfig();

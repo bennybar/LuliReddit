@@ -993,6 +993,62 @@ class RedditRepository {
 
   // --- Flair ---
 
+  /// Your user flair in [subreddit] (from its About, which carries it for the
+  /// signed-in user) and the choices it offers (user_flair_v2; empty when it
+  /// has none for you, or won't let you pick).
+  Future<UserFlairSelector> getUserFlairSelector(String subreddit) async {
+    Future<List<UserFlairChoice>> choices() async {
+      try {
+        // ".json": the website session's www host 404s this path without it.
+        final res = await _client
+            .get<List<dynamic>>('/r/$subreddit/api/user_flair_v2.json');
+        return [
+          for (final c in res.data ?? const [])
+            if (c is Map && c['id'] is String)
+              UserFlairChoice(
+                id: c['id'] as String,
+                text: (c['text'] as String? ?? '').trim(),
+                editable: c['text_editable'] == true,
+              ),
+        ];
+      } catch (_) {
+        return const []; // 403: no user flair here for you
+      }
+    }
+
+    final results = await Future.wait([
+      _client.get<Map<String, dynamic>>('/r/$subreddit/about'),
+      choices(),
+    ]);
+    final about = ((results[0] as Response<Map<String, dynamic>>).data?['data']
+            as Map?) ??
+        const {};
+    final text = (about['user_flair_text'] as String?)
+        ?.replaceAll(RegExp(r':[\w-]+:'), '')
+        .trim();
+    final id = about['user_flair_template_id'] as String?;
+    return UserFlairSelector(
+      currentText: text == null || text.isEmpty ? null : text,
+      currentId: id == null || id.isEmpty ? null : id,
+      choices: results[1] as List<UserFlairChoice>,
+    );
+  }
+
+  /// Sets your user flair in [subreddit] ([choice] null: no flair). [text]:
+  /// your words, for an editable choice.
+  Future<void> setUserFlair(String subreddit, String username,
+      UserFlairChoice? choice, String? text) async {
+    final res = await _client
+        .post<Map<String, dynamic>>('/r/$subreddit/api/selectflair', data: {
+      'api_type': 'json',
+      'name': username,
+      if (choice != null) 'flair_template_id': choice.id,
+      if (choice != null && choice.editable && text != null) 'text': text,
+    });
+    final errors = _apiErrors(res.data);
+    if (errors.isNotEmpty) throw Exception(errors.first);
+  }
+
   Future<List<Flair>> getLinkFlairs(String subreddit) async {
     try {
       final res =
@@ -1136,6 +1192,40 @@ class RedditRepository {
 
   Future<void> deleteMultireddit(String multipath) async {
     await _client.delete('/api/multi$multipath');
+  }
+
+  /// Renames / re-describes a custom feed, or makes it public or private (its
+  /// communities stay).
+  Future<void> updateMultireddit(Multireddit multi,
+      {required String displayName,
+      required String description,
+      required String visibility}) async {
+    final multipath = multi.path.replaceFirst(RegExp(r'/+$'), '');
+    final model = jsonEncode({
+      'display_name': displayName,
+      'description_md': description,
+      'visibility': visibility,
+      'subreddits': [for (final s in multi.subreddits) {'name': s}],
+    });
+    final res = await _client.putForm<Map<String, dynamic>>(
+        '/api/multi$multipath',
+        data: {'model': model, 'multipath': multipath, 'api_type': 'json'});
+    final errors = _apiErrors(res.data);
+    if (errors.isNotEmpty) throw Exception(errors.first);
+  }
+
+  /// Copies someone's (public) custom feed into yours as [displayName].
+  Future<void> copyMultireddit(
+      String fromPath, String username, String displayName) async {
+    final res = await _client
+        .post<Map<String, dynamic>>('/api/multi/copy', data: {
+      'from': fromPath.replaceFirst(RegExp(r'/+$'), ''),
+      'to': '/user/$username/m/${multiSlug(displayName)}',
+      'display_name': displayName,
+      'api_type': 'json',
+    });
+    final errors = _apiErrors(res.data);
+    if (errors.isNotEmpty) throw Exception(errors.first);
   }
 
   Future<void> addSubredditToMulti(String multipath, String subreddit) async {

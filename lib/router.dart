@@ -114,6 +114,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, state) => SearchScreen(
           initialSubreddit: state.uri.queryParameters['sr'],
           initialQuery: state.uri.queryParameters['q'],
+          initialSort: state.uri.queryParameters['sort'],
+          initialTime: state.uri.queryParameters['t'],
         ),
       ),
       GoRoute(
@@ -150,8 +152,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/m/:username/:name/manage',
-        builder: (_, state) =>
-            ManageMultiredditScreen(name: state.pathParameters['name']!),
+        builder: (_, state) => ManageMultiredditScreen(
+          username: state.pathParameters['username']!,
+          name: state.pathParameters['name']!,
+        ),
       ),
       GoRoute(
         path: '/comments/:subreddit/:id',

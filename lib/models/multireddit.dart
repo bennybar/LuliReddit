@@ -18,6 +18,12 @@ class Multireddit {
   final String visibility;
   final String? iconUrl;
 
+  /// Who owns it (from `/user/<name>/m/<feed>`), else [me].
+  String owner(String me) {
+    final parts = path.split('/').where((p) => p.isNotEmpty).toList();
+    return parts.length >= 4 && parts[0] == 'user' ? parts[1] : me;
+  }
+
   factory Multireddit.fromData(Map<String, dynamic> d) {
     final subs = (d['subreddits'] as List?) ?? const [];
     return Multireddit(
@@ -35,4 +41,13 @@ class Multireddit {
           : d['icon_url'] as String?,
     );
   }
+}
+
+/// A feed name Reddit accepts in a path, made from [displayName] (a copy's
+/// new name).
+String multiSlug(String displayName) {
+  var s = displayName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9_]+'), '_');
+  s = s.replaceAll(RegExp(r'^_+|_+$'), '');
+  if (s.length > 50) s = s.substring(0, 50);
+  return s.isEmpty ? 'feed' : s;
 }

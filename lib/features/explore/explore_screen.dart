@@ -1,15 +1,16 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/deep_links.dart';
 import '../../core/format.dart';
 import '../../core/providers.dart';
+import '../../core/widgets/connected_choice.dart';
+import '../../core/widgets/error_view.dart';
 import '../../models/subreddit.dart';
 import '../auth/auth_controller.dart';
+import '../feed/post_card.dart' show LetterAvatar;
 import '../history/history_store.dart';
-import '../home/account_tab.dart' show SignInPrompt;
+import '../home/account_tab.dart' show SignInPrompt, createMulti;
 import '../home/tab_menu.dart';
 import '../home/tab_signals.dart';
 import '../multireddit/multireddit_providers.dart';
@@ -56,7 +57,14 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
       body: SafeArea(
         bottom: false,
         child: RefreshIndicator(
-          onRefresh: () async => ref.invalidate(subscribedSubredditsProvider),
+          onRefresh: () async {
+            ref.read(redditRepositoryProvider).clearSubsCache(); // force
+            ref.invalidate(subscribedSubredditsProvider);
+            ref.invalidate(myMultiredditsProvider);
+            try {
+              await ref.read(subscribedSubredditsProvider.future);
+            } catch (_) {/* shown by the list */}
+          },
           child: CustomScrollView(
             controller: _scroll,
             slivers: [
@@ -93,31 +101,27 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                 ),
               ),
               SliverToBoxAdapter(
+                // A connected pair: round outer corners, tight inner ones.
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
                   child: Row(
                     children: [
                       Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => context.push('/r/popular'),
-                          icon: const Icon(Icons.local_fire_department_rounded,
-                              size: 18),
-                          label: const Text('Popular'),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
+                          child: _connectedOutlined(
+                              0,
+                              Icons.local_fire_department_rounded,
+                              'Popular',
+                              () => context.push('/r/popular'))),
+                      const SizedBox(width: connectedGap),
                       Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => context.push('/r/all'),
-                          icon: const Icon(Icons.public_rounded, size: 18),
-                          label: const Text('All'),
-                        ),
-                      ),
+                          child: _connectedOutlined(1, Icons.public_rounded,
+                              'All', () => context.push('/r/all'))),
                     ],
                   ),
                 ),
               ),
-              // Custom feeds (multireddits) — hidden when the user has none.
+              // Custom feeds (multireddits), with "New feed" at the end
+              // (signed in).
               SliverToBoxAdapter(child: _customFeeds(context, cs)),
               SliverToBoxAdapter(
                 child: Padding(
@@ -155,12 +159,11 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                           ),
                         ),
                       ),
-                      IconButton(
-                        tooltip: _favOnly ? 'Showing favorites' : 'Favorites only',
-                        icon: Icon(_favOnly
-                            ? Icons.star_rounded
-                            : Icons.star_border_rounded),
-                        color: _favOnly ? cs.primary : null,
+                      IconButton.filledTonal(
+                        tooltip: 'Favorites only',
+                        isSelected: _favOnly,
+                        icon: const Icon(Icons.star_border_rounded),
+                        selectedIcon: const Icon(Icons.star_rounded),
                         onPressed: () => setState(() => _favOnly = !_favOnly),
                       ),
                       PopupMenuButton<String>(
@@ -168,13 +171,16 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                         icon: const Icon(Icons.sort_rounded),
                         initialValue: _sort,
                         onSelected: (v) => setState(() => _sort = v),
-                        itemBuilder: (_) => const [
-                          PopupMenuItem(
-                              value: 'default', child: Text('Default')),
-                          PopupMenuItem(value: 'name', child: Text('Name A–Z')),
-                          PopupMenuItem(
-                              value: 'subscribers',
-                              child: Text('Most subscribers')),
+                        itemBuilder: (_) => [
+                          for (final (k, label) in const [
+                            ('default', 'Default'),
+                            ('name', 'Name A–Z'),
+                            ('subscribers', 'Most subscribers'),
+                          ])
+                            CheckedPopupMenuItem(
+                                value: k,
+                                checked: k == _sort,
+                                child: Text(label)),
                         ],
                       ),
                     ],
@@ -288,39 +294,77 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
     );
   }
 
-  /// Horizontal row of the user's custom feeds (multireddits). Renders nothing
-  /// while loading, on error, or when the user has none.
+  Widget _connectedOutlined(
+          int i, IconData icon, String label, VoidCallback onTap) =>
+      OutlinedButton.icon(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(0, 52),
+          shape: RoundedRectangleBorder(
+              borderRadius: connectedRadius(i, 2, height: 52)
+                  .resolve(Directionality.of(context))),
+        ),
+        icon: Icon(icon, size: 18),
+        label: Text(label),
+      );
+
+  /// The custom feeds row: "See all" and a "New feed" chip when signed in;
+  /// nothing for a guest without feeds.
   Widget _customFeeds(BuildContext context, ColorScheme cs) {
     final multis = ref.watch(myMultiredditsProvider);
+    final auth = ref.watch(authControllerProvider.select((a) =>
+        (a.valueOrNull?.anonymous ?? true, a.valueOrNull?.username ?? '')));
+    final (anonymous, me) = auth;
     final list = multis.valueOrNull ?? const [];
-    if (list.isEmpty) return const SizedBox.shrink();
+    if (list.isEmpty && anonymous) return const SizedBox.shrink();
+    Widget chip(IconData icon, String label, VoidCallback onTap) => ActionChip(
+          avatar: Icon(icon, size: 18, color: cs.onSecondaryContainer),
+          label: Text(label),
+          onPressed: onTap,
+          shape: const StadiumBorder(),
+          side: BorderSide.none,
+          backgroundColor: cs.surfaceContainerHigh,
+        );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 2),
-          child: Text('Custom feeds',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: cs.primary, fontWeight: FontWeight.w700)),
+          padding: const EdgeInsets.fromLTRB(16, 6, 4, 0),
+          child: Row(children: [
+            Expanded(
+              child: Text('Custom feeds',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: cs.primary, fontWeight: FontWeight.w700)),
+            ),
+            if (!anonymous)
+              TextButton(
+                onPressed: () => context.push('/custom_feeds'),
+                child: const Text('See all'),
+              ),
+          ]),
         ),
         SizedBox(
-          height: 44,
+          height: 48,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 12),
-            itemCount: list.length,
+            itemCount: list.length + (anonymous ? 0 : 1),
             separatorBuilder: (_, __) => const SizedBox(width: 8),
             itemBuilder: (_, i) {
+              if (i == list.length) {
+                return Center(
+                  key: const ValueKey('new_multi'),
+                  child: chip(Icons.add_rounded, 'New feed',
+                      () => createMulti(context, ref, me)),
+                );
+              }
               final m = list[i];
-              return ActionChip(
-                avatar: Icon(Icons.dynamic_feed_rounded,
-                    size: 18, color: cs.onSecondaryContainer),
-                label: Text(m.displayName.isNotEmpty ? m.displayName : m.name),
-                onPressed: () {
-                  final route = routeForRedditUrl(
-                      Uri.parse('https://reddit.com${m.path}'));
-                  if (route != null) context.push(route);
-                },
+              return Center(
+                key: ValueKey(m.path.isEmpty ? m.name : m.path),
+                child: chip(
+                    Icons.dynamic_feed_rounded,
+                    m.displayName.isNotEmpty ? m.displayName : m.name,
+                    () => context.push('/m/${m.owner(me)}/${m.name}')),
               );
             },
           ),
@@ -342,12 +386,13 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
 
   Widget _subList(WidgetRef ref, List<Subreddit> subs) => SliverList.builder(
         itemCount: subs.length,
-        itemBuilder: (context, i) => _SubredditRow(subreddit: subs[i]),
+        itemBuilder: (context, i) =>
+            _SubredditRow(key: ValueKey(subs[i].name), subreddit: subs[i]),
       );
 }
 
 class _SubredditRow extends ConsumerWidget {
-  const _SubredditRow({required this.subreddit});
+  const _SubredditRow({super.key, required this.subreddit});
   final Subreddit subreddit;
 
   @override
@@ -355,28 +400,32 @@ class _SubredditRow extends ConsumerWidget {
     final cs = Theme.of(context).colorScheme;
     final s = subreddit;
     return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: cs.secondaryContainer,
-        foregroundColor: cs.onSecondaryContainer,
-        backgroundImage:
-            s.iconUrl != null ? CachedNetworkImageProvider(s.iconUrl!) : null,
-        child: s.iconUrl == null
-            ? Text(s.name.isNotEmpty ? s.name[0].toUpperCase() : '?')
-            : null,
-      ),
+      leading: LetterAvatar(
+          name: s.name,
+          size: 40,
+          container: cs.secondaryContainer,
+          content: cs.onSecondaryContainer,
+          imageUrl: s.iconUrl),
       title: Text(s.namePrefixed),
       subtitle: Text('${compactNumber(s.subscribers)} members'),
       trailing: IconButton(
-        tooltip: s.userHasFavorited ? 'Unfavorite' : 'Favorite',
-        icon: Icon(
-          s.userHasFavorited ? Icons.star_rounded : Icons.star_border_rounded,
-          color: s.userHasFavorited ? cs.primary : cs.onSurfaceVariant,
-        ),
+        tooltip: 'Favorite',
+        isSelected: s.userHasFavorited,
+        icon: Icon(Icons.star_border_rounded, color: cs.onSurfaceVariant),
+        selectedIcon: Icon(Icons.star_rounded, color: cs.primary),
+        // The star toggle: favouriting reorders the list, so reload it after.
         onPressed: () async {
-          await ref
-              .read(redditRepositoryProvider)
-              .setSubredditFavorite(s.name, !s.userHasFavorited);
-          ref.invalidate(subscribedSubredditsProvider);
+          try {
+            await ref
+                .read(redditRepositoryProvider)
+                .setSubredditFavorite(s.name, !s.userHasFavorited);
+            ref.invalidate(subscribedSubredditsProvider);
+          } catch (e) {
+            if (context.mounted) {
+              showActionError(context,
+                  s.userHasFavorited ? 'unfavorite' : 'favorite', e);
+            }
+          }
         },
       ),
       onTap: () => context.push('/r/${s.name}'),

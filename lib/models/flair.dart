@@ -87,3 +87,22 @@ UserFlair? authorFlairOf(Map<String, dynamic>? d) {
   }
   return tidy.isEmpty ? null : UserFlair(tidy);
 }
+
+/// A choice of user flair in a community, and whether you may write your own
+/// text in it.
+class UserFlairChoice {
+  const UserFlairChoice(
+      {required this.id, required this.text, required this.editable});
+  final String id;
+  final String text;
+  final bool editable;
+}
+
+/// Your flair in a community now, and what you can pick from.
+class UserFlairSelector {
+  const UserFlairSelector(
+      {this.currentText, this.currentId, this.choices = const []});
+  final String? currentText;
+  final String? currentId;
+  final List<UserFlairChoice> choices;
+}

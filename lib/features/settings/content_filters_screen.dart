@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../feed/content_filters.dart';
 
-/// Manage content filters: keywords (title), domains, and flairs that hide
-/// matching posts across all feeds.
+/// Manage content filters: keywords (title), domains, subreddits and flairs
+/// that hide matching posts across all feeds.
 class ContentFiltersScreen extends ConsumerWidget {
   const ContentFiltersScreen({super.key});
 
@@ -149,7 +149,11 @@ class _FilterSectionState extends State<_FilterSection> {
                   decoration: InputDecoration(
                     isDense: true,
                     hintText: widget.hint,
-                    border: const OutlineInputBorder(),
+                    filled: true,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: BorderSide.none,
+                    ),
                   ),
                 ),
               ),
