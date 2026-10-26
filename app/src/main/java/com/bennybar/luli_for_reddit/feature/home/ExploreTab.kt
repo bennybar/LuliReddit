@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import com.bennybar.luli_for_reddit.ui.connectedShapes
+import com.bennybar.luli_for_reddit.ui.ConnectedGap
 import com.bennybar.luli_for_reddit.ui.RefreshBox
 import com.bennybar.luli_for_reddit.ui.Loading
 import androidx.compose.material3.TextButton
@@ -173,7 +175,13 @@ internal fun ExploreTab() {
             // Search entry
             item(key = "search") {
                 Row(
-                    Modifier.padding(start = if (LocalSideBar.current != null) 4.dp else 16.dp, top = 12.dp, end = 16.dp, bottom = 4.dp),
+                    Modifier.padding(
+                        start = if (LocalSideBar.current != null) 4.dp else 16.dp,
+                        // With the ☰ here: the same spot as on the other tabs (#34).
+                        top = if (LocalSideBar.current != null) 6.dp else 12.dp,
+                        end = 16.dp,
+                        bottom = 4.dp,
+                    ),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     SideBarButton()
@@ -181,19 +189,22 @@ internal fun ExploreTab() {
                 }
             }
             item(key = "popular") {
+                // A connected pair (#35): round outer corners, tight inner ones.
                 Row(Modifier.padding(start = 12.dp, top = 8.dp, end = 12.dp)) {
                     OutlinedButton(
                         onClick = { nav.openSubreddit("popular") },
                         modifier = Modifier.weight(1f).defaultMinSize(minHeight = 52.dp),
+                        shape = connectedShapes(0, 2).shape,
                     ) {
                         Icon(Icons.Rounded.LocalFireDepartment, null, Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
                         Text("Popular")
                     }
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(ConnectedGap))
                     OutlinedButton(
                         onClick = { nav.openSubreddit("all") },
                         modifier = Modifier.weight(1f).defaultMinSize(minHeight = 52.dp),
+                        shape = connectedShapes(1, 2).shape,
                     ) {
                         Icon(Icons.Rounded.Public, null, Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))

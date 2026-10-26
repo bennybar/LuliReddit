@@ -45,6 +45,14 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.38", "Oct 26, 2026",
+        listOf(
+            "Connected button groups: the Inbox filters, Search sort and Explore's Popular / All",
+            "Polls show as one segmented list",
+            "The side bar's ☰ sits in exactly the same spot on every tab",
+        ),
+    ),
+    Release(
         "2.0.37", "Oct 25, 2026",
         listOf(
             "Material 3 Expressive loading: morphing-shape indicators everywhere Ilay is loading, including pull to refresh",

@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.ui.ConnectedChoice
 import com.bennybar.luli_for_reddit.ui.RefreshBox
 import com.bennybar.luli_for_reddit.ui.Loading
 import androidx.compose.material3.LocalContentColor
@@ -37,8 +38,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -552,15 +551,9 @@ private fun FilterBar(state: SearchState, vm: SearchViewModel) {
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        items(SEARCH_SORTS.entries.toList(), key = { it.key }) { e ->
-            FilterChip(
-                selected = state.sort == e.key,
-                onClick = { vm.setSort(e.key) },
-                label = { Text(e.value) },
-                shape = CircleShape,
-                border = null,
-                colors = FilterChipDefaults.filterChipColors(containerColor = cs.surfaceContainerHigh),
-            )
+        // The sort as one connected button group (#35); the time range sits beside it.
+        item(key = "sort") {
+            ConnectedChoice(SEARCH_SORTS.entries.map { it.key to it.value }, state.sort, vm::setSort, fill = false)
         }
         if (state.sort == "top") {
             item(key = "time") {

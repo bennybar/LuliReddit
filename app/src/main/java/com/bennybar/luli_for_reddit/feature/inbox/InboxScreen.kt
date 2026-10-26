@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.inbox
 
+import com.bennybar.luli_for_reddit.ui.ConnectedChoice
 import com.bennybar.luli_for_reddit.ui.RefreshBox
 import com.bennybar.luli_for_reddit.ui.Loading
 import com.bennybar.luli_for_reddit.feature.home.SideBarButton
@@ -15,7 +16,6 @@ import com.bennybar.luli_for_reddit.feature.feed.LoadMoreNearEnd
 import com.bennybar.luli_for_reddit.feature.feed.SwipeSpec
 import com.bennybar.luli_for_reddit.feature.feed.SwipeActions
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,7 +34,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -52,8 +51,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -235,26 +232,7 @@ private fun InboxList(where: String, listState: LazyListState) {
 
     Column(Modifier.fillMaxSize()) {
         if (where == "inbox") {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(start = 12.dp, end = 12.dp, top = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                for ((key, label) in kindFilters) {
-                    FilterChip(
-                        selected = kindFilter == key,
-                        onClick = { kindFilter = key },
-                        label = { Text(label) },
-                        shape = CircleShape,
-                        border = null,
-                        colors = FilterChipDefaults.filterChipColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        ),
-                    )
-                }
-            }
+            ConnectedChoice(kindFilters, kindFilter, { kindFilter = it }, Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp))
         }
         RefreshBox(
             isRefreshing = refreshing,

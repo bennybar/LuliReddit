@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import androidx.compose.ui.Modifier
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.Icons
@@ -13,11 +14,16 @@ import com.bennybar.luli_for_reddit.nav.Route
 /** Opens the side bar (Settings › Navigation: side bar / both); null when it's off. */
 val LocalSideBar = staticCompositionLocalOf<(() -> Unit)?> { null }
 
-/** The ☰ at the start of a tab's top bar, when the side bar is on. */
+/**
+ * The ☰ at the start of a tab's top bar, when the side bar is on. Every tab
+ * places it the same: 4dp from the edge and 8dp from the top of the tab
+ * (the Inbox's top app bar puts it there itself), so it doesn't shift as
+ * you switch tabs (#34).
+ */
 @Composable
-fun SideBarButton() {
+fun SideBarButton(modifier: Modifier = Modifier) {
     val open = LocalSideBar.current ?: return
-    IconButton(onClick = open) { Icon(Icons.Rounded.Menu, "Open menu") }
+    IconButton(onClick = open, modifier) { Icon(Icons.Rounded.Menu, "Open menu") }
 }
 
 /** The ⚙ at the top of a tab's main screen: straight to Settings. */

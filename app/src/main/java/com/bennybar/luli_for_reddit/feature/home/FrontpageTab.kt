@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import androidx.compose.foundation.layout.offset
 import androidx.compose.material.icons.outlined.PostAdd
 import androidx.compose.material.icons.outlined.Settings
 import androidx.activity.compose.BackHandler
@@ -110,7 +111,13 @@ internal fun FrontpageTab(chromeVisible: Boolean) {
                 exit = shrinkVertically(tween(220), shrinkTowards = Alignment.Top),
             ) {
                 Row(
-                    Modifier.fillMaxWidth().padding(start = if (LocalSideBar.current != null) 4.dp else 16.dp, top = 12.dp, end = 16.dp, bottom = 4.dp),
+                    // With the ☰ here: the same spot as on the other tabs (#34).
+                    Modifier.fillMaxWidth().padding(
+                        start = if (LocalSideBar.current != null) 4.dp else 16.dp,
+                        top = if (LocalSideBar.current != null) 6.dp else 12.dp,
+                        end = 16.dp,
+                        bottom = 4.dp,
+                    ),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     SideBarButton()
@@ -134,14 +141,15 @@ internal fun FrontpageTab(chromeVisible: Boolean) {
                 Row(
                     Modifier.fillMaxWidth().padding(
                         // With the ☰ there, line it up with the other tabs' (4dp + the button's own inset).
-                        start = if (expandable && LocalSideBar.current != null) 4.dp else 16.dp,
-                        top = if (expandable) 10.dp else 8.dp,
+                        // This header sits inside the feed, which already insets it 7dp.
+                        start = if (expandable && LocalSideBar.current != null) 0.dp else 16.dp,
+                        top = if (expandable) (if (LocalSideBar.current != null) 8.dp else 10.dp) else 8.dp,
                         end = if (expandable) 4.dp else 16.dp,
                     ),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     // Full mode has it in the action row above.
-                    if (expandable) SideBarButton()
+                    if (expandable) SideBarButton(Modifier.offset(x = (-3).dp))
                     Text(
                         if (homeOn) "Home" else if (blend) "Blend" else if (forYou) "For You" else "Frontpage",
                         style = MaterialTheme.typography.titleLarge,

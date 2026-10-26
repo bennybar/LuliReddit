@@ -736,11 +736,20 @@ fun PollOptions(p: Post) {
             val votes = p.pollVotes.getOrNull(i)
             val chosen = p.pollChoice == i
             val share = if (votes != null && total > 0) votes.toFloat() / total else 0f
+            // A segmented list (#35): one block, round outside, tight between options.
+            val n = p.pollOptions.size
+            val big = 20.dp
+            val small = 4.dp
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 8.dp)
-                    .clip(RoundedCornerShape(14.dp))
+                    .padding(bottom = if (i == n - 1) 8.dp else 2.dp)
+                    .clip(
+                        RoundedCornerShape(
+                            topStart = if (i == 0) big else small, topEnd = if (i == 0) big else small,
+                            bottomStart = if (i == n - 1) big else small, bottomEnd = if (i == n - 1) big else small,
+                        ),
+                    )
                     .background(cs.surfaceContainerHigh),
             ) {
                 if (votes != null) {
