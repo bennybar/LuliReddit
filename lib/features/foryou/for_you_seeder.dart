@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../core/providers.dart';
 import '../../models/post.dart';
+import '../../models/subreddit.dart';
 import '../auth/auth_controller.dart';
 import '../history/history_store.dart';
 import '../history/interest_store.dart';
@@ -98,4 +99,39 @@ Future<List<Post>?> loadForYouPage(String user, Set<String> opened,
   } catch (_) {
     return null;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Subscription snapshot, so favourites are known before the list loads
+// ---------------------------------------------------------------------------
+
+Future<File> _subsFile(String user) async => File(
+    '${(await getApplicationSupportDirectory()).path}/fy_subs_${user.toLowerCase()}.json');
+
+/// Favourites and subscriptions (lowercase names) from the last fetched list.
+Future<({Set<String> favourites, Set<String> subscribed})?> loadSubsSnapshot(
+    String user) async {
+  if (user.isEmpty) return null;
+  try {
+    final f = await _subsFile(user);
+    if (!f.existsSync()) return null;
+    final o = jsonDecode(await f.readAsString()) as Map<String, dynamic>;
+    Set<String> set(String k) => {for (final v in o[k] as List) '$v'};
+    return (favourites: set('fav'), subscribed: set('sub'));
+  } catch (_) {
+    return null;
+  }
+}
+
+Future<void> saveSubsSnapshot(String user, List<Subreddit> subs) async {
+  if (user.isEmpty) return;
+  try {
+    await (await _subsFile(user)).writeAsString(jsonEncode({
+      'fav': [
+        for (final s in subs)
+          if (s.userHasFavorited) s.name.toLowerCase()
+      ],
+      'sub': [for (final s in subs) s.name.toLowerCase()],
+    }));
+  } catch (_) {/* best effort */}
 }

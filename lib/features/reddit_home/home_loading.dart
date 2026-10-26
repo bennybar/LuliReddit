@@ -7,11 +7,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// the live counter (0 = still opening the page).
 final redditHomeProgressProvider = StateProvider<int>((ref) => 0);
 
-/// Home's loading state: a small deck of post cards shuffling while a live
-/// counter shows how many posts have been found. Shown when there's no saved
-/// Home page to paint instead (first open, or switching to Home).
+/// The same for For You: candidate posts gathered so far for its first page.
+final forYouProgressProvider = StateProvider<int>((ref) => 0);
+
+/// Home's and For You's loading state: a small deck of post cards shuffling
+/// while a live counter shows how many posts have been found; the first cards
+/// are then dealt into the feed ([DealIn]).
 class HomeLoadingDeck extends ConsumerStatefulWidget {
-  const HomeLoadingDeck({super.key});
+  const HomeLoadingDeck({super.key, this.forYou = false});
+  final bool forYou;
 
   @override
   ConsumerState<HomeLoadingDeck> createState() => _HomeLoadingDeckState();
@@ -42,7 +46,9 @@ class _HomeLoadingDeckState extends ConsumerState<HomeLoadingDeck>
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final found = ref.watch(redditHomeProgressProvider);
+    final forYou = widget.forYou;
+    final found = ref.watch(
+        forYou ? forYouProgressProvider : redditHomeProgressProvider);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -89,7 +95,10 @@ class _HomeLoadingDeckState extends ConsumerState<HomeLoadingDeck>
           const SizedBox(height: 18),
           Text.rich(
             found == 0
-                ? const TextSpan(text: 'Opening your Home…')
+                ? TextSpan(
+                    text: forYou
+                        ? 'Personalizing your feed…'
+                        : 'Opening your Home…')
                 : TextSpan(children: [
                     const TextSpan(text: 'Found '),
                     TextSpan(
@@ -97,7 +106,7 @@ class _HomeLoadingDeckState extends ConsumerState<HomeLoadingDeck>
                         style: TextStyle(
                             color: cs.primary, fontWeight: FontWeight.w800)),
                     TextSpan(text: found == 1 ? ' post' : ' posts'),
-                    const TextSpan(text: ' in your Home'),
+                    TextSpan(text: forYou ? ' for you' : ' in your Home'),
                   ]),
             style: TextStyle(
               fontSize: 13.5,

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -104,6 +105,12 @@ class RedditRepository {
     String? cursors, // JSON cursor bundle from a previous page's `after`
     Set<String> excludeIds = const {},
     List<Candidate> carryOver = const [],
+    void Function(int posts)? onSource, // each source's post count, as it arrives
+    // Favourites and subscriptions from the last fetched list ([onSubs]), so
+    // favourites go out with everything else instead of after the ~2s
+    // subscription call.
+    ({Set<String> favourites, Set<String> subscribed})? subsSnapshot,
+    void Function(List<Subreddit> subs)? onSubs,
   }) async {
     Map<String, dynamic> prev = const {};
     if (cursors != null && cursors.isNotEmpty) {
@@ -116,7 +123,7 @@ class RedditRepository {
     // cursors once before ending the feed — it used to stop dead.
     for (var attempt = 0; attempt < 2; attempt++) {
       page = await _forYouPage(inputs, communities, prev, excludeIds,
-          attempt == 0 ? carryOver : const []);
+          attempt == 0 ? carryOver : const [], onSource, subsSnapshot, onSubs);
       if (page.listing.items.isNotEmpty || page.cursors.isEmpty) break;
       prev = page.cursors;
     }
@@ -129,6 +136,9 @@ class RedditRepository {
     Map<String, dynamic> prev,
     Set<String> excludeIds,
     List<Candidate> carryOver,
+    void Function(int posts)? onSource,
+    ({Set<String> favourites, Set<String> subscribed})? subsSnapshot,
+    void Function(List<Subreddit> subs)? onSubs,
   ) async {
     final firstPage = prev.isEmpty;
     final muted = inputs.muted;
@@ -145,12 +155,19 @@ class RedditRepository {
 
     // Each source: its listing, or null if it failed / timed out. Secondary
     // sources get a short timeout so the slowest community doesn't decide how
-    // long the page takes.
+    // long the page takes. The first real failure (not a timeout) is kept to
+    // report if nothing at all loads.
+    Object? firstError;
     Future<Listing<Post>?> source(Future<Listing<Post>> f,
             {bool secondary = true}) =>
         (secondary ? f.timeout(const Duration(milliseconds: 2500)) : f)
-            .then<Listing<Post>?>((l) => l)
-            .catchError((_) => null);
+            .then<Listing<Post>?>((l) {
+          onSource?.call(l.items.length);
+          return l;
+        }).catchError((Object e) {
+          if (e is! TimeoutException) firstError ??= e;
+          return null;
+        });
 
     // A cursor of '' means "start this source from the top" (its first
     // fetch failed); a missing key means the source is exhausted.
@@ -160,8 +177,15 @@ class RedditRepository {
       return (v == null || v.isEmpty) ? null : v;
     }
 
+    // From the snapshot when there is one; the live list then refreshes the
+    // snapshot for next time, in the background.
     final subsF = getSubscribedSubreddits()
         .catchError((_) => const <Subreddit>[]);
+    if (subsSnapshot != null) {
+      subsF.then((subs) {
+        if (subs.isNotEmpty) onSubs?.call(subs);
+      });
+    }
     final bestF = live('best')
         ? source(
             getPosts(
@@ -191,12 +215,18 @@ class RedditRepository {
           source(getPosts(subreddit: s, sort: PostSort.hot, limit: 6)),
     ];
 
-    final mySubs = await subsF;
-    final favourites = {
-      for (final s in mySubs)
-        if (s.userHasFavorited) s.name.toLowerCase()
-    };
-    final subscribed = {for (final s in mySubs) s.name.toLowerCase()};
+    final Set<String> favourites, subscribed;
+    if (subsSnapshot != null) {
+      (:favourites, :subscribed) = subsSnapshot;
+    } else {
+      final mySubs = await subsF;
+      if (mySubs.isNotEmpty) onSubs?.call(mySubs);
+      favourites = {
+        for (final s in mySubs)
+          if (s.userHasFavorited) s.name.toLowerCase()
+      };
+      subscribed = {for (final s in mySubs) s.name.toLowerCase()};
+    }
     // Favourites go out the moment the list is known, while the rest is still
     // in flight. One already fetched as a top interest isn't fetched twice.
     final favouriteF = [
@@ -231,6 +261,9 @@ class RedditRepository {
       add(l, 'community');
     }
 
+    // Every source failed (offline, rate-limited…): say so, rather than
+    // showing an empty feed that just ends.
+    if (pool.isEmpty && firstError != null) throw firstError!;
     final result = rankForYou(
         pool, inputs.withSubscriptions(favourites, subscribed));
 

@@ -3,8 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/app_icon.dart';
 import '../../core/reddit_constants.dart';
 import '../../core/widgets/error_view.dart';
+import '../settings/settings_controller.dart';
 import 'auth_controller.dart';
 import 'auth_repository.dart';
 import 'web_login_screen.dart';
@@ -26,6 +28,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   String? _error;
   String? _checkResult;
   bool _checkOk = false;
+  // Two equal ways in. New users default to the website (Reddit no longer
+  // hands out new API keys); someone with a saved Client ID gets the API form.
+  bool _useApi = false;
 
   @override
   void initState() {
@@ -43,6 +48,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!mounted) return;
     setState(() {
       if (id != null) _clientId.text = id;
+      if (id != null && id.trim().isNotEmpty) _useApi = true;
       if (redirect != null) _redirect.text = redirect;
       if (giphy != null) _giphy.text = giphy;
     });
@@ -144,15 +150,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
           children: [
             // Brand
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: cs.primaryContainer,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Icon(Icons.rocket_launch_rounded,
-                  size: 38, color: cs.onPrimaryContainer),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: AppIconPreview(
+                  AppIcon.parse(ref.watch(settingsControllerProvider
+                      .select((s) => s.appIcon))),
+                  size: 72),
             ),
             const SizedBox(height: 20),
             Text('Ilay for Reddit',
@@ -162,9 +165,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 8),
             Text(
-              'Connect your own Reddit API app to sign in. Ilay ships without '
-              'any keys baked in — you provide them once, stored securely on '
-              'this device.',
+              "Sign in with your Reddit account. Both ways work the same once "
+              "you're in.",
               style: Theme.of(context)
                   .textTheme
                   .bodyMedium
@@ -172,123 +174,173 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
             const SizedBox(height: 24),
 
-            _SetupCard(redirectUri: _redirect.text),
+            SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(
+                      value: false,
+                      icon: Icon(Icons.public_rounded, size: 18),
+                      label: Text('Reddit website')),
+                  ButtonSegment(
+                      value: true,
+                      icon: Icon(Icons.key_rounded, size: 18),
+                      label: Text('API key')),
+                ],
+                selected: {_useApi},
+                onSelectionChanged: (v) => setState(() {
+                  _useApi = v.first;
+                  _error = null;
+                }),
+              ),
+            ),
             const SizedBox(height: 20),
-
-            _Field(
-              controller: _clientId,
-              label: 'Reddit Client ID',
-              hint: 'e.g. AbCdEf123...',
-              icon: Icons.key_rounded,
-              suffix: IconButton(
-                tooltip: 'Paste',
-                icon: const Icon(Icons.content_paste_rounded),
-                onPressed: () async {
-                  final data = await Clipboard.getData('text/plain');
-                  final txt = data?.text?.trim();
-                  if (txt != null && txt.isNotEmpty) {
-                    setState(() => _clientId.text = txt);
-                  }
-                },
-              ),
-            ),
-            const SizedBox(height: 12),
-            _Field(
-              controller: _redirect,
-              label: 'Redirect URI',
-              hint: RedditConstants.defaultRedirectUri,
-              icon: Icons.link_rounded,
-              helper:
-                  'Must match the redirect URI registered on your Reddit app.',
-            ),
-            // A RedReader-issued client ID only redirects to RedReader's URI.
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: TextButton.icon(
-                icon: const Icon(Icons.swap_horiz_rounded, size: 18),
-                label: const Text('Using a RedReader client ID?'),
-                onPressed: () =>
-                    _redirect.text = RedditConstants.redReaderRedirectUri,
-              ),
-            ),
-            if (_redirect.text.trim().startsWith('redreader:'))
-              Padding(
-                padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-                child: Text(
-                  'If RedReader is also installed, Android will ask which app '
-                  'should finish signing in. Pick Ilay. This client ID was '
-                  'issued to RedReader, and Reddit could revoke it.',
-                  style: TextStyle(
-                      fontSize: 12.5,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant),
+            if (!_useApi) ...[
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Sign in on reddit.com',
+                          style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 6),
+                      Text(
+                        "Reddit's own sign-in page opens inside Ilay. No API key "
+                        'needed, and your password goes only to Reddit.',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(color: cs.onSurfaceVariant),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        "This uses the website rather than Reddit's official "
+                        'API. It can stop working if Reddit changes its site, '
+                        'and Reddit could treat it as against its usage policy.',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: cs.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            const SizedBox(height: 4),
-            _Field(
-              controller: _giphy,
-              label: 'Giphy API Key (optional)',
-              hint: 'Enables GIF picker',
-              icon: Icons.gif_box_rounded,
-            ),
+              if (_error != null) ...[
+                const SizedBox(height: 16),
+                _Banner(ok: false, text: _error!),
+              ],
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: _busy ? null : _webLogin,
+                icon: const Icon(Icons.login_rounded),
+                label: const Text('Sign in with Reddit'),
+              ),
+            ] else ...[
+                _SetupCard(redirectUri: _redirect.text),
+                const SizedBox(height: 20),
 
-            if (_checkResult != null) ...[
-              const SizedBox(height: 16),
-              _Banner(
-                ok: _checkOk,
-                text: _checkResult!,
+                _Field(
+                  controller: _clientId,
+                  label: 'Reddit Client ID',
+                  hint: 'e.g. AbCdEf123...',
+                  icon: Icons.key_rounded,
+                  suffix: IconButton(
+                    tooltip: 'Paste',
+                    icon: const Icon(Icons.content_paste_rounded),
+                    onPressed: () async {
+                      final data = await Clipboard.getData('text/plain');
+                      final txt = data?.text?.trim();
+                      if (txt != null && txt.isNotEmpty) {
+                        setState(() => _clientId.text = txt);
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _Field(
+                  controller: _redirect,
+                  label: 'Redirect URI',
+                  hint: RedditConstants.defaultRedirectUri,
+                  icon: Icons.link_rounded,
+                  helper:
+                      'Must match the redirect URI registered on your Reddit app.',
+                ),
+                // A RedReader-issued client ID only redirects to RedReader's URI.
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+                    label: const Text('Using a RedReader client ID?'),
+                    onPressed: () =>
+                        _redirect.text = RedditConstants.redReaderRedirectUri,
+                  ),
+                ),
+                if (_redirect.text.trim().startsWith('redreader:'))
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+                    child: Text(
+                      'If RedReader is also installed, Android will ask which app '
+                      'should finish signing in. Pick Ilay. This client ID was '
+                      'issued to RedReader, and Reddit could revoke it.',
+                      style: TextStyle(
+                          fontSize: 12.5,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    ),
+                  ),
+                const SizedBox(height: 4),
+                _Field(
+                  controller: _giphy,
+                  label: 'Giphy API Key (optional)',
+                  hint: 'Enables GIF picker',
+                  icon: Icons.gif_box_rounded,
+                ),
+
+                if (_checkResult != null) ...[
+                  const SizedBox(height: 16),
+                  _Banner(
+                    ok: _checkOk,
+                    text: _checkResult!,
+                  ),
+                ],
+                if (_error != null) ...[
+                  const SizedBox(height: 16),
+                  _Banner(ok: false, text: _error!),
+                ],
+
+                const SizedBox(height: 24),
+                OutlinedButton.icon(
+                  onPressed: _busy ? null : _checkConfig,
+                  icon: const Icon(Icons.verified_outlined),
+                  label: const Text('Test configuration'),
+                ),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: _busy ? null : _login,
+                  icon: _busy
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.login_rounded),
+                  label: Text(_busy ? 'Working…' : 'Connect Reddit account'),
+                ),
+              const SizedBox(height: 8),
+              // Read-only browsing uses the same Client ID.
+              TextButton.icon(
+                onPressed: _busy ? null : _browseAnonymously,
+                icon: const Icon(Icons.travel_explore_rounded),
+                label: const Text('Browse without signing in'),
               ),
             ],
-            if (_error != null) ...[
-              const SizedBox(height: 16),
-              _Banner(ok: false, text: _error!),
-            ],
-
-            const SizedBox(height: 24),
-            OutlinedButton.icon(
-              onPressed: _busy ? null : _checkConfig,
-              icon: const Icon(Icons.verified_outlined),
-              label: const Text('Test configuration'),
-            ),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: _busy ? null : _login,
-              icon: _busy
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.login_rounded),
-              label: Text(_busy ? 'Working…' : 'Connect Reddit account'),
-            ),
-            const SizedBox(height: 20),
-            const Row(children: [
-              Expanded(child: Divider()),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 10),
-                child: Text('or'),
-              ),
-              Expanded(child: Divider()),
-            ]),
-            const SizedBox(height: 8),
-            TextButton.icon(
-              onPressed: _busy ? null : _webLogin,
-              icon: const Icon(Icons.public_rounded),
-              label: const Text("Can't get an API key? Sign in via website"),
-            ),
-            TextButton.icon(
-              onPressed: _busy ? null : _browseAnonymously,
-              icon: const Icon(Icons.travel_explore_rounded),
-              label: const Text('Browse without signing in'),
-            ),
           ],
         ),
       ),
     );
   }
 
-  /// Website-session login (no API key). Shows the risks first, then opens a
-  /// Reddit login WebView and stores the session.
   /// Read-only browsing with just a Client ID (Reddit refuses anonymous
   /// requests without one). Voting, commenting and the inbox need an account.
   Future<void> _browseAnonymously() async {
@@ -314,31 +366,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  /// Website-session login (no API key): a Reddit login page inside Ilay,
+  /// which stores the session itself. Its caveat is shown in the panel.
   Future<void> _webLogin() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Sign in without an API key'),
-        content: const Text(
-          'This signs you in through the Reddit website instead of the API, so '
-          'you don\'t need to create an API key.\n\n'
-          'Important: this is not Reddit\'s official API path. It may stop '
-          'working at any time if Reddit changes their site, and Reddit could '
-          'consider it against their usage policy and restrict or ban accounts '
-          'that use it. Use it at your own risk.\n\n'
-          'The recommended method is still the API key above.',
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Continue')),
-        ],
-      ),
-    );
-    if (ok != true || !mounted) return;
     final cookie = await Navigator.of(context).push<String>(
       MaterialPageRoute(builder: (_) => const WebLoginScreen()),
     );

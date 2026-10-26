@@ -10,6 +10,7 @@ import 'core/deep_links.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/account_scope.dart';
 import 'features/auth/auth_controller.dart';
+import 'features/feed/feed_controller.dart';
 import 'features/inbox/inbox_controller.dart';
 import 'features/notifications/notification_service.dart';
 import 'features/settings/settings_controller.dart';
@@ -30,6 +31,7 @@ class _LuliAppState extends ConsumerState<LuliApp> with WidgetsBindingObserver {
   DateTime _lastInboxSync = DateTime.now();
   StreamSubscription<Uri>? _linkSub;
   String? _lastLink; // last deep link we routed, to avoid handling it twice
+  bool _frontpageStarted = false;
 
   @override
   void initState() {
@@ -47,7 +49,14 @@ class _LuliAppState extends ConsumerState<LuliApp> with WidgetsBindingObserver {
       final previous = _accountUser;
       _accountUser = next;
       if (previous != null && previous != next) resetAccountScopedState(ref);
-    });
+      // Start loading the frontpage (For You's sources, or Reddit Home's
+      // hidden browser) as soon as the session is read, instead of when Home
+      // first builds.
+      if (!_frontpageStarted) {
+        _frontpageStarted = true;
+        ref.read(feedControllerProvider(''));
+      }
+    }, fireImmediately: true);
     // The cold-start link is routed by the GoRouter redirect, so record it as
     // already handled — then the stream/resume checks below only act on links
     // that arrive later (which is what a warm launch from Google delivers).
@@ -119,13 +128,13 @@ class _LuliAppState extends ConsumerState<LuliApp> with WidgetsBindingObserver {
           theme: AppTheme.light(
             useDynamic ? lightDynamic?.harmonized() : null,
             seed: seed,
-            jakarta: settings.jakartaFont,
+            font: settings.appFont,
           ),
           darkTheme: AppTheme.dark(
             useDynamic ? darkDynamic?.harmonized() : null,
             seed: seed,
             amoled: settings.amoled,
-            jakarta: settings.jakartaFont,
+            font: settings.appFont,
           ),
           themeMode: settings.themeMode,
           // Global font-size control (scales all text in the app).

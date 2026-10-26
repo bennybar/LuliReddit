@@ -18,6 +18,8 @@ void main() async {
   LicenseRegistry.addLicense(() async* {
     yield LicenseEntryWithLineBreaks(['Plus Jakarta Sans', 'Unbounded'],
         await rootBundle.loadString('assets/fonts/OFL.txt'));
+    yield LicenseEntryWithLineBreaks(['Google Sans'],
+        await rootBundle.loadString('assets/fonts/OFL-GoogleSans.txt'));
   });
   final prefs = await SharedPreferences.getInstance();
   await Analytics.init();

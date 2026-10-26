@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/app_icon.dart';
 import '../../core/backup.dart';
 import '../../core/network/rate_limit.dart';
 import '../../data/ai_service.dart';
@@ -93,6 +94,20 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             }),
             onTap: () => _pickTheme(context, ctrl, s.themeMode),
           ),
+          ListTile(
+            leading: AppIconPreview(AppIcon.parse(s.appIcon)),
+            title: const Text('App icon'),
+            subtitle: Text(AppIcon.parse(s.appIcon).label),
+            onTap: () async {
+              final picked =
+                  await _pickAppIcon(context, AppIcon.parse(s.appIcon));
+              if (picked == null) return;
+              ctrl.setAppIcon(picked.name);
+              try {
+                await AppIcon.apply(picked);
+              } catch (_) {}
+            },
+          ),
           SwitchListTile(
             secondary: const Icon(Icons.dark_mode_rounded),
             title: const Text('AMOLED black'),
@@ -100,13 +115,34 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             value: s.amoled,
             onChanged: ctrl.setAmoled,
           ),
-          SwitchListTile(
-            secondary: const Icon(Icons.font_download_rounded),
-            title: const Text('Plus Jakarta Sans font'),
-            subtitle: const Text(
-                'Use the app\'s own font instead of the default (Roboto)'),
-            value: s.jakartaFont,
-            onChanged: ctrl.setJakartaFont,
+          ListTile(
+            leading: const Icon(Icons.font_download_rounded),
+            title: const Text('App font'),
+            subtitle: Text(s.appFont.label),
+            onTap: () => showModalBottomSheet(
+              context: context,
+              showDragHandle: true,
+              builder: (ctx) => SafeArea(
+                child: RadioGroup<AppFont>(
+                  groupValue: s.appFont,
+                  onChanged: (v) {
+                    if (v != null) ctrl.setAppFont(v);
+                    Navigator.pop(ctx);
+                  },
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final f in AppFont.values)
+                        RadioListTile<AppFont>(
+                          value: f,
+                          title: Text(f.label),
+                          subtitle: Text(f.description),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
           SwitchListTile(
             secondary: const Icon(Icons.palette_rounded),
@@ -701,6 +737,71 @@ class _SettingsListState extends ConsumerState<SettingsList> {
                   color: Theme.of(context).colorScheme.primary,
                   fontWeight: FontWeight.w700,
                 )),
+      );
+
+  Future<AppIcon?> _pickAppIcon(BuildContext context, AppIcon current) =>
+      showModalBottomSheet<AppIcon>(
+        context: context,
+        showDragHandle: true,
+        builder: (ctx) {
+          final cs = Theme.of(ctx).colorScheme;
+          return SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+                  child: Text('App icon',
+                      style: Theme.of(ctx).textTheme.titleLarge),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Wrap(
+                    alignment: WrapAlignment.spaceEvenly,
+                    runSpacing: 16,
+                    children: [
+                      for (final icon in AppIcon.values)
+                        InkWell(
+                          borderRadius: BorderRadius.circular(20),
+                          onTap: () => Navigator.pop(ctx, icon),
+                          child: Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: Column(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(5),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                        width: 3,
+                                        color: icon == current
+                                            ? cs.primary
+                                            : Colors.transparent),
+                                  ),
+                                  child: AppIconPreview(icon, size: 56),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(icon.label,
+                                    style: Theme.of(ctx)
+                                        .textTheme
+                                        .labelLarge
+                                        ?.copyWith(
+                                            color: icon == current
+                                                ? cs.primary
+                                                : cs.onSurface)),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          );
+        },
       );
 
   void _pickTheme(

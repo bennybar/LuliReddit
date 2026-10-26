@@ -125,6 +125,10 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
     final homeMode = widget.feedKey.isEmpty &&
         ref.watch(settingsControllerProvider
             .select((s) => s.redditHomeAllowed && s.redditHomeFeed));
+    // Home and For You load behind the shuffling deck.
+    final deckMode = widget.feedKey.isEmpty &&
+        (homeMode ||
+            ref.watch(settingsControllerProvider.select((s) => s.forYouFeed)));
 
     final refreshable = RefreshIndicator(
       key: _refreshKey,
@@ -134,16 +138,16 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
       },
       child: async.when(
         loading: () {
-          // Home (no saved page to show yet): the shuffling deck with a live
-          // count of posts found; its cards are then dealt into the feed.
-          if (homeMode) {
+          // Home and For You: the shuffling deck with a live count of posts
+          // found; its cards are then dealt into the feed.
+          if (deckMode) {
             _dealHome = true;
             return ListView(
               padding: const EdgeInsets.fromLTRB(10, 0, 10, 130),
               children: [
                 if (widget.header != null) widget.header!,
                 const SizedBox(height: 120),
-                const HomeLoadingDeck(),
+                HomeLoadingDeck(forYou: !homeMode),
               ],
             );
           }
@@ -249,7 +253,7 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
                   WidgetsBinding.instance
                       .addPostFrameCallback((_) => notifier.loadMore());
                 }
-                if (homeMode && index < 3) {
+                if (deckMode && index < 3) {
                   // The first cards after the loading deck are dealt in.
                   final deal = _dealHome;
                   if (deal && index == 2) {

@@ -29,6 +29,20 @@ class RedditHomeLoader {
 })();
 ''';
 
+  /// Media, fonts and telemetry: not needed to read the feed's post ids.
+  /// (Content-blocker patterns are WebKit's regex subset: no `|`.)
+  static final _skippable = [
+    r'^https?://v\.redd\.it/',
+    r'^https?://packaged-media\.redd\.it/',
+    r'^https?://fonts\.gstatic\.com/',
+    r'^https?://w3-reporting\.reddit\.com/',
+    r'^https?://pi\.reddit\.com/',
+    for (final ext in ['mp4', 'm3u8', 'mpd', 'm4s', 'ts', 'woff', 'woff2', 'ttf', 'gif', 'webm'])
+      '\\.$ext([?#].*)?\$',
+    for (final path in ['shreddit/events', 'shreddit/perfMetrics', 'events/'])
+      '^https?://(www\\.)?reddit\\.com/svc/$path',
+  ];
+
   HeadlessInAppWebView? _view;
   InAppWebViewController? _page;
   String? _cookies; // the session the hidden browser was opened with
@@ -61,6 +75,10 @@ class RedditHomeLoader {
     // A refresh hands back the first posts as soon as they render; the feed
     // pages for more on its own as you scroll.
     final target = restart ? 10 : want;
+    // The page renders a first handful of posts with its HTML and fetches
+    // the rest ~2s later: on a restart, hand the first wave back once it
+    // stops growing (the next call picks up the second wave).
+    const settle = Duration(milliseconds: 350);
     final fresh = <String>[];
     final deadline = DateTime.now().add(const Duration(seconds: 15));
     var lastGrowth = DateTime.now();
@@ -78,6 +96,9 @@ class RedditHomeLoader {
       if (fresh.length >= target) break;
       final now = DateTime.now();
       if (grew) lastGrowth = now;
+      if (restart && fresh.isNotEmpty && now.difference(lastGrowth) >= settle) {
+        break;
+      }
       // Nothing new for a while after posts had appeared: end of the feed.
       // (Before any appear, the page is still loading — keep waiting.)
       if (_seen.isNotEmpty && now.difference(lastGrowth).inSeconds >= 6) break;
@@ -92,7 +113,7 @@ class RedditHomeLoader {
             source: 'window.scrollTo(0, document.body.scrollHeight);');
       }
       // Check often: posts appear well before the whole page has loaded.
-      await Future<void>.delayed(const Duration(milliseconds: 250));
+      await Future<void>.delayed(const Duration(milliseconds: 100));
     }
     return fresh;
   }
@@ -102,17 +123,29 @@ class RedditHomeLoader {
     // The WebView's cookie jar may hold a different account's session (the
     // last one that signed in through it): load the active one's.
     final jar = CookieManager.instance();
-    await jar.deleteCookies(url: _home, domain: '.reddit.com');
-    for (final part in cookieHeader.split(';')) {
-      final i = part.indexOf('=');
-      if (i <= 0) continue;
-      await jar.setCookie(
-        url: _home,
-        name: part.substring(0, i).trim(),
-        value: part.substring(i + 1).trim(),
-        domain: '.reddit.com',
-        isSecure: true,
-      );
+    final inJar = await jar.getCookie(url: _home, name: 'reddit_session');
+    String? session(String header) => header
+        .split(';')
+        .map((p) => p.trim())
+        .where((p) => p.startsWith('reddit_session='))
+        .firstOrNull
+        ?.substring('reddit_session='.length);
+    // Same account already in the jar: keep it as is. Wiping it also threw
+    // away the cookies Reddit set when the page passed its browser check, so
+    // every launch had to pass that check again (an extra page load).
+    if (inJar?.value?.toString() != session(cookieHeader)) {
+      await jar.deleteCookies(url: _home, domain: '.reddit.com');
+      for (final part in cookieHeader.split(';')) {
+        final i = part.indexOf('=');
+        if (i <= 0) continue;
+        await jar.setCookie(
+          url: _home,
+          name: part.substring(0, i).trim(),
+          value: part.substring(i + 1).trim(),
+          domain: '.reddit.com',
+          isSecure: true,
+        );
+      }
     }
     final created = Completer<void>();
     _view = HeadlessInAppWebView(
@@ -122,6 +155,17 @@ class RedditHomeLoader {
         // Ilay loads its own images for the cards; the hidden page doesn't
         // need to download any, which gets its posts on screen sooner.
         blockNetworkImage: true,
+        // Skip what the page doesn't need to list its posts: autoplaying
+        // videos (dozens of streams), fonts and telemetry. They competed with
+        // the feed request for bandwidth and CPU. Reddit's own scripts and
+        // checks still load.
+        contentBlockers: [
+          for (final filter in _skippable)
+            ContentBlocker(
+              trigger: ContentBlockerTrigger(urlFilter: filter),
+              action: ContentBlockerAction(type: ContentBlockerActionType.BLOCK),
+            ),
+        ],
       ),
       onWebViewCreated: (c) {
         _page = c;

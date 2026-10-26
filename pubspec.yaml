@@ -79,12 +79,24 @@ flutter:
   uses-material-design: true
   assets:
     - assets/splash/
+    - assets/icon/
     - assets/fonts/OFL.txt
-  # Optional "Plus Jakarta Sans" app font (Settings → Appearance), bundled
+    - assets/fonts/OFL-GoogleSans.txt
+  # App fonts (Settings → App font): Google Sans and Plus Jakarta Sans, bundled
   # rather than fetched from Google at runtime. Static weights instantiated
   # from the variable fonts: Flutter doesn't reliably map FontWeight onto a
-  # variable font's wght axis. Licence: assets/fonts/OFL.txt.
+  # variable font's wght axis. Licences: assets/fonts/OFL*.txt.
   fonts:
+    - family: GoogleSans
+      fonts:
+        - asset: assets/fonts/GoogleSans-400.ttf
+          weight: 400
+        - asset: assets/fonts/GoogleSans-500.ttf
+          weight: 500
+        - asset: assets/fonts/GoogleSans-600.ttf
+          weight: 600
+        - asset: assets/fonts/GoogleSans-700.ttf
+          weight: 700
     - family: PlusJakartaSans
       fonts:
         - asset: assets/fonts/PlusJakartaSans-400.ttf

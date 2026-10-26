@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../features/settings/settings_controller.dart' show AppFont;
+
 /// Upvote / downvote accent colors, exposed as a theme extension so vote
 /// controls can read brightness-correct colors.
 @immutable
@@ -137,15 +139,15 @@ class AppTheme {
   }
 
   static ThemeData light(ColorScheme? dynamicScheme,
-          {Color seed = AppTheme.seed, bool jakarta = false}) =>
+          {Color seed = AppTheme.seed, AppFont font = AppFont.system}) =>
       _build(_baseScheme(dynamicScheme, seed, Brightness.light),
-          Brightness.light, jakarta);
+          Brightness.light, font);
 
   static ThemeData dark(
     ColorScheme? dynamicScheme, {
     Color seed = AppTheme.seed,
     bool amoled = false,
-    bool jakarta = false,
+    AppFont font = AppFont.system,
   }) {
     var scheme = _baseScheme(dynamicScheme, seed, Brightness.dark);
     if (amoled) {
@@ -161,19 +163,25 @@ class AppTheme {
         surfaceContainerHighest: const Color(0xFF242428),
       );
     }
-    return _build(scheme, Brightness.dark, jakarta);
+    return _build(scheme, Brightness.dark, font);
   }
 
   static ThemeData _build(
-      ColorScheme scheme, Brightness brightness, bool jakarta) {
+      ColorScheme scheme, Brightness brightness, AppFont font) {
+    final jakarta = font == AppFont.jakarta;
     var base = ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
       brightness: brightness,
       scaffoldBackgroundColor: scheme.surface,
-      // Optional bundled font: Plus Jakarta Sans for text, Unbounded for
-      // display/headline styles (the RunnerSidekick pairing).
-      fontFamily: jakarta ? 'PlusJakartaSans' : null,
+      // Bundled fonts: Google Sans (Material's type scale was drawn for it,
+      // so its sizes and weights stay), or Plus Jakarta Sans for text with
+      // Unbounded for display/headline styles (the RunnerSidekick pairing).
+      fontFamily: switch (font) {
+        AppFont.system => null,
+        AppFont.googleSans => 'GoogleSans',
+        AppFont.jakarta => 'PlusJakartaSans',
+      },
       extensions: [brightness == Brightness.light ? _voteLight : _voteDark],
     );
     if (jakarta) {

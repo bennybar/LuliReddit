@@ -27,6 +27,23 @@ extension TopBarModeLabel on TopBarMode {
       };
 }
 
+/// The app's typeface (Settings → App font), persisted by name (`appFont`).
+enum AppFont {
+  system('San Francisco', "The system's default"),
+  googleSans('Google Sans', "The typeface of Google's own apps"),
+  jakarta('Plus Jakarta Sans', 'Rounder, with Unbounded for headlines');
+
+  const AppFont(this.label, this.description);
+  final String label;
+  final String description;
+
+  /// Before the picker there was only the Jakarta switch; without either,
+  /// Google Sans.
+  static AppFont parse(String? name, bool jakartaSwitch) =>
+      values.where((f) => f.name == name).firstOrNull ??
+      (jakartaSwitch ? jakarta : googleSans);
+}
+
 /// How posts are laid out in feeds.
 enum PostDisplay { large, card, mini }
 
@@ -84,6 +101,8 @@ class Settings {
     required this.aiMaxChars,
     required this.aiUseCustomUrl,
     required this.aiBaseUrl,
+    required this.appFont,
+    required this.appIcon,
   });
 
   final ThemeMode themeMode;
@@ -126,6 +145,8 @@ class Settings {
   final int aiMaxChars; // max thread text sent to the model
   final bool aiUseCustomUrl; // use a custom API base URL
   final String aiBaseUrl; // custom base URL (when enabled)
+  final AppFont appFont; // the app's typeface
+  final String appIcon; // app icon colour (AppIcon key)
 
   Settings copyWith({
     ThemeMode? themeMode,
@@ -167,6 +188,8 @@ class Settings {
     int? aiMaxChars,
     bool? aiUseCustomUrl,
     String? aiBaseUrl,
+    AppFont? appFont,
+    String? appIcon,
   }) =>
       Settings(
         themeMode: themeMode ?? this.themeMode,
@@ -208,6 +231,8 @@ class Settings {
         aiMaxChars: aiMaxChars ?? this.aiMaxChars,
         aiUseCustomUrl: aiUseCustomUrl ?? this.aiUseCustomUrl,
         aiBaseUrl: aiBaseUrl ?? this.aiBaseUrl,
+        appFont: appFont ?? this.appFont,
+        appIcon: appIcon ?? this.appIcon,
       );
 }
 
@@ -269,6 +294,8 @@ class SettingsController extends Notifier<Settings> {
       aiMaxChars: p.getInt('aiMaxChars') ?? 100000,
       aiUseCustomUrl: p.getBool('aiUseCustomUrl') ?? false,
       aiBaseUrl: p.getString('aiBaseUrl') ?? 'https://api.openai.com',
+      appFont: AppFont.parse(p.getString('appFont'), p.getBool('jakartaFont') ?? false),
+      appIcon: p.getString('appIcon') ?? 'violet',
     );
   }
 
@@ -464,6 +491,18 @@ class SettingsController extends Notifier<Settings> {
   void setAiBaseUrl(String v) {
     _prefs.setString('aiBaseUrl', v);
     state = state.copyWith(aiBaseUrl: v);
+  }
+
+  void setAppIcon(String v) {
+    _prefs.setString('appIcon', v);
+    state = state.copyWith(appIcon: v);
+  }
+
+  void setAppFont(AppFont v) {
+    _prefs.setString('appFont', v.name);
+    // Keeps backups readable by older builds, which only had the switch.
+    _prefs.setBool('jakartaFont', v == AppFont.jakarta);
+    state = state.copyWith(appFont: v, jakartaFont: v == AppFont.jakarta);
   }
 }
 

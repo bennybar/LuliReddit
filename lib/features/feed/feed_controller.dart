@@ -10,7 +10,8 @@ import '../foryou/for_you_seeder.dart';
 import '../foryou/for_you_stores.dart';
 import '../history/history_store.dart';
 import '../history/interest_store.dart';
-import '../reddit_home/home_loading.dart' show redditHomeProgressProvider;
+import '../reddit_home/home_loading.dart'
+    show forYouProgressProvider, redditHomeProgressProvider;
 import '../reddit_home/reddit_home_loader.dart';
 import '../settings/settings_controller.dart';
 
@@ -83,6 +84,10 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
     final s = ref.read(settingsControllerProvider);
     return _isFrontpage && s.redditHomeAllowed && s.redditHomeFeed;
   }
+
+  /// Home and For You open with the shuffling deck and deal their cards in,
+  /// rather than painting the last saved page and then swapping it out.
+  bool get _deckMode => _redditHome || _forYou;
 
   RedditHomeLoader? _home;
   // This load fell back to For You (Reddit Home couldn't be read); paging
@@ -221,8 +226,14 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
 
   Future<Listing<Post>> _forYouPage(String? after) async {
     final firstPage = after == null;
+    final progress = ref.read(forYouProgressProvider.notifier);
+    if (firstPage) progress.state = 0;
     if (firstPage) await seedForYouIfNeeded(ref);
+    final user = ref.read(authControllerProvider).valueOrNull?.username ?? '';
     final page = await _repo.getForYouFeed(
+      onSource: firstPage ? (n) => progress.state += n : null,
+      subsSnapshot: await loadSubsSnapshot(user),
+      onSubs: (subs) => saveSubsSnapshot(user, subs),
       inputs: _rankInputs(firstPage: firstPage),
       communities: firstPage ? _candidateCommunities() : const [],
       cursors: after, // null = first page; else the encoded cursor bundle
@@ -239,7 +250,6 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
       ref.read(forYouMetricsProvider.notifier)
           .count('src.ranked.${page.meta[p.id]?.source ?? 'other'}');
     }
-    final user = ref.read(authControllerProvider).valueOrNull?.username ?? '';
     if (firstPage && user.isNotEmpty) {
       saveForYouPage(user, page.listing.items, _repo.rawPost);
     }
@@ -260,7 +270,9 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
     // intent behind it and shouldn't flash an older page. Never for For You,
     // which is ranked locally from live signals.
     Listing<Post>? cached;
-    if (!_cacheConsulted) {
+    // In deck mode the saved page is only a fallback for a failed load, so
+    // it's read only then (it used to delay every load by a disk read).
+    if (!_cacheConsulted && !_deckMode) {
       _cacheConsulted = true;
       cached = await _cachedFirstPage();
       if (cached != null) {
@@ -281,6 +293,7 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
     } catch (_) {
       // Keep the cached page rather than replacing it with an error: it's
       // still the most useful thing to show, and pull-to-refresh retries.
+      if (cached == null && _deckMode) cached = await _cachedFirstPage();
       if (cached == null) rethrow;
       _showingCache = false;
       return FeedState(
@@ -346,6 +359,7 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
   }
 
   Future<void> refresh() async {
+    if (_deckMode) state = const AsyncLoading();
     state = await AsyncValue.guard(() => build(arg));
   }
 
