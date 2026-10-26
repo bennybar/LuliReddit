@@ -8,6 +8,8 @@ import 'package:video_thumbnail/video_thumbnail.dart';
 
 import '../../core/drafts.dart';
 import '../../core/providers.dart';
+import '../../core/widgets/connected_choice.dart';
+import '../../core/widgets/loading.dart';
 import '../../core/widgets/markdown_toolbar.dart';
 import '../../models/flair.dart';
 import '../media/giphy_picker.dart';
@@ -342,10 +344,7 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
             child: FilledButton(
               onPressed: _busy ? null : _submit,
               child: _busy
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2))
+                  ? const Loading.onContent()
                   : const Text('Post'),
             ),
           ),
@@ -392,22 +391,27 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
             ),
           ],
           const SizedBox(height: 16),
-          SegmentedButton<_Kind>(
-            showSelectedIcon: false,
-            segments: const [
-              ButtonSegment(value: _Kind.text, icon: Icon(Icons.notes_rounded)),
-              ButtonSegment(value: _Kind.link, icon: Icon(Icons.link_rounded)),
-              ButtonSegment(value: _Kind.image, icon: Icon(Icons.image_rounded)),
-              ButtonSegment(
-                  value: _Kind.gallery, icon: Icon(Icons.collections_rounded)),
-              ButtonSegment(
-                  value: _Kind.video, icon: Icon(Icons.videocam_rounded)),
+          ConnectedChoice<_Kind>(
+            options: const [
+              (_Kind.text, 'Text'),
+              (_Kind.link, 'Link'),
+              (_Kind.image, 'Image'),
+              (_Kind.gallery, 'Gallery'),
+              (_Kind.video, 'Video'),
             ],
-            selected: {_kind},
-            onSelectionChanged: (s) {
-              setState(() => _kind = s.first);
+            selected: _kind,
+            onSelect: (k) {
+              setState(() => _kind = k);
               _saveDraft();
             },
+            icon: (k) => switch (k) {
+              _Kind.text => Icons.notes_rounded,
+              _Kind.link => Icons.link_rounded,
+              _Kind.image => Icons.image_rounded,
+              _Kind.gallery => Icons.collections_rounded,
+              _Kind.video => Icons.videocam_rounded,
+            },
+            iconOnly: true,
           ),
           const SizedBox(height: 16),
           ..._kindBody(cs),

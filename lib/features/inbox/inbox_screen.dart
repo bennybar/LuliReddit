@@ -6,6 +6,7 @@ import '../../core/format.dart';
 import '../../core/open_link.dart';
 import '../../core/widgets/connected_choice.dart';
 import '../../core/widgets/error_view.dart';
+import '../../core/widgets/loading.dart';
 import '../../models/inbox_item.dart';
 import '../auth/auth_controller.dart';
 import '../feed/swipe_actions.dart';
@@ -208,10 +209,10 @@ class _InboxListState extends ConsumerState<_InboxList>
     final async = ref.watch(inboxControllerProvider(widget.where));
     final notifier = ref.read(inboxControllerProvider(widget.where).notifier);
 
-    final body = RefreshIndicator(
+    final body = RefreshBox(
       onRefresh: notifier.refresh,
       child: async.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: Loading()),
         error: (e, _) => ListView(children: [
           Padding(
             padding: const EdgeInsets.all(32),
@@ -245,7 +246,7 @@ class _InboxListState extends ConsumerState<_InboxList>
                 return state.loadingMore
                     ? const Padding(
                         padding: EdgeInsets.all(16),
-                        child: Center(child: CircularProgressIndicator()))
+                        child: Center(child: Loading()))
                     : const SizedBox.shrink();
               }
               final item = items[i];
@@ -485,7 +486,7 @@ class _RedditNotificationsListState
     switch (state) {
       case null:
       case RedditNotifLoading():
-        child = const Center(child: CircularProgressIndicator());
+        child = const Center(child: Loading());
       case RedditNotifFailed(:final signedOut):
         child = ListView(children: [
           Padding(
@@ -525,7 +526,7 @@ class _RedditNotificationsListState
                     return loadingMore
                         ? const Padding(
                             padding: EdgeInsets.all(16),
-                            child: Center(child: CircularProgressIndicator()))
+                            child: Center(child: Loading()))
                         : Center(
                             child: TextButton(
                                 onPressed: _openWeb,
@@ -544,7 +545,7 @@ class _RedditNotificationsListState
                 },
               );
     }
-    return RefreshIndicator(
+    return RefreshBox(
       onRefresh: () => _notifs.refresh(force: true),
       child: child,
     );

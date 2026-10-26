@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/open_link.dart';
+import '../../core/theme/motion.dart';
+import '../../core/widgets/loading.dart';
 import '../../core/widgets/markdown_style.dart';
 import '../../core/widgets/reddit_markdown.dart';
 import '../../data/ai_service.dart';
@@ -33,6 +35,7 @@ void showSummarySheet(
   final threadText = AiService.buildThreadText(post, comments, s.aiMaxChars);
   showModalBottomSheet<void>(
     context: context,
+    sheetAnimationStyle: sheetMotion,
     showDragHandle: true,
     isScrollControlled: true,
     builder: (_) => _SummarySheet(
@@ -167,7 +170,7 @@ class _SummarySheetState extends State<_SummarySheet> {
             if (_loading)
               const Padding(
                 padding: EdgeInsets.all(28),
-                child: Center(child: CircularProgressIndicator()),
+                child: Center(child: Loading()),
               )
             else if (_error != null) ...[
               Text(_error!, style: TextStyle(color: cs.error)),
@@ -208,6 +211,7 @@ void showAskSheet(BuildContext context, WidgetRef ref, Post post,
       'Reads ${thread.included} of $total comments, most upvoted first';
   showModalBottomSheet<void>(
     context: context,
+    sheetAnimationStyle: sheetMotion,
     showDragHandle: true,
     isScrollControlled: true,
     builder: (sheet) => AskThreadSheet(

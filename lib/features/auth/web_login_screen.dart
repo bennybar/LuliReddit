@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../../core/reddit_constants.dart';
+import '../../core/widgets/loading.dart';
 
 /// A WebView that signs the user into reddit.com and returns the resulting
 /// session-cookie header string (or null if cancelled). This is the no-API-key
@@ -78,7 +79,7 @@ class _WebLoginScreenState extends State<WebLoginScreen> {
         ),
       ),
       body: !_ready
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: Loading())
           : InAppWebView(
               initialUrlRequest: URLRequest(
                 url: WebUri(RedditConstants.webLoginUrl),

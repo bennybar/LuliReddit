@@ -142,42 +142,52 @@ class GalleryM3Carousel extends StatelessWidget {
     if (images.isEmpty) return const SizedBox.shrink();
     final cs = Theme.of(context).colorScheme;
     final n = images.length;
+    // One big item, smaller ones beside it.
+    final weights = n == 2 ? const [3, 1] : const [3, 2, 1];
+    final scroll = ScrollConfiguration.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
           height: height,
-          child: CarouselView.weighted(
-            // One big item, smaller ones beside it.
-            flexWeights: n == 2 ? const [3, 1] : const [3, 2, 1],
-            // 8 between items, as Kotlin's itemSpacing.
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(28)),
-            backgroundColor: cs.surfaceContainerHighest,
-            itemSnapping: true,
-            onTap: (i) => openGalleryViewer(context, images,
-                title: title, initialIndex: i),
-            children: [
-              for (var i = 0; i < n; i++)
-                Semantics(
-                  image: true,
-                  label: 'Image ${i + 1} of $n',
-                  child: CachedNetworkImage(
-                    imageUrl: images[i].url,
-                    fit: BoxFit.cover,
-                    // Gallery images are full size (often 12MP photos):
-                    // decode at screen width, as the feed's prefetcher.
-                    memCacheWidth: feedDecodeWidth(context),
-                    placeholder: (_, __) =>
-                        ColoredBox(color: cs.surfaceContainerHighest),
-                    errorWidget: (_, __, ___) => Center(
-                      child: Icon(Icons.broken_image_outlined,
-                          color: cs.onSurfaceVariant),
+          // A fling moves several images, not one (Kotlin's
+          // multiBrowseFlingBehavior): long galleries go quicker. The
+          // carousel takes the ambient physics when itemSnapping is off.
+          child: ScrollConfiguration(
+            behavior: scroll.copyWith(
+                physics: MultiBrowsePhysics(
+                        weights.first / weights.reduce((a, b) => a + b))
+                    .applyTo(scroll.getScrollPhysics(context))),
+            child: CarouselView.weighted(
+              flexWeights: weights,
+              // 8 between items, as Kotlin's itemSpacing.
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(28)),
+              backgroundColor: cs.surfaceContainerHighest,
+              onTap: (i) => openGalleryViewer(context, images,
+                  title: title, initialIndex: i),
+              children: [
+                for (var i = 0; i < n; i++)
+                  Semantics(
+                    image: true,
+                    label: 'Image ${i + 1} of $n',
+                    child: CachedNetworkImage(
+                      imageUrl: images[i].url,
+                      fit: BoxFit.cover,
+                      // Gallery images are full size (often 12MP photos):
+                      // decode at screen width, as the feed's prefetcher.
+                      memCacheWidth: feedDecodeWidth(context),
+                      placeholder: (_, __) =>
+                          ColoredBox(color: cs.surfaceContainerHighest),
+                      errorWidget: (_, __, ___) => Center(
+                        child: Icon(Icons.broken_image_outlined,
+                            color: cs.onSurfaceVariant),
+                      ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
         Padding(
@@ -194,5 +204,49 @@ class GalleryM3Carousel extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+/// Material 3's multi-browse fling (Compose's multiBrowseFlingBehavior): a
+/// fling travels as far as its speed carries it, then settles on the nearest
+/// item, so a quick one skips several. [fraction]: the large item's share
+/// of the carousel's width (one item's step).
+class MultiBrowsePhysics extends ScrollPhysics {
+  const MultiBrowsePhysics(this.fraction, {super.parent});
+  final double fraction;
+
+  @override
+  MultiBrowsePhysics applyTo(ScrollPhysics? ancestor) =>
+      MultiBrowsePhysics(fraction, parent: buildParent(ancestor));
+
+  /// Where a fling of [velocity] from [pixels] comes to rest: the nearest
+  /// item to where it would coast to.
+  double snapTarget(double pixels, double velocity, double viewport,
+      double min, double max, Tolerance tolerance) {
+    final step = viewport * fraction;
+    final coast = velocity.abs() < tolerance.velocity
+        ? pixels
+        : ClampingScrollSimulation(position: pixels, velocity: velocity)
+            .x(double.infinity);
+    return ((coast / step).roundToDouble() * step).clamp(min, max);
+  }
+
+  @override
+  Simulation? createBallisticSimulation(
+      ScrollMetrics position, double velocity) {
+    if (position.outOfRange) {
+      return super.createBallisticSimulation(position, velocity);
+    }
+    final tolerance = toleranceFor(position);
+    final target = snapTarget(
+        position.pixels,
+        velocity,
+        position.viewportDimension,
+        position.minScrollExtent,
+        position.maxScrollExtent,
+        tolerance);
+    if ((target - position.pixels).abs() < tolerance.distance) return null;
+    return ScrollSpringSimulation(spring, position.pixels, target, velocity,
+        tolerance: tolerance);
   }
 }

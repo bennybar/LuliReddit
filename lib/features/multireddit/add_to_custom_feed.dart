@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers.dart';
+import '../../core/theme/motion.dart';
 import '../../core/widgets/error_view.dart';
+import '../../core/widgets/loading.dart';
 import '../../models/multireddit.dart';
 import '../auth/auth_controller.dart';
 import '../home/account_tab.dart' show createMulti;
@@ -15,6 +17,7 @@ import 'multireddit_providers.dart';
 Future<void> showAddToCustomFeed(BuildContext context, String subreddit) {
   return showModalBottomSheet<void>(
     context: context,
+    sheetAnimationStyle: sheetMotion,
     showDragHandle: true,
     isScrollControlled: true,
     builder: (_) => _AddToCustomFeedSheet(subreddit: subreddit),
@@ -89,7 +92,7 @@ class _AddToCustomFeedSheetState extends ConsumerState<_AddToCustomFeedSheet> {
               loading: () => const [
                 Padding(
                   padding: EdgeInsets.all(16),
-                  child: Center(child: CircularProgressIndicator()),
+                  child: Center(child: Loading()),
                 ),
               ],
               error: (e, _) => [
@@ -113,10 +116,7 @@ class _AddToCustomFeedSheetState extends ConsumerState<_AddToCustomFeedSheet> {
                           ? 'Has r/$sub · tap to remove'
                           : '${m.subreddits.length} communities'),
                       trailing: _busy == m.path
-                          ? const SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(strokeWidth: 3))
+                          ? const Loading.onContent()
                           : inIt
                               ? Icon(Icons.check_circle_rounded,
                                   color: cs.primary,

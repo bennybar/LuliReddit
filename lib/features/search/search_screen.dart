@@ -6,6 +6,8 @@ import '../../core/format.dart';
 import '../../core/providers.dart';
 import '../../core/widgets/connected_choice.dart';
 import '../../core/widgets/error_view.dart';
+import '../../core/widgets/loading.dart';
+import '../../core/widgets/pick_one_menu.dart';
 import '../auth/auth_controller.dart';
 import '../settings/settings_controller.dart';
 import '../../models/listing.dart';
@@ -303,7 +305,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ]),
         ),
         body: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? const Center(child: Loading())
             : _error != null
                 ? ErrorView(
                     message: _error,
@@ -430,13 +432,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 setState(() => _time = v);
                 _search(_query, saveRecent: false);
               },
-              itemBuilder: (_) => [
-                for (final t in _times.entries)
-                  CheckedPopupMenuItem(
-                      value: t.key,
-                      checked: t.key == _time,
-                      child: Text(t.value)),
-              ],
+              itemBuilder: (_) => pickOneMenu(
+                  [for (final t in _times.entries) (t.key, t.value)], _time),
               child: Chip(
                 avatar: const Icon(Icons.schedule_rounded, size: 16),
                 label: Text(_times[_time] ?? 'All time'),
@@ -455,7 +452,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         children: [
           _filterBar(),
           Expanded(
-            child: RefreshIndicator(
+            child: RefreshBox(
               onRefresh: () => _search(_query, saveRecent: false),
               child: _posts.isEmpty
                   ? ListView(children: const [
@@ -470,7 +467,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         if (i >= _posts.length) {
                           return const Padding(
                             padding: EdgeInsets.all(16),
-                            child: Center(child: CircularProgressIndicator()),
+                            child: Center(child: Loading()),
                           );
                         }
                         // Page in more results 5 cards from the end.
@@ -489,7 +486,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Widget _subsTab() {
     final cs = Theme.of(context).colorScheme;
-    return RefreshIndicator(
+    return RefreshBox(
       onRefresh: () => _search(_query, saveRecent: false),
       child: _subs.isEmpty
         ? ListView(children: const [
@@ -519,7 +516,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Widget _usersTab() {
     final cs = Theme.of(context).colorScheme;
-    return RefreshIndicator(
+    return RefreshBox(
       onRefresh: () => _search(_query, saveRecent: false),
       child: _users.isEmpty
         ? ListView(children: const [

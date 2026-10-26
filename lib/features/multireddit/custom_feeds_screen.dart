@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/widgets/connected_choice.dart';
 import '../../core/widgets/error_view.dart';
+import '../../core/widgets/loading.dart';
 import '../auth/auth_controller.dart';
 import '../home/account_tab.dart' show createMulti;
 import 'multireddit_providers.dart';
@@ -42,7 +43,7 @@ class _CustomFeedsScreenState extends ConsumerState<CustomFeedsScreen> {
         ],
       ),
       body: ref.watch(myMultiredditsProvider).when(
-            loading: () => const Center(child: CircularProgressIndicator()),
+            loading: () => const Center(child: Loading()),
             error: (e, _) => Center(
               child: Padding(
                 padding: const EdgeInsets.all(32),

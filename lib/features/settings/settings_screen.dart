@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math' as math;
 import 'dart:io' show Platform;
 
 import 'package:file_picker/file_picker.dart';
@@ -12,6 +11,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/app_icon.dart';
 import '../../core/backup.dart';
 import '../../core/network/rate_limit.dart';
+import '../../core/theme/motion.dart';
+import '../../core/widgets/pick_one_menu.dart';
 import '../../data/ai_service.dart';
 import '../post/comments_controller.dart' show commentSorts, commentSortLabels;
 import '../../core/providers.dart';
@@ -301,6 +302,7 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             subtitle: Text(s.appFont.label),
             onTap: () => showModalBottomSheet(
               context: context,
+              sheetAnimationStyle: sheetMotion,
               showDragHandle: true,
               builder: (ctx) => SafeArea(
                 child: RadioGroup<AppFont>(
@@ -503,6 +505,7 @@ class _SettingsListState extends ConsumerState<SettingsList> {
                   '${s.swipeCommentEnd.label}'),
               onTap: () => showModalBottomSheet<void>(
                 context: context,
+                sheetAnimationStyle: sheetMotion,
                 showDragHandle: true,
                 builder: (_) => const _SwipeSettingsSheet(),
               ),
@@ -948,6 +951,7 @@ class _SettingsListState extends ConsumerState<SettingsList> {
   Future<AppIcon?> _pickAppIcon(BuildContext context, AppIcon current) =>
       showModalBottomSheet<AppIcon>(
         context: context,
+        sheetAnimationStyle: sheetMotion,
         showDragHandle: true,
         builder: (ctx) {
           final cs = Theme.of(ctx).colorScheme;
@@ -1014,6 +1018,7 @@ class _SettingsListState extends ConsumerState<SettingsList> {
       BuildContext context, SettingsController ctrl, ThemeMode current) {
     showModalBottomSheet(
       context: context,
+      sheetAnimationStyle: sheetMotion,
       showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: RadioGroup<ThemeMode>(
@@ -1045,6 +1050,7 @@ class _SettingsListState extends ConsumerState<SettingsList> {
       BuildContext context, SettingsController ctrl, PostSort current) {
     showModalBottomSheet(
       context: context,
+      sheetAnimationStyle: sheetMotion,
       showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: RadioGroup<PostSort>(
@@ -1073,6 +1079,7 @@ class _SettingsListState extends ConsumerState<SettingsList> {
     const options = [5, 10, 30, 60];
     showModalBottomSheet(
       context: context,
+      sheetAnimationStyle: sheetMotion,
       showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: RadioGroup<int>(
@@ -1098,6 +1105,7 @@ class _SettingsListState extends ConsumerState<SettingsList> {
       BuildContext context, int current, void Function(int) onPick) {
     showModalBottomSheet(
       context: context,
+      sheetAnimationStyle: sheetMotion,
       showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: RadioGroup<int>(
@@ -1126,6 +1134,7 @@ class _SettingsListState extends ConsumerState<SettingsList> {
       String Function(int) label, void Function(int) onPick) {
     showModalBottomSheet(
       context: context,
+      sheetAnimationStyle: sheetMotion,
       showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: RadioGroup<int>(
@@ -1150,6 +1159,7 @@ class _SettingsListState extends ConsumerState<SettingsList> {
       BuildContext context, SettingsController ctrl, bool current) {
     showModalBottomSheet(
       context: context,
+      sheetAnimationStyle: sheetMotion,
       showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: RadioGroup<bool>(
@@ -1178,6 +1188,7 @@ class _SettingsListState extends ConsumerState<SettingsList> {
       BuildContext context, SettingsController ctrl, PostDisplay current) {
     showModalBottomSheet(
       context: context,
+      sheetAnimationStyle: sheetMotion,
       showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: RadioGroup<PostDisplay>(
@@ -1206,6 +1217,7 @@ class _SettingsListState extends ConsumerState<SettingsList> {
       BuildContext context, SettingsController ctrl, TopBarMode current) {
     showModalBottomSheet(
       context: context,
+      sheetAnimationStyle: sheetMotion,
       showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: RadioGroup<TopBarMode>(
@@ -1234,6 +1246,7 @@ class _SettingsListState extends ConsumerState<SettingsList> {
       BuildContext context, SettingsController ctrl, int current) {
     showModalBottomSheet(
       context: context,
+      sheetAnimationStyle: sheetMotion,
       showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: RadioGroup<int>(
@@ -1262,6 +1275,7 @@ class _SettingsListState extends ConsumerState<SettingsList> {
       BuildContext context, SettingsController ctrl, String current) {
     showModalBottomSheet(
       context: context,
+      sheetAnimationStyle: sheetMotion,
       showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: Column(
@@ -1340,6 +1354,7 @@ class _SettingsListState extends ConsumerState<SettingsList> {
     final models = [...presets, if (!presets.contains(current)) current];
     final custom = await showModalBottomSheet<bool>(
       context: context,
+      sheetAnimationStyle: sheetMotion,
       showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: Column(
@@ -1402,6 +1417,7 @@ class _SettingsListState extends ConsumerState<SettingsList> {
       BuildContext context, SettingsController ctrl, String current) {
     showModalBottomSheet(
       context: context,
+      sheetAnimationStyle: sheetMotion,
       showDragHandle: true,
       isScrollControlled: true,
       builder: (ctx) => SafeArea(
@@ -1431,6 +1447,7 @@ class _SettingsListState extends ConsumerState<SettingsList> {
       BuildContext context, SettingsController ctrl, int? current) {
     showModalBottomSheet(
       context: context,
+      sheetAnimationStyle: sheetMotion,
       showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: Column(
@@ -1456,6 +1473,7 @@ class _SettingsListState extends ConsumerState<SettingsList> {
       BuildContext context, SettingsController ctrl, int current) {
     showModalBottomSheet(
       context: context,
+      sheetAnimationStyle: sheetMotion,
       showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: Column(
@@ -1482,6 +1500,7 @@ class _SettingsListState extends ConsumerState<SettingsList> {
     const options = [50000, 100000, 200000, 400000];
     showModalBottomSheet(
       context: context,
+      sheetAnimationStyle: sheetMotion,
       showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: Column(
@@ -1712,8 +1731,12 @@ class _ForYouMixSliderState extends State<_ForYouMixSlider> {
                 ?.copyWith(color: cs.onSurfaceVariant),
           ),
           SliderTheme(
-            data: SliderTheme.of(context)
-                .copyWith(trackShape: const _CentredTrackShape()),
+            // The stops sit on the fill or the track whichever side of the
+            // handle they are, so one colour reads on both.
+            data: SliderTheme.of(context).copyWith(
+                trackShape: const _CentredTrackShape(),
+                activeTickMarkColor: cs.onSecondaryContainer,
+                inactiveTickMarkColor: cs.onSecondaryContainer),
             child: Slider(
               value: _v,
               min: -2,
@@ -1735,7 +1758,9 @@ class _ForYouMixSliderState extends State<_ForYouMixSlider> {
   }
 }
 
-/// A slider track filled from its middle to the thumb, either way.
+/// A slider track filled from its middle to the thumb, either way
+/// (Material 3 Expressive's CenteredTrack): the track parts keep their gap
+/// around the bar handle, with tight (2) corners beside it.
 class _CentredTrackShape extends SliderTrackShape with BaseSliderTrackShape {
   const _CentredTrackShape();
 
@@ -1755,16 +1780,43 @@ class _CentredTrackShape extends SliderTrackShape with BaseSliderTrackShape {
         sliderTheme: sliderTheme,
         isEnabled: isEnabled,
         isDiscrete: isDiscrete);
-    final r = Radius.circular(rect.height / 2);
-    final canvas = context.canvas;
-    canvas.drawRRect(RRect.fromRectAndRadius(rect, r),
-        Paint()..color = sliderTheme.inactiveTrackColor!);
+    final round = Radius.circular(rect.height / 2);
+    const tight = Radius.circular(2);
+    final gap = sliderTheme.trackGap ?? 6;
+    final x = thumbCenter.dx;
     final mid = rect.center.dx;
-    final fill = Rect.fromLTRB(math.min(mid, thumbCenter.dx), rect.top,
-        math.max(mid, thumbCenter.dx), rect.bottom);
-    if (fill.width > 0) {
-      canvas.drawRRect(RRect.fromRectAndRadius(fill, r),
-          Paint()..color = sliderTheme.activeTrackColor!);
+    final canvas = context.canvas;
+    final track = Paint()..color = sliderTheme.inactiveTrackColor!;
+    final fill = Paint()..color = sliderTheme.activeTrackColor!;
+    if (x - gap > rect.left) {
+      canvas.drawRRect(
+          RRect.fromLTRBAndCorners(rect.left, rect.top, x - gap, rect.bottom,
+              topLeft: round,
+              bottomLeft: round,
+              topRight: tight,
+              bottomRight: tight),
+          track);
+    }
+    if (x + gap < rect.right) {
+      canvas.drawRRect(
+          RRect.fromLTRBAndCorners(x + gap, rect.top, rect.right, rect.bottom,
+              topLeft: tight,
+              bottomLeft: tight,
+              topRight: round,
+              bottomRight: round),
+          track);
+    }
+    // The fill runs from the middle up to the handle's gap.
+    final from = x > mid ? mid : x + gap;
+    final to = x > mid ? x - gap : mid;
+    if (to > from) {
+      canvas.drawRRect(
+          RRect.fromLTRBAndCorners(from, rect.top, to, rect.bottom,
+              topLeft: tight,
+              bottomLeft: tight,
+              topRight: tight,
+              bottomRight: tight),
+          fill);
     }
   }
 }
@@ -1787,25 +1839,29 @@ class _SwipeSettingsSheet extends ConsumerWidget {
           : a != SwipeAction.hide &&
               a != SwipeAction.dismiss &&
               a != SwipeAction.hideSub);
+      final cs = Theme.of(context).colorScheme;
       return ListTile(
         title: Text(label),
-        trailing: DropdownButton<SwipeAction>(
-          value: value,
-          underline: const SizedBox.shrink(),
-          items: [
-            for (final a in options)
-              DropdownMenuItem(
-                value: a,
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(a.icon, size: 18),
-                  const SizedBox(width: 8),
-                  Text(a.label),
-                ]),
-              ),
-          ],
-          onChanged: (a) {
-            if (a != null) ctrl.setSwipeAction(key, a);
-          },
+        // A text button opening Kotlin's PickOneMenu.
+        trailing: PopupMenuButton<SwipeAction>(
+          tooltip: label,
+          onSelected: (a) => ctrl.setSwipeAction(key, a),
+          itemBuilder: (_) => pickOneMenu(
+              [for (final a in options) (a, a.label)], value,
+              icon: (a) => a.icon),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(value.icon, size: 18, color: cs.primary),
+              const SizedBox(width: 8),
+              Text(value.label,
+                  style: Theme.of(context)
+                      .textTheme
+                      .labelLarge
+                      ?.copyWith(color: cs.primary)),
+              Icon(Icons.expand_more_rounded, color: cs.primary),
+            ]),
+          ),
         ),
       );
     }
@@ -1851,6 +1907,7 @@ class _MediaFolderTile extends ConsumerWidget {
       subtitle: Text(folder?.name ?? 'Gallery (Ilay album)'),
       onTap: () => showModalBottomSheet<void>(
         context: context,
+        sheetAnimationStyle: sheetMotion,
         showDragHandle: true,
         builder: (sheet) => SafeArea(
           child: Column(

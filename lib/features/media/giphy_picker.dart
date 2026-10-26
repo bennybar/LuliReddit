@@ -3,6 +3,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/motion.dart';
+import '../../core/widgets/loading.dart';
 import '../auth/auth_controller.dart';
 
 /// Opens a Giphy search sheet. Returns the chosen GIF URL, or null.
@@ -19,6 +21,7 @@ Future<String?> showGiphyPicker(BuildContext context, WidgetRef ref) async {
   }
   return showModalBottomSheet<String>(
     context: context,
+    sheetAnimationStyle: sheetMotion,
     isScrollControlled: true,
     showDragHandle: true,
     builder: (_) => _GiphySheet(apiKey: key),
@@ -102,7 +105,7 @@ class _GiphySheetState extends State<_GiphySheet> {
             const SizedBox(height: 8),
             Expanded(
               child: _loading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const Center(child: Loading())
                   : GridView.builder(
                       gridDelegate:
                           const SliverGridDelegateWithFixedCrossAxisCount(

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/drafts.dart';
 import '../../core/network/catbox.dart';
 import '../../core/providers.dart';
+import '../../core/widgets/loading.dart';
 import '../../core/widgets/markdown_toolbar.dart';
 import '../media/attachment.dart';
 import '../media/attachment_bar.dart';
@@ -120,10 +121,7 @@ class _ComposeMessageScreenState extends ConsumerState<ComposeMessageScreen> {
             child: FilledButton(
               onPressed: _busy ? null : _send,
               child: _busy
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2))
+                  ? const Loading.onContent()
                   : const Text('Send'),
             ),
           ),

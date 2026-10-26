@@ -7,6 +7,7 @@ import '../../core/format.dart';
 import '../../core/providers.dart';
 import '../../core/open_link.dart';
 import '../../core/widgets/error_view.dart';
+import '../../core/widgets/loading.dart';
 import '../../core/widgets/markdown_style.dart';
 import '../../core/widgets/reddit_markdown.dart';
 import '../../models/comment.dart';
@@ -211,7 +212,7 @@ class _SavedHubScreenState extends ConsumerState<SavedHubScreen> {
           ),
           Expanded(
             child: _loading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(child: Loading())
                 : _error != null
                     ? Center(
                         child: Padding(
@@ -242,9 +243,7 @@ class _SavedHubScreenState extends ConsumerState<SavedHubScreen> {
                                 return _loadingMore
                                     ? const Padding(
                                         padding: EdgeInsets.all(16),
-                                        child: Center(
-                                            child:
-                                                CircularProgressIndicator()))
+                                        child: Center(child: Loading()))
                                     : const SizedBox.shrink();
                               }
                               final it = filtered[i];

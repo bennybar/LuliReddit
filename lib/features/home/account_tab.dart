@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/drafts.dart';
 import '../../core/providers.dart';
+import '../../core/theme/motion.dart';
 import '../auth/auth_controller.dart';
 import '../auth/web_login_screen.dart';
 import '../multireddit/multireddit_providers.dart';
@@ -102,6 +103,7 @@ class ProfileTab extends ConsumerWidget {
   void _showAccountSheet(BuildContext context, WidgetRef ref, String current) {
     showModalBottomSheet(
       context: context,
+      sheetAnimationStyle: sheetMotion,
       showDragHandle: true,
       builder: (ctx) => Consumer(
         builder: (ctx, ref2, _) {

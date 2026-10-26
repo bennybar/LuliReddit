@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/reddit_constants.dart';
+import '../../core/theme/motion.dart';
 import '../settings/settings_controller.dart';
 
 /// One release's highlights, as shown in What's new.
@@ -185,6 +186,7 @@ Future<void> maybeShowWhatsNew(BuildContext context, WidgetRef ref) async {
   final router = GoRouter.of(context);
   final all = await showModalBottomSheet<bool>(
     context: context,
+    sheetAnimationStyle: sheetMotion,
     showDragHandle: true,
     isScrollControlled: true,
     builder: (ctx) => SafeArea(

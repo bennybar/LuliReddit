@@ -6,6 +6,9 @@ import '../../core/format.dart';
 import '../../core/providers.dart';
 import '../../core/widgets/connected_choice.dart';
 import '../../core/widgets/error_view.dart';
+import '../../core/widgets/loading.dart';
+import '../../core/widgets/pick_one_menu.dart';
+import '../../core/widgets/toggles.dart';
 import '../../models/subreddit.dart';
 import '../auth/auth_controller.dart';
 import '../feed/post_card.dart' show LetterAvatar;
@@ -56,7 +59,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
     return Scaffold(
       body: SafeArea(
         bottom: false,
-        child: RefreshIndicator(
+        child: RefreshBox(
           onRefresh: () async {
             ref.read(redditRepositoryProvider).clearSubsCache(); // force
             ref.invalidate(subscribedSubredditsProvider);
@@ -159,29 +162,24 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                           ),
                         ),
                       ),
-                      IconButton.filledTonal(
-                        tooltip: 'Favorites only',
-                        isSelected: _favOnly,
-                        icon: const Icon(Icons.star_border_rounded),
-                        selectedIcon: const Icon(Icons.star_rounded),
-                        onPressed: () => setState(() => _favOnly = !_favOnly),
+                      ToggleIcon(
+                        checked: _favOnly,
+                        onChanged: (v) => setState(() => _favOnly = v),
+                        on: Icons.star_rounded,
+                        off: Icons.star_border_rounded,
+                        description: 'Favorites only',
+                        tonal: true,
                       ),
                       PopupMenuButton<String>(
                         tooltip: 'Sort',
                         icon: const Icon(Icons.sort_rounded),
                         initialValue: _sort,
                         onSelected: (v) => setState(() => _sort = v),
-                        itemBuilder: (_) => [
-                          for (final (k, label) in const [
-                            ('default', 'Default'),
-                            ('name', 'Name A–Z'),
-                            ('subscribers', 'Most subscribers'),
-                          ])
-                            CheckedPopupMenuItem(
-                                value: k,
-                                checked: k == _sort,
-                                child: Text(label)),
-                        ],
+                        itemBuilder: (_) => pickOneMenu(const [
+                          ('default', 'Default'),
+                          ('name', 'Name A–Z'),
+                          ('subscribers', 'Most subscribers'),
+                        ], _sort),
                       ),
                     ],
                   ),
@@ -192,7 +190,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                   SliverToBoxAdapter(
                       child: Padding(
                           padding: EdgeInsets.all(40),
-                          child: Center(child: CircularProgressIndicator()))),
+                          child: Center(child: Loading()))),
                 ],
                 error: (e, _) => [
                   if (ref.watch(authControllerProvider).valueOrNull?.anonymous ??
@@ -408,13 +406,13 @@ class _SubredditRow extends ConsumerWidget {
           imageUrl: s.iconUrl),
       title: Text(s.namePrefixed),
       subtitle: Text('${compactNumber(s.subscribers)} members'),
-      trailing: IconButton(
-        tooltip: 'Favorite',
-        isSelected: s.userHasFavorited,
-        icon: Icon(Icons.star_border_rounded, color: cs.onSurfaceVariant),
-        selectedIcon: Icon(Icons.star_rounded, color: cs.primary),
+      trailing: ToggleIcon(
+        checked: s.userHasFavorited,
+        on: Icons.star_rounded,
+        off: Icons.star_border_rounded,
+        description: 'Favorite',
         // The star toggle: favouriting reorders the list, so reload it after.
-        onPressed: () async {
+        onChanged: (_) async {
           try {
             await ref
                 .read(redditRepositoryProvider)

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/deep_links.dart';
+import '../../core/widgets/pick_one_menu.dart';
 import 'history_store.dart';
 import 'thread_visits.dart';
 
@@ -43,17 +44,18 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         title: const Text('History'),
         actions: [
           if (subs.isNotEmpty)
-            PopupMenuButton<String?>(
+            // '' is "all": a popup menu reads a null pick as dismissed.
+            PopupMenuButton<String>(
               tooltip: 'Filter by subreddit',
               icon: Icon(subFilter == null
                   ? Icons.filter_list_rounded
                   : Icons.filter_list_alt),
-              onSelected: (v) => setState(() => _subFilter = v),
-              itemBuilder: (_) => [
-                const PopupMenuItem(value: null, child: Text('All subreddits')),
-                for (final s in subs)
-                  PopupMenuItem(value: s, child: Text('r/$s')),
-              ],
+              onSelected: (v) =>
+                  setState(() => _subFilter = v.isEmpty ? null : v),
+              itemBuilder: (_) => pickOneMenu([
+                ('', 'All subreddits'),
+                for (final s in subs) (s, 'r/$s'),
+              ], subFilter ?? ''),
             ),
           if (history.isNotEmpty)
             PopupMenuButton<String>(
@@ -70,12 +72,13 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                     ref.read(threadVisitsProvider.notifier).clear();
                 }
               },
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: '7', child: Text('Clear older than 7 days')),
-                PopupMenuItem(
-                    value: '30', child: Text('Clear older than 30 days')),
-                PopupMenuItem(value: 'all', child: Text('Clear all history')),
-              ],
+              itemBuilder: (_) => menuGroups(const [
+                [
+                  MenuOption('7', 'Clear older than 7 days'),
+                  MenuOption('30', 'Clear older than 30 days'),
+                  MenuOption('all', 'Clear all history'),
+                ],
+              ]),
             ),
         ],
       ),

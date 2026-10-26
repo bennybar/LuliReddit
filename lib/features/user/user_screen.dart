@@ -8,6 +8,8 @@ import '../../core/format.dart';
 import '../../core/providers.dart';
 import '../../core/share.dart';
 import '../../core/theme/app_theme.dart' show VoteColors;
+import '../../core/widgets/loading.dart';
+import '../../core/widgets/toggles.dart';
 import '../../models/comment.dart';
 import '../../models/listing.dart';
 import '../../models/post.dart';
@@ -103,7 +105,7 @@ class UserProfileBody extends ConsumerWidget {
         children: [
           about.when(
             loading: () => const SizedBox(
-                height: 96, child: Center(child: CircularProgressIndicator())),
+                height: 96, child: Center(child: Loading())),
             error: (e, _) => Padding(
                 padding: const EdgeInsets.all(16),
                 child: Text('Could not load profile: ${friendlyError(e)}')),
@@ -248,20 +250,10 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
           // One toggle: its shape and fill change with the state, and it
           // reads as on/off.
           if (widget.canFollow)
-            Semantics(
-              toggled: _following,
-              child: _following
-                  ? FilledButton(
-                      onPressed: _busy ? null : _toggle,
-                      style: FilledButton.styleFrom(
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12))),
-                      child: const Text('Following'),
-                    )
-                  : FilledButton.tonal(
-                      onPressed: _busy ? null : _toggle,
-                      child: const Text('Follow'),
-                    ),
+            ToggleButton(
+              checked: _following,
+              onChanged: _busy ? null : (_) => _toggle(),
+              child: Text(_following ? 'Following' : 'Follow'),
             ),
         ],
       ),

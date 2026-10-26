@@ -6,8 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 import '../../core/route_observer.dart';
+import '../../core/theme/motion.dart';
 import '../../core/widgets/error_view.dart';
 import '../../core/widgets/image_decode.dart';
+import '../../core/widgets/loading.dart';
 import '../../data/reddit_repository.dart';
 import '../../models/post.dart';
 import '../auth/auth_controller.dart';
@@ -47,7 +49,7 @@ class _PostListViewState extends ConsumerState<PostListView>
   // The Home loading deck was just showing: deal the first cards in.
   bool _dealHome = false;
   final _scroll = ScrollController();
-  final _refreshKey = GlobalKey<RefreshIndicatorState>();
+  final _refreshKey = GlobalKey<RefreshBoxState>();
   final _prefetched = <String>{};
 
   @override
@@ -137,7 +139,7 @@ class _PostListViewState extends ConsumerState<PostListView>
           duration: const Duration(milliseconds: 320), curve: Curves.easeOut);
     } else {
       HapticFeedback.mediumImpact();
-      // Drive the RefreshIndicator so the user gets a visible spinner while the
+      // Drive the RefreshBox so the user sees the loading indicator while the
       // re-tap refresh runs (its onRefresh calls notifier.refresh()).
       _refreshKey.currentState?.show();
     }
@@ -167,7 +169,7 @@ class _PostListViewState extends ConsumerState<PostListView>
         (homeMode ||
             ref.watch(settingsControllerProvider.select((s) => s.forYouFeed)));
 
-    final refreshable = RefreshIndicator(
+    final refreshable = RefreshBox(
       key: _refreshKey,
       onRefresh: () {
         HapticFeedback.mediumImpact();
@@ -373,7 +375,7 @@ class _PostListViewState extends ConsumerState<PostListView>
                 child: Column(
                   children: [
                     state.loadingMore
-                        ? const CircularProgressIndicator()
+                        ? const Loading()
                         : state.hasMore
                             ? const SizedBox.shrink()
                             : Text('— end —', style: muted),
@@ -578,6 +580,7 @@ class _SortBar extends StatelessWidget {
   void _showSortSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      sheetAnimationStyle: sheetMotion,
       showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: Column(
@@ -644,6 +647,7 @@ class _SortBar extends StatelessWidget {
   void _showTimeSheet(BuildContext context, PostSort s) {
     showModalBottomSheet(
       context: context,
+      sheetAnimationStyle: sheetMotion,
       showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: Column(

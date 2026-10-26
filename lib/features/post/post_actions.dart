@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/network/reddit_client.dart';
 import '../../core/providers.dart';
 import '../../core/share.dart';
+import '../../core/theme/motion.dart';
 import '../../core/widgets/error_view.dart';
 import '../../core/widgets/tap_guard.dart';
 import '../../models/post.dart';
@@ -26,6 +27,7 @@ import '../settings/settings_controller.dart';
 void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post) {
   showModalBottomSheet(
     context: context,
+    sheetAnimationStyle: sheetMotion,
     showDragHandle: true,
     // Ignore taps briefly so the gesture that opened the sheet can't fall
     // through onto an item.

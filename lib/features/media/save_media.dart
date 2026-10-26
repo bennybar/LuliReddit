@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gal/gal.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../core/widgets/loading.dart';
 import 'media_folder.dart';
 
 // Reddit's CDN (v.redd.it) closes the connection mid-stream for requests
@@ -235,9 +236,9 @@ Future<void> saveMediaToGallery(BuildContext context, String url,
   }
 }
 
-/// The progress dialog of a save or a "Share as media" download: a bar
-/// filling up when the size is known, travelling otherwise.
-// TODO(m3e): Kotlin uses Material 3 Expressive's LinearWavyProgressIndicator.
+/// The progress dialog of a save or a "Share as media" download: a wavy bar
+/// (Material 3 Expressive) filling up when the size is known, travelling
+/// otherwise.
 class SavingDialog extends StatelessWidget {
   const SavingDialog(
       {super.key,
@@ -267,9 +268,9 @@ class SavingDialog extends StatelessWidget {
                     ? '$verb… ${_mb(received)} / ${_mb(total)} MB'
                     : '$verb…'),
                 const SizedBox(height: 16),
-                LinearProgressIndicator(
+                WavyProgress(
                   value: total > 0 ? (received / total).clamp(0.0, 1.0) : null,
-                  borderRadius: BorderRadius.circular(4),
+                  label: verb,
                 ),
               ],
             );

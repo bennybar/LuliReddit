@@ -6,7 +6,9 @@ import '../../core/format.dart';
 import '../../core/network/catbox.dart';
 import '../../core/providers.dart';
 import '../../core/open_link.dart';
+import '../../core/theme/motion.dart';
 import '../../core/widgets/error_view.dart';
+import '../../core/widgets/loading.dart';
 import '../../core/widgets/markdown_style.dart';
 import '../../core/widgets/reddit_markdown.dart';
 import '../../models/inbox_item.dart';
@@ -64,7 +66,7 @@ class _MessageThreadScreenState extends ConsumerState<MessageThreadScreen> {
                   ? ErrorView(
                       message: snap.error,
                       onRetry: () => setState(() => _root = _load()))
-                  : const Center(child: CircularProgressIndicator()),
+                  : const Center(child: Loading()),
         );
       },
     );
@@ -138,6 +140,7 @@ class _ThreadState extends ConsumerState<_Thread> {
   void _showAttachMenu() {
     showModalBottomSheet(
       context: context,
+      sheetAnimationStyle: sheetMotion,
       showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: Column(
@@ -301,11 +304,7 @@ class _ThreadState extends ConsumerState<_Thread> {
                     IconButton.filled(
                       onPressed: _sending ? null : _send,
                       icon: _sending
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2))
+                          ? const Loading.onContent()
                           : const Icon(Icons.send_rounded),
                     ),
                   ],

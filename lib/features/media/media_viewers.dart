@@ -16,6 +16,7 @@ import '../../core/media_links.dart';
 import '../../core/open_link.dart';
 import '../../core/redgifs.dart';
 import '../../core/share.dart';
+import '../../core/widgets/loading.dart';
 import '../../models/post.dart';
 import '../feed/inline_video.dart';
 import 'save_media.dart';
@@ -388,7 +389,7 @@ class _ImageViewerState extends State<_ImageViewer> with _ImmersiveDismiss {
                 scaleStateChangedCallback: (s) =>
                     setState(() => zoomed = s != PhotoViewScaleState.initial),
                 loadingBuilder: (_, __) => const Center(
-                    child: CircularProgressIndicator(color: Colors.white)),
+                    child: Loading(color: Colors.white)),
                 errorBuilder: _brokenImage,
               ),
             ),
@@ -482,7 +483,7 @@ class _GalleryViewerState extends State<_GalleryViewer> with _ImmersiveDismiss {
                 backgroundDecoration:
                     const BoxDecoration(color: Colors.transparent),
                 loadingBuilder: (_, __) => const Center(
-                    child: CircularProgressIndicator(color: Colors.white)),
+                    child: Loading(color: Colors.white)),
               ),
             ),
           ),
@@ -672,7 +673,7 @@ class _VideoViewerState extends State<_VideoViewer> {
           if (_error != null)
             Center(child: _errorView(context))
           else if (v == null)
-            const Center(child: CircularProgressIndicator(color: Colors.white))
+            const Center(child: Loading(color: Colors.white))
           else
             Positioned.fill(
               child: GestureDetector(

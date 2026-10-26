@@ -5,7 +5,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_icon.dart';
 import '../../core/reddit_constants.dart';
+import '../../core/widgets/connected_choice.dart';
 import '../../core/widgets/error_view.dart';
+import '../../core/widgets/loading.dart';
 import '../settings/settings_controller.dart';
 import 'auth_controller.dart';
 import 'auth_repository.dart';
@@ -174,25 +176,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
             const SizedBox(height: 24),
 
-            SizedBox(
-              width: double.infinity,
-              child: SegmentedButton<bool>(
-                segments: const [
-                  ButtonSegment(
-                      value: false,
-                      icon: Icon(Icons.public_rounded, size: 18),
-                      label: Text('Reddit website')),
-                  ButtonSegment(
-                      value: true,
-                      icon: Icon(Icons.key_rounded, size: 18),
-                      label: Text('API key')),
-                ],
-                selected: {_useApi},
-                onSelectionChanged: (v) => setState(() {
-                  _useApi = v.first;
-                  _error = null;
-                }),
-              ),
+            ConnectedChoice<bool>(
+              options: const [(false, 'Reddit website'), (true, 'API key')],
+              selected: _useApi,
+              onSelect: (v) => setState(() {
+                _useApi = v;
+                _error = null;
+              }),
+              icon: (v) => v ? Icons.key_rounded : Icons.public_rounded,
             ),
             const SizedBox(height: 20),
             if (!_useApi) ...[
@@ -319,11 +310,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 FilledButton.icon(
                   onPressed: _busy ? null : _login,
                   icon: _busy
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
+                      ? const Loading.onContent()
                       : const Icon(Icons.login_rounded),
                   label: Text(_busy ? 'Working…' : 'Connect Reddit account'),
                 ),

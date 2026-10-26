@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 
 import '../../features/settings/settings_controller.dart' show AppFont;
@@ -166,6 +167,23 @@ class AppTheme {
     return _build(scheme, Brightness.dark, font);
   }
 
+  /// Material 3 Expressive's press shapes (ButtonDefaults.shapes(),
+  /// IconButtonDefaults.shapes()): round buttons tighten their corners to
+  /// [pressed] while held; [selected]: the corners of a toggled-on one.
+  static WidgetStateProperty<OutlinedBorder> _pressShape(double pressed,
+          {double? selected}) =>
+      WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.pressed)) {
+          return RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(pressed));
+        }
+        if (selected != null && states.contains(WidgetState.selected)) {
+          return RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(selected));
+        }
+        return const StadiumBorder();
+      });
+
   static ThemeData _build(
       ColorScheme scheme, Brightness brightness, AppFont font) {
     final jakarta = font == AppFont.jakarta;
@@ -239,18 +257,44 @@ class AppTheme {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           minimumSize: const Size(0, 52),
-          shape: const StadiumBorder(),
           // From the theme's button style, so it follows the app font.
           textStyle: base.textTheme.labelLarge
               ?.copyWith(fontWeight: FontWeight.w600, fontSize: 16),
-        ),
+        ).copyWith(shape: _pressShape(12)),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           minimumSize: const Size(0, 52),
-          shape: const StadiumBorder(),
-        ),
+        ).copyWith(shape: _pressShape(12)),
       ),
+      textButtonTheme:
+          TextButtonThemeData(style: ButtonStyle(shape: _pressShape(8))),
+      // Toggle icons (isSelected) also turn squarer when on.
+      iconButtonTheme: IconButtonThemeData(
+          style: ButtonStyle(shape: _pressShape(8, selected: 12))),
+      // Expressive menus: the popup is see-through, its MenuGroups draw
+      // their own surfaces (core/widgets/pick_one_menu.dart).
+      popupMenuTheme: const PopupMenuThemeData(
+        // Below its button, as Compose's dropdown.
+        position: PopupMenuPosition.under,
+        color: Colors.transparent,
+        elevation: 0,
+        shadowColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        menuPadding: EdgeInsets.zero,
+      ),
+      // The Material 3 Expressive slider: a thick track with a gap around
+      // a bar handle. (The flag is deprecated only until false becomes the
+      // default; it is still the way to opt in.)
+      // ignore: deprecated_member_use
+      sliderTheme: const SliderThemeData(year2023: false),
+      // One fast full-width slide for pushes and pops on every platform,
+      // as Kotlin's; the iOS edge swipe scrubs it back.
+      pageTransitionsTheme: PageTransitionsTheme(builders: {
+        TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+      }),
       chipTheme: base.chipTheme.copyWith(
         shape: const StadiumBorder(),
         side: BorderSide.none,

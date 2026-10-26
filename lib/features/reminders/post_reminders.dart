@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/theme/motion.dart';
 import '../../models/post.dart';
 import '../notifications/notification_log.dart';
 import '../notifications/notification_service.dart';
@@ -214,6 +215,7 @@ Future<void> _pick(
           DateTime.now(), use24h: use24h())}';
   final picked = await showModalBottomSheet<Object>(
     context: ctx,
+    sheetAnimationStyle: sheetMotion,
     showDragHandle: true,
     builder: (sheet) => SafeArea(
       child: Padding(

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/network/rate_limit.dart';
 import '../../core/widgets/glass_surface.dart';
+import '../../core/widgets/pick_one_menu.dart';
 import '../auth/auth_controller.dart';
 import '../feed/post_card.dart' show LetterAvatar;
 import '../feed/post_list_view.dart';
@@ -250,58 +251,30 @@ class _DisplayMenu extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final cs = Theme.of(context).colorScheme;
     final display =
         ref.watch(settingsControllerProvider.select((s) => s.postDisplay));
     final autoplay =
         ref.watch(settingsControllerProvider.select((s) => s.autoplayMedia));
     final ctrl = ref.read(settingsControllerProvider.notifier);
-    final selected = MenuItemButton.styleFrom(
-      backgroundColor: cs.secondaryContainer,
-      foregroundColor: cs.onSecondaryContainer,
-      iconColor: cs.onSecondaryContainer,
-    );
-    return MenuAnchor(
-      menuChildren: [
-        for (final d in PostDisplay.values)
-          Semantics(
-            selected: d == display,
-            inMutuallyExclusiveGroup: true,
-            child: MenuItemButton(
-              style: d == display ? selected : null,
-              leadingIcon: Icon(d.icon, size: 20),
-              trailingIcon: d == display
-                  ? const Icon(Icons.check_rounded, size: 20)
-                  : null,
-              onPressed: () => ctrl.setPostDisplay(d),
-              child: Text(d.label),
-            ),
-          ),
-        const Divider(height: 9),
-        Semantics(
-          toggled: autoplay,
-          child: MenuItemButton(
-            leadingIcon:
-                const Icon(Icons.play_circle_outline_rounded, size: 20),
-            trailingIcon:
-                autoplay ? const Icon(Icons.check_rounded, size: 20) : null,
-            onPressed: () => ctrl.setAutoplayMedia(!autoplay),
-            child: const Text('Autoplay media'),
-          ),
-        ),
-        const Divider(height: 9),
-        MenuItemButton(
-          leadingIcon: const Icon(Icons.settings_outlined, size: 20),
-          onPressed: () => context.push('/settings'),
-          child: const Text('Settings'),
-        ),
-      ],
-      builder: (context, controller, _) => IconButton(
-        tooltip: 'Display',
-        icon: const Icon(Icons.more_vert_rounded),
-        onPressed: () =>
-            controller.isOpen ? controller.close() : controller.open(),
-      ),
+    return PopupMenuButton<VoidCallback>(
+      tooltip: 'Display',
+      icon: const Icon(Icons.more_vert_rounded),
+      onSelected: (f) => f(),
+      itemBuilder: (_) => menuGroups([
+        [
+          for (final d in PostDisplay.values)
+            MenuOption(() => ctrl.setPostDisplay(d), d.label,
+                icon: d.icon, selected: d == display),
+        ],
+        [
+          MenuOption(() => ctrl.setAutoplayMedia(!autoplay), 'Autoplay media',
+              icon: Icons.play_circle_outline_rounded, checked: autoplay),
+        ],
+        [
+          MenuOption(() => context.push('/settings'), 'Settings',
+              icon: Icons.settings_outlined),
+        ],
+      ]),
     );
   }
 }

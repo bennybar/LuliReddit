@@ -3,6 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
+import '../../core/theme/motion.dart';
+import '../../core/widgets/loading.dart';
+import '../../core/widgets/pick_one_menu.dart';
+import '../../core/widgets/toggles.dart';
 import '../foryou/for_you_learner.dart';
 import '../history/thread_visits.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -250,6 +254,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
     HapticFeedback.selectionClick();
     showModalBottomSheet<void>(
       context: context,
+      sheetAnimationStyle: sheetMotion,
       showDragHandle: true,
       builder: (sheet) => SafeArea(
         child: Column(
@@ -443,9 +448,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
   /// (or block), then moderator actions.
   List<PopupMenuEntry<VoidCallback>> _menuItems(Comment c, bool isOwn,
       {bool withSave = false}) {
-    PopupMenuItem<VoidCallback> item(String label, VoidCallback f) =>
-        PopupMenuItem(value: f, child: Text(label));
-    final groups = <List<PopupMenuItem<VoidCallback>>>[
+    MenuOption<VoidCallback> item(String label, VoidCallback f) =>
+        MenuOption(f, label);
+    final groups = <List<MenuOption<VoidCallback>>>[
       [
         if (withSave) item(c.saved ? 'Unsave' : 'Save', () => _toggleSave(c)),
         item('Copy text', () {
@@ -494,12 +499,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
                         (r) => r.modDistinguish(c.fullname, how: 'yes'))),
         ],
     ];
-    return [
-      for (var i = 0; i < groups.length; i++) ...[
-        if (i > 0) const PopupMenuDivider(),
-        ...groups[i],
-      ],
-    ];
+    return menuGroups(groups);
   }
 
   /// What a swipe on a comment does, per Settings → Swipe actions.
@@ -548,14 +548,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
               icon: const Icon(Icons.sort_rounded),
               tooltip: 'Sort comments',
               onSelected: notifier.changeSort,
-              itemBuilder: (_) => [
-                for (final s in commentSorts)
-                  CheckedPopupMenuItem(
-                    value: s,
-                    checked: notifier.sort == s,
-                    child: Text(commentSortLabels[s] ?? s),
-                  ),
-              ],
+              itemBuilder: (_) => pickOneMenu([
+                for (final s in commentSorts) (s, commentSortLabels[s] ?? s)
+              ], notifier.sort),
             ),
           if (thread != null)
             IconButton(
@@ -594,11 +589,12 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
                   }
                 }
               },
-              itemBuilder: (_) => [
-                if (thread.post.isSelf)
-                  const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                const PopupMenuItem(value: 'delete', child: Text('Delete')),
-              ],
+              itemBuilder: (_) => menuGroups([
+                [
+                  if (thread.post.isSelf) const MenuOption('edit', 'Edit'),
+                  const MenuOption('delete', 'Delete'),
+                ],
+              ]),
             ),
         ],
       ),
@@ -647,7 +643,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
               ),
             ),
             data: (thread) {
-              final list = RefreshIndicator(
+              final list = RefreshBox(
                 onRefresh: _refresh,
                 child: _commentList(thread, username, settings),
               );
@@ -891,10 +887,7 @@ class _MoreRow extends StatelessWidget {
         child: TextButton.icon(
           onPressed: loading ? null : onTap,
           icon: loading
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2))
+              ? const Loading.onContent()
               : Icon(Icons.add_circle_outline_rounded,
                   size: 18, color: cs.primary),
           label: Text(comment.moreChildren.isEmpty
@@ -1149,7 +1142,7 @@ class _LoadingWithHeader extends StatelessWidget {
         if (post != null) _PostHeader(post: post!, fresh: false),
         const Padding(
           padding: EdgeInsets.all(40),
-          child: Center(child: CircularProgressIndicator()),
+          child: Center(child: Loading()),
         ),
       ],
     );
@@ -1381,14 +1374,12 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
                 ]),
               ),
               const Spacer(),
-              IconButton(
-                tooltip: saved ? 'Unsave' : 'Save',
-                isSelected: saved,
-                onPressed: _toggleSave,
-                color: saved ? cs.primary : null,
-                icon: Icon(saved
-                    ? Icons.bookmark_rounded
-                    : Icons.bookmark_border_rounded),
+              ToggleIcon(
+                checked: saved,
+                onChanged: (_) => _toggleSave(),
+                on: Icons.bookmark_rounded,
+                off: Icons.bookmark_border_rounded,
+                description: 'Save',
               ),
             ],
           ),

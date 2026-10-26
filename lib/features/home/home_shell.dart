@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/theme/motion.dart';
 import '../../core/widgets/glass_surface.dart' show useLiquidGlass;
 import '../about/whats_new.dart';
 import '../auth/auth_controller.dart';
@@ -266,8 +267,9 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       ),
       bottomNavigationBar: bottomBar
           ? AnimatedSlide(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOut,
+              // Material 3 Expressive's spatial spring (a slight bounce).
+              duration: Motion.defaultSpatial.duration,
+              curve: Motion.defaultSpatial,
               offset: _chrome ? Offset.zero : const Offset(0, 1.4),
               child: _FloatingNav(
                 selected: _index,
@@ -487,21 +489,26 @@ class _FloatingNavState extends State<_FloatingNav> {
         behavior: HitTestBehavior.translucent,
         onHorizontalDragStart: (d) => _pick(d.globalPosition),
         onHorizontalDragUpdate: (d) => _pick(d.globalPosition),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var i = 0; i < _navItems.length; i++) ...[
-              if (i > 0) const SizedBox(width: 6),
-              _NavButton(
-                key: _keys[i],
-                item: _navItems[i],
-                selected: widget.selected == i,
-                badge: i == 2 ? widget.unread : 0,
-                showLabel: widget.showLabels,
-                onTap: () => widget.onSelected(i),
-              ),
+        child: Semantics(
+          role: SemanticsRole.tabBar,
+          container: true,
+          explicitChildNodes: true,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < _navItems.length; i++) ...[
+                if (i > 0) const SizedBox(width: 6),
+                _NavButton(
+                  key: _keys[i],
+                  item: _navItems[i],
+                  selected: widget.selected == i,
+                  badge: i == 2 ? widget.unread : 0,
+                  showLabel: widget.showLabels,
+                  onTap: () => widget.onSelected(i),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -542,18 +549,21 @@ class _NavButton extends StatelessWidget {
       icon = Badge(label: Text(badge > 99 ? '99+' : '$badge'), child: icon);
     }
     final labelled = selected && showLabel;
-    // A tab, for screen readers: "Inbox, selected".
+    // A tab, for screen readers: "Inbox, tab, selected".
     return Semantics(
+      role: SemanticsRole.tab,
       selected: selected,
-      button: true,
-      inMutuallyExclusiveGroup: true,
-      label: item.$3,
+      label: badge > 0 ? '${item.$3}, $badge unread' : item.$3,
+      onTap: onTap,
       excludeSemantics: true,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
+        // Colour fades on the effects spring; the pill's size on the
+        // spatial one, with a little bounce (M3 Expressive motion).
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
+          duration: Motion.defaultEffects.duration,
+          curve: Motion.defaultEffects,
           height: 48,
           padding: EdgeInsets.symmetric(horizontal: labelled ? 18 : 12),
           decoration: BoxDecoration(
@@ -562,8 +572,8 @@ class _NavButton extends StatelessWidget {
           ),
           // The selected pill grows to fit its label with a little bounce.
           child: AnimatedSize(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOutBack,
+            duration: Motion.defaultSpatial.duration,
+            curve: Motion.defaultSpatial,
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [

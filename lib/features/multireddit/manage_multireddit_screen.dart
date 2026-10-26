@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/providers.dart';
 import '../../core/share.dart';
+import '../../core/widgets/loading.dart';
 import '../../models/multireddit.dart';
 import 'custom_feeds_screen.dart' show editFeedDialog;
 import 'multireddit_providers.dart';
@@ -100,7 +101,7 @@ class ManageMultiredditScreen extends ConsumerWidget {
         ],
       ),
       body: async.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: Loading()),
         error: (e, _) => Center(child: Text('Could not load feed: ${friendlyError(e)}')),
         data: (multi) {
           if (multi == null) {

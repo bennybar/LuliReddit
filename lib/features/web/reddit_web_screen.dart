@@ -7,6 +7,7 @@ import '../../core/deep_links.dart';
 import '../../core/network/web_session_cookies.dart';
 import '../../core/open_link.dart';
 import '../../core/reddit_constants.dart';
+import '../../core/widgets/loading.dart';
 import '../auth/auth_controller.dart';
 
 /// Reddit pages Ilay opens signed in (website sign-in only).
@@ -117,7 +118,7 @@ class _RedditWebScreenState extends ConsumerState<RedditWebScreen> {
     final cs = Theme.of(context).colorScheme;
     final Widget body;
     if (_ready == null) {
-      body = const Center(child: CircularProgressIndicator());
+      body = const Center(child: Loading());
     } else if (_ready == false || _crashed) {
       body = Center(
         child: Padding(

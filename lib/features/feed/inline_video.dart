@@ -7,6 +7,7 @@ import 'package:video_player_platform_interface/video_player_platform_interface.
 import 'package:visibility_detector/visibility_detector.dart';
 
 import '../../core/widgets/image_decode.dart';
+import '../../core/widgets/loading.dart';
 
 /// A card counts as on screen (and may play) once this much of it is visible.
 const _visibleThreshold = 0.6;
@@ -301,11 +302,7 @@ class _InlineVideoState extends State<InlineVideo> {
                   ),
                 ),
               if (mine && !firstFrame)
-                const Center(
-                    child: SizedBox(
-                        width: 26,
-                        height: 26,
-                        child: CircularProgressIndicator(strokeWidth: 2))),
+                const Center(child: Loading(size: 40)),
               // Mute / unmute toggle.
               if (ready)
                 Positioned(

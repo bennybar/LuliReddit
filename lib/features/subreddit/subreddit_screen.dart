@@ -6,7 +6,10 @@ import 'package:go_router/go_router.dart';
 import '../../core/format.dart';
 import '../../core/providers.dart';
 import '../../core/share.dart';
+import '../../core/theme/motion.dart';
 import '../../core/widgets/image_decode.dart';
+import '../../core/widgets/loading.dart';
+import '../../core/widgets/toggles.dart';
 import '../../models/flair.dart';
 import '../../models/subreddit.dart';
 import '../auth/auth_controller.dart';
@@ -90,6 +93,7 @@ class _SubredditScreenState extends ConsumerState<SubredditScreen> {
   void _showAbout(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      sheetAnimationStyle: sheetMotion,
       showDragHandle: true,
       isScrollControlled: true,
       builder: (ctx) => DraggableScrollableSheet(
@@ -143,7 +147,7 @@ class _SubredditScreenState extends ConsumerState<SubredditScreen> {
                   if (snap.connectionState != ConnectionState.done) {
                     return const Padding(
                         padding: EdgeInsets.all(16),
-                        child: Center(child: CircularProgressIndicator()));
+                        child: Center(child: Loading()));
                   }
                   final rules = snap.data ?? const [];
                   if (rules.isEmpty) return const Text('No rules listed.');
@@ -234,23 +238,11 @@ class _SubredditScreenState extends ConsumerState<SubredditScreen> {
                         ),
                         // One toggle: its shape and fill change with the
                         // state, and it reads as on/off.
-                        Semantics(
-                          toggled: subscribed,
-                          child: FilledButton(
-                            onPressed: () => _toggleSub(s, subscribed),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: subscribed
-                                  ? cs.secondary
-                                  : cs.secondaryContainer,
-                              foregroundColor: subscribed
-                                  ? cs.onSecondary
-                                  : cs.onSecondaryContainer,
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(
-                                      subscribed ? 12 : 20)),
-                            ),
-                            child: Text(subscribed ? 'Joined' : 'Join'),
-                          ),
+                        ToggleButton(
+                          checked: subscribed,
+                          onChanged: (_) => _toggleSub(s, subscribed),
+                          tonal: true,
+                          child: Text(subscribed ? 'Joined' : 'Join'),
                         ),
                       ],
                     ),
@@ -346,6 +338,7 @@ Future<bool> pickUserFlair(BuildContext context, WidgetRef ref, String sub,
   const noFlair = UserFlairChoice(id: '', text: '', editable: false);
   final picked = await showModalBottomSheet<UserFlairChoice>(
     context: context,
+    sheetAnimationStyle: sheetMotion,
     showDragHandle: true,
     isScrollControlled: true,
     builder: (ctx) => SafeArea(

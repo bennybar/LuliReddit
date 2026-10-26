@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/drafts.dart';
 import '../../core/network/catbox.dart';
 import '../../core/providers.dart';
+import '../../core/theme/motion.dart';
+import '../../core/widgets/loading.dart';
 import '../../models/comment.dart';
 import '../../models/post.dart';
 import '../auth/auth_controller.dart';
@@ -26,6 +28,7 @@ Future<Comment?> showReplySheet(
 }) {
   return showModalBottomSheet<Comment>(
     context: context,
+    sheetAnimationStyle: sheetMotion,
     isScrollControlled: true,
     showDragHandle: true,
     builder: (ctx) => _ComposeSheet(
@@ -89,6 +92,7 @@ Future<String?> showEditSheet(
 }) {
   return showModalBottomSheet<String>(
     context: context,
+    sheetAnimationStyle: sheetMotion,
     isScrollControlled: true,
     showDragHandle: true,
     builder: (ctx) => _ComposeSheet(
@@ -271,10 +275,7 @@ class _ComposeSheetState<T> extends State<_ComposeSheet<T>> {
           FilledButton.icon(
             onPressed: _busy ? null : _submit,
             icon: _busy
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2))
+                ? const Loading.onContent()
                 : const Icon(Icons.send_rounded),
             label: Text(_busy ? 'Sending…' : widget.submitLabel),
           ),

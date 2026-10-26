@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/route_observer.dart';
+import '../../core/widgets/loading.dart';
 import '../../models/listing.dart';
 import '../../core/widgets/error_view.dart';
 
@@ -117,7 +118,7 @@ class _PagedListState<T> extends State<PagedList<T>> with RouteAware {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) return const Center(child: Loading());
     if (_error != null) {
       return ListView(children: [
         Padding(
@@ -132,7 +133,7 @@ class _PagedListState<T> extends State<PagedList<T>> with RouteAware {
       ]);
     }
     if (_items.isEmpty) {
-      return RefreshIndicator(
+      return RefreshBox(
         onRefresh: _load,
         child: ListView(children: [
           const SizedBox(height: 120),
@@ -140,7 +141,7 @@ class _PagedListState<T> extends State<PagedList<T>> with RouteAware {
         ]),
       );
     }
-    return RefreshIndicator(
+    return RefreshBox(
       onRefresh: _load,
       child: ListView.separated(
         controller: _scroll,
@@ -152,7 +153,7 @@ class _PagedListState<T> extends State<PagedList<T>> with RouteAware {
             return _loadingMore
                 ? const Padding(
                     padding: EdgeInsets.all(16),
-                    child: Center(child: CircularProgressIndicator()))
+                    child: Center(child: Loading()))
                 : const SizedBox.shrink();
           }
           return widget.itemBuilder(context, _items[i]);

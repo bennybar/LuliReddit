@@ -1,16 +1,22 @@
+import 'dart:ui' show SemanticsRole;
+
 import 'package:flutter/material.dart';
+
+import 'toggles.dart';
 
 /// The gap between connected buttons (M3 Expressive's ConnectedSpaceBetween).
 const double connectedGap = 2;
 
 /// M3 Expressive's connected button corners for item [i] of [count]: round
-/// ends, tight (8) inner corners. [height]: the button's height.
-BorderRadiusGeometry connectedRadius(int i, int count, {double height = 40}) {
+/// ends, tight ([inner], 8; 4 while pressed) inner corners. [height]: the
+/// button's height.
+BorderRadiusDirectional connectedRadius(int i, int count,
+    {double height = 40, double inner = 8}) {
   final round = Radius.circular(height / 2);
-  const inner = Radius.circular(8);
+  final tight = Radius.circular(inner);
   return BorderRadiusDirectional.horizontal(
-    start: i == 0 ? round : inner,
-    end: i == count - 1 ? round : inner,
+    start: i == 0 ? round : tight,
+    end: i == count - 1 ? round : tight,
   );
 }
 
@@ -18,7 +24,7 @@ BorderRadiusGeometry connectedRadius(int i, int count, {double height = 40}) {
 /// [fill]: the buttons share the width equally; otherwise they size to their
 /// labels (put it in a sideways-scrolling row for longer lists). [icon]: an
 /// icon per option; with [iconOnly] the label is only its description.
-// TODO(m3e): the M3E pass refines this (press shapes, motion).
+/// Screen readers hear a radio group.
 class ConnectedChoice<K> extends StatelessWidget {
   const ConnectedChoice({
     super.key,
@@ -41,8 +47,9 @@ class ConnectedChoice<K> extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final dir = Directionality.of(context);
     const height = 40.0;
+    final n = options.length;
     final buttons = <Widget>[];
-    for (var i = 0; i < options.length; i++) {
+    for (var i = 0; i < n; i++) {
       final (key, label) = options[i];
       final checked = key == selected;
       final fg = checked ? cs.onPrimary : cs.onSurfaceVariant;
@@ -64,36 +71,39 @@ class ConnectedChoice<K> extends StatelessWidget {
                 Flexible(child: text),
               ]);
       }
-      // The checked button turns fully round, as M3E's toggle does.
+      // The checked button turns fully round, as M3E's toggle does; a
+      // pressed one tightens its inner corners.
       final button = Semantics(
+        container: true,
         inMutuallyExclusiveGroup: true,
         checked: checked,
-        button: true,
-        child: Material(
+        child: ShapeButton(
           color: checked ? cs.primary : cs.surfaceContainer,
-          shape: RoundedRectangleBorder(
-              borderRadius: checked
+          shape: (pressed) => pressed
+              ? connectedRadius(i, n, inner: 4).resolve(dir)
+              : checked
                   ? BorderRadius.circular(height / 2)
-                  : connectedRadius(i, options.length).resolve(dir)),
-          clipBehavior: Clip.antiAlias,
-          animationDuration: const Duration(milliseconds: 200),
-          child: InkWell(
-            onTap: () => onSelect(key),
-            child: Container(
-              height: height,
-              alignment: Alignment.center,
-              padding: EdgeInsets.symmetric(horizontal: fill ? 8 : 16),
-              child: content,
-            ),
+                  : connectedRadius(i, n).resolve(dir),
+          onTap: () => onSelect(key),
+          child: Container(
+            height: height,
+            alignment: Alignment.center,
+            padding: EdgeInsets.symmetric(horizontal: fill ? 8 : 16),
+            child: content,
           ),
         ),
       );
       if (i > 0) buttons.add(const SizedBox(width: connectedGap));
       buttons.add(fill ? Expanded(child: button) : button);
     }
-    return Row(
-      mainAxisSize: fill ? MainAxisSize.max : MainAxisSize.min,
-      children: buttons,
+    return Semantics(
+      role: SemanticsRole.radioGroup,
+      container: true,
+      explicitChildNodes: true,
+      child: Row(
+        mainAxisSize: fill ? MainAxisSize.max : MainAxisSize.min,
+        children: buttons,
+      ),
     );
   }
 }
