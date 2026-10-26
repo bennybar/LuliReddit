@@ -39,6 +39,8 @@ dependencies:
   cached_network_image: ^3.4.1
   photo_view: ^0.15.0
   video_player: ^2.9.2
+  # setMixWithOthers: muted feed clips mustn't stop the user's music
+  video_player_platform_interface: ^6.7.0
   flutter_markdown: ^0.7.4+3
   markdown: ^7.3.0 # custom inline syntax (spoilers, superscript)
   url_launcher: ^6.3.1
@@ -63,6 +65,7 @@ dependencies:
   # Notifications (background inbox polling — no Firebase, F-Droid-safe)
   flutter_local_notifications: ^18.0.1
   workmanager: ^0.9.0+3
+  timezone: ^0.10.1 # zonedSchedule's TZDateTime (post reminders)
 
 dev_dependencies:
   flutter_test:

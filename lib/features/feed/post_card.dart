@@ -21,6 +21,7 @@ import 'post_overrides.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/post.dart';
 import '../history/history_store.dart';
+import '../reminders/post_reminders.dart';
 import '../media/gallery_carousel.dart';
 import '../media/media_viewers.dart';
 import '../media/nsfw_blur.dart';
@@ -104,12 +105,6 @@ void filterOutSub(BuildContext context, WidgetRef ref, Post post) {
     learner.filterOutSubreddit(post, undo: true);
   });
 }
-
-/// "tomorrow at 09:00" for a post you asked to be reminded about, or null.
-// TODO(reminders): the reminders area replaces this with the pending
-// reminders store; until then no post has one.
-final pendingReminderLabelProvider =
-    Provider.family<String?, String>((ref, postId) => null);
 
 /// A post in a feed, in the layout chosen in Settings (Default / Cards / Mini
 /// cards / Calm / Calm cards). [dismissible]: Home / For You, where the
@@ -200,8 +195,11 @@ class _PostCardState extends ConsumerState<PostCard> {
     final next = !_ov.saved;
     overrides.setSaved(widget.post, next);
     final learner = ref.read(forYouLearnerProvider)..save(widget.post, next);
-    // TODO(reminders): Kotlin offers a reminder on save (PostReminders.offer)
-    // and cancels it on unsave.
+    if (next) {
+      offerReminder(context, widget.post);
+    } else {
+      ref.read(postRemindersProvider.notifier).cancel(widget.post.id);
+    }
     try {
       await ref.read(redditRepositoryProvider).setSaved(widget.post.fullname, next);
     } catch (e) {
@@ -1575,30 +1573,44 @@ class CrosspostLine extends StatelessWidget {
 }
 
 /// "Reminder tomorrow at 09:00" on a post you asked to be reminded about
-/// (cards and the post screen).
-// TODO(reminders): tap to change or cancel (PostReminders.manage).
+/// (cards and the post screen); tap to change or cancel.
 class ReminderLine extends ConsumerWidget {
   const ReminderLine({super.key, required this.post});
   final Post post;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final when = ref.watch(pendingReminderLabelProvider(post.id));
-    if (when == null) return const SizedBox.shrink();
+    final due =
+        ref.watch(postRemindersProvider.select((m) => m[post.id]));
+    if (due == null) return const SizedBox.shrink();
     final cs = Theme.of(context).colorScheme;
+    final when = whenLabel(
+        DateTime.fromMillisecondsSinceEpoch(due), DateTime.now(),
+        use24h: MediaQuery.alwaysUse24HourFormatOf(context));
     return Padding(
       padding: const EdgeInsets.only(top: 10),
-      child: Row(
-        children: [
-          Icon(Icons.schedule_rounded, size: 14, color: cs.primary),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text('Reminder $when',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 12, color: cs.primary)),
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: () => manageReminder(context, post),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.schedule_rounded, size: 14, color: cs.primary),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text('Reminder $when',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, color: cs.primary)),
+                ),
+              ],
+            ),
           ),
-        ],
+        ),
       ),
     );
   }

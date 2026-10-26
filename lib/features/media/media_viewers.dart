@@ -1,24 +1,24 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 
+import 'dart:math' as math;
+
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:dio/dio.dart';
 import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gal/gal.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../core/media_links.dart';
+import '../../core/open_link.dart';
 import '../../core/redgifs.dart';
 import '../../core/share.dart';
 import '../../models/post.dart';
-import 'media_folder.dart';
+import '../feed/inline_video.dart';
+import 'save_media.dart';
 
 /// A left-edge swipe-to-go-back strip (iOS-style), safe to overlay on viewers
 /// without stealing PhotoView pan / gallery paging (only the left 24px).
@@ -116,8 +116,17 @@ String externalVideoSource(Post p) {
 /// file (with sound) first, falling back to Reddit's silent mp4 copy.
 Future<void> openPostVideo(BuildContext context, Post p) async {
   if (isExternalVideo(p)) {
+    // In the app that handles it (YouTube for a YouTube link), else the
+    // browser.
     final uri = Uri.tryParse(p.url);
-    if (uri != null) launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (uri == null) return;
+    var opened = false;
+    try {
+      opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } on PlatformException {
+      // no app for it
+    }
+    if (!opened && context.mounted) openInBrowser(context, uri);
     return;
   }
   var src = postVideoUrl(p);
@@ -151,127 +160,19 @@ String resolveVideoUrl(String url) {
   return url;
 }
 
-/// Downloads a media file to the folder picked in Settings, else the device
-/// gallery/Photos, with a cancellable progress dialog showing downloaded /
-/// total size.
-Future<void> saveMediaToGallery(BuildContext context, String url,
-    {required bool isVideo}) async {
-  final folder = ProviderScope.containerOf(context).read(mediaFolderProvider);
+/// Opens [url] in another app (browser / Reddit / player), not in-app.
+Future<void> _openExternally(BuildContext context, String url) async {
   final messenger = ScaffoldMessenger.of(context);
-  final nav = Navigator.of(context, rootNavigator: true);
-  final cancel = CancelToken();
-  final progress = ValueNotifier<(int, int)>((0, 0)); // (received, total)
-  showDialog(
-    context: context,
-    barrierDismissible: false,
-    useRootNavigator: true,
-    builder: (_) => _SavingDialog(
-        progress: progress,
-        onCancel: () => cancel.cancel('cancelled')),
-  );
+  var opened = false;
   try {
-    final dir = await getTemporaryDirectory();
-    final clean = url.split('?').first;
-    var ext = clean.contains('.') ? clean.split('.').last.toLowerCase() : '';
-    if (ext.isEmpty || ext.length > 4) ext = isVideo ? 'mp4' : 'jpg';
-    final ts = DateTime.now().millisecondsSinceEpoch;
-    final path = '${dir.path}/luli_$ts.$ext';
-    // Reddit's CDN (v.redd.it) closes the connection mid-stream for requests
-    // without a real User-Agent, so set one and allow a generous timeout.
-    await Dio().download(
-      url,
-      path,
-      cancelToken: cancel,
-      options: Options(
-        headers: const {
-          'User-Agent':
-              'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 '
-                  '(KHTML, like Gecko) Chrome/124.0 Safari/537.36'
-        },
-        receiveTimeout: const Duration(seconds: 90),
-      ),
-      onReceiveProgress: (got, total) => progress.value = (got, total),
-    );
-    if (folder != null &&
-        await saveToMediaFolder(
-            folder, path, 'ilay_$ts.$ext', _mimeFor(ext, isVideo))) {
-      nav.pop();
-      messenger.showSnackBar(
-          SnackBar(content: Text('Saved to ${folder.name}')));
-      return;
-    }
-    if (isVideo) {
-      await Gal.putVideo(path, album: 'Ilay');
-    } else {
-      await Gal.putImage(path, album: 'Ilay');
-    }
-    nav.pop();
-    messenger.showSnackBar(SnackBar(
-        content: Text(folder == null
-            ? 'Saved to your gallery'
-            : "Couldn't open ${folder.name}, so saved to your gallery. "
-                'Pick the folder again in Settings.')));
-  } on DioException catch (e) {
-    nav.pop();
-    if (CancelToken.isCancel(e)) {
-      messenger.showSnackBar(
-          const SnackBar(content: Text('Download cancelled')));
-    } else {
-      messenger.showSnackBar(const SnackBar(content: Text('Could not save')));
-    }
-  } catch (e) {
-    nav.pop();
-    messenger.showSnackBar(SnackBar(
-        content: Text('Could not save: ${'$e'.replaceFirst('Exception: ', '')}')));
+    opened = await launchUrl(Uri.parse(url),
+        mode: LaunchMode.externalApplication);
+  } on PlatformException {
+    // no app for it
   }
-}
-
-String _mimeFor(String ext, bool isVideo) => switch (ext) {
-      'png' => 'image/png',
-      'gif' => 'image/gif',
-      'webp' => 'image/webp',
-      'jpg' || 'jpeg' => 'image/jpeg',
-      'mp4' => 'video/mp4',
-      _ => isVideo ? 'video/mp4' : 'image/jpeg',
-    };
-
-class _SavingDialog extends StatelessWidget {
-  const _SavingDialog({required this.progress, required this.onCancel});
-  final ValueNotifier<(int, int)> progress;
-  final VoidCallback onCancel;
-
-  static String _mb(int bytes) => (bytes / 1048576).toStringAsFixed(1);
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      content: ValueListenableBuilder<(int, int)>(
-        valueListenable: progress,
-        builder: (_, v, __) {
-          final received = v.$1, total = v.$2;
-          final frac = total > 0 ? received / total : null;
-          return Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: 26,
-                height: 26,
-                child: CircularProgressIndicator(value: frac, strokeWidth: 3),
-              ),
-              const SizedBox(width: 18),
-              Flexible(
-                child: Text(total > 0
-                    ? 'Saving… ${_mb(received)} / ${_mb(total)} MB'
-                    : 'Saving…'),
-              ),
-            ],
-          );
-        },
-      ),
-      actions: [
-        TextButton(onPressed: onCancel, child: const Text('Cancel')),
-      ],
-    );
+  if (!opened) {
+    messenger.showSnackBar(
+        const SnackBar(content: Text('No app can open this link.')));
   }
 }
 
@@ -309,6 +210,7 @@ class _ViewerControls extends StatelessWidget {
                 icon: Platform.isIOS
                     ? CupertinoIcons.xmark
                     : Icons.close_rounded,
+                label: 'Close',
                 onTap: () => Navigator.of(context).maybePop(),
               ),
               const SizedBox(width: 4),
@@ -320,7 +222,10 @@ class _ViewerControls extends StatelessWidget {
                   style: const TextStyle(
                       color: Colors.white,
                       fontSize: 15,
-                      fontWeight: FontWeight.w600),
+                      fontWeight: FontWeight.w600,
+                      shadows: [
+                        Shadow(color: Color(0x80000000), blurRadius: 6)
+                      ]),
                 ),
               ),
               if (downloadUrl != null) ...[
@@ -328,6 +233,7 @@ class _ViewerControls extends StatelessWidget {
                   icon: Platform.isIOS
                       ? CupertinoIcons.cloud_download
                       : Icons.download_rounded,
+                  label: 'Download',
                   onTap: () => saveMediaToGallery(context, downloadUrl!,
                       isVideo: downloadIsVideo),
                 ),
@@ -338,6 +244,7 @@ class _ViewerControls extends StatelessWidget {
                   icon: Platform.isIOS
                       ? CupertinoIcons.share
                       : Icons.ios_share,
+                  label: 'Share',
                   onTap: () => shareUrl(context, sourceUrl!),
                 ),
                 const SizedBox(width: 4),
@@ -345,8 +252,8 @@ class _ViewerControls extends StatelessWidget {
                   icon: Platform.isIOS
                       ? CupertinoIcons.arrow_up_right_square
                       : Icons.open_in_new_rounded,
-                  onTap: () => launchUrl(Uri.parse(sourceUrl!),
-                      mode: LaunchMode.externalApplication),
+                  label: 'Open in browser',
+                  onTap: () => _openExternally(context, sourceUrl!),
                 ),
               ],
             ],
@@ -358,29 +265,35 @@ class _ViewerControls extends StatelessWidget {
 }
 
 class _RoundBtn extends StatelessWidget {
-  const _RoundBtn({required this.icon, required this.onTap});
+  const _RoundBtn(
+      {required this.icon, required this.label, required this.onTap});
   final IconData icon;
+  final String label;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    // A solid, always-legible scrim circle. (A BackdropFilter blur on a tiny
-    // circle renders unreliably over media, so we keep this simple and crisp.)
     // Clean iOS/Stories style: a white glyph with a soft shadow over the top
-    // scrim. Uses GestureDetector (not IconButton) because the media Stack has
-    // no Material ancestor, which would make IconButton taps silently no-op.
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: SizedBox(
-        width: 44,
-        height: 44,
-        child: Center(
-          child: Icon(
-            icon,
-            color: Colors.white,
-            size: 26,
-            shadows: const [Shadow(color: Colors.black54, blurRadius: 6)],
+    // scrim (a BackdropFilter blur on a tiny circle renders unreliably over
+    // media). Uses GestureDetector (not IconButton) because the media Stack
+    // has no Material ancestor, which would make IconButton taps silently
+    // no-op.
+    return Semantics(
+      button: true,
+      label: label,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Center(
+            child: Icon(
+              icon,
+              color: Colors.white,
+              size: 26,
+              shadows: const [Shadow(color: Colors.black54, blurRadius: 6)],
+            ),
           ),
         ),
       ),
@@ -388,7 +301,22 @@ class _RoundBtn extends StatelessWidget {
   }
 }
 
+/// The top controls of the image / gallery viewers: fade with [visible],
+/// and take no taps while hidden.
+Widget _fadingControls(bool visible, Widget controls) => AnimatedOpacity(
+      opacity: visible ? 1 : 0,
+      duration: const Duration(milliseconds: 150),
+      child: IgnorePointer(ignoring: !visible, child: controls),
+    );
+
+/// A full-resolution image that failed to load.
+Widget _brokenImage(BuildContext context, Object error, StackTrace? stack) =>
+    const Center(
+        child: Icon(Icons.broken_image_rounded,
+            size: 48, color: Colors.white60));
+
 /// Shared immersive behaviour + swipe-down-to-dismiss with background fade.
+/// The feed's inline clip pauses while a viewer covers it.
 mixin _ImmersiveDismiss<T extends StatefulWidget> on State<T> {
   double drag = 0;
   bool zoomed = false;
@@ -398,11 +326,13 @@ mixin _ImmersiveDismiss<T extends StatefulWidget> on State<T> {
   void initState() {
     super.initState();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
+    InlineVideoPool.instance.setCovered(true);
   }
 
   @override
   void dispose() {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    InlineVideoPool.instance.setCovered(false);
     super.dispose();
   }
 
@@ -459,13 +389,13 @@ class _ImageViewerState extends State<_ImageViewer> with _ImmersiveDismiss {
                     setState(() => zoomed = s != PhotoViewScaleState.initial),
                 loadingBuilder: (_, __) => const Center(
                     child: CircularProgressIndicator(color: Colors.white)),
+                errorBuilder: _brokenImage,
               ),
             ),
           ),
-          AnimatedOpacity(
-            opacity: showControls && drag.abs() < 8 ? 1 : 0,
-            duration: const Duration(milliseconds: 150),
-            child: _ViewerControls(
+          _fadingControls(
+            showControls && drag.abs() < 8,
+            _ViewerControls(
                 title: widget.title,
                 sourceUrl: widget.url,
                 downloadUrl: widget.url),
@@ -489,8 +419,25 @@ class _GalleryViewer extends StatefulWidget {
 }
 
 class _GalleryViewerState extends State<_GalleryViewer> with _ImmersiveDismiss {
-  late final _controller = PageController(initialPage: widget.initialIndex);
-  late int _index = widget.initialIndex;
+  late int _index =
+      widget.initialIndex.clamp(0, widget.images.length - 1).toInt();
+  late final _controller = PageController(initialPage: _index);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _warm(_index));
+  }
+
+  // The images either side are loaded ahead, so paging shows them ready.
+  void _warm(int i) {
+    if (!mounted) return;
+    for (final j in [i - 1, i + 1]) {
+      if (j < 0 || j >= widget.images.length) continue;
+      precacheImage(CachedNetworkImageProvider(widget.images[j].url), context)
+          .ignore();
+    }
+  }
 
   @override
   void dispose() {
@@ -515,7 +462,13 @@ class _GalleryViewerState extends State<_GalleryViewer> with _ImmersiveDismiss {
               child: PhotoViewGallery.builder(
                 pageController: _controller,
                 itemCount: widget.images.length,
-                onPageChanged: (i) => setState(() => _index = i),
+                onPageChanged: (i) {
+                  setState(() {
+                    _index = i;
+                    zoomed = false;
+                  });
+                  _warm(i);
+                },
                 scaleStateChangedCallback: (s) =>
                     setState(() => zoomed = s != PhotoViewScaleState.initial),
                 builder: (_, i) => PhotoViewGalleryPageOptions(
@@ -524,6 +477,7 @@ class _GalleryViewerState extends State<_GalleryViewer> with _ImmersiveDismiss {
                   maxScale: PhotoViewComputedScale.covered * 4,
                   onTapUp: (_, __, ___) =>
                       setState(() => showControls = !showControls),
+                  errorBuilder: _brokenImage,
                 ),
                 backgroundDecoration:
                     const BoxDecoration(color: Colors.transparent),
@@ -532,10 +486,9 @@ class _GalleryViewerState extends State<_GalleryViewer> with _ImmersiveDismiss {
               ),
             ),
           ),
-          AnimatedOpacity(
-            opacity: showControls && drag.abs() < 8 ? 1 : 0,
-            duration: const Duration(milliseconds: 150),
-            child: _ViewerControls(
+          _fadingControls(
+            showControls && drag.abs() < 8,
+            _ViewerControls(
               title: widget.title,
               center: '${_index + 1} / ${widget.images.length}',
               sourceUrl: widget.images[_index].url,
@@ -562,11 +515,15 @@ class _VideoViewer extends StatefulWidget {
 }
 
 class _VideoViewerState extends State<_VideoViewer> {
+  final _pool = InlineVideoPool.instance;
   VideoPlayerController? _video; // set once playing; drives the UI
   // Owned from creation so dispose() always releases it, even if the viewer
   // closes while it's still initializing (it used to leak, and could start
   // playing with no screen).
   VideoPlayerController? _controller;
+  // The feed card's own player (see InlineVideoPool.borrow): given back on
+  // close, not disposed.
+  bool _borrowed = false;
   String? _error;
   bool _controls = true;
   Timer? _hideTimer;
@@ -575,23 +532,50 @@ class _VideoViewerState extends State<_VideoViewer> {
   void initState() {
     super.initState();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
-    _init();
+    _pool.setCovered(true);
+    // The clip playing in the feed: carry on with it, from the same frame
+    // and with nothing downloaded again.
+    final lent = _pool.borrow(widget.url);
+    if (lent != null) {
+      _borrowed = true;
+      _controller = _video = lent;
+      videoSound(lent, muted: false);
+      lent
+        ..addListener(_watchError)
+        ..play();
+      _scheduleHide();
+    } else {
+      _init();
+    }
   }
 
   Future<void> _init() async {
-    final v = _controller =
-        VideoPlayerController.networkUrl(Uri.parse(widget.url));
+    // Full screen takes the audio session (pauses the user's music).
+    final v = _controller = VideoPlayerController.networkUrl(
+        Uri.parse(widget.url),
+        videoPlayerOptions: VideoPlayerOptions(mixWithOthers: false));
     try {
       await v.initialize();
       if (!mounted) return;
       await v.setLooping(true);
+      // Carry on from where the feed card was.
+      final at = _pool.position(widget.url);
+      if (at != null && mounted) await v.seekTo(at);
       if (!mounted) return;
       await v.play();
       if (!mounted) return;
+      v.addListener(_watchError);
       setState(() => _video = v);
       _scheduleHide();
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
+    }
+  }
+
+  void _watchError() {
+    final v = _video;
+    if (v != null && v.value.hasError && _error == null && mounted) {
+      setState(() => _error = v.value.errorDescription ?? 'Playback error');
     }
   }
 
@@ -618,16 +602,17 @@ class _VideoViewerState extends State<_VideoViewer> {
     _scheduleHide();
   }
 
-  Future<void> _seekBy(int seconds) async {
+  Future<void> _seekTo(Duration target) async {
     final v = _video;
     if (v == null) return;
-    final target = v.value.position + Duration(seconds: seconds);
     final max = v.value.duration;
     await v.seekTo(target < Duration.zero
         ? Duration.zero
         : (target > max ? max : target));
     _scheduleHide();
   }
+
+  static const _ten = Duration(seconds: 10);
 
   static String _fmt(Duration d) {
     final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
@@ -640,7 +625,14 @@ class _VideoViewerState extends State<_VideoViewer> {
   void dispose() {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _hideTimer?.cancel();
-    _controller?.dispose();
+    final c = _controller;
+    c?.removeListener(_watchError);
+    if (_borrowed && c != null) {
+      _pool.giveBack(c);
+    } else {
+      c?.dispose();
+    }
+    _pool.setCovered(false);
     super.dispose();
   }
 
@@ -661,8 +653,7 @@ class _VideoViewerState extends State<_VideoViewer> {
           ),
           const SizedBox(height: 20),
           FilledButton.icon(
-            onPressed: () => launchUrl(Uri.parse(link),
-                mode: LaunchMode.externalApplication),
+            onPressed: () => _openExternally(context, link),
             icon: const Icon(Icons.open_in_new_rounded),
             label: const Text('Open in browser'),
           ),
@@ -696,7 +687,7 @@ class _VideoViewerState extends State<_VideoViewer> {
               ),
             ),
           // Playback controls overlay (tap the video to show/hide).
-          if (v != null)
+          if (v != null && _error == null)
             AnimatedOpacity(
               opacity: _controls ? 1 : 0,
               duration: const Duration(milliseconds: 150),
@@ -708,7 +699,8 @@ class _VideoViewerState extends State<_VideoViewer> {
           if (_controls || _error != null)
             _ViewerControls(
               title: widget.title,
-              sourceUrl: widget.url,
+              sourceUrl: widget.externalUrl ?? widget.url,
+              // A direct mp4 for saving (an HLS playlist can't be saved).
               downloadUrl: (widget.downloadUrl != null &&
                       !widget.downloadUrl!.contains('.m3u8'))
                   ? widget.downloadUrl
@@ -733,16 +725,19 @@ class _VideoViewerState extends State<_VideoViewer> {
               builder: (_, value, __) => Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _circleBtn(Icons.replay_10_rounded, () => _seekBy(-10)),
+                  _circleBtn(Icons.replay_10_rounded, 'Back 10 seconds',
+                      () => _seekTo(v.value.position - _ten)),
                   const SizedBox(width: 28),
                   _circleBtn(
                       value.isPlaying
                           ? Icons.pause_rounded
                           : Icons.play_arrow_rounded,
+                      'Play/pause',
                       _togglePlay,
                       big: true),
                   const SizedBox(width: 28),
-                  _circleBtn(Icons.forward_10_rounded, () => _seekBy(10)),
+                  _circleBtn(Icons.forward_10_rounded, 'Forward 10 seconds',
+                      () => _seekTo(v.value.position + _ten)),
                 ],
               ),
             ),
@@ -767,20 +762,7 @@ class _VideoViewerState extends State<_VideoViewer> {
                     Expanded(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 10),
-                        child: SizedBox(
-                          height: 26,
-                          child: VideoProgressIndicator(
-                            v,
-                            allowScrubbing: true,
-                            // height − 2×vertical padding = ~8px thick bar.
-                            padding: const EdgeInsets.symmetric(vertical: 9),
-                            colors: const VideoProgressColors(
-                              playedColor: Colors.white,
-                              bufferedColor: Colors.white38,
-                              backgroundColor: Colors.white24,
-                            ),
-                          ),
-                        ),
+                        child: _Scrubber(value: value, onSeek: _seekTo),
                       ),
                     ),
                     Text(_fmt(value.duration),
@@ -796,17 +778,116 @@ class _VideoViewerState extends State<_VideoViewer> {
     );
   }
 
-  Widget _circleBtn(IconData icon, VoidCallback onTap, {bool big = false}) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Container(
-        width: big ? 72 : 56,
-        height: big ? 72 : 56,
-        decoration: const BoxDecoration(
-            color: Colors.black45, shape: BoxShape.circle),
-        child: Icon(icon, color: Colors.white, size: big ? 40 : 28),
+  Widget _circleBtn(IconData icon, String label, VoidCallback onTap,
+      {bool big = false}) {
+    return Semantics(
+      button: true,
+      label: label,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          width: big ? 72 : 56,
+          height: big ? 72 : 56,
+          decoration: const BoxDecoration(
+              color: Colors.black45, shape: BoxShape.circle),
+          child: Icon(icon, color: Colors.white, size: big ? 40 : 28),
+        ),
       ),
     );
   }
+}
+
+/// An ~8px thick progress bar you can tap or drag to seek. For screen
+/// readers it's a slider: the position read out, and swipe up / down to
+/// seek.
+class _Scrubber extends StatefulWidget {
+  const _Scrubber({required this.value, required this.onSeek});
+  final VideoPlayerValue value;
+  final ValueChanged<Duration> onSeek;
+
+  @override
+  State<_Scrubber> createState() => _ScrubberState();
+}
+
+class _ScrubberState extends State<_Scrubber> {
+  double? _drag; // the fraction under the finger while dragging
+
+  @override
+  Widget build(BuildContext context) {
+    final value = widget.value;
+    final ms = value.duration.inMilliseconds;
+    final played = _drag ??
+        (ms > 0 ? (value.position.inMilliseconds / ms).clamp(0.0, 1.0) : 0.0);
+    final bufferedEnd = value.buffered
+        .fold<int>(0, (m, r) => math.max(m, r.end.inMilliseconds));
+    final buffered = ms > 0 ? (bufferedEnd / ms).clamp(0.0, 1.0) : 0.0;
+    void seek(double f) {
+      if (ms > 0) {
+        widget.onSeek(
+            Duration(milliseconds: (f.clamp(0.0, 1.0) * ms).round()));
+      }
+    }
+
+    final pct = (played * 100).round();
+    return Semantics(
+      slider: true,
+      label: 'Video position',
+      value: '$pct%',
+      increasedValue: '${math.min(pct + 5, 100)}%',
+      decreasedValue: '${math.max(pct - 5, 0)}%',
+      onIncrease: ms > 0 ? () => seek(played + 0.05) : null,
+      onDecrease: ms > 0 ? () => seek(played - 0.05) : null,
+      child: LayoutBuilder(builder: (context, box) {
+        double frac(double x) => (x / box.maxWidth).clamp(0.0, 1.0);
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapUp: (d) => seek(frac(d.localPosition.dx)),
+          onHorizontalDragStart: (d) =>
+              setState(() => _drag = frac(d.localPosition.dx)),
+          onHorizontalDragUpdate: (d) =>
+              setState(() => _drag = frac(d.localPosition.dx)),
+          onHorizontalDragEnd: (_) {
+            final f = _drag;
+            if (f != null) seek(f);
+            setState(() => _drag = null);
+          },
+          onHorizontalDragCancel: () => setState(() => _drag = null),
+          child: SizedBox(
+            height: 26,
+            width: double.infinity,
+            child: CustomPaint(painter: _ScrubberPainter(played, buffered)),
+          ),
+        );
+      }),
+    );
+  }
+}
+
+class _ScrubberPainter extends CustomPainter {
+  _ScrubberPainter(this.played, this.buffered);
+  final double played;
+  final double buffered;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const h = 8.0;
+    final top = (size.height - h) / 2;
+    void bar(double fraction, Color color) {
+      if (fraction <= 0) return;
+      canvas.drawRRect(
+          RRect.fromRectAndRadius(
+              Rect.fromLTWH(0, top, size.width * fraction, h),
+              const Radius.circular(h / 2)),
+          Paint()..color = color);
+    }
+
+    bar(1, Colors.white24);
+    bar(buffered, Colors.white38);
+    bar(played, Colors.white);
+  }
+
+  @override
+  bool shouldRepaint(_ScrubberPainter old) =>
+      old.played != played || old.buffered != buffered;
 }

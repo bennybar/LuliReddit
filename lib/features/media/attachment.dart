@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:flutter/widgets.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:pasteboard/pasteboard.dart';
 
@@ -68,3 +69,25 @@ Future<MediaAttachment?> pasteImageAttachment() async {
     isVideo: false,
   );
 }
+
+/// Takes images, GIFs and stickers sent by the keyboard (Gboard, Samsung
+/// Keyboard…) as an attachment, like one picked from the gallery. For a
+/// composer's TextField. Android only: Flutter's iOS text input doesn't take
+/// images from the keyboard (iOS GIF keyboards copy them, and Paste image
+/// takes them from there).
+ContentInsertionConfiguration keyboardMedia(
+        ValueChanged<MediaAttachment> onMedia, ValueChanged<String> onError) =>
+    ContentInsertionConfiguration(onContentInserted: (c) {
+      final data = c.data;
+      if (data == null || data.isEmpty) {
+        onError("Couldn't read the keyboard's image");
+        return;
+      }
+      final ext = c.mimeType.split('/').last;
+      onMedia(MediaAttachment(
+        bytes: data,
+        filename: 'keyboard.${ext == 'jpeg' ? 'jpg' : ext}',
+        mimeType: c.mimeType,
+        isVideo: false,
+      ));
+    });

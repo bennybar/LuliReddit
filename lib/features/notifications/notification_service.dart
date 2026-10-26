@@ -1,15 +1,16 @@
 import 'dart:io';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/timezone.dart' as tz;
 
 /// Required top-level handler for taps that arrive while the app is backgrounded
 /// (no-op — routing happens via the launch details / foreground handler).
 @pragma('vm:entry-point')
 void notificationTapBackground(NotificationResponse response) {}
 
-/// Thin wrapper around [FlutterLocalNotificationsPlugin] for the one thing we
-/// use it for: telling the user about new inbox replies & messages found by the
-/// background poller. No Firebase / FCM — everything is local, so the app stays
+/// Thin wrapper around [FlutterLocalNotificationsPlugin]: new inbox replies &
+/// messages found by the background poller, and post reminders scheduled on
+/// the device. No Firebase / FCM — everything is local, so the app stays
 /// clean for F-Droid / IzzyOnDroid.
 class NotificationService {
   NotificationService._();
@@ -122,6 +123,46 @@ class NotificationService {
     } catch (_) {
       return false;
     }
+  }
+
+  /// Schedules a notification at [at], shown by the system even if Ilay
+  /// isn't running (a post reminder). Replaces one with the same [id].
+  Future<void> schedule({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime at,
+    String? payload,
+  }) async {
+    await init();
+    const details = NotificationDetails(
+      android: AndroidNotificationDetails(
+        'reminders',
+        'Post reminders',
+        channelDescription: 'Posts you asked Ilay to remind you about.',
+        category: AndroidNotificationCategory.reminder,
+        styleInformation: BigTextStyleInformation(''),
+      ),
+      iOS: DarwinNotificationDetails(),
+    );
+    // An instant, so UTC: no time zone database needed.
+    await _plugin.zonedSchedule(
+      id,
+      title,
+      body,
+      tz.TZDateTime.from(at, tz.UTC),
+      details,
+      payload: payload,
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+    );
+  }
+
+  /// Cancels a scheduled (or removes a shown) notification.
+  Future<void> cancel(int id) async {
+    await init();
+    await _plugin.cancel(id);
   }
 
   /// If the app was launched by tapping a notification, route to its payload.

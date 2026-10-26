@@ -289,6 +289,11 @@ class _ThreadState extends ConsumerState<_Thread> {
                         minLines: 1,
                         maxLines: 5,
                         onChanged: _saveDraft,
+                        // GIFs and stickers from the keyboard.
+                        contentInsertionConfiguration: keyboardMedia(
+                            (m) => setState(() => _media = m),
+                            (msg) => ScaffoldMessenger.of(context)
+                                .showSnackBar(SnackBar(content: Text(msg)))),
                         decoration: const InputDecoration(hintText: 'Reply…'),
                       ),
                     ),

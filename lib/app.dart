@@ -14,6 +14,7 @@ import 'features/feed/feed_controller.dart';
 import 'features/home/tab_signals.dart';
 import 'features/inbox/inbox_controller.dart';
 import 'features/notifications/notification_service.dart';
+import 'features/reminders/post_reminders.dart';
 import 'features/settings/settings_controller.dart';
 import 'router.dart';
 
@@ -69,16 +70,20 @@ class _LuliAppState extends ConsumerState<LuliApp> with WidgetsBindingObserver {
     // Tapping an inbox notification deep-links to the comment/message: back
     // to the home shell (screens opened by earlier notifications are closed,
     // so Back doesn't walk through them), on the Inbox tab, then the item on
-    // top.
-    NotificationService.onSelectRoute = (route) {
+    // top. A post reminder opens the post where you are (not the Inbox).
+    NotificationService.onSelectRoute = (payload) {
       if (!mounted) return;
+      final reminder = payload.startsWith(reminderPayloadPrefix);
+      final route = reminder
+          ? payload.substring(reminderPayloadPrefix.length)
+          : payload;
       final router = ref.read(routerProvider);
       // The app may be anywhere: close a full-screen viewer or open sheet
       // first, or the item opens hidden underneath it.
       router.routerDelegate.navigatorKey.currentState
           ?.popUntil((r) => r.isFirst);
       router.go('/');
-      ref.read(homeTabProvider.notifier).state = 2;
+      if (!reminder) ref.read(homeTabProvider.notifier).state = 2;
       WidgetsBinding.instance.endOfFrame.then((_) {
         if (mounted) router.push(route);
       });

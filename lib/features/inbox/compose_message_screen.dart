@@ -152,6 +152,13 @@ class _ComposeMessageScreenState extends ConsumerState<ComposeMessageScreen> {
             minLines: 6,
             maxLines: 14,
             onChanged: (_) => _saveDraft(),
+            // GIFs and stickers from the keyboard, as an attachment.
+            contentInsertionConfiguration: keyboardMedia(
+                (m) => setState(() {
+                      _media = m;
+                      _error = null;
+                    }),
+                (msg) => setState(() => _error = msg)),
             decoration: const InputDecoration(
                 labelText: 'Message (Markdown)', alignLabelWithHint: true),
           ),

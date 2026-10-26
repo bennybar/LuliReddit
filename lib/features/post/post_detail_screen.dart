@@ -29,6 +29,8 @@ import '../feed/swipe_actions.dart';
 import '../media/gallery_carousel.dart';
 import '../media/media_viewers.dart';
 import '../media/nsfw_blur.dart';
+import '../media/pause_while_scrolling.dart';
+import '../reminders/post_reminders.dart';
 import '../settings/settings_controller.dart';
 import '../web/reddit_web_screen.dart';
 import 'comment_tree.dart';
@@ -675,7 +677,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
   Widget _commentList(PostThread thread, String username, Settings settings) {
     final flat = thread.flat;
     final calm = settings.postDisplay.isCalm;
-    return ScrollablePositionedList.builder(
+    // Animated images in the thread pause while it scrolls.
+    return ListScrolling(
+        child: ScrollablePositionedList.builder(
       itemScrollController: _itemScroll,
       itemPositionsListener: _itemPositions,
       // Build comments about a screen ahead, so scrolling shows ready-made
@@ -750,7 +754,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
           child: row,
         );
       },
-    );
+    ));
   }
 
   Widget _buildSearchBar(BuildContext context) {
@@ -929,7 +933,8 @@ class _CommentMedia extends StatelessWidget {
                         width: double.infinity,
                         color: cs.surfaceContainerHighest,
                       )
-                    : CachedNetworkImage(
+                    : PauseWhileScrolling(
+                        child: CachedNetworkImage(
                         imageUrl: uri.toString(),
                         fit: BoxFit.cover,
                         width: double.infinity,
@@ -945,7 +950,7 @@ class _CommentMedia extends StatelessWidget {
                               style: TextStyle(
                                   fontSize: 12, color: cs.onSurfaceVariant)),
                         ),
-                      ),
+                      )),
               ),
               if (video)
                 Icon(Icons.play_circle_fill_rounded,
@@ -1230,8 +1235,11 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
     final next = !overrides.effective(p).saved;
     overrides.setSaved(p, next);
     final learner = ref.read(forYouLearnerProvider)..save(p, next);
-    // TODO(reminders): offer a reminder on save (PostReminders.offer) and
-    // cancel it on unsave, once the reminders area is ported.
+    if (next) {
+      offerReminder(context, p);
+    } else {
+      ref.read(postRemindersProvider.notifier).cancel(p.id);
+    }
     try {
       await ref.read(redditRepositoryProvider).setSaved(p.fullname, next);
     } catch (e) {

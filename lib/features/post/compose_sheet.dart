@@ -223,6 +223,15 @@ class _ComposeSheetState<T> extends State<_ComposeSheet<T>> {
             minLines: 3,
             maxLines: 8,
             onChanged: _onChanged,
+            // GIFs and stickers from the keyboard, as an attachment.
+            contentInsertionConfiguration: widget.allowAttachments
+                ? keyboardMedia(
+                    (m) => setState(() {
+                          _media = m;
+                          _error = null;
+                        }),
+                    (msg) => setState(() => _error = msg))
+                : null,
             decoration: const InputDecoration(
               hintText: 'Markdown supported',
             ),

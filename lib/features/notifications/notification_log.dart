@@ -20,6 +20,7 @@ class NotificationEvent {
     required this.title,
     required this.text,
     required this.outcome,
+    this.source = sourceInbox,
     this.subreddit,
     this.postId,
     this.commentId,
@@ -32,6 +33,11 @@ class NotificationEvent {
   final String title;
   final String text;
   final NotificationOutcome outcome;
+
+  /// [sourceInbox]: Ilay's own inbox check; [sourceReminder]: a post
+  /// reminder.
+  final String source;
+  static const sourceInbox = 'inbox', sourceReminder = 'reminder';
 
   /// Where it opens: a reply / mention (subreddit, post, comment) or a
   /// message thread.
@@ -54,7 +60,7 @@ class NotificationEvent {
   Map<String, dynamic> toJson() => {
         'at': at,
         'acct': account,
-        'src': 'inbox',
+        'src': source,
         'title': title,
         'text': text,
         'out': switch (outcome) {
@@ -83,6 +89,7 @@ class NotificationEvent {
       title: s('title') ?? '',
       text: s('text') ?? '',
       outcome: outcome,
+      source: s('src') ?? sourceInbox,
       subreddit: s('sub'),
       postId: s('post'),
       commentId: s('comment'),
