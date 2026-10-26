@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.material.icons.rounded.DynamicFeed
 import kotlinx.coroutines.launch
 import com.bennybar.luli_for_reddit.auth.SessionState
@@ -497,7 +499,8 @@ private fun NavButton(
             .height(48.dp)
             .clip(CircleShape)
             .background(pillColor)
-            .clickable(onClickLabel = item.label, onClick = onClick)
+            // A tab, for screen readers: "Inbox, tab, selected".
+            .selectable(selected = selected, role = Role.Tab, onClick = onClick)
             // The selected pill grows to fit its label with a little bounce.
             .animateContentSize(spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow))
             .padding(horizontal = if (selected && showLabel) 18.dp else 12.dp),

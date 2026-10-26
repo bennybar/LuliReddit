@@ -48,7 +48,6 @@ import androidx.compose.material.icons.rounded.AlternateEmail
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.TravelExplore
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon

@@ -1,5 +1,9 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.selection.toggleable
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material.icons.rounded.Schedule
@@ -942,17 +946,18 @@ fun VotePill(score: Int, likes: Boolean?, onUp: () -> Unit, onDown: () -> Unit, 
         modifier.background(cs.surfaceContainerHigh, CircleShape),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        MiniButton(Icons.Rounded.ArrowUpward, if (up) votes.up else cs.onSurfaceVariant, "Upvote", onUp)
+        MiniButton(Icons.Rounded.ArrowUpward, if (up) votes.up else cs.onSurfaceVariant, "Upvote", onUp, on = up)
         Text(compactNumber(score), fontWeight = FontWeight.Bold, color = countColor)
-        MiniButton(Icons.Rounded.ArrowDownward, if (down) votes.down else cs.onSurfaceVariant, "Downvote", onDown)
+        MiniButton(Icons.Rounded.ArrowDownward, if (down) votes.down else cs.onSurfaceVariant, "Downvote", onDown, on = down)
     }
 }
 
 @Composable
-private fun MiniButton(icon: ImageVector, tint: Color, label: String, onClick: () -> Unit) {
+private fun MiniButton(icon: ImageVector, tint: Color, label: String, onClick: () -> Unit, on: Boolean = false) {
     // Flutter's VisualDensity.compact IconButton: a 40dp target, 20dp icon.
+    // A toggle for screen readers ("Upvote, on").
     Box(
-        Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onClick),
+        Modifier.size(40.dp).clip(CircleShape).toggleable(value = on, role = Role.Switch) { onClick() },
         contentAlignment = Alignment.Center,
     ) { Icon(icon, label, Modifier.size(20.dp), tint = tint) }
 }
@@ -1514,7 +1519,15 @@ private fun CalmSegment(
             .height(height)
             .clip(shape)
             .background(bg)
-            .then(if (onClick != null) Modifier.clickable(onClickLabel = label, onClick = onClick) else Modifier)
+            // The vote segments (they have a [label]) are toggles for screen
+            // readers, tinted = on; other segments (comments) are plain buttons.
+            .then(
+                when {
+                    onClick == null -> Modifier
+                    label != null -> Modifier.toggleable(value = tint != null, role = Role.Switch) { onClick() }.semantics { contentDescription = label }
+                    else -> Modifier.clickable(onClick = onClick)
+                },
+            )
             .padding(horizontal = hPad),
         verticalAlignment = Alignment.CenterVertically,
     ) { content(fg) }

@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.settings
 
+import com.bennybar.luli_for_reddit.ui.PickOneMenu
 import androidx.compose.material.icons.rounded.CropFree
 import androidx.compose.material.icons.rounded.Menu
 import com.bennybar.luli_for_reddit.BuildConfig
@@ -933,18 +934,7 @@ private fun showSwipeSettings() {
                             Text(value.label)
                             Icon(Icons.Rounded.ExpandMore, null)
                         }
-                        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-                            for (a in options) {
-                                DropdownMenuItem(
-                                    text = { Text(a.label) },
-                                    leadingIcon = { Icon(a.icon, null, Modifier.size(18.dp)) },
-                                    onClick = {
-                                        open = false
-                                        app.settings.setSwipeAction(key, a)
-                                    },
-                                )
-                            }
-                        }
+                        PickOneMenu(open, { open = false }, options.map { it to it.label }, value, { a -> app.settings.setSwipeAction(key, a) }, icon = { it.icon })
                     }
                 })
             }
@@ -1131,7 +1121,11 @@ private fun dayLabel(days: Int): String = if (days == 1) "1 day" else "$days day
 @Composable
 private fun ForYouMixSlider(value: Int, onChange: (Int) -> Unit) {
     val cs = MaterialTheme.colorScheme
-    var v by remember(value) { mutableFloatStateOf(value.toFloat()) }
+    // Filled from the centre (Material 3 Expressive's centred track): 0 is
+    // Balanced, so the fill shows which way and how far the mix leans.
+    val state = remember { SliderState(value.toFloat(), 3, -2f..2f) }
+    LaunchedEffect(value) { state.value = value.toFloat() }
+    val v = state.value
     Column(Modifier.fillMaxWidth().padding(start = 56.dp, end = 24.dp, top = 8.dp, bottom = 4.dp)) {
         Text("For You mix", style = MaterialTheme.typography.bodyLarge)
         Text(
@@ -1146,11 +1140,10 @@ private fun ForYouMixSlider(value: Int, onChange: (Int) -> Unit) {
             color = cs.onSurfaceVariant,
         )
         Slider(
-            value = v,
-            onValueChange = { v = it },
-            onValueChangeFinished = { onChange(v.roundToInt()) },
-            valueRange = -2f..2f,
-            steps = 3,
+            state = state,
+            onValueChange = { state.value = it },
+            onValueChangeFinished = { onChange(state.value.roundToInt()) },
+            track = { SliderDefaults.CenteredTrack(it) },
         )
         Row {
             Text("Familiar", Modifier.weight(1f), fontSize = 12.sp, color = cs.onSurfaceVariant)

@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.media
 
+import androidx.compose.material3.carousel.CarouselDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.carousel.rememberCarouselState
 import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
@@ -153,6 +154,8 @@ fun GalleryM3Carousel(images: List<GalleryImage>, modifier: Modifier = Modifier,
             state = state,
             preferredItemWidth = 280.dp,
             itemSpacing = 8.dp,
+            // A fling moves several images, not one: long galleries go quicker.
+            flingBehavior = CarouselDefaults.multiBrowseFlingBehavior(state),
             modifier = Modifier.fillMaxWidth().height(300.dp),
         ) { i ->
             var failed by remember { mutableStateOf(false) }
@@ -166,7 +169,7 @@ fun GalleryM3Carousel(images: List<GalleryImage>, modifier: Modifier = Modifier,
             ) {
                 AsyncImage(
                     model = rememberSizedRequest(images[i].url, decodeWidth),
-                    contentDescription = null,
+                    contentDescription = "Image ${i + 1} of ${images.size}",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
                     onError = { failed = true },

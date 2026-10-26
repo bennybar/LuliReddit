@@ -1,5 +1,11 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package com.bennybar.luli_for_reddit.feature.settings
 
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import com.bennybar.luli_for_reddit.app
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
@@ -101,7 +107,7 @@ internal fun SettingTile(
             leadingSpacer -> ({ Spacer(Modifier.size(24.dp)) })
             else -> null
         },
-        headlineContent = { Text(title, color = titleColor ?: Color.Unspecified) },
+        content = { Text(title, color = titleColor ?: Color.Unspecified) },
         supportingContent = subtitle?.let { { Text(it) } },
         trailingContent = trailing,
     )
@@ -120,17 +126,19 @@ internal fun SwitchTile(
 ) {
     val enabled = onChange != null
     ListItem(
+        // The whole row is the switch (screen readers hear "on / off").
         modifier = Modifier
-            .clickable(enabled = enabled) { onChange?.invoke(!checked) }
+            .toggleable(value = checked, enabled = enabled, role = Role.Switch) { onChange?.invoke(it) }
             .alpha(if (enabled) 1f else 0.38f),
         colors = clearItem,
         leadingContent = icon?.let { { Icon(it, null, tint = accent ?: MaterialTheme.colorScheme.onSurfaceVariant) } },
-        headlineContent = { Text(title, color = accent ?: Color.Unspecified, fontWeight = titleWeight) },
+        content = { Text(title, color = accent ?: Color.Unspecified, fontWeight = titleWeight) },
         supportingContent = subtitle?.let { { Text(it, color = accent ?: Color.Unspecified) } },
         trailingContent = {
             Switch(
                 checked = checked,
-                onCheckedChange = onChange,
+                onCheckedChange = null, // the row handles it
+
                 enabled = enabled,
                 colors = if (accent != null) {
                     SwitchDefaults.colors(checkedTrackColor = accent, checkedThumbColor = MaterialTheme.colorScheme.onError)
@@ -183,10 +191,11 @@ internal suspend fun <T> pickOption(options: List<PickOption<T>>, current: T?, r
             for (o in options) {
                 val selected = o.value == current
                 ListItem(
-                    modifier = Modifier.clickable { close(o) },
+                    // Selectable rows: screen readers hear which one is current.
+                    modifier = Modifier.selectable(selected = selected, role = Role.RadioButton) { close(o) },
                     colors = clearItem,
-                    leadingContent = if (radio) ({ RadioButton(selected = selected, onClick = { close(o) }) }) else null,
-                    headlineContent = { Text(o.label) },
+                    leadingContent = if (radio) ({ RadioButton(selected = selected, onClick = null) }) else null,
+                    content = { Text(o.label) },
                     supportingContent = o.subtitle?.let { { Text(it) } },
                     trailingContent = when {
                         !radio && selected -> ({ Icon(Icons.Rounded.Check, null) })
@@ -210,8 +219,8 @@ internal suspend fun confirmDialog(
         onDismissRequest = { done(false) },
         title = { Text(title) },
         text = { Text(text) },
-        dismissButton = { TextButton(onClick = { done(false) }) { Text(cancel) } },
-        confirmButton = { Button(onClick = { done(true) }) { Text(confirm) } },
+        dismissButton = { TextButton(onClick = { done(false) }, shapes = ButtonDefaults.shapes()) { Text(cancel) } },
+        confirmButton = { Button(onClick = { done(true) }, shapes = ButtonDefaults.shapes()) { Text(confirm) } },
     )
 } == true
 
@@ -222,7 +231,7 @@ internal suspend fun infoDialog(title: String, text: String, close: String = "Cl
             onDismissRequest = { done(null) },
             title = { Text(title) },
             text = { Column(Modifier.verticalScroll(rememberScrollState())) { Text(text) } },
-            confirmButton = { TextButton(onClick = { done(null) }) { Text(close) } },
+            confirmButton = { TextButton(onClick = { done(null) }, shapes = ButtonDefaults.shapes()) { Text(close) } },
         )
     }
 }
@@ -279,11 +288,11 @@ internal suspend fun textDialog(
         },
         dismissButton = {
             androidx.compose.foundation.layout.Row {
-                if (removable) TextButton(onClick = { done(TextResult.Remove) }) { Text("Remove") }
-                TextButton(onClick = { done(null) }) { Text("Cancel") }
+                if (removable) TextButton(onClick = { done(TextResult.Remove) }, shapes = ButtonDefaults.shapes()) { Text("Remove") }
+                TextButton(onClick = { done(null) }, shapes = ButtonDefaults.shapes()) { Text("Cancel") }
             }
         },
-        confirmButton = { Button(onClick = { done(TextResult.Save(text)) }) { Text("Save") } },
+        confirmButton = { Button(onClick = { done(TextResult.Save(text)) }, shapes = ButtonDefaults.shapes()) { Text("Save") } },
     )
 }
 
@@ -300,12 +309,12 @@ internal fun showHiddenSubsDialog() {
                     for (sub in subs.sorted()) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("r/$sub", Modifier.weight(1f))
-                            TextButton(onClick = { app.hiddenHomeSubs.remove(sub) }) { Text("Unhide") }
+                            TextButton(onClick = { app.hiddenHomeSubs.remove(sub) }, shapes = ButtonDefaults.shapes()) { Text("Unhide") }
                         }
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = done) { Text("Done") } },
+            confirmButton = { TextButton(onClick = done, shapes = ButtonDefaults.shapes()) { Text("Done") } },
         )
     }
 }

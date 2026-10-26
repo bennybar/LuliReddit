@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.ui.ConnectedChoice
 import com.bennybar.luli_for_reddit.ui.Loading
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -23,7 +24,6 @@ import androidx.compose.material.icons.rounded.DynamicFeed
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -135,11 +135,7 @@ suspend fun editFeedDialog(title: String, confirm: String, name: String, descrip
                         modifier = Modifier.fillMaxWidth(),
                     )
                     Spacer(Modifier.size(10.dp))
-                    Row {
-                        FilterChip(v == "private", { v = "private" }, label = { Text("Private") }, shape = CircleShape)
-                        Spacer(Modifier.width(8.dp))
-                        FilterChip(v == "public", { v = "public" }, label = { Text("Public") }, shape = CircleShape)
-                    }
+                    ConnectedChoice(listOf("private" to "Private", "public" to "Public"), v, { v = it })
                     Text(
                         if (v == "public") "Anyone with the link can see it, follow it or copy it." else "Only you can see it.",
                         Modifier.padding(top = 6.dp),

@@ -49,7 +49,7 @@ fun MediaFolderSettingRow(modifier: Modifier = Modifier) {
         },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         leadingContent = { Icon(Icons.Rounded.Folder, null) },
-        headlineContent = { Text("Save media to") },
+        content = { Text("Save media to") },
         supportingContent = { Text(folder?.name ?: "Gallery (Ilay album)") },
     )
 }
@@ -67,14 +67,14 @@ private suspend fun showFolderSheet(folder: MediaFolder?): FolderChoice? = Overl
                 modifier = Modifier.clickable { pick(FolderChoice.GALLERY) },
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                 leadingContent = { Icon(Icons.Rounded.PhotoLibrary, null) },
-                headlineContent = { Text("Gallery (Ilay album)") },
+                content = { Text("Gallery (Ilay album)") },
                 trailingContent = { if (folder == null) Icon(Icons.Rounded.Check, null) },
             )
             ListItem(
                 modifier = Modifier.clickable { pick(FolderChoice.PICK) },
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                 leadingContent = { Icon(Icons.Rounded.CreateNewFolder, null) },
-                headlineContent = { Text(folder?.name ?: "Choose a folder…") },
+                content = { Text(folder?.name ?: "Choose a folder…") },
                 supportingContent = if (folder != null) ({ Text("Tap to change") }) else null,
                 trailingContent = { if (folder != null) Icon(Icons.Rounded.Check, null) },
             )

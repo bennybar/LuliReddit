@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.ui.Modifier
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.material.icons.rounded.Menu
@@ -23,12 +24,12 @@ val LocalSideBar = staticCompositionLocalOf<(() -> Unit)?> { null }
 @Composable
 fun SideBarButton(modifier: Modifier = Modifier) {
     val open = LocalSideBar.current ?: return
-    IconButton(onClick = open, modifier) { Icon(Icons.Rounded.Menu, "Open menu") }
+    IconButton(onClick = open, shapes = IconButtonDefaults.shapes(), modifier = modifier) { Icon(Icons.Rounded.Menu, "Open menu") }
 }
 
 /** The ⚙ at the top of a tab's main screen: straight to Settings. */
 @Composable
 fun SettingsButton() {
     val nav = LocalNavigator.current
-    IconButton(onClick = { nav.push(Route.Settings) }) { Icon(Icons.Outlined.Settings, "Settings") }
+    IconButton(onClick = { nav.push(Route.Settings) }, shapes = IconButtonDefaults.shapes()) { Icon(Icons.Outlined.Settings, "Settings") }
 }

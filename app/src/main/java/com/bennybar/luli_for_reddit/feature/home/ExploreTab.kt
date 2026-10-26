@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import com.bennybar.luli_for_reddit.ui.ToggleIcon
+import com.bennybar.luli_for_reddit.ui.PickOneMenu
 import com.bennybar.luli_for_reddit.ui.connectedShapes
 import com.bennybar.luli_for_reddit.ui.ConnectedGap
 import com.bennybar.luli_for_reddit.ui.RefreshBox
@@ -37,7 +39,6 @@ import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -279,13 +280,7 @@ internal fun ExploreTab() {
                         leading = Icons.Rounded.FilterList,
                         modifier = Modifier.weight(1f),
                     )
-                    IconButton(onClick = { favOnly = !favOnly }) {
-                        Icon(
-                            if (favOnly) Icons.Rounded.Star else Icons.Rounded.StarBorder,
-                            if (favOnly) "Showing favorites" else "Favorites only",
-                            tint = if (favOnly) cs.primary else cs.onSurfaceVariant,
-                        )
-                    }
+                    ToggleIcon(favOnly, { favOnly = it }, Icons.Rounded.Star, Icons.Rounded.StarBorder, "Favorites only", tonal = true)
                     SortMenu(sort) { sort = it }
                 }
             }
@@ -387,18 +382,7 @@ private fun SortMenu(sort: String, onPick: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) { Icon(Icons.AutoMirrored.Rounded.Sort, "Sort") }
-        DropdownMenu(open, onDismissRequest = { open = false }) {
-            for ((value, label) in listOf("default" to "Default", "name" to "Name A–Z", "subscribers" to "Most subscribers")) {
-                DropdownMenuItem(
-                    text = { Text(label) },
-                    trailingIcon = if (value == sort) ({ Icon(Icons.Rounded.Check, null, Modifier.size(18.dp)) }) else null,
-                    onClick = {
-                        open = false
-                        onPick(value)
-                    },
-                )
-            }
-        }
+        PickOneMenu(open, { open = false }, listOf("default" to "Default", "name" to "Name A–Z", "subscribers" to "Most subscribers"), sort, onPick)
     }
 }
 
@@ -413,13 +397,7 @@ internal fun SubredditRow(s: Subreddit, onOpen: (Subreddit) -> Unit, onStar: ((S
         },
         trailing = onStar?.let {
             {
-                IconButton(onClick = { it(s) }) {
-                    Icon(
-                        if (s.userHasFavorited) Icons.Rounded.Star else Icons.Rounded.StarBorder,
-                        if (s.userHasFavorited) "Unfavorite" else "Favorite",
-                        tint = if (s.userHasFavorited) cs.primary else cs.onSurfaceVariant,
-                    )
-                }
+                ToggleIcon(s.userHasFavorited, { _ -> it(s) }, Icons.Rounded.Star, Icons.Rounded.StarBorder, "Favorite")
             }
         },
         onClick = { onOpen(s) },

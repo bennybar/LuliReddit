@@ -1,5 +1,10 @@
 package com.bennybar.luli_for_reddit.feature.media
 
+import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.bennybar.luli_for_reddit.ui.Loading
 import android.content.Context
 import android.view.TextureView
@@ -35,7 +40,6 @@ import androidx.compose.material.icons.rounded.Replay10
 import androidx.compose.material.icons.rounded.VideocamOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -374,6 +378,18 @@ private fun Scrubber(position: Long, duration: Long, buffered: Long, onSeek: (Lo
         modifier
             .fillMaxWidth()
             .height(26.dp)
+            // A seek bar for screen readers: position read out, and swipe up /
+            // down (or "set progress") to seek.
+            .semantics {
+                contentDescription = "Video position"
+                progressBarRangeInfo = ProgressBarRangeInfo(played, 0f..1f)
+                if (duration > 0) {
+                    setProgress { f ->
+                        onSeek((f.coerceIn(0f, 1f) * duration).toLong())
+                        true
+                    }
+                }
+            }
             .pointerInput(duration) {
                 detectTapGestures { o ->
                     if (duration > 0) onSeek(((o.x / size.width).coerceIn(0f, 1f) * duration).toLong())

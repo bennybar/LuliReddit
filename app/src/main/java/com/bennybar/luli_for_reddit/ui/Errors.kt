@@ -1,5 +1,8 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package com.bennybar.luli_for_reddit.ui
 
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -81,7 +84,7 @@ fun ErrorView(
         Text(if (message is String) message else friendlyError(message), textAlign = TextAlign.Center)
         if (onRetry != null) {
             Spacer(Modifier.height(16.dp))
-            FilledTonalButton(onClick = onRetry) { Text("Retry") }
+            FilledTonalButton(onClick = onRetry, shapes = ButtonDefaults.shapes()) { Text("Retry") }
         }
     }
 }

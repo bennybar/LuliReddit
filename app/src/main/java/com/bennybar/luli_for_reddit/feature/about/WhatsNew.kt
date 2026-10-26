@@ -45,6 +45,18 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.39", "Oct 26, 2026",
+        listOf(
+            "Material 3 Expressive menus: grouped, with the current choice highlighted (Display, sort, comment ⋯)",
+            "Join, Follow, Save and favourite stars are real toggles that change shape when on",
+            "For You mix slider fills from the middle, so you see which way it leans",
+            "Buttons' corners tighten as you press them (dialogs, Retry, back, ☰, ⚙)",
+            "One pick-one style everywhere: post type, sign-in method, feed privacy",
+            "Better with screen readers: tabs, votes, layouts, toggles and the video seek bar announce their state",
+            "Galleries: a fling skips several images, and each image is labelled",
+        ),
+    ),
+    Release(
         "2.0.38", "Oct 26, 2026",
         listOf(
             "Connected button groups: the Inbox filters, Search sort and Explore's Popular / All",

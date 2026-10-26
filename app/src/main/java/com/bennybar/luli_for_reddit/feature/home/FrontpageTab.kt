@@ -1,5 +1,11 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.material3.MenuDefaults
+import androidx.compose.material3.CheckableDropdownMenuItem
+import androidx.compose.material3.SelectableDropdownMenuItem
+import androidx.compose.material3.DropdownMenuGroup
+import androidx.compose.material3.DropdownMenuPopup
 import androidx.compose.foundation.layout.offset
 import androidx.compose.material.icons.outlined.PostAdd
 import androidx.compose.material.icons.outlined.Settings
@@ -213,39 +219,49 @@ private fun DisplayMenu(onPicked: () -> Unit = {}) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) { Icon(Icons.Rounded.MoreVert, "Display") }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }, shape = RoundedCornerShape(16.dp)) {
-            for (d in PostDisplay.entries) {
+        // Material 3 Expressive menu: Layout (pick one), Autoplay (on/off), Settings.
+        DropdownMenuPopup(expanded = open, onDismissRequest = { open = false }) {
+            val layouts = PostDisplay.entries
+            DropdownMenuGroup(shapes = MenuDefaults.groupShape(0, 3)) {
+                layouts.forEachIndexed { i, d ->
+                    SelectableDropdownMenuItem(
+                        selected = d == settings.postDisplay,
+                        onClick = {
+                            open = false
+                            app.settings.setPostDisplay(d)
+                            onPicked()
+                        },
+                        text = { Text(d.label) },
+                        shapes = MenuDefaults.itemShape(i, layouts.size),
+                        leadingIcon = { Icon(d.icon, null, Modifier.size(MenuDefaults.LeadingIconSize)) },
+                    )
+                }
+            }
+            Spacer(Modifier.height(MenuDefaults.GroupSpacing))
+            DropdownMenuGroup(shapes = MenuDefaults.groupShape(1, 3)) {
+                CheckableDropdownMenuItem(
+                    checked = settings.autoplayMedia,
+                    onCheckedChange = {
+                        open = false
+                        app.settings.setAutoplayMedia(it)
+                        onPicked()
+                    },
+                    text = { Text("Autoplay media") },
+                    shapes = MenuDefaults.itemShape(0, 1),
+                    leadingIcon = { Icon(Icons.Outlined.PlayCircleOutline, null, Modifier.size(MenuDefaults.LeadingIconSize)) },
+                )
+            }
+            Spacer(Modifier.height(MenuDefaults.GroupSpacing))
+            DropdownMenuGroup(shapes = MenuDefaults.groupShape(2, 3)) {
                 DropdownMenuItem(
-                    text = { Text(d.label) },
-                    leadingIcon = { Icon(d.icon, null, Modifier.size(20.dp)) },
-                    trailingIcon = if (d == settings.postDisplay) ({ Icon(Icons.Rounded.Check, null, Modifier.size(18.dp)) }) else null,
+                    text = { Text("Settings") },
+                    leadingIcon = { Icon(Icons.Outlined.Settings, null, Modifier.size(MenuDefaults.LeadingIconSize)) },
                     onClick = {
                         open = false
-                        app.settings.setPostDisplay(d)
-                        onPicked()
+                        nav.push(Route.Settings)
                     },
                 )
             }
-            HorizontalDivider()
-            DropdownMenuItem(
-                text = { Text("Autoplay media") },
-                leadingIcon = { Icon(Icons.Outlined.PlayCircleOutline, null, Modifier.size(20.dp)) },
-                trailingIcon = if (settings.autoplayMedia) ({ Icon(Icons.Rounded.Check, null, Modifier.size(18.dp)) }) else null,
-                onClick = {
-                    open = false
-                    app.settings.setAutoplayMedia(!settings.autoplayMedia)
-                    onPicked()
-                },
-            )
-            HorizontalDivider()
-            DropdownMenuItem(
-                text = { Text("Settings") },
-                leadingIcon = { Icon(Icons.Outlined.Settings, null, Modifier.size(20.dp)) },
-                onClick = {
-                    open = false
-                    nav.push(Route.Settings)
-                },
-            )
         }
     }
 }
@@ -378,7 +394,8 @@ private fun ToolbarPanel(username: String, onSearch: () -> Unit, onNewPost: () -
                                 .height(76.dp)
                                 .clip(RoundedCornerShape(topStart = start, bottomStart = start, topEnd = end, bottomEnd = end))
                                 .background(if (on) cs.primary else cs.surfaceContainerHighest)
-                                .clickable(onClickLabel = d.label) { app.settings.setPostDisplay(d) }
+                                // Pick-one for screen readers: "Calm, selected".
+                                .selectable(selected = on, role = Role.RadioButton) { app.settings.setPostDisplay(d) }
                                 .padding(horizontal = 2.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center,

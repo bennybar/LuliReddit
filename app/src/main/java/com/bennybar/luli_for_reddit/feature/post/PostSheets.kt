@@ -52,7 +52,6 @@ import androidx.compose.material.icons.rounded.OfflinePin
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
@@ -372,7 +371,7 @@ private fun PostActionsSheet(post: Post, done: () -> Unit) {
     @Composable
     fun item(icon: ImageVector, title: String, subtitle: String? = null, action: suspend () -> Unit) {
         ListItem(
-            headlineContent = { Text(title) },
+            content = { Text(title) },
             supportingContent = subtitle?.let { { Text(it) } },
             leadingContent = { Icon(icon, null) },
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
@@ -465,7 +464,7 @@ private fun PostActionsSheet(post: Post, done: () -> Unit) {
             if (post.canModPost) {
                 HorizontalDivider(Modifier.padding(vertical = 4.dp))
                 ListItem(
-                    headlineContent = { Text("Moderate", style = MaterialTheme.typography.labelLarge) },
+                    content = { Text("Moderate", style = MaterialTheme.typography.labelLarge) },
                     leadingContent = { Icon(Icons.Outlined.Shield, null) },
                     colors = ListItemDefaults.colors(
                         containerColor = Color.Transparent,

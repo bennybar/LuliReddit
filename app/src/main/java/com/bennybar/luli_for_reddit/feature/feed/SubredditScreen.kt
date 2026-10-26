@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.material3.FilledTonalToggleButton
 import com.bennybar.luli_for_reddit.ui.Loading
 import androidx.compose.runtime.remember
 import androidx.compose.material3.TextButton
@@ -30,7 +31,6 @@ import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FloatingActionButton
@@ -177,7 +177,10 @@ private fun SubredditHeader(s: Subreddit, vm: SubredditAboutViewModel) {
                         Text(s.namePrefixed, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
                         Text("${compactNumber(s.subscribers)} members", color = cs.onSurfaceVariant)
                     }
-                    FilledTonalButton(onClick = { vm.toggleSub(s, subscribed) }) { Text(if (subscribed) "Joined" else "Join") }
+                    // One toggle: its shape and fill change with the state, and it reads as on/off.
+                    FilledTonalToggleButton(checked = subscribed, onCheckedChange = { vm.toggleSub(s, subscribed) }) {
+                        Text(if (subscribed) "Joined" else "Join")
+                    }
                 }
                 if (s.description.isNotEmpty()) {
                     Spacer(Modifier.height(12.dp))

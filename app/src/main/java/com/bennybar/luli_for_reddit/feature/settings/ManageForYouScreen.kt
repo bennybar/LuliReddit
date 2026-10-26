@@ -213,7 +213,7 @@ private fun LeadingTile(
     androidx.compose.material3.ListItem(
         colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
         leadingContent = leading,
-        headlineContent = { Text(title) },
+        content = { Text(title) },
         supportingContent = { Text(subtitle) },
         trailingContent = trailing,
     )

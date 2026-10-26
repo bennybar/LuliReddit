@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.material3.IconButtonDefaults
 import android.view.HapticFeedbackConstants
 import android.view.View
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -244,7 +245,7 @@ fun BloomTopBar(
             )
         },
         navigationIcon = {
-            if (showBack) IconButton(onClick = { nav.pop() }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
+            if (showBack) IconButton(onClick = { nav.pop() }, shapes = IconButtonDefaults.shapes()) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
         },
         actions = actions,
         colors = TopAppBarDefaults.topAppBarColors(

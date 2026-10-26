@@ -31,7 +31,6 @@ import androidx.compose.material.icons.outlined.AddPhotoAlternate
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material.icons.rounded.ContentPaste
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
@@ -303,7 +302,7 @@ private fun Thread(root: InboxItem) {
 @Composable
 private fun AttachOption(icon: ImageVector, label: String, onClick: () -> Unit) {
     ListItem(
-        headlineContent = { Text(label) },
+        content = { Text(label) },
         leadingContent = { Icon(icon, null) },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         modifier = Modifier.clickable(onClick = onClick),

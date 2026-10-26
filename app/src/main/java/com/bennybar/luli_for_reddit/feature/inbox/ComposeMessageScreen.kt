@@ -25,7 +25,6 @@ import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.automirrored.rounded.Subject
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton

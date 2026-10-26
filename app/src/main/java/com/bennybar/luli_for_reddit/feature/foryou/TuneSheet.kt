@@ -82,7 +82,7 @@ fun showTuneSheet(post: Post) {
                 modifier = Modifier.clickable(onClick = f),
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                 leadingContent = { Icon(icon, null, tint = if (on) cs.primary else cs.onSurfaceVariant) },
-                headlineContent = { Text(label) },
+                content = { Text(label) },
                 trailingContent = if (on) ({ Icon(Icons.Rounded.Check, null, tint = cs.primary) }) else null,
             )
 
@@ -98,7 +98,7 @@ fun showTuneSheet(post: Post) {
                     modifier = Modifier.clickable { open = !open },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                     leadingContent = { Icon(Icons.AutoMirrored.Rounded.HelpOutline, null) },
-                    headlineContent = { Text("Why am I seeing this?") },
+                    content = { Text("Why am I seeing this?") },
                     trailingContent = { Icon(Icons.Rounded.ExpandMore, null, Modifier.rotate(turn)) },
                 )
                 AnimatedVisibility(open) {
@@ -125,7 +125,7 @@ fun showTuneSheet(post: Post) {
                 ListItem(
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                     leadingContent = { Icon(Icons.Rounded.Tag, null) },
-                    headlineContent = { Text("“$t”") },
+                    content = { Text("“$t”") },
                     supportingContent = { Text("This topic, in any community") },
                     trailingContent = {
                         Row {
@@ -163,7 +163,7 @@ fun showTuneSheet(post: Post) {
                 leadingContent = {
                     Icon(if (muted) Icons.AutoMirrored.Rounded.VolumeUp else Icons.AutoMirrored.Rounded.VolumeOff, null)
                 },
-                headlineContent = { Text(if (muted) "Unmute r/$sub" else "Mute r/$sub in For You") },
+                content = { Text(if (muted) "Unmute r/$sub" else "Mute r/$sub in For You") },
             )
         }
     }

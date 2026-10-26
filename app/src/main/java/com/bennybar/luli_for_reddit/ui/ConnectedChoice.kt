@@ -1,5 +1,10 @@
 package com.bennybar.luli_for_reddit.ui
 
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -34,7 +39,8 @@ val ConnectedGap: Dp @Composable get() = ButtonGroupDefaults.ConnectedSpaceBetwe
 /**
  * A pick-one choice as a Material 3 Expressive connected button group (#35).
  * [fill]: the buttons share the width equally; otherwise they size to their
- * labels (put it in a sideways-scrolling row for longer lists).
+ * labels (put it in a sideways-scrolling row for longer lists). [icon]: an
+ * icon per option; with [iconOnly] the label is only its description.
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -44,6 +50,8 @@ fun <K> ConnectedChoice(
     onSelect: (K) -> Unit,
     modifier: Modifier = Modifier,
     fill: Boolean = true,
+    icon: ((K) -> ImageVector)? = null,
+    iconOnly: Boolean = false,
 ) {
     Row(
         if (fill) modifier.fillMaxWidth() else modifier,
@@ -56,7 +64,18 @@ fun <K> ConnectedChoice(
                 modifier = (if (fill) Modifier.weight(1f) else Modifier).semantics { role = Role.RadioButton },
                 shapes = connectedShapes(i, options.size),
                 contentPadding = PaddingValues(horizontal = if (fill) 8.dp else 16.dp),
-            ) { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            ) {
+                val ic = icon?.invoke(key)
+                when {
+                    ic != null && iconOnly -> Icon(ic, label)
+                    ic != null -> {
+                        Icon(ic, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    else -> Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
         }
     }
 }

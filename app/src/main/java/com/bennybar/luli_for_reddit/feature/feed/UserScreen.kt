@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.material3.ToggleButton
 import com.bennybar.luli_for_reddit.ui.Loading
 import android.net.Uri
 import androidx.compose.foundation.layout.Box
@@ -19,7 +20,6 @@ import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.rounded.MailOutline
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -244,10 +244,9 @@ private fun ProfileHeader(user: RedditUser, canFollow: Boolean) {
                     }
                 }
             }
-            if (following) {
-                OutlinedButton(onClick = toggle, enabled = !busy) { Text("Following") }
-            } else {
-                Button(onClick = toggle, enabled = !busy) { Text("Follow") }
+            // One toggle: its shape and fill change with the state, and it reads as on/off.
+            ToggleButton(checked = following, onCheckedChange = { toggle() }, enabled = !busy) {
+                Text(if (following) "Following" else "Follow")
             }
         }
     }

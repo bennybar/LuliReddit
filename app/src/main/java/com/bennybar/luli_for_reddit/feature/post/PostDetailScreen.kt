@@ -1,5 +1,11 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import com.bennybar.luli_for_reddit.ui.ToggleIcon
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.material3.MenuDefaults
+import androidx.compose.material3.DropdownMenuGroup
+import androidx.compose.material3.DropdownMenuPopup
+import com.bennybar.luli_for_reddit.ui.PickOneMenu
 import com.bennybar.luli_for_reddit.ui.RefreshBox
 import com.bennybar.luli_for_reddit.ui.Loading
 import com.bennybar.luli_for_reddit.model.UserFlair
@@ -78,7 +84,6 @@ import androidx.compose.material.icons.rounded.UnfoldLess
 import androidx.compose.material.icons.rounded.UnfoldMore
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -728,18 +733,7 @@ private fun SortMenu(current: String, onPick: (String) -> Unit) {
         IconTooltip("Sort comments") {
             IconButton(onClick = { open = true }) { Icon(Icons.AutoMirrored.Rounded.Sort, "Sort comments") }
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            for ((id, label) in COMMENT_SORTS) {
-                DropdownMenuItem(
-                    text = { Text(label) },
-                    leadingIcon = { if (id == current) Icon(Icons.Rounded.Check, null) else Spacer(Modifier.size(24.dp)) },
-                    onClick = {
-                        open = false
-                        onPick(id)
-                    },
-                )
-            }
-        }
+        PickOneMenu(open, { open = false }, COMMENT_SORTS, current, onPick)
     }
 }
 
@@ -846,7 +840,7 @@ private fun showJumpMenu(opAuthor: String, me: String, isNew: ((Comment) -> Bool
             Column(Modifier.navigationBarsPadding().padding(bottom = 8.dp)) {
                 for ((label, icon, test) in entries) {
                     ListItem(
-                        headlineContent = { Text(label) },
+                        content = { Text(label) },
                         leadingContent = { Icon(icon, null) },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                         modifier = Modifier.clickable { scope.hideThen(sheet) { done(); onPick(test) } },
@@ -1050,13 +1044,7 @@ private fun PostHeader(post: Post, fresh: Boolean) {
                 Text(compactNumber(numComments), style = MaterialTheme.typography.labelLarge)
             }
             Spacer(Modifier.weight(1f))
-            IconButton(onClick = ::toggleSave) {
-                Icon(
-                    if (saved) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
-                    if (saved) "Unsave" else "Save",
-                    tint = if (saved) cs.primary else LocalContentColor.current,
-                )
-            }
+            ToggleIcon(saved, { toggleSave() }, Icons.Rounded.Bookmark, Icons.Rounded.BookmarkBorder, "Save")
         }
         HorizontalDivider(Modifier.padding(vertical = 12.dp))
     }
@@ -1547,7 +1535,7 @@ private fun CommentActionsRow(c: Comment, isOwn: Boolean, actions: ThreadActions
         ) { actions.toggleSave(c) }
         Box {
             small(Icons.Rounded.MoreHoriz, "More", cs.onSurfaceVariant) { menu = true }
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            DropdownMenuPopup(expanded = menu, onDismissRequest = { menu = false }) {
                 CommentMenuItems(c, isOwn, actions) { f ->
                     menu = false
                     f()
@@ -1559,39 +1547,58 @@ private fun CommentActionsRow(c: Comment, isOwn: Boolean, actions: ThreadActions
 
 /** The comment ⋯ menu's entries; [pick] closes the menu then runs the action. */
 @Composable
-private fun CommentMenuItems(c: Comment, isOwn: Boolean, actions: ThreadActions, pick: (() -> Unit) -> Unit) {
-    DropdownMenuItem(text = { Text("Copy text") }, onClick = { pick { copyToClipboard(c.body) } })
-    if (c.permalink.isNotEmpty()) DropdownMenuItem(text = { Text("Share") }, onClick = { pick { actions.share(c) } })
-    DropdownMenuItem(text = { Text("Share as image") }, onClick = { pick { actions.shareImage(c) } })
-    if (isOwn) {
-        DropdownMenuItem(text = { Text("Edit") }, onClick = { pick { actions.edit(c) } })
-        DropdownMenuItem(text = { Text("Delete") }, onClick = { pick { actions.delete(c) } })
-    }
-    if (!isOwn && c.author != "[deleted]") {
-        DropdownMenuItem(text = { Text("Block u/${c.author}") }, onClick = { pick { actions.block(c) } })
-    }
-    // Moderators of this community (the post says so) can act on comments too.
-    if (actions.post?.canModPost == true) {
-        HorizontalDivider()
-        DropdownMenuItem(text = { Text("Approve") }, onClick = { pick { actions.mod(c, "Approved") { it.modApprove(c.fullname) } } })
-        DropdownMenuItem(text = { Text("Remove") }, onClick = { pick { actions.mod(c, "Removed") { it.modRemove(c.fullname) } } })
-        DropdownMenuItem(
-            text = { Text("Remove as spam") },
-            onClick = { pick { actions.mod(c, "Removed as spam") { it.modRemove(c.fullname, spam = true) } } },
-        )
-        if (isOwn) {
-            val distinguished = c.distinguished == "moderator"
-            DropdownMenuItem(
-                text = { Text(if (distinguished) "Undistinguish" else "Distinguish as mod") },
-                onClick = {
-                    pick {
-                        actions.mod(c, if (distinguished) "Undistinguished" else "Distinguished") {
-                            it.modDistinguish(c.fullname, if (distinguished) "no" else "yes")
-                        }
-                    }
-                },
-            )
+private fun ColumnScope.CommentMenuItems(
+    c: Comment,
+    isOwn: Boolean,
+    actions: ThreadActions,
+    withSave: Boolean = false,
+    pick: (() -> Unit) -> Unit,
+) {
+    // Material 3 Expressive menu groups: share-ish actions, then yours (or
+    // block), then moderator actions.
+    val groups = buildList<@Composable ColumnScope.() -> Unit> {
+        add {
+            if (withSave) DropdownMenuItem(text = { Text(if (c.saved) "Unsave" else "Save") }, onClick = { pick { actions.toggleSave(c) } })
+            DropdownMenuItem(text = { Text("Copy text") }, onClick = { pick { copyToClipboard(c.body) } })
+            if (c.permalink.isNotEmpty()) DropdownMenuItem(text = { Text("Share") }, onClick = { pick { actions.share(c) } })
+            DropdownMenuItem(text = { Text("Share as image") }, onClick = { pick { actions.shareImage(c) } })
         }
+        if (isOwn) {
+            add {
+                DropdownMenuItem(text = { Text("Edit") }, onClick = { pick { actions.edit(c) } })
+                DropdownMenuItem(text = { Text("Delete") }, onClick = { pick { actions.delete(c) } })
+            }
+        } else if (c.author != "[deleted]") {
+            add { DropdownMenuItem(text = { Text("Block u/${c.author}") }, onClick = { pick { actions.block(c) } }) }
+        }
+        // Moderators of this community (the post says so) can act on comments too.
+        if (actions.post?.canModPost == true) {
+            add {
+                DropdownMenuItem(text = { Text("Approve") }, onClick = { pick { actions.mod(c, "Approved") { it.modApprove(c.fullname) } } })
+                DropdownMenuItem(text = { Text("Remove") }, onClick = { pick { actions.mod(c, "Removed") { it.modRemove(c.fullname) } } })
+                DropdownMenuItem(
+                    text = { Text("Remove as spam") },
+                    onClick = { pick { actions.mod(c, "Removed as spam") { it.modRemove(c.fullname, spam = true) } } },
+                )
+                if (isOwn) {
+                    val distinguished = c.distinguished == "moderator"
+                    DropdownMenuItem(
+                        text = { Text(if (distinguished) "Undistinguish" else "Distinguish as mod") },
+                        onClick = {
+                            pick {
+                                actions.mod(c, if (distinguished) "Undistinguished" else "Distinguished") {
+                                    it.modDistinguish(c.fullname, if (distinguished) "no" else "yes")
+                                }
+                            }
+                        },
+                    )
+                }
+            }
+        }
+    }
+    groups.forEachIndexed { i, group ->
+        if (i > 0) Spacer(Modifier.height(MenuDefaults.GroupSpacing))
+        DropdownMenuGroup(shapes = MenuDefaults.groupShape(i, groups.size)) { group() }
     }
 }
 
@@ -1797,16 +1804,11 @@ private fun CalmCommentRow(
                     Box(Modifier.size(32.dp).clip(CircleShape).clickable { menu = true }, contentAlignment = Alignment.Center) {
                         Icon(Icons.Rounded.MoreHoriz, "More", Modifier.size(16.dp), tint = muted)
                     }
-                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                        val pick = { f: () -> Unit ->
+                    DropdownMenuPopup(expanded = menu, onDismissRequest = { menu = false }) {
+                        CommentMenuItems(comment, isOwn, actions, withSave = true) { f ->
                             menu = false
                             f()
                         }
-                        DropdownMenuItem(
-                            text = { Text(if (comment.saved) "Unsave" else "Save") },
-                            onClick = { pick { actions.toggleSave(comment) } },
-                        )
-                        CommentMenuItems(comment, isOwn, actions, pick)
                     }
                 }
             }

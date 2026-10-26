@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.compose
 
+import com.bennybar.luli_for_reddit.ui.ConnectedChoice
 import androidx.compose.material3.LocalContentColor
 import com.bennybar.luli_for_reddit.ui.Loading
 import android.content.Context
@@ -51,7 +52,6 @@ import androidx.compose.material.icons.rounded.VideoCall
 import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -431,16 +431,7 @@ fun SubmitScreen(subreddit: String?) {
                 }
             }
             Spacer(Modifier.height(16.dp))
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                Kind.entries.forEachIndexed { i, k ->
-                    SegmentedButton(
-                        selected = kind == k,
-                        onClick = { kind = k; saveDraft() },
-                        shape = SegmentedButtonDefaults.itemShape(i, Kind.entries.size),
-                        icon = {},
-                    ) { Icon(k.icon, k.label) }
-                }
-            }
+            ConnectedChoice(Kind.entries.map { it to it.label }, kind, { kind = it; saveDraft() }, icon = { it.icon }, iconOnly = true)
             Spacer(Modifier.height(16.dp))
             when (kind) {
                 Kind.TEXT -> {
@@ -569,7 +560,7 @@ private suspend fun pickSubreddit(): String? = Overlays.show<String> { done ->
             else -> LazyColumn(Modifier.navigationBarsPadding()) {
                 items(list, key = { it.name }) { s ->
                     ListItem(
-                        headlineContent = { Text(s.namePrefixed) },
+                        content = { Text(s.namePrefixed) },
                         leadingContent = {
                             if (s.iconUrl != null) {
                                 AsyncImage(s.iconUrl, null, Modifier.size(32.dp).clip(CircleShape), contentScale = ContentScale.Crop)

@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.auth
 
+import com.bennybar.luli_for_reddit.ui.ConnectedChoice
 import androidx.compose.material3.LocalContentColor
 import com.bennybar.luli_for_reddit.ui.Loading
 import androidx.compose.animation.AnimatedVisibility
@@ -42,7 +43,6 @@ import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.TravelExplore
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -228,20 +228,12 @@ fun LoginScreen() {
         )
         Spacer(Modifier.height(24.dp))
 
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            SegmentedButton(
-                selected = !useApi,
-                onClick = { useApi = false; error = null },
-                shape = SegmentedButtonDefaults.itemShape(0, 2),
-                icon = { SegmentedButtonDefaults.Icon(!useApi) { Icon(Icons.Rounded.Public, null, Modifier.size(18.dp)) } },
-            ) { Text("Reddit website") }
-            SegmentedButton(
-                selected = useApi,
-                onClick = { useApi = true; error = null },
-                shape = SegmentedButtonDefaults.itemShape(1, 2),
-                icon = { SegmentedButtonDefaults.Icon(useApi) { Icon(Icons.Rounded.Key, null, Modifier.size(18.dp)) } },
-            ) { Text("API key") }
-        }
+        ConnectedChoice(
+            listOf(false to "Reddit website", true to "API key"),
+            useApi,
+            { useApi = it; error = null },
+            icon = { if (it) Icons.Rounded.Key else Icons.Rounded.Public },
+        )
         Spacer(Modifier.height(20.dp))
 
         if (!useApi) {
