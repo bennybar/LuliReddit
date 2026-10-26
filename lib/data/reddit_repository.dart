@@ -859,6 +859,18 @@ class RedditRepository {
     );
   }
 
+  /// One message conversation (t4_ fullname or id), with its replies; null
+  /// when it's gone.
+  Future<InboxItem?> getMessageThread(String id) async {
+    final bare = id.startsWith('t4_') ? id.substring(3) : id;
+    final res =
+        await _client.get<Map<String, dynamic>>('/message/messages/$bare');
+    final data = res.data?['data'] as Map<String, dynamic>?;
+    final children = (data?['children'] as List?) ?? const [];
+    if (children.isEmpty) return null;
+    return InboxItem.fromChild(children.first as Map<String, dynamic>);
+  }
+
   Future<int> getUnreadCount() async {
     // One page of 100 (Reddit's max): the badge shows "99+" beyond that, so
     // the default page of 25 used to cap it at 25.

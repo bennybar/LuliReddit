@@ -8,11 +8,13 @@ import 'features/auth/auth_controller.dart';
 import 'features/settings/settings_controller.dart' show sharedPrefsProvider;
 import 'features/auth/login_screen.dart';
 import 'features/compose/compose_post_screen.dart';
+import 'features/compose/drafts_screen.dart';
 import 'features/history/history_screen.dart';
 import 'features/legal/policy_screen.dart';
 import 'features/home/home_shell.dart';
 import 'features/inbox/compose_message_screen.dart';
 import 'features/inbox/message_thread_screen.dart';
+import 'features/notifications/notification_activity_screen.dart';
 import 'features/multireddit/custom_feeds_screen.dart';
 import 'features/multireddit/manage_multireddit_screen.dart';
 import 'features/multireddit/multireddit_feed_screen.dart';
@@ -26,6 +28,7 @@ import 'features/settings/settings_screen.dart';
 import 'features/subreddit/subreddit_screen.dart';
 import 'features/user/saved_hub_screen.dart';
 import 'features/user/user_screen.dart';
+import 'features/web/reddit_web_screen.dart';
 import 'core/deep_links.dart';
 import 'models/inbox_item.dart';
 import 'models/post.dart';
@@ -97,16 +100,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/custom_feeds',
           builder: (_, __) => const CustomFeedsScreen()),
-      // TODO(drafts): a later area ports Kotlin's DraftsScreen.
+      GoRoute(path: '/drafts', builder: (_, __) => const DraftsScreen()),
       GoRoute(
-          path: '/drafts',
-          builder: (_, __) => const _StubScreen(title: 'Drafts')),
+          path: '/notification_activity',
+          builder: (_, __) => const NotificationActivityScreen()),
       // A reddit.com page in the website session (Reddit settings, chat,
       // notifications…): /reddit_web?url=…&title=…
-      // TODO(web-pages): a later area builds this page.
       GoRoute(
         path: '/reddit_web',
-        builder: (_, state) => _StubScreen(
+        builder: (_, state) => RedditWebScreen(
+            url: state.uri.queryParameters['url'] ?? RedditWeb.settings,
             title: state.uri.queryParameters['title'] ?? 'Reddit'),
       ),
       GoRoute(
@@ -123,10 +126,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, state) => ComposePostScreen(
             initialSubreddit: state.uri.queryParameters['sr']),
       ),
+      // The conversation as `extra`, or by fullname: /message?id=t4_…
       GoRoute(
         path: '/message',
-        builder: (_, state) =>
-            MessageThreadScreen(root: state.extra as InboxItem),
+        builder: (_, state) => MessageThreadScreen(
+            root: state.extra as InboxItem?,
+            fullname: state.uri.queryParameters['id']),
       ),
       GoRoute(
         path: '/compose_message',
@@ -169,15 +174,3 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
-
-/// Placeholder for a screen a later porting area builds.
-class _StubScreen extends StatelessWidget {
-  const _StubScreen({required this.title});
-  final String title;
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: Text(title)),
-        body: const Center(child: Text('Coming soon')),
-      );
-}

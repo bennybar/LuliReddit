@@ -30,6 +30,7 @@ import '../media/gallery_carousel.dart';
 import '../media/media_viewers.dart';
 import '../media/nsfw_blur.dart';
 import '../settings/settings_controller.dart';
+import '../web/reddit_web_screen.dart';
 import 'comment_tree.dart';
 import 'comments_controller.dart';
 import 'ask_thread_sheet.dart';
@@ -131,7 +132,14 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
   }
 
   @override
-  void didPopNext() => _dwell.start();
+  void didPopNext() {
+    _dwell.start();
+    // Back from voting in this post's poll on Reddit: load the results.
+    if (RedditWeb.pollVoteOpened == widget.postId) {
+      RedditWeb.pollVoteOpened = null;
+      _refresh();
+    }
+  }
 
   /// Time in a thread is the strongest cheap signal there is: a post read for
   /// two minutes is a far stronger "more like this" than one backed out of at
@@ -338,7 +346,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
     final p = _post;
     if (p == null) return;
     final reply = await showReplySheet(context, ref,
-        parentFullname: p.fullname, parentDepth: -1);
+        parentFullname: p.fullname, parentDepth: -1, post: p);
     if (reply != null) _onReplied(p.fullname, reply);
   }
 
@@ -346,7 +354,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
     final reply = await showReplySheet(context, ref,
         parentFullname: c.fullname,
         parentDepth: c.depth,
-        replyingTo: c.author);
+        replyingTo: c.author,
+        post: _post);
     if (reply != null) _onReplied(c.fullname, reply);
   }
 

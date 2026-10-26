@@ -5,6 +5,7 @@ import '../../core/drafts.dart';
 import '../../core/network/catbox.dart';
 import '../../core/providers.dart';
 import '../../models/comment.dart';
+import '../../models/post.dart';
 import '../auth/auth_controller.dart';
 import '../../core/widgets/markdown_toolbar.dart';
 import '../media/attachment.dart';
@@ -21,6 +22,7 @@ Future<Comment?> showReplySheet(
   required String parentFullname,
   required int parentDepth,
   String? replyingTo,
+  Post? post,
 }) {
   return showModalBottomSheet<Comment>(
     context: context,
@@ -32,6 +34,18 @@ Future<Comment?> showReplySheet(
       submitLabel: 'Reply',
       allowAttachments: true,
       draftKey: 'reply_$parentFullname',
+      // You → Drafts: the thread it belongs to.
+      draftInfo: post == null
+          ? null
+          : {
+              'kind': 'reply',
+              'sub': post.subreddit,
+              'post': post.id,
+              'title': post.title,
+              if (parentFullname.startsWith('t1_'))
+                'comment': parentFullname.substring(3),
+              if (replyingTo != null) 'to': replyingTo,
+            },
       onSubmitMedia: (text, media) async {
         final repo = ref.read(redditRepositoryProvider);
         final me = ref.read(authControllerProvider).valueOrNull?.username ?? '';
@@ -102,6 +116,7 @@ class _ComposeSheet<T> extends StatefulWidget {
     this.allowAttachments = false,
     this.initialText,
     this.draftKey,
+    this.draftInfo,
   }) : assert(onSubmit != null || onSubmitMedia != null);
 
   final WidgetRef ref;
@@ -112,6 +127,9 @@ class _ComposeSheet<T> extends StatefulWidget {
 
   /// When set, the in-progress text is autosaved/restored under this key.
   final String? draftKey;
+
+  /// Saved next to the draft: where it goes, for the Drafts list.
+  final Map<String, dynamic>? draftInfo;
 
   /// Text-only submit (used for editing).
   final Future<T> Function(String text)? onSubmit;
@@ -139,7 +157,9 @@ class _ComposeSheetState<T> extends State<_ComposeSheet<T>> {
 
   void _onChanged(String v) {
     if (widget.draftKey != null) {
-      widget.ref.read(draftsProvider).save(widget.draftKey!, v);
+      widget.ref
+          .read(draftsProvider)
+          .save(widget.draftKey!, v, info: widget.draftInfo);
     }
   }
 

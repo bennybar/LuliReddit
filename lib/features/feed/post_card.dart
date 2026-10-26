@@ -30,6 +30,7 @@ import '../foryou/for_you_learner.dart';
 import '../foryou/tune_sheet.dart';
 import '../post/post_actions.dart';
 import '../settings/settings_controller.dart';
+import '../web/reddit_web_screen.dart';
 import 'swipe_actions.dart';
 
 /// Feed preview URL, mid-resolution when the data-saver setting is on.
@@ -388,7 +389,7 @@ class _PostCardState extends ConsumerState<PostCard> {
       SwipeAction.save => SwipeSpec(action.icon, cs.primary, _toggleSave),
       SwipeAction.reply => SwipeSpec(action.icon, cs.tertiary, () async {
           final reply = await showReplySheet(context, ref,
-              parentFullname: p.fullname, parentDepth: -1);
+              parentFullname: p.fullname, parentDepth: -1, post: p);
           if (reply != null) {
             ref.read(postOverridesProvider.notifier).bumpComments(p, 1);
           }
@@ -1603,13 +1604,15 @@ class ReminderLine extends ConsumerWidget {
   }
 }
 
-/// A poll's options, with results once Reddit shows them.
-class PollOptions extends StatelessWidget {
+/// A poll's options, with results once Reddit shows them. Reddit's API can't
+/// vote in polls: with the website sign-in, "Vote on Reddit" opens the post
+/// signed in (the thread refreshes its results when you come back).
+class PollOptions extends ConsumerWidget {
   const PollOptions({super.key, required this.post});
   final Post post;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final p = post;
     if (p.pollOptions.isEmpty) return const SizedBox.shrink();
     final cs = Theme.of(context).colorScheme;
@@ -1627,10 +1630,16 @@ class PollOptions extends StatelessWidget {
             Text('You voted · ${compactNumber(total)} votes', style: muted)
           else if (p.pollVotes.isNotEmpty)
             Text('${compactNumber(total)} votes', style: muted)
+          else if (ref.watch(webSignInProvider))
+            TextButton(
+              onPressed: () {
+                RedditWeb.pollVoteOpened = p.id;
+                context.push(RedditWeb.route(
+                    'https://www.reddit.com${p.permalink}', 'Vote in poll'));
+              },
+              child: const Text('Vote on Reddit'),
+            )
           else
-            // TODO(poll voting): Reddit's API can't vote in polls. With the
-            // website sign-in Kotlin offers "Vote on Reddit", which opens the
-            // post signed in (needs the web-session pages, a later area).
             Text('Vote in the official app', style: muted),
         ],
       ),

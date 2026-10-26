@@ -539,6 +539,13 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             value: s.notifyInbox,
             onChanged: (v) => _toggleInboxNotifications(context, ref, v),
           ),
+          ListTile(
+            leading: const Icon(Icons.history_rounded),
+            title: const Text('Notification activity'),
+            subtitle: const Text("What Ilay notified you about, what it "
+                "couldn't, and why · Check now"),
+            onTap: () => context.push('/notification_activity'),
+          ),
           const Divider(),
           _section(context, 'AI summaries'),
           ListTile(

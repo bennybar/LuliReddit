@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/auth/auth_controller.dart';
+import '../network/rate_limit.dart';
 import '../network/reddit_client.dart';
 
 /// Turns raw exceptions into friendly, human copy.
@@ -17,6 +18,17 @@ String friendlyError(Object? e) {
       case 'gold_only':
         return 'This community is for premium members only.';
     }
+    switch (e.statusCode) {
+      case 403:
+        return "You don't have permission to do that.";
+      case 404:
+        return 'Not found — it may have been removed.';
+      case 429:
+        return rateLimited();
+    }
+    if (e.statusCode >= 500 && e.statusCode <= 599) {
+      return 'Reddit is having problems right now. Try again later.';
+    }
   }
   final s = '$e'.replaceFirst('Exception: ', '');
   final lower = s.toLowerCase();
@@ -27,13 +39,24 @@ String friendlyError(Object? e) {
   }
   if (lower.contains('403')) return "You don't have permission to do that.";
   if (lower.contains('404')) return 'Not found — it may have been removed.';
-  if (lower.contains('429')) {
-    return "You're going a bit fast — Reddit is rate-limiting. Try again shortly.";
-  }
+  if (lower.contains('429')) return rateLimited();
   if (lower.contains('500') || lower.contains('502') || lower.contains('503')) {
     return 'Reddit is having problems right now. Try again later.';
   }
   return s;
+}
+
+/// Rate-limited: when Reddit said the window resets, say how long to wait.
+String rateLimited([DateTime? now]) {
+  final left = RateLimit.latest?.secondsLeft(now) ?? 0;
+  if (left <= 0) {
+    return "You're going a bit fast — Reddit is rate-limiting. Try again shortly.";
+  }
+  if (left < 60) {
+    return 'Reddit is rate-limiting for a moment. Try again in ${left}s.';
+  }
+  return 'Reddit is rate-limiting. Try again in about '
+      '${(left + 59) ~/ 60} min.';
 }
 
 /// Tells the user a quick action (vote, save, subscribe…) didn't go through,
@@ -75,7 +98,8 @@ class ErrorView extends StatelessWidget {
           children: [
             Icon(icon, size: 48, color: cs.onSurfaceVariant),
             const SizedBox(height: 12),
-            Text(friendlyError(message), textAlign: TextAlign.center),
+            Text(message is String ? message as String : friendlyError(message),
+                textAlign: TextAlign.center),
             if (onRetry != null) ...[
               const SizedBox(height: 16),
               FilledButton.tonal(onPressed: onRetry, child: const Text('Retry')),

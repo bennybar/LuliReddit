@@ -37,9 +37,16 @@ class _ComposeMessageScreenState extends ConsumerState<ComposeMessageScreen> {
     if (raw != null) {
       try {
         final m = jsonDecode(raw) as Map;
-        if ((widget.initialTo ?? '').isEmpty) _to.text = m['to'] ?? '';
-        _subject.text = m['subject'] ?? '';
-        _body.text = m['body'] ?? '';
+        // Restore it, unless it was to someone else than [initialTo].
+        final to = widget.initialTo ?? '';
+        final was = (m['to'] as String?) ?? '';
+        if (to.isEmpty ||
+            was.isEmpty ||
+            was.toLowerCase() == to.toLowerCase()) {
+          if (to.isEmpty) _to.text = was;
+          _subject.text = m['subject'] ?? '';
+          _body.text = m['body'] ?? '';
+        }
       } catch (_) {/* ignore malformed draft */}
     }
   }
@@ -51,6 +58,7 @@ class _ComposeMessageScreenState extends ConsumerState<ComposeMessageScreen> {
           'subject': _subject.text,
           'body': _body.text,
         }),
+        info: {'kind': 'msg'},
       );
 
   @override
@@ -62,7 +70,9 @@ class _ComposeMessageScreenState extends ConsumerState<ComposeMessageScreen> {
   }
 
   Future<void> _send() async {
-    final to = _to.text.trim();
+    var to = _to.text.trim();
+    if (to.startsWith('/')) to = to.substring(1);
+    if (to.startsWith('u/')) to = to.substring(2);
     final subject = _subject.text.trim();
     var body = _body.text.trim();
     if (to.isEmpty || subject.isEmpty || (body.isEmpty && _media == null)) {

@@ -54,6 +54,8 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   @override
   void initState() {
     super.initState();
+    // Rebuilt (e.g. after a notification tap reset the stack): stay in sync.
+    _index = ref.read(homeTabProvider);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (mounted) setState(() => _allTabs = true);
       await _maybeCheckUpdates();
@@ -168,6 +170,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       _index = i;
       _chrome = true; // always reveal chrome when switching tabs
     });
+    ref.read(homeTabProvider.notifier).state = i;
   }
 
   void _openSideBar() => _scaffold.currentState?.openDrawer();
@@ -184,6 +187,10 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Switched from outside (a notification tap opens the Inbox).
+    ref.listen<int>(homeTabProvider, (_, i) {
+      if (i != _index) _selectTab(i);
+    });
     final unread = ref.watch(unreadCountProvider).valueOrNull ?? 0;
     final navStyle =
         ref.watch(settingsControllerProvider.select((s) => s.navStyle));

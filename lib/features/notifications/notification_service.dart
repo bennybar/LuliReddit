@@ -79,13 +79,32 @@ class NotificationService {
     return true;
   }
 
-  Future<void> show({
+  /// Whether Ilay may show notifications right now (the user can turn them
+  /// off in the system settings at any time).
+  Future<bool> canNotify() async {
+    await init();
+    if (Platform.isIOS) {
+      final impl = _plugin.resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin>();
+      return (await impl?.checkPermissions())?.isEnabled ?? false;
+    }
+    if (Platform.isAndroid) {
+      final impl = _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      return (await impl?.areNotificationsEnabled()) ?? true;
+    }
+    return true;
+  }
+
+  /// Shows a notification; false if Ilay can't show notifications.
+  Future<bool> show({
     required int id,
     required String title,
     required String body,
     String? payload,
   }) async {
     await init();
+    if (!await canNotify()) return false;
     const details = NotificationDetails(
       android: AndroidNotificationDetails(
         _channelId,
@@ -97,7 +116,12 @@ class NotificationService {
       ),
       iOS: DarwinNotificationDetails(),
     );
-    await _plugin.show(id, title, body, details, payload: payload);
+    try {
+      await _plugin.show(id, title, body, details, payload: payload);
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// If the app was launched by tapping a notification, route to its payload.

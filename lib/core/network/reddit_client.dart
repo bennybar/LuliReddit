@@ -67,7 +67,7 @@ class RedditClient {
         handler.next(options);
       },
       onResponse: (response, handler) async {
-        _captureRateLimit(response.headers);
+        _captureRateLimit(response.headers, response.statusCode);
         if (!_webMode &&
             response.statusCode == 401 &&
             response.requestOptions.extra['retried'] != true) {
@@ -138,16 +138,26 @@ class RedditClient {
     return '$base$path';
   }
 
-  void _captureRateLimit(Headers headers) {
+  void _captureRateLimit(Headers headers, int? status) {
     final rem = headers.value('x-ratelimit-remaining');
     final used = headers.value('x-ratelimit-used');
     final reset = headers.value('x-ratelimit-reset');
-    if (rem == null || onRateLimit == null) return;
-    onRateLimit!(RateLimit(
-      remaining: double.tryParse(rem)?.round() ?? 0,
-      used: double.tryParse(used ?? '0')?.round() ?? 0,
-      resetSeconds: double.tryParse(reset ?? '0')?.round() ?? 0,
-    ));
+    final RateLimit rl;
+    if (rem == null) {
+      // A 429 without the usual headers can still say when to come back.
+      final retry =
+          double.tryParse(headers.value('retry-after') ?? '')?.toInt();
+      if (status != 429 || retry == null) return;
+      rl = RateLimit(remaining: 0, used: 0, resetSeconds: retry);
+    } else {
+      rl = RateLimit(
+        remaining: double.tryParse(rem)?.round() ?? 0,
+        used: double.tryParse(used ?? '0')?.round() ?? 0,
+        resetSeconds: double.tryParse(reset ?? '0')?.round() ?? 0,
+      );
+    }
+    RateLimit.latest = rl;
+    onRateLimit?.call(rl);
   }
 
   Future<String> _validToken() async {

@@ -4,6 +4,45 @@ import '../../core/providers.dart';
 import '../../models/inbox_item.dart';
 import '../../models/listing.dart';
 import '../auth/auth_controller.dart';
+import 'reddit_notifications.dart';
+
+/// The Inbox tabs: (label, where).
+const inboxTabs = [
+  ('All', 'inbox'),
+  ('Unread', 'unread'),
+  ('Messages', 'messages'),
+  ('Sent', 'sent'),
+];
+
+/// Whether [fullname] is unread in any loaded tab (null if it isn't loaded).
+bool? _isNewAnywhere(Ref ref, String fullname) {
+  for (final (_, where) in inboxTabs) {
+    if (!ref.exists(inboxControllerProvider(where))) continue;
+    final items = ref.read(inboxControllerProvider(where)).valueOrNull?.items;
+    for (final i in items ?? const <InboxItem>[]) {
+      if (i.fullname == fullname) return i.isNew;
+    }
+  }
+  return null;
+}
+
+/// Replies / mentions (comment ids) Reddit's notification list says you
+/// opened elsewhere: mark the loaded unread ones read here and in Reddit's
+/// inbox (not back on the notification list, where they already are).
+void markInboxReadFromReddit(Ref ref, List<String> commentIds) {
+  // Any loaded tab's controller marks it in all of them.
+  final loaded = inboxTabs
+      .where((t) => ref.exists(inboxControllerProvider(t.$2)))
+      .firstOrNull;
+  if (loaded == null) return;
+  final inbox = ref.read(inboxControllerProvider(loaded.$2).notifier);
+  for (final id in commentIds) {
+    final fullname = 't1_$id';
+    if (_isNewAnywhere(ref, fullname) == true) {
+      inbox.markRead(fullname, notifications: false);
+    }
+  }
+}
 
 class InboxState {
   const InboxState({
@@ -17,17 +56,21 @@ class InboxState {
 
   bool get hasMore => after != null && after!.isNotEmpty;
 
+  // [after] keeps its value when not passed (null is a real value: no more
+  // pages), so updating items doesn't lose the tab's paging.
   InboxState copyWith({
     List<InboxItem>? items,
-    String? after,
+    Object? after = _keep,
     bool? loadingMore,
   }) =>
       InboxState(
         items: items ?? this.items,
-        after: after,
+        after: identical(after, _keep) ? this.after : after as String?,
         loadingMore: loadingMore ?? this.loadingMore,
       );
 }
+
+const _keep = Object();
 
 /// arg = where (inbox | unread | messages | sent)
 class InboxController extends FamilyAsyncNotifier<InboxState, String> {
@@ -62,14 +105,46 @@ class InboxController extends FamilyAsyncNotifier<InboxState, String> {
     }
   }
 
-  /// Optimistically marks one item read locally and on the server.
-  Future<void> markRead(String fullname) async {
+  // Sets [fullname]'s read flag in this tab's loaded list.
+  void _setNew(String fullname, bool isNew) {
     final current = state.valueOrNull;
-    if (current != null) {
-      state = AsyncData(current.copyWith(items: [
+    if (current == null ||
+        !current.items.any((i) => i.fullname == fullname)) {
+      return;
+    }
+    state = AsyncData(current.copyWith(
+      after: current.after,
+      items: [
         for (final i in current.items)
-          i.fullname == fullname ? i.copyWith(isNew: false) : i,
-      ]));
+          i.fullname == fullname ? i.copyWith(isNew: isNew) : i,
+      ],
+    ));
+  }
+
+  // In every loaded tab (an item can show in several).
+  void _setNewEverywhere(String fullname, bool isNew) {
+    for (final (_, where) in inboxTabs) {
+      if (ref.exists(inboxControllerProvider(where))) {
+        ref
+            .read(inboxControllerProvider(where).notifier)
+            ._setNew(fullname, isNew);
+      }
+    }
+  }
+
+  /// Optimistically marks one item read locally and on the server
+  /// ([notifications]: Reddit's notification list too).
+  Future<void> markRead(String fullname, {bool notifications = true}) async {
+    // Already read: nothing to send (a repeated swipe used to fire again and
+    // again, hitting Reddit's rate limit).
+    if (_isNewAnywhere(ref, fullname) == false) return;
+    _setNewEverywhere(fullname, false);
+    // Replies and mentions also sit in Reddit's notification list (website
+    // sign-in).
+    if (notifications && fullname.startsWith('t1_')) {
+      ref
+          .read(redditNotificationsProvider.notifier)
+          .markReadOnReddit(fullname.substring(3));
     }
     try {
       await ref.read(redditRepositoryProvider).markRead(fullname);
@@ -79,13 +154,8 @@ class InboxController extends FamilyAsyncNotifier<InboxState, String> {
 
   /// Optimistically marks one item unread locally and on the server.
   Future<void> markUnread(String fullname) async {
-    final current = state.valueOrNull;
-    if (current != null) {
-      state = AsyncData(current.copyWith(items: [
-        for (final i in current.items)
-          i.fullname == fullname ? i.copyWith(isNew: true) : i,
-      ]));
-    }
+    if (_isNewAnywhere(ref, fullname) == true) return;
+    _setNewEverywhere(fullname, true);
     try {
       await ref.read(redditRepositoryProvider).markUnread(fullname);
       ref.invalidate(unreadCountProvider);
@@ -120,6 +190,7 @@ class InboxController extends FamilyAsyncNotifier<InboxState, String> {
       if (current != null) state = AsyncData(current);
       rethrow;
     }
+    ref.read(redditNotificationsProvider.notifier).markAllReadOnReddit();
     ref.invalidate(inboxControllerProvider);
     ref.invalidate(unreadCountProvider);
   }

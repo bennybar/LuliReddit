@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/network/web_session_cookies.dart';
+
 /// Reads the user's real reddit.com Home feed — Reddit's own ranking and
 /// recommendations — by loading the site in a hidden WebView with the user's
 /// own website session, the way their browser would, and collecting the ids
@@ -31,7 +33,7 @@ class RedditHomeLoader {
 
   /// Media, fonts and telemetry: not needed to read the feed's post ids.
   /// (Content-blocker patterns are WebKit's regex subset: no `|`.)
-  static final _skippable = [
+  static final skippable = [
     r'^https?://v\.redd\.it/',
     r'^https?://packaged-media\.redd\.it/',
     r'^https?://fonts\.gstatic\.com/',
@@ -122,31 +124,7 @@ class RedditHomeLoader {
     _cookies = cookieHeader;
     // The WebView's cookie jar may hold a different account's session (the
     // last one that signed in through it): load the active one's.
-    final jar = CookieManager.instance();
-    final inJar = await jar.getCookie(url: _home, name: 'reddit_session');
-    String? session(String header) => header
-        .split(';')
-        .map((p) => p.trim())
-        .where((p) => p.startsWith('reddit_session='))
-        .firstOrNull
-        ?.substring('reddit_session='.length);
-    // Same account already in the jar: keep it as is. Wiping it also threw
-    // away the cookies Reddit set when the page passed its browser check, so
-    // every launch had to pass that check again (an extra page load).
-    if (inJar?.value?.toString() != session(cookieHeader)) {
-      await jar.deleteCookies(url: _home, domain: '.reddit.com');
-      for (final part in cookieHeader.split(';')) {
-        final i = part.indexOf('=');
-        if (i <= 0) continue;
-        await jar.setCookie(
-          url: _home,
-          name: part.substring(0, i).trim(),
-          value: part.substring(i + 1).trim(),
-          domain: '.reddit.com',
-          isSecure: true,
-        );
-      }
-    }
+    await loadWebSessionCookies(cookieHeader);
     final created = Completer<void>();
     _view = HeadlessInAppWebView(
       initialUrlRequest: URLRequest(url: _home),
@@ -160,7 +138,7 @@ class RedditHomeLoader {
         // the feed request for bandwidth and CPU. Reddit's own scripts and
         // checks still load.
         contentBlockers: [
-          for (final filter in _skippable)
+          for (final filter in skippable)
             ContentBlocker(
               trigger: ContentBlockerTrigger(urlFilter: filter),
               action: ContentBlockerAction(type: ContentBlockerActionType.BLOCK),

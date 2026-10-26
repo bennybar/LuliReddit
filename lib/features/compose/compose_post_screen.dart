@@ -86,6 +86,7 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
             'url': _url.text,
             'kind': _kind.index,
           }),
+          info: {'kind': 'post'},
         );
     final has = _subreddit.text.trim().isNotEmpty ||
         _title.text.trim().isNotEmpty ||

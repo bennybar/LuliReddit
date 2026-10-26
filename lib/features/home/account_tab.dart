@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/drafts.dart';
 import '../../core/providers.dart';
 import '../auth/auth_controller.dart';
 import '../auth/web_login_screen.dart';
@@ -222,18 +223,21 @@ class ProfileTab extends ConsumerWidget {
 
 /// History, Read later, Drafts, Summaries and saved search, as one row of
 /// chips.
-class _YourStuffRow extends StatelessWidget {
+class _YourStuffRow extends ConsumerWidget {
   const _YourStuffRow();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
-    // TODO(drafts): Kotlin shows "Drafts · n"; the Flutter drafts store
-    // can't list its drafts yet.
-    const chips = [
+    final drafts = ref.watch(draftListProvider.select((l) => l.length));
+    final chips = [
       (Icons.history_rounded, 'History', '/history'),
       (Icons.offline_pin_rounded, 'Read later', '/offline'),
-      (Icons.edit_note_rounded, 'Drafts', '/drafts'),
+      (
+        Icons.edit_note_rounded,
+        drafts == 0 ? 'Drafts' : 'Drafts · $drafts',
+        '/drafts'
+      ),
       (Icons.auto_awesome_rounded, 'Summaries', '/summaries'),
       (Icons.bookmark_border_rounded, 'Search saved', '/saved'),
     ];
