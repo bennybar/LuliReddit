@@ -142,54 +142,55 @@ class GalleryM3Carousel extends StatelessWidget {
     if (images.isEmpty) return const SizedBox.shrink();
     final cs = Theme.of(context).colorScheme;
     final n = images.length;
-    // One big item, smaller ones beside it.
-    final weights = n == 2 ? const [3, 1] : const [3, 2, 1];
     final scroll = ScrollConfiguration.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          height: height,
-          // A fling moves several images, not one (Kotlin's
-          // multiBrowseFlingBehavior): long galleries go quicker. The
-          // carousel takes the ambient physics when itemSnapping is off.
-          child: ScrollConfiguration(
-            behavior: scroll.copyWith(
-                physics: MultiBrowsePhysics(
-                        weights.first / weights.reduce((a, b) => a + b))
-                    .applyTo(scroll.getScrollPhysics(context))),
-            child: CarouselView.weighted(
-              flexWeights: weights,
-              // 8 between items, as Kotlin's itemSpacing.
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(28)),
-              backgroundColor: cs.surfaceContainerHighest,
-              onTap: (i) => openGalleryViewer(context, images,
-                  title: title, initialIndex: i),
-              children: [
-                for (var i = 0; i < n; i++)
-                  Semantics(
-                    image: true,
-                    label: 'Image ${i + 1} of $n',
-                    child: CachedNetworkImage(
-                      imageUrl: images[i].url,
-                      fit: BoxFit.cover,
-                      // Gallery images are full size (often 12MP photos):
-                      // decode at screen width, as the feed's prefetcher.
-                      memCacheWidth: feedDecodeWidth(context),
-                      placeholder: (_, __) =>
-                          ColoredBox(color: cs.surfaceContainerHighest),
-                      errorWidget: (_, __, ___) => Center(
-                        child: Icon(Icons.broken_image_outlined,
-                            color: cs.onSurfaceVariant),
+        LayoutBuilder(builder: (context, box) {
+          final weights = multiBrowseWeights(box.maxWidth, n);
+          return SizedBox(
+            height: height,
+            // A fling moves several images, not one (Kotlin's
+            // multiBrowseFlingBehavior): long galleries go quicker. The
+            // carousel takes the ambient physics when itemSnapping is off.
+            child: ScrollConfiguration(
+              behavior: scroll.copyWith(
+                  physics: MultiBrowsePhysics(
+                          weights.first / weights.reduce((a, b) => a + b))
+                      .applyTo(scroll.getScrollPhysics(context))),
+              child: CarouselView.weighted(
+                flexWeights: weights,
+                // 8 between items, as Kotlin's itemSpacing.
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(28)),
+                backgroundColor: cs.surfaceContainerHighest,
+                onTap: (i) => openGalleryViewer(context, images,
+                    title: title, initialIndex: i),
+                children: [
+                  for (var i = 0; i < n; i++)
+                    Semantics(
+                      image: true,
+                      label: 'Image ${i + 1} of $n',
+                      child: CachedNetworkImage(
+                        imageUrl: images[i].url,
+                        fit: BoxFit.cover,
+                        // Gallery images are full size (often 12MP photos):
+                        // decode at screen width, as the feed's prefetcher.
+                        memCacheWidth: feedDecodeWidth(context),
+                        placeholder: (_, __) =>
+                            ColoredBox(color: cs.surfaceContainerHighest),
+                        errorWidget: (_, __, ___) => Center(
+                          child: Icon(Icons.broken_image_outlined,
+                              color: cs.onSurfaceVariant),
+                        ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ),
+          );
+        }),
         Padding(
           padding: const EdgeInsets.only(left: 4, top: 8),
           child: Row(
@@ -211,6 +212,22 @@ class GalleryM3Carousel extends StatelessWidget {
 /// fling travels as far as its speed carries it, then settles on the nearest
 /// item, so a quick one skips several. [fraction]: the large item's share
 /// of the carousel's width (one item's step).
+/// Item widths for a multi-browse carousel [width] wide, as Compose's
+/// HorizontalMultiBrowseCarousel(preferredItemWidth = 280dp) lays them out:
+/// a 280 large image, a small one of up to 56 (Compose's maximum small item
+/// size; at least 40), and a medium one with what's left. Each width includes
+/// the item's 4 + 4 padding, the 8 between images.
+List<int> multiBrowseWeights(double width, int count) {
+  const gap = 8.0;
+  final large = (280 + gap).clamp(0.0, width * 0.8);
+  final rest = width - large;
+  if (count == 2 || rest < 2 * (40 + gap)) {
+    return [large.round(), rest.round().clamp(1, 1 << 30)];
+  }
+  final small = (rest / 2).clamp(40 + gap, 56 + gap);
+  return [large.round(), (rest - small).round(), small.round()];
+}
+
 class MultiBrowsePhysics extends ScrollPhysics {
   const MultiBrowsePhysics(this.fraction, {super.parent});
   final double fraction;
