@@ -1,0 +1,5 @@
+- New: optional inbox notifications. Luli can check your Reddit inbox in the
+  background (about every 15 minutes) and notify you of replies, mentions and
+  messages. It uses plain polling — no Firebase or tracking — and is off by
+  default. Turn it on from the first-launch prompt or under Settings →
+  Notifications.

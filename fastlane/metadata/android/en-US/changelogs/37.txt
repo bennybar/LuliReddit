@@ -1,0 +1,1 @@
+- Feeds start loading the next page 10 posts before the end, so fast scrolling rarely hits the loading spinner.

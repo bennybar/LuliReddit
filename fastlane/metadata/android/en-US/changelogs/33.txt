@@ -1,0 +1,6 @@
+- Fix: no longer occasionally shows the login screen after a resume/network
+  change (auth state is restored on resume; a stored account is never bounced
+  to login by a transient keychain read).
+- Inbox now re-syncs read state on app resume, so items you read on the
+  official Reddit app show as read here too.
+- Tap a username in the feed to open that user's profile.

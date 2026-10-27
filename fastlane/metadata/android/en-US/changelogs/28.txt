@@ -1,0 +1,4 @@
+- Fix: occasionally being shown the login screen on launch (a transient
+  secure-storage read on cold start is now retried instead of signing you out).
+- Fix: opening a reddit post/comment link no longer shows "Page not found";
+  reddit.com / redd.it links now open the right screen in-app.

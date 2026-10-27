@@ -1,0 +1,5 @@
+- New: AI thread summaries. Add your own OpenAI-compatible API key in
+  Settings → AI summaries, then use "Summarize thread" from a post's menu.
+  Choose the model and summary style; the post and most-upvoted comments are
+  sent to the endpoint you configure (OpenAI or your own URL, e.g. LiteLLM).
+  Opt-in; your key is stored securely and never included in backups.

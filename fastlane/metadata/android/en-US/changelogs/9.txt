@@ -1,0 +1,6 @@
+- Multi-account: add several Reddit accounts and switch between them
+- Inline video autoplay in feeds (muted, tap for sound/full screen)
+- Search upgrade: sort + time filters and recent searches
+- Adjustable font size (scales all text)
+- Power-user option to show live API usage instead of the search bar
+- Tab bar polish (no more selection "aura")

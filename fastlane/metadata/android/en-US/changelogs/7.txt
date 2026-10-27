@@ -1,0 +1,5 @@
+- Anonymous, privacy-friendly usage stats (active users only; no ad IDs, no personal data)
+- Media download dialog shows size and can be cancelled
+- Block users; in-app content & conduct policy
+- Splash screen, dark-mode icon, solid navigation bar
+- Faster loading and data-saver thumbnails

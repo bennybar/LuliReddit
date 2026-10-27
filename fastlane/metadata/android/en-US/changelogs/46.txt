@@ -1,0 +1,1 @@
+- Reddit Home is now simply called "Home" in the feed, without the experimental badge (the warning stays in Settings).

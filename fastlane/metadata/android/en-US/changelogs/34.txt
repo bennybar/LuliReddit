@@ -1,0 +1,2 @@
+- Explore now shows your custom feeds (multireddits): tap one to browse the
+  combined feed.

@@ -1,0 +1,3 @@
+- Smoother scrolling in feeds and in posts.
+- Post screen: the bottom buttons are now one compact toolbar (new-comments stepper, your comments, comment, next comment).
+- Comment text is no longer selectable (use "Copy text" in the comment menu); the post body still is.

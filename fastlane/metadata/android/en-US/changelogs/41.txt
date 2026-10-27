@@ -1,0 +1,1 @@
+- Fix: GIFs from Reddit's GIF picker (and images posted the same way) now show in comments instead of an empty comment.

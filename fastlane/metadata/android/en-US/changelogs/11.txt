@@ -1,0 +1,6 @@
+"For You" feed, much smarter:
+- Endless scrolling (it no longer stops after the first batch)
+- Learns what you like within a community from post titles, and why it's shown
+- Fairer ranking for smaller subreddits; tastes decay so it stays current
+- Posts you've seen and ignored get demoted, so refreshes feel fresh
+- Per-account: each account keeps its own taste profile and history
