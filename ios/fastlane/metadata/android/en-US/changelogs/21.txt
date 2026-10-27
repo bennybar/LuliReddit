@@ -1,0 +1,5 @@
+- Quality-of-life batch: Undo when hiding a post; re-tap Explore/Inbox to scroll
+  to top; pull-to-refresh in Search; "Copy text" on posts & comments; draft
+  autosave for replies, posts and messages; tapping a reply notification opens
+  that comment; a "next top-level comment" button in long threads; and a
+  "New posts" pill when the feed has fresh content after you return.

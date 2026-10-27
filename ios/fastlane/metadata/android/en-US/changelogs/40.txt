@@ -1,0 +1,2 @@
+- Login: you can now sign in with a RedReader-issued client ID (redirect URI redreader://rr_oauth_redir). Tap "Using a RedReader client ID?" on the login screen.
+- Login: a redirect URI the app cannot receive is now reported clearly instead of failing as "Cancelled".

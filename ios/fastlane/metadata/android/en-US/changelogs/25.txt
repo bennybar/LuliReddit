@@ -1,0 +1,8 @@
+- New: Markdown formatting toolbar in the reply/post/message composers.
+- New: Content filters — hide posts by keyword, domain or flair (Settings → Feed).
+- New: Saved hub — search your saved posts & comments, filter by type
+  (Settings → Saved).
+- New: Back up & restore your local data — settings, the For You model, history
+  and filters (Settings → History & data). Login/keys are never included.
+- Subreddit screen now has an About & rules sheet, plus quick Popular / All
+  buttons on Explore.

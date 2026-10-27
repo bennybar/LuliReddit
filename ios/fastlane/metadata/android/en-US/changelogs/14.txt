@@ -1,0 +1,6 @@
+- Votes, saves and comment counts now stay in sync between the feed and a post
+  without needing to pull-to-refresh.
+- Comments now reload when you reopen a post, so new replies show up.
+- The feed and profile lists quietly refresh when you return after a few minutes
+  away, without losing your place.
+- Inbox: swipe a message to mark read/unread or delete.
