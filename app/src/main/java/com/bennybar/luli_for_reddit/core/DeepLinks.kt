@@ -16,6 +16,15 @@ fun isRedditHost(host: String?): Boolean {
 }
 
 /**
+ * The first reddit.com / redd.it link in shared text. Apps share a post as
+ * the bare URL or as "title https://…", sometimes with trailing punctuation.
+ */
+fun redditUrlInText(text: String?): String? =
+    Regex("""https?://[^\s<>"]+""").findAll(text ?: return null)
+        .map { it.value.trimEnd('.', ',', ')', '!', '?') }
+        .firstOrNull { isRedditHost(runCatching { java.net.URI(it).host }.getOrNull()) }
+
+/**
  * A VIEW intent for [uri] outside Ilay. When Ilay is set to open Reddit links
  * by default, a plain VIEW of a reddit.com / redd.it URL would land straight
  * back in Ilay, so those go to the default web browser explicitly.

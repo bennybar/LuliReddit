@@ -97,6 +97,9 @@ class _LuliAppState extends ConsumerState<LuliApp> with WidgetsBindingObserver {
     // Dedupe: the same link can arrive via both the stream and the resume check.
     final key = uri.toString();
     if (key == _lastLink) return;
+    // luli://share is routed by the GoRouter redirect (cold or warm), and
+    // luli://oauth belongs to sign-in.
+    if (uri.scheme == 'luli') return;
     _lastLink = key;
     final route = routeForRedditUrl(uri);
     if (route != null) ref.read(routerProvider).push(route);

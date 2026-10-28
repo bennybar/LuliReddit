@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
+import '../../core/deep_links.dart';
 import '../../core/theme/motion.dart';
 import '../../core/widgets/loading.dart';
 import '../../core/widgets/pick_one_menu.dart';
@@ -539,6 +540,16 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
     _flat = thread?.flat ?? const [];
     final hasAiKey =
         ref.watch(openAiKeyProvider).valueOrNull?.isNotEmpty ?? false;
+    // Shared to "Summarize with Ilay": the summary, once the thread and the
+    // stored key are in.
+    if (thread != null &&
+        summarizeOnOpen == widget.postId &&
+        !ref.watch(openAiKeyProvider).isLoading) {
+      summarizeOnOpen = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) showSummarySheet(context, ref, thread.post, _flat);
+      });
+    }
 
     return Scaffold(
       appBar: AppBar(

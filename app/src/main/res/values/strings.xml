@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Ilay for Reddit</string>
+    <string name="share_summarize">Summarize with Ilay</string>
+    <string name="share_open">Open in Ilay</string>
 </resources>

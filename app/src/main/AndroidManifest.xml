@@ -53,6 +53,31 @@
             </intent-filter>
         </activity>
 
+        <!-- Share sheet entries for a Reddit link shared from another app.
+             IlayActivity tells them apart by the alias name. -->
+        <activity-alias
+            android:name=".ShareSummarize"
+            android:exported="true"
+            android:label="@string/share_summarize"
+            android:targetActivity=".IlayActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".ShareOpen"
+            android:exported="true"
+            android:label="@string/share_open"
+            android:targetActivity=".IlayActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity-alias>
+
         <!-- Launcher entries, one per app-icon colour (Settings → App icon);
              exactly one is enabled. The default keeps the component name the
              Flutter build's launcher icon used (.MainActivity), so updating

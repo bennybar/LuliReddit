@@ -225,6 +225,13 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
     dwell.post = thread?.post ?: initialPost
 
     LaunchedEffect(Unit) { app.post.refreshAiKey() }
+    // Shared to "Summarize with Ilay": the summary, once the thread is in.
+    LaunchedEffect(thread != null) {
+        if (thread != null && app.post.summarizeOnOpen == postId) {
+            app.post.summarizeOnOpen = null
+            showSummarySheet(thread.post, flat)
+        }
+    }
     ThreadLifecycle(dwell, nav)
 
     // Build comments about a screen ahead, so scrolling shows ready-made rows

@@ -20,6 +20,7 @@ import 'features/multireddit/manage_multireddit_screen.dart';
 import 'features/multireddit/multireddit_feed_screen.dart';
 import 'features/offline/offline_screen.dart';
 import 'features/post/post_detail_screen.dart';
+import 'features/post/shared_link_screen.dart';
 import 'features/post/summaries_screen.dart';
 import 'features/search/search_screen.dart';
 import 'features/settings/content_filters_screen.dart';
@@ -43,6 +44,20 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: refresh,
     observers: [appRouteObserver],
     redirect: (context, state) {
+      // Shared from another app (the iOS share extension).
+      final shared = sharedLink(state.uri);
+      if (shared != null) {
+        // Share links (/r/<sub>/s/<code>) redirect to the real post first.
+        if (isShareLink(shared.url)) {
+          return Uri(path: '/shared', queryParameters: {
+            'url': shared.url.toString(),
+            if (shared.summarize) 'summarize': '1',
+          }).toString();
+        }
+        final route = routeForRedditUrl(shared.url) ?? '/';
+        if (shared.summarize) summarizeOnOpen = postIdInRoute(route);
+        return route;
+      }
       // A reddit/redd.it URL arriving as a deep link (cold start or platform
       // route) — map it to an in-app route so go_router doesn't fail with
       // "no routes for location". Falls back to home if unsupported.
@@ -82,6 +97,11 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
       GoRoute(path: '/', builder: (_, __) => const HomeShell()),
+      GoRoute(
+          path: '/shared',
+          builder: (_, state) => SharedLinkScreen(
+              url: Uri.parse(state.uri.queryParameters['url'] ?? ''),
+              summarize: state.uri.queryParameters['summarize'] == '1')),
       GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
       GoRoute(
           path: '/manage_for_you',

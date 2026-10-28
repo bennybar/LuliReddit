@@ -50,6 +50,24 @@ String? routeForRedditUrl(Uri uri) {
   return null;
 }
 
+/// A link shared to Ilay from another app by the iOS share extension,
+/// `luli://share?url=<reddit link>[&summarize=1]`: the link, and whether
+/// "Summarize with Ilay" (rather than "Open in Ilay") was picked.
+({Uri url, bool summarize})? sharedLink(Uri uri) {
+  if (uri.scheme != 'luli' || uri.host != 'share') return null;
+  final url = Uri.tryParse(uri.queryParameters['url'] ?? '');
+  if (url == null || !_isRedditHost(url.host)) return null;
+  return (url: url, summarize: uri.queryParameters['summarize'] == '1');
+}
+
+/// The post id in a [routeForRedditUrl] post route (`/comments/<sub>/<id>`).
+String? postIdInRoute(String route) =>
+    RegExp(r'^/comments/[^/]+/([^/?]+)').firstMatch(route)?.group(1);
+
+/// A post shared to "Summarize with Ilay": its summary opens once the thread
+/// loads.
+String? summarizeOnOpen;
+
 bool _isRedditHost(String host) {
   final h = host.toLowerCase();
   return h == 'redd.it' ||
