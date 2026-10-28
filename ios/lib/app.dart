@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:app_links/app_links.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -14,6 +16,7 @@ import 'features/feed/feed_controller.dart';
 import 'features/home/tab_signals.dart';
 import 'features/inbox/inbox_controller.dart';
 import 'features/notifications/notification_service.dart';
+import 'features/post/summary_store.dart';
 import 'features/reminders/post_reminders.dart';
 import 'features/settings/settings_controller.dart';
 import 'router.dart';
@@ -57,6 +60,7 @@ class _LuliAppState extends ConsumerState<LuliApp> with WidgetsBindingObserver {
       if (!_frontpageStarted) {
         _frontpageStarted = true;
         ref.read(feedControllerProvider(''));
+        _importSharedSummaries();
       }
     }, fireImmediately: true);
     // The cold-start link is routed by the GoRouter redirect, so record it as
@@ -105,9 +109,26 @@ class _LuliAppState extends ConsumerState<LuliApp> with WidgetsBindingObserver {
     if (route != null) ref.read(routerProvider).push(route);
   }
 
+  /// Summaries made by "Summarize with Ilay" over another app (the iOS share
+  /// extension) wait in the app group until Ilay runs: into You → Summaries.
+  Future<void> _importSharedSummaries() async {
+    String? json;
+    try {
+      json = await const MethodChannel('ilay/shared_summaries')
+          .invokeMethod<String>('take');
+    } catch (_) {}
+    if (json == null || !mounted) return;
+    final store = ref.read(summaryStoreProvider.notifier);
+    // Oldest first, so the newest ends up on top.
+    for (final m in jsonDecode(json) as List) {
+      store.add(SavedSummary.fromJson((m as Map).cast<String, dynamic>()));
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      if (_frontpageStarted) _importSharedSummaries();
       // Re-read the keychain to restore auth state after a background/resume
       // (fixes the transient sign-out), and re-sync the inbox so items read on
       // the official app show as read here.

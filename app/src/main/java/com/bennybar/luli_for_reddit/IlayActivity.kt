@@ -96,7 +96,7 @@ private var activityCreatedInProcess = false
 
 class IlayActivity : ComponentActivity() {
     /** The latest incoming deep link (VIEW or share intent), consumed by the UI. */
-    private val pendingLink = MutableStateFlow<IncomingLink?>(null)
+    private val pendingLink = MutableStateFlow<Uri?>(null)
     private var lastLink: String? = null
     private var lastLinkAt = 0L
     private var lastInboxSync = System.currentTimeMillis()
@@ -199,20 +199,18 @@ class IlayActivity : ComponentActivity() {
     private fun handleIntent(intent: Intent?) {
         intent ?: return
         if (app.inbox.handleLaunchIntent(intent)) return
-        // Shared from another app's share sheet: the link is in the text, and
-        // the entry picked ("Summarize with Ilay" / "Open in Ilay") is the alias.
+        // "Open in Ilay" in another app's share sheet: the link is in the text.
         val shared = intent.action == Intent.ACTION_SEND
         val uri = (if (shared) redditUrlInText(intent.getStringExtra(Intent.EXTRA_TEXT))?.let(Uri::parse) else intent.data)
             ?: return
         if (!shared && intent.action != Intent.ACTION_VIEW || !isRedditHost(uri.host)) return
-        val summarize = shared && intent.component?.className?.endsWith(".ShareSummarize") == true
         // Dedupe: the same link can arrive twice in a row (cold start +
         // resume) — but tapping it again later must still open it.
         val now = System.currentTimeMillis()
         if (uri.toString() == lastLink && now - lastLinkAt < 2_000) return
         lastLink = uri.toString()
         lastLinkAt = now
-        pendingLink.value = IncomingLink(uri, summarize)
+        pendingLink.value = uri
     }
 
     override fun onPause() {
@@ -246,11 +244,8 @@ class IlayActivity : ComponentActivity() {
     }
 }
 
-/** A link Ilay was asked to open; [summarize] when shared to "Summarize with Ilay". */
-private data class IncomingLink(val uri: Uri, val summarize: Boolean)
-
 @Composable
-private fun AppRoot(pendingLink: MutableStateFlow<IncomingLink?>) {
+private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
     val context = LocalContext.current
     val controller = rememberNavController()
     val scope = rememberCoroutineScope()
@@ -279,7 +274,7 @@ private fun AppRoot(pendingLink: MutableStateFlow<IncomingLink?>) {
         if (!showHome && !atLogin) navigator.resetTo(Route.Login)
     }
     LaunchedEffect(link, showHome) {
-        val (uri, summarize) = link ?: return@LaunchedEffect
+        val uri = link ?: return@LaunchedEffect
         if (!showHome) return@LaunchedEffect
         // Clearing the link re-keys this effect, so the work (a share link
         // resolves over the network) runs on the navigator's scope, not here.
@@ -290,11 +285,7 @@ private fun AppRoot(pendingLink: MutableStateFlow<IncomingLink?>) {
             when {
                 // i.redd.it / v.redd.it / preview.redd.it: straight into the viewer.
                 isRedditMediaHost(target.host) -> navigator.openLink(target.toString())
-                else -> routeForRedditUrl(target)?.let { route ->
-                    // Its summary opens once the thread has loaded.
-                    if (summarize && route is Route.Post) app.post.summarizeOnOpen = route.postId
-                    navigator.push(route)
-                }
+                else -> routeForRedditUrl(target)?.let(navigator::push)
                     // A reddit page Ilay can't show (wiki, settings…): the browser,
                     // keeping whatever was open here.
                     ?: navigator.openInBrowser(target)

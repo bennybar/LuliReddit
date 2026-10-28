@@ -17,4 +17,11 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
     </style>
+    <!-- The shared summary (SummarizeActivity): only its sheet shows, over
+         the app the post was shared from. -->
+    <style name="Theme.Ilay.Translucent" parent="Theme.Ilay">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
 </resources>

@@ -1,36 +1,30 @@
 import UIKit
 import UniformTypeIdentifiers
 
-/// "Summarize with Ilay" / "Open in Ilay" in the share sheet (one extension
-/// target each, told apart by IlaySummarize in their Info.plist): finds the
-/// Reddit link in what was shared and opens Ilay on it,
-/// luli://share?url=<link>[&summarize=1]. The app does the rest.
+/// "Open in Ilay" in the share sheet: finds the Reddit link in what was shared
+/// and opens Ilay on it, luli://share?url=<link>. The app does the rest.
+/// ("Summarize with Ilay" is SummarizeViewController, which uses the helpers
+/// here too.)
 class ShareViewController: UIViewController {
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
     Task { @MainActor in
-      if let link = await redditLink() {
-        let summarize = Bundle.main.object(forInfoDictionaryKey: "IlaySummarize") as? Bool ?? false
-        // Encoded whole: the link has its own ?query&params.
-        var allowed = CharacterSet.alphanumerics
-        allowed.insert(charactersIn: "-._~")
-        let encoded = link.absoluteString.addingPercentEncoding(withAllowedCharacters: allowed) ?? ""
-        if let url = URL(string: "luli://share?url=\(encoded)\(summarize ? "&summarize=1" : "")") {
-          open(url)
-        }
+      if let link = await Self.sharedLink(extensionContext) {
+        Self.openInIlay(link, summarize: false, from: self)
       }
       extensionContext?.completeRequest(returningItems: nil)
     }
   }
 
-  /// Apps share a post as a URL, or as text ("title https://…").
-  private func redditLink() async -> URL? {
-    let items = extensionContext?.inputItems as? [NSExtensionItem] ?? []
+  /// The Reddit link in what was shared: apps share a post as a URL, or as
+  /// text ("title https://…").
+  static func sharedLink(_ context: NSExtensionContext?) async -> URL? {
+    let items = context?.inputItems as? [NSExtensionItem] ?? []
     for provider in items.flatMap({ $0.attachments ?? [] }) {
       for type in [UTType.url, UTType.plainText] where provider.hasItemConformingToTypeIdentifier(type.identifier) {
         let item = try? await provider.loadItem(forTypeIdentifier: type.identifier)
         let text = (item as? URL)?.absoluteString ?? (item as? String) ?? ""
-        if let url = Self.redditLink(in: text) { return url }
+        if let url = redditLink(in: text) { return url }
       }
     }
     return nil
@@ -45,11 +39,22 @@ class ShareViewController: UIViewController {
     }
   }
 
+  /// Opens Ilay on [link] (with its summary when [summarize]).
+  static func openInIlay(_ link: URL, summarize: Bool, from responder: UIResponder) {
+    // Encoded whole: the link has its own ?query&params.
+    var allowed = CharacterSet.alphanumerics
+    allowed.insert(charactersIn: "-._~")
+    let encoded = link.absoluteString.addingPercentEncoding(withAllowedCharacters: allowed) ?? ""
+    if let url = URL(string: "luli://share?url=\(encoded)\(summarize ? "&summarize=1" : "")") {
+      open(url, from: responder)
+    }
+  }
+
   /// An extension can't use UIApplication.shared; the app object is up the
   /// responder chain, and its openURL is called through the runtime.
-  private func open(_ url: URL) {
+  private static func open(_ url: URL, from responder: UIResponder) {
     let sel = NSSelectorFromString("openURL:options:completionHandler:")
-    var r: UIResponder? = self
+    var r: UIResponder? = responder
     while let next = r {
       if let app = next as? UIApplication, app.responds(to: sel) {
         typealias Open = @convention(c) (AnyObject, Selector, NSURL, NSDictionary, AnyObject?) -> Void

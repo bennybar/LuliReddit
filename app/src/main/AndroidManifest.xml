@@ -53,19 +53,22 @@
             </intent-filter>
         </activity>
 
-        <!-- Share sheet entries for a Reddit link shared from another app.
-             IlayActivity tells them apart by the alias name. -->
-        <activity-alias
-            android:name=".ShareSummarize"
+        <!-- Share sheet entries for a Reddit link shared from another app:
+             the summary over that app, or the post opened in Ilay. -->
+        <activity
+            android:name=".SummarizeActivity"
             android:exported="true"
             android:label="@string/share_summarize"
-            android:targetActivity=".IlayActivity">
+            android:theme="@style/Theme.Ilay.Translucent"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
-        </activity-alias>
+        </activity>
         <activity-alias
             android:name=".ShareOpen"
             android:exported="true"

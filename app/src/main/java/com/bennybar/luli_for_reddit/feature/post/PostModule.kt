@@ -16,9 +16,6 @@ class PostModule(private val c: AppContainer) : UserScoped {
     /** The post whose poll was opened on Reddit to vote; its thread refreshes on return. */
     @Volatile var pollVoteOpened: String? = null
 
-    /** A post shared to "Summarize with Ilay": its summary opens once the thread loads. */
-    @Volatile var summarizeOnOpen: String? = null
-
     /** Re-reads the key (Settings may have changed it). Cheap; called when a thread opens. */
     fun refreshAiKey() {
         c.scope.launch { _aiKey.value = c.secureStore.openaiKey() }

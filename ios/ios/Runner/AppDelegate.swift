@@ -25,6 +25,14 @@ import workmanager_apple
     // delegate, which forwards them to the plugins.
     UNUserNotificationCenter.current().delegate = self as? UNUserNotificationCenterDelegate
 
+    // The share extension can't read the app's settings: copy the ones its
+    // summary uses to the shared keychain, now and whenever Ilay leaves the
+    // screen.
+    AppDelegate.shareAiSettings()
+    NotificationCenter.default.addObserver(
+      forName: UIApplication.willResignActiveNotification, object: nil, queue: .main
+    ) { _ in AppDelegate.shareAiSettings() }
+
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
@@ -46,6 +54,18 @@ import workmanager_apple
       }
     }
 
+    // Summaries made by the share extension, for You → Summaries (app.dart):
+    // handed over once, as the JSON list the extension left.
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "IlaySharedSummaries") {
+      let channel = FlutterMethodChannel(name: "ilay/shared_summaries", binaryMessenger: registrar.messenger())
+      channel.setMethodCallHandler { call, result in
+        guard call.method == "take" else { return result(FlutterMethodNotImplemented) }
+        guard let data = SharedStore.read(SharedStore.pendingSummaries) else { return result(nil) }
+        SharedStore.write(SharedStore.pendingSummaries, nil)
+        result(String(data: data, encoding: .utf8))
+      }
+    }
+
     // Saving / sharing a Reddit video with its sound (see save_media.dart).
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "IlayMediaMux") {
       let channel = FlutterMethodChannel(name: "ilay/media_mux", binaryMessenger: registrar.messenger())
@@ -63,6 +83,17 @@ import workmanager_apple
         }
       }
     }
+  }
+
+  /// Settings → AI summaries (and the comment sort) where the share extension
+  /// can read them; shared_preferences keeps them as "flutter.<key>".
+  private static func shareAiSettings() {
+    var settings: [String: Any] = [:]
+    for key in ["aiModel", "aiSummaryStyle", "aiMaxChars", "aiUseCustomUrl", "aiBaseUrl",
+                "aiSummaryLanguage", "defaultCommentSort"] {
+      settings[key] = UserDefaults.standard.object(forKey: "flutter.\(key)")
+    }
+    SharedStore.write(SharedStore.aiSettings, try? JSONSerialization.data(withJSONObject: settings))
   }
 
   /// A Reddit video's picture and its sound (separate files on v.redd.it)

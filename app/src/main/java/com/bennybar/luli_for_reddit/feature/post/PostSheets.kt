@@ -133,7 +133,9 @@ internal fun snack(msg: String) = app.navigator.showSnackbar(msg.removePrefix("E
 fun copyToClipboard(text: String) {
     val cm = app.context.getSystemService(ClipboardManager::class.java)
     cm?.setPrimaryClip(ClipData.newPlainText("text", text))
-    snack("Copied")
+    // No snackbar host over another app (the shared summary); Android shows
+    // its own clipboard confirmation there.
+    app.navigatorOrNull?.showSnackbar("Copied")
 }
 
 /** The Bloom filled input: radius 18, no underline. */
