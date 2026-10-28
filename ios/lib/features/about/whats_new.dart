@@ -20,6 +20,14 @@ class Release {
 // TODO(whats-new): this is the Kotlin app's list as-is; it describes the
 // features being ported. Replace it with the iOS app's own releases.
 const changelog = [
+  Release('2.0.41', 'Oct 28, 2026', [
+    'Search works again with the website sign-in (Reddit had started '
+        'refusing it)',
+    'Share a Reddit post to "Summarize with Ilay": its AI summary opens over '
+        'the app you\'re in',
+    '"Open in Ilay" in the share menu opens a shared post in Ilay',
+    'A search tab Reddit refuses no longer hides the other tabs\' results',
+  ]),
   Release('2.0.40', 'Oct 26, 2026', [
     'Galleries in your feeds use the carousel too (turn it off in Settings → '
         'Media → Gallery carousel in feeds)',

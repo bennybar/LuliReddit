@@ -9,6 +9,7 @@ import '../storage/secure_store.dart';
 import '../../features/auth/auth_repository.dart';
 import 'rate_limit.dart';
 import 'response_cache.dart';
+import 'web_token.dart';
 
 /// Authenticated dio client for oautreddit.com. Attaches the bearer token,
 /// a compliant User-Agent and `raw_json=1`, transparently refreshes the access
@@ -50,7 +51,11 @@ class RedditClient {
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
         if (_webMode) {
-          // Website-session mode: act like a logged-in browser.
+          // Website-session mode: act like a logged-in browser, with a
+          // current token_v2 (see web_token.dart).
+          if (_webCookie != null && needsNewToken(_webCookie!)) {
+            await _renewWebToken();
+          }
           options.headers['User-Agent'] = RedditConstants.webUserAgent;
           if (_webCookie != null) options.headers['cookie'] = _webCookie;
           options.queryParameters['raw_json'] = 1;
@@ -87,6 +92,36 @@ class RedditClient {
         handler.next(response);
       },
     ));
+  }
+
+  Future<String?>? _renewing;
+  DateTime? _renewedAt;
+
+  /// A new token_v2 for the website session, saved with it. Concurrent
+  /// callers share one renewal. After a failed one, waits 5 minutes before
+  /// trying again; after a token Reddit [rejected], a minute (one it just
+  /// issued being refused means something else is wrong).
+  Future<bool> _renewWebToken({bool rejected = false}) async {
+    final cookie = _webCookie;
+    if (cookie == null) return false;
+    final last = _renewedAt;
+    final wait = Duration(minutes: rejected ? 1 : 5);
+    if (_renewing == null &&
+        last != null &&
+        DateTime.now().difference(last) < wait) {
+      return false;
+    }
+    _renewing ??= renewWebToken(cookie).whenComplete(() {
+      _renewing = null;
+      _renewedAt = DateTime.now();
+    });
+    final fresh = await _renewing;
+    if (fresh == null) return false;
+    if (_webCookie == cookie) {
+      _webCookie = fresh;
+      await _store.updateWebCookie(fresh);
+    }
+    return true;
   }
 
   late final Dio _dio;
@@ -190,6 +225,62 @@ class RedditClient {
     await _ensureConfig();
     return _cache.read(_cacheKey(path, query));
   }
+
+  /// Whether requests go through the website session (website sign-in).
+  Future<bool> get webMode async {
+    await _ensureConfig();
+    return _webMode;
+  }
+
+  /// One of Reddit's app GraphQL operations (persisted: by name and hash), as
+  /// the website session, whose token_v2 the API takes as a bearer token.
+  /// For what the website's .json endpoints refuse (search). Returns `data`.
+  Future<Map<String, dynamic>> gql(
+      String operation, String hash, Map<String, dynamic> variables) async {
+    await _ensureConfig();
+    if (_webCookie != null && needsNewToken(_webCookie!)) {
+      await _renewWebToken();
+    }
+    Future<Response<dynamic>> send() => _gqlDio.post(
+          'https://cf.gql-fed.reddit.com/',
+          data: {
+            'operationName': operation,
+            'variables': variables,
+            'extensions': {
+              'persistedQuery': {'version': 1, 'sha256Hash': hash},
+            },
+          },
+          options: Options(headers: {
+            'Authorization':
+                'Bearer ${cookieValue(_webCookie ?? '', 'token_v2') ?? ''}',
+            'User-Agent': RedditConstants.webUserAgent,
+            'Accept': 'application/json',
+          }),
+        );
+    var res = await send();
+    // A token Reddit no longer takes gets a 401/403: renew it, retry once.
+    if ((res.statusCode == 401 || res.statusCode == 403) &&
+        await _renewWebToken(rejected: true)) {
+      res = await send();
+    }
+    final body = res.data;
+    final data = body is Map ? body['data'] : null;
+    if (data is! Map<String, dynamic>) {
+      final errors = body is Map ? body['errors'] : null;
+      throw RedditApiException(res.statusCode ?? 0,
+          message: errors is List && errors.isNotEmpty
+              ? '${(errors.first as Map)['message']}'
+              : null);
+    }
+    return data;
+  }
+
+  final _gqlDio = Dio(BaseOptions(
+    validateStatus: (_) => true,
+    contentType: Headers.jsonContentType,
+    connectTimeout: const Duration(seconds: 20),
+    receiveTimeout: const Duration(seconds: 30),
+  ));
 
   Future<Response<T>> get<T>(String path, {Map<String, dynamic>? query}) async {
     await _ensureConfig();

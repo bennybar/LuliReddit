@@ -6,6 +6,11 @@ import com.bennybar.luli_for_reddit.core.RedditConstants
 import com.bennybar.luli_for_reddit.core.get
 import com.bennybar.luli_for_reddit.core.storage.SecureStore
 import com.bennybar.luli_for_reddit.core.str
+import com.bennybar.luli_for_reddit.core.obj
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -114,6 +119,8 @@ class RedditClient(
 
     private suspend fun authorize(b: Request.Builder, method: String): Request.Builder {
         if (webMode) {
+            // With a current token_v2 (see WebToken.kt).
+            webCookie?.let { if (needsNewToken(it)) refreshWebToken() }
             b.header("User-Agent", RedditConstants.WEB_USER_AGENT)
             webCookie?.let { b.header("cookie", it) }
             if (method != "GET") webModhash?.let { b.header("X-Modhash", it) }
@@ -122,6 +129,72 @@ class RedditClient(
             b.header("User-Agent", RedditConstants.userAgent(username.ifEmpty { null }))
         }
         return b
+    }
+
+    private val renewLock = Mutex()
+    @Volatile private var renewedAt = 0L
+
+    /**
+     * A new token_v2 for the website session, saved with it. One renewal at a
+     * time; after a failed one, waits 5 minutes before trying again; after a
+     * token Reddit [rejected], a minute (one it just issued being refused
+     * means something else is wrong).
+     */
+    private suspend fun refreshWebToken(rejected: Boolean = false): Boolean {
+        val cookie = webCookie ?: return false
+        return renewLock.withLock {
+            if (webCookie != cookie) return@withLock true // renewed meanwhile
+            val wait = if (rejected) 60_000 else 5 * 60_000
+            if (System.currentTimeMillis() - renewedAt < wait) return@withLock false
+            val fresh = renewWebToken(cookie)
+            renewedAt = System.currentTimeMillis()
+            if (fresh == null) return@withLock false
+            webCookie = fresh
+            store.updateWebCookie(fresh)
+            true
+        }
+    }
+
+    /** Whether requests go through the website session (website sign-in). */
+    suspend fun isWebMode(): Boolean {
+        ensureConfig()
+        return webMode
+    }
+
+    /**
+     * One of Reddit's app GraphQL operations (persisted: by name and hash), as
+     * the website session, whose token_v2 the API takes as a bearer token. For
+     * what the website's .json endpoints refuse (search). Returns `data`.
+     */
+    suspend fun gql(operation: String, hash: String, variables: JsonObject): JsonObject {
+        ensureConfig()
+        webCookie?.let { if (needsNewToken(it)) refreshWebToken() }
+        val body = buildJsonObject {
+            put("operationName", operation)
+            put("variables", variables)
+            putJsonObject("extensions") {
+                putJsonObject("persistedQuery") {
+                    put("version", 1)
+                    put("sha256Hash", hash)
+                }
+            }
+        }.toString()
+        suspend fun send(): Pair<Int, String> {
+            val req = Request.Builder().url("https://cf.gql-fed.reddit.com/")
+                .header("Authorization", "Bearer ${webCookie?.let { cookieValue(it, "token_v2") }.orEmpty()}")
+                .header("User-Agent", RedditConstants.WEB_USER_AGENT)
+                .header("Accept", "application/json")
+                .post(body.toRequestBody("application/json".toMediaType()))
+                .build()
+            http.await(req).use { res -> return res.code to withContext(Dispatchers.IO) { res.body.string() } }
+        }
+        var (status, text) = send()
+        // A token Reddit no longer takes gets a 401/403: renew it, retry once.
+        if ((status == 401 || status == 403) && refreshWebToken(rejected = true)) {
+            send().let { status = it.first; text = it.second }
+        }
+        val json = withContext(Dispatchers.Default) { runCatching { AppJson.parseToJsonElement(text) }.getOrNull() }
+        return json["data"].obj() ?: throw RedditApiException(status, message = json["errors"][0]["message"].str())
     }
 
     private fun buildUrl(path: String, isGet: Boolean, query: Map<String, Any?>): String {

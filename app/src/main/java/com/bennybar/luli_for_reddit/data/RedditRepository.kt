@@ -240,6 +240,14 @@ class RedditRepository(val client: RedditClient) {
         sort: String = "relevance",
         time: String = "all",
     ): Listing<Post> {
+        if (client.isWebMode()) {
+            // The posts come from the results themselves: /by_id.json is refused too.
+            val (nodes, next) = gqlSearch(
+                client.gql("SearchPosts", GQL_SEARCH_POSTS, searchPostsVariables(query, subreddit, after, sort, time)),
+                "posts",
+            )
+            return parse { Listing(nodes.map { Post.fromData(gqlPostData(it)) }, next) }
+        }
         val base = if (subreddit == null) "/search" else "/r/$subreddit/search"
         val q = linkedMapOf<String, Any?>("q" to query, "type" to "link", "sort" to sort, "t" to time, "limit" to 25, "sr_detail" to true)
         if (subreddit != null) q["restrict_sr"] = true
@@ -249,11 +257,31 @@ class RedditRepository(val client: RedditClient) {
     }
 
     suspend fun searchSubreddits(query: String): List<Subreddit> {
+        if (client.isWebMode()) {
+            val vars = buildJsonObject {
+                put("query", query.trim().replace(Regex("^/?r/", RegexOption.IGNORE_CASE), ""))
+                put("productSurface", "android")
+                put("first", 25)
+            }
+            val (nodes, _) = gqlSearch(client.gql("CommunityPickerSearchPaginated", GQL_SEARCH_COMMUNITIES, vars), "communities")
+            return nodes.filter { it["__typename"].str() == "Subreddit" && it["name"].str() != null }
+                .map { Subreddit.fromData(gqlSubredditData(it)) }
+        }
         val json = client.get("/subreddits/search", linkedMapOf("q" to query, "limit" to 25))
         return (json["data"]["children"].arr() ?: emptyList()).mapNotNull { it["data"]?.let(Subreddit::fromData) }
     }
 
     suspend fun searchUsers(query: String): List<RedditUser> {
+        if (client.isWebMode()) {
+            val vars = buildJsonObject {
+                put("query", query)
+                put("productSurface", "android")
+                put("pageSize", 25)
+            }
+            val (nodes, _) = gqlSearch(client.gql("SearchPeople", GQL_SEARCH_PEOPLE, vars), "authors")
+            return nodes.filter { it["__typename"].str() == "Redditor" && it["name"].str() != null }
+                .map { RedditUser.fromData(gqlUserData(it)) }
+        }
         val json = client.get("/search", linkedMapOf("q" to query, "type" to "user", "limit" to 25))
         return (json["data"]["children"].arr() ?: emptyList()).mapNotNull { it["data"]?.let(RedditUser::fromData) }
     }

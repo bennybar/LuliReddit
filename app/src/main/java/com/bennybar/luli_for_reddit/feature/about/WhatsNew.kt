@@ -45,6 +45,15 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.41", "Oct 28, 2026",
+        listOf(
+            "Search works again with the website sign-in (Reddit had started refusing it)",
+            "Share a Reddit post to \"Summarize with Ilay\": its AI summary opens over the app you're in",
+            "\"Open in Ilay\" in the share menu opens a shared post in Ilay",
+            "Search no longer crashes when Reddit refuses a request, and a failing tab doesn't hide the others' results",
+        ),
+    ),
+    Release(
         "2.0.40", "Oct 26, 2026",
         listOf("Galleries in your feeds use the carousel too (turn it off in Settings → Media → Gallery carousel in feeds)"),
     ),
