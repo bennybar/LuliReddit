@@ -45,6 +45,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   List<RedditUser> _users = [];
   List<String> _recent = [];
   Object? _error;
+  // The Subreddits / Users tabs fail on their own (Reddit refuses some of
+  // these searches with a 403); the other tabs keep their results.
+  Object? _subsError, _usersError;
   String? _postsAfter; // next page of post results
   bool _loadingMore = false;
   // Bumped per search: a slow earlier search (e.g. before a sort change) must
@@ -116,6 +119,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     setState(() {
       _query = '';
       _error = null;
+      _subsError = null;
+      _usersError = null;
       _posts = [];
       _subs = [];
       _users = [];
@@ -160,29 +165,38 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       _loadingMore = false;
       _postsAfter = null;
       _error = null;
+      _subsError = null;
+      _usersError = null;
       _query = q;
     });
     final repo = ref.read(redditRepositoryProvider);
+    // A failed request comes back as its error, not thrown.
+    Future<Object> attempt(Future<List<Object>> Function() f) async {
+      if (widget.initialSubreddit != null) return const <Object>[];
+      try {
+        return await f();
+      } catch (e) {
+        return e;
+      }
+    }
+
     try {
       final results = await Future.wait([
         repo.searchPosts(q,
             subreddit: widget.initialSubreddit, sort: _sort, time: _time),
-        if (widget.initialSubreddit == null)
-          repo.searchSubreddits(q)
-        else
-          Future.value(<Subreddit>[]),
-        if (widget.initialSubreddit == null)
-          repo.searchUsers(q)
-        else
-          Future.value(<RedditUser>[]),
+        attempt(() => repo.searchSubreddits(q)),
+        attempt(() => repo.searchUsers(q)),
       ]);
       if (!mounted || request != _request) return;
       final posts = results[0] as Listing<Post>;
+      final subs = results[1], users = results[2];
       setState(() {
         _posts = posts.items;
         _postsAfter = posts.after;
-        _subs = results[1] as List<Subreddit>;
-        _users = results[2] as List<RedditUser>;
+        _subs = subs is List ? subs.cast<Subreddit>() : [];
+        _subsError = subs is List ? null : subs;
+        _users = users is List ? users.cast<RedditUser>() : [];
+        _usersError = users is List ? null : users;
         _loading = false;
       });
     } catch (e) {
@@ -486,6 +500,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Widget _subsTab() {
     final cs = Theme.of(context).colorScheme;
+    if (_subsError != null) {
+      return ErrorView(
+          message: _subsError,
+          onRetry: () => _search(_query, saveRecent: false));
+    }
     return RefreshBox(
       onRefresh: () => _search(_query, saveRecent: false),
       child: _subs.isEmpty
@@ -516,6 +535,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Widget _usersTab() {
     final cs = Theme.of(context).colorScheme;
+    if (_usersError != null) {
+      return ErrorView(
+          message: _usersError,
+          onRetry: () => _search(_query, saveRecent: false));
+    }
     return RefreshBox(
       onRefresh: () => _search(_query, saveRecent: false),
       child: _users.isEmpty

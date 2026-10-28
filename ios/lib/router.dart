@@ -47,16 +47,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Shared from another app (the iOS share extension).
       final shared = sharedLink(state.uri);
       if (shared != null) {
-        // Share links (/r/<sub>/s/<code>) redirect to the real post first.
-        if (isShareLink(shared.url)) {
-          return Uri(path: '/shared', queryParameters: {
-            'url': shared.url.toString(),
-            if (shared.summarize) 'summarize': '1',
-          }).toString();
-        }
-        final route = routeForRedditUrl(shared.url) ?? '/';
-        if (shared.summarize) summarizeOnOpen = postIdInRoute(route);
-        return route;
+        // Opened from there on top of Home, so back leads somewhere.
+        return Uri(path: '/shared', queryParameters: {
+          'url': shared.url.toString(),
+          if (shared.summarize) 'summarize': '1',
+        }).toString();
       }
       // A reddit/redd.it URL arriving as a deep link (cold start or platform
       // route) — map it to an in-app route so go_router doesn't fail with

@@ -108,6 +108,10 @@ data class SearchState(
     val users: List<RedditUser> = emptyList(),
     val recent: List<String> = emptyList(),
     val error: Throwable? = null,
+    // The Subreddits / Users tabs fail on their own (Reddit refuses some of
+    // these searches with a 403); the other tabs keep their results.
+    val subsError: Throwable? = null,
+    val usersError: Throwable? = null,
     val postsAfter: String? = null, // next page of post results
     val loadingMore: Boolean = false,
 )
@@ -154,7 +158,7 @@ class SearchViewModel(private val subreddit: String?) : ViewModel() {
     fun clear() {
         request++
         job?.cancel()
-        _state.update { it.copy(query = "", error = null, posts = emptyList(), subs = emptyList(), users = emptyList(), loading = false) }
+        _state.update { it.copy(query = "", error = null, subsError = null, usersError = null, posts = emptyList(), subs = emptyList(), users = emptyList(), loading = false) }
     }
 
     /** Sort and time for the next search, without running one (a saved search sets both). */
@@ -180,7 +184,7 @@ class SearchViewModel(private val subreddit: String?) : ViewModel() {
         // otherwise blocked paging for good.
         job?.cancel()
         moreJob?.cancel()
-        _state.update { it.copy(loading = true, loadingMore = false, postsAfter = null, error = null, query = q) }
+        _state.update { it.copy(loading = true, loadingMore = false, postsAfter = null, error = null, subsError = null, usersError = null, query = q) }
         val s = _state.value
         val repo = app.repository
         job = viewModelScope.launch {
@@ -188,15 +192,26 @@ class SearchViewModel(private val subreddit: String?) : ViewModel() {
                 // In their own scope: a failed request (e.g. a 403) is thrown
                 // here and caught below, instead of failing the launch and
                 // crashing the app.
+                suspend fun <T> attempt(f: suspend () -> List<T>): Result<List<T>> = try {
+                    Result.success(if (subreddit == null) f() else emptyList())
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Result.failure(e)
+                }
                 val (p, sr, us) = coroutineScope {
                     val posts = async { repo.searchPosts(q, subreddit = subreddit, sort = s.sort, time = s.time) }
-                    val subs = async { if (subreddit == null) repo.searchSubreddits(q) else emptyList() }
-                    val users = async { if (subreddit == null) repo.searchUsers(q) else emptyList() }
+                    val subs = async { attempt { repo.searchSubreddits(q) } }
+                    val users = async { attempt { repo.searchUsers(q) } }
                     Triple(posts.await(), subs.await(), users.await())
                 }
                 if (req != request) return@launch
                 _state.update {
-                    it.copy(posts = p.items, postsAfter = p.after, subs = sr, users = us, loading = false)
+                    it.copy(
+                        posts = p.items, postsAfter = p.after, loading = false,
+                        subs = sr.getOrDefault(emptyList()), subsError = sr.exceptionOrNull(),
+                        users = us.getOrDefault(emptyList()), usersError = us.exceptionOrNull(),
+                    )
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -355,7 +370,9 @@ fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time:
                 else -> HorizontalPager(pager, Modifier.fillMaxSize(), key = { tabs[it] }) { page ->
                     when (tabs[page]) {
                         "Posts" -> PostsTab(state, vm)
-                        "Subreddits" -> RefreshableResults(state.subs.isEmpty(), "No subreddits found", vm, state.query) {
+                        "Subreddits" -> if (state.subsError != null) {
+                            ErrorView(state.subsError, onRetry = { vm.search(state.query, saveRecent = false) })
+                        } else RefreshableResults(state.subs.isEmpty(), "No subreddits found", vm, state.query) {
                             items(state.subs, key = { it.name }) { s ->
                                 ResultTile(
                                     s.name,
@@ -364,7 +381,9 @@ fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time:
                                 ) { nav.openSubreddit(s.name) }
                             }
                         }
-                        else -> RefreshableResults(state.users.isEmpty(), "No users found", vm, state.query) {
+                        else -> if (state.usersError != null) {
+                            ErrorView(state.usersError, onRetry = { vm.search(state.query, saveRecent = false) })
+                        } else RefreshableResults(state.users.isEmpty(), "No users found", vm, state.query) {
                             items(state.users, key = { it.name }) { u ->
                                 ResultTile(
                                     u.name,
