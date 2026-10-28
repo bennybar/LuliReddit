@@ -38,6 +38,9 @@ void showSummarySheet(
     sheetAnimationStyle: sheetMotion,
     showDragHandle: true,
     isScrollControlled: true,
+    // Below the status bar, with room above to tap it closed: iOS has no
+    // back gesture for a sheet, and a drag on the summary scrolls it.
+    useSafeArea: true,
     builder: (_) => _SummarySheet(
       post: post,
       baseUrl: _aiBaseUrl(s),
@@ -131,11 +134,12 @@ class _SummarySheetState extends State<_SummarySheet> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    // Opens fully, at most 92% tall, and scrolls inside, so the end of a long
-    // summary can always be scrolled into view.
+    // Opens fully, at most 85% tall, and scrolls inside, so the end of a long
+    // summary can always be scrolled into view. (Kotlin's 92% would leave
+    // nothing above it to tap on iOS.)
     return ConstrainedBox(
       constraints: BoxConstraints(
-          maxHeight: MediaQuery.sizeOf(context).height * 0.92),
+          maxHeight: MediaQuery.sizeOf(context).height * 0.85),
       child: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(
             20, 4, 20, 28 + MediaQuery.paddingOf(context).bottom),

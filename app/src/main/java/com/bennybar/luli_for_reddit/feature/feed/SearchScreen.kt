@@ -76,6 +76,7 @@ import com.bennybar.luli_for_reddit.ui.ErrorView
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -184,12 +185,15 @@ class SearchViewModel(private val subreddit: String?) : ViewModel() {
         val repo = app.repository
         job = viewModelScope.launch {
             try {
-                val posts = async { repo.searchPosts(q, subreddit = subreddit, sort = s.sort, time = s.time) }
-                val subs = async { if (subreddit == null) repo.searchSubreddits(q) else emptyList() }
-                val users = async { if (subreddit == null) repo.searchUsers(q) else emptyList() }
-                val p = posts.await()
-                val sr = subs.await()
-                val us = users.await()
+                // In their own scope: a failed request (e.g. a 403) is thrown
+                // here and caught below, instead of failing the launch and
+                // crashing the app.
+                val (p, sr, us) = coroutineScope {
+                    val posts = async { repo.searchPosts(q, subreddit = subreddit, sort = s.sort, time = s.time) }
+                    val subs = async { if (subreddit == null) repo.searchSubreddits(q) else emptyList() }
+                    val users = async { if (subreddit == null) repo.searchUsers(q) else emptyList() }
+                    Triple(posts.await(), subs.await(), users.await())
+                }
                 if (req != request) return@launch
                 _state.update {
                     it.copy(posts = p.items, postsAfter = p.after, subs = sr, users = us, loading = false)
