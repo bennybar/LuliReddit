@@ -8,16 +8,17 @@ import UIKit
 /// keychain (SharedStore), and leaves the summary there for You → Summaries.
 class SummarizeViewController: UIViewController {
   private let model = SummaryModel()
+  private var finished = false
 
   override func viewDidLoad() {
     super.viewDidLoad()
     let root = SummaryView(
       model: model,
-      close: { [weak self] in self?.extensionContext?.completeRequest(returningItems: nil) },
+      close: { [weak self] in self?.finish() },
       open: { [weak self] link, summarize in
         guard let self else { return }
         ShareViewController.openInIlay(link, summarize: summarize, from: self)
-        self.extensionContext?.completeRequest(returningItems: nil)
+        self.finish()
       })
     let host = UIHostingController(rootView: root)
     addChild(host)
@@ -29,6 +30,20 @@ class SummarizeViewController: UIViewController {
       model.link = await ShareViewController.sharedLink(extensionContext)
       await model.run()
     }
+  }
+
+  // Swiped down rather than closed: still finish the request, or the share
+  // sheet stays up behind it.
+  override func viewDidDisappear(_ animated: Bool) {
+    super.viewDidDisappear(animated)
+    finish()
+  }
+
+  /// Done (once): the share sheet closes with it.
+  private func finish() {
+    guard !finished else { return }
+    finished = true
+    extensionContext?.completeRequest(returningItems: [])
   }
 }
 
