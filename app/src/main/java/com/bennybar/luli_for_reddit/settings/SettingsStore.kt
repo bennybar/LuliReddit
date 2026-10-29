@@ -28,6 +28,8 @@ class SettingsStore(private val p: Prefs) {
             appFont = AppFont.parse(p.getString("appFont"), if (b("jakartaFont", false)) AppFont.JAKARTA else d.appFont),
             inAppBrowser = b("inAppBrowser", d.inAppBrowser),
             tapToCollapse = b("tapToCollapse", d.tapToCollapse),
+            collapseRepliesOnly = b("collapseRepliesOnly", d.collapseRepliesOnly),
+            voteEdge = b("voteEdge", d.voteEdge),
             volumeKeyNavigation = b("volumeKeyNavigation", d.volumeKeyNavigation),
             collapseBelowScore = p.getInt("collapseBelowScore"),
             collapseTopLevel = b("collapseTopLevel", d.collapseTopLevel),
@@ -60,6 +62,8 @@ class SettingsStore(private val p: Prefs) {
             midResThumbnails = b("midResThumbnails", d.midResThumbnails),
             subsCacheEnabled = b("subsCacheEnabled", d.subsCacheEnabled),
             subsCacheMinutes = p.getInt("subsCacheMinutes") ?: d.subsCacheMinutes,
+            imageCacheMb = p.getInt("imageCacheMb") ?: d.imageCacheMb,
+            videoCacheMb = p.getInt("videoCacheMb") ?: d.videoCacheMb,
             feedKeepMinutes = p.getInt("feedKeepMinutes") ?: d.feedKeepMinutes,
             hiddenPostDays = p.getInt("hiddenPostDays") ?: d.hiddenPostDays,
             textScale = p.getDouble("textScale") ?: d.textScale,
@@ -163,6 +167,8 @@ class SettingsStore(private val p: Prefs) {
     }
 
     fun setTapToCollapse(v: Boolean) { p.setBool("tapToCollapse", v); set { it.copy(tapToCollapse = v) } }
+    fun setCollapseRepliesOnly(v: Boolean) { p.setBool("collapseRepliesOnly", v); set { it.copy(collapseRepliesOnly = v) } }
+    fun setVoteEdge(v: Boolean) { p.setBool("voteEdge", v); set { it.copy(voteEdge = v) } }
     fun setVolumeKeyNavigation(v: Boolean) { p.setBool("volumeKeyNavigation", v); set { it.copy(volumeKeyNavigation = v) } }
     fun setCollapseBelowScore(v: Int?) {
         if (v == null) p.remove("collapseBelowScore") else p.setInt("collapseBelowScore", v)
@@ -173,6 +179,8 @@ class SettingsStore(private val p: Prefs) {
     fun setMidResThumbnails(v: Boolean) { p.setBool("midResThumbnails", v); set { it.copy(midResThumbnails = v) } }
     fun setSubsCacheEnabled(v: Boolean) { p.setBool("subsCacheEnabled", v); set { it.copy(subsCacheEnabled = v) } }
     fun setSubsCacheMinutes(v: Int) { p.setInt("subsCacheMinutes", v); set { it.copy(subsCacheMinutes = v) } }
+    fun setImageCacheMb(v: Int) { p.setInt("imageCacheMb", v); set { it.copy(imageCacheMb = v) } }
+    fun setVideoCacheMb(v: Int) { p.setInt("videoCacheMb", v); set { it.copy(videoCacheMb = v) } }
     fun setFeedKeepMinutes(v: Int) { p.setInt("feedKeepMinutes", v); set { it.copy(feedKeepMinutes = v) } }
     fun setHiddenPostDays(v: Int) { p.setInt("hiddenPostDays", v); set { it.copy(hiddenPostDays = v) } }
     fun setTextScale(v: Double) { p.setDouble("textScale", v); set { it.copy(textScale = v) } }

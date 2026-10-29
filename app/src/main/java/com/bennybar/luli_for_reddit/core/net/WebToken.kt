@@ -33,12 +33,20 @@ fun withCookie(header: String, name: String, value: String?): String {
     return parts.joinToString("; ")
 }
 
-/** When a token_v2 JWT expires (epoch millis); null if it can't be read. */
-fun tokenExpiry(token: String): Long? = runCatching {
-    val payload = String(Base64.getUrlDecoder().decode(token.split('.')[1].trimEnd('=')))
-    // A number of seconds, with a fraction in Reddit's tokens.
-    (AppJson.parseToJsonElement(payload)["exp"] as? JsonPrimitive)?.doubleOrNull?.let { (it * 1000).toLong() }
+/** Claim [name] of a JWT (token_v2, reddit_session); null if it can't be read. */
+private fun claim(jwt: String, name: String): JsonPrimitive? = runCatching {
+    val payload = String(Base64.getUrlDecoder().decode(jwt.split('.')[1].trimEnd('=')))
+    AppJson.parseToJsonElement(payload)[name] as? JsonPrimitive
 }.getOrNull()
+
+/** When a token_v2 JWT expires (epoch millis); null if it can't be read. */
+fun tokenExpiry(token: String): Long? =
+    // A number of seconds, with a fraction in Reddit's tokens.
+    claim(token, "exp")?.doubleOrNull?.let { (it * 1000).toLong() }
+
+/** The account (t2_…) [cookieHeader]'s reddit_session belongs to, if readable. */
+fun sessionAccount(cookieHeader: String): String? =
+    cookieValue(cookieHeader, "reddit_session")?.let { claim(it, "sub") }?.takeIf { it.isString }?.content
 
 /** Whether [cookieHeader]'s token_v2 is missing or expires within 5 minutes. */
 fun needsNewToken(cookieHeader: String, now: Long = System.currentTimeMillis()): Boolean {
@@ -84,6 +92,9 @@ suspend fun renewWebToken(cookieHeader: String): String? {
     } catch (_: IOException) {
         return null
     }
+    // The page renews reddit_session too: it must still be the same account,
+    // so a renewal can't hand out another account's token.
+    if (sessionAccount(cookie) != sessionAccount(cookieHeader)) return null
     return if (needsNewToken(cookie)) null else cookie
 }
 

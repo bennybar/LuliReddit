@@ -28,6 +28,32 @@ internal const val GQL_SEARCH_POSTS = "c3d31b88bfa15180fdcd0c8f6f13b8c0e131d0c98
 internal const val GQL_SEARCH_COMMUNITIES = "b58025ad0c98bdb93e9dc1db909accf440573bd7d3a48d2c73a02e96d33f1943"
 internal const val GQL_SEARCH_PEOPLE = "db3607c1a7deea8441614a053c5f434f60da0c8c931db952f819a59d534d9743"
 internal const val GQL_POSTS_BY_IDS = "b210ea1d852cdc2c25d9bff2d9fa8a406e1a968f36392798812f336694ac27f4"
+internal const val GQL_POST_VOTE = "2523ed203f983488aab97d84f12b46910008244b79a61073b419e33ff98cb7e5"
+internal const val GQL_COMMENT_VOTE = "a353fb29741128e9346380c4706af0bf59fc5767608ea6848039c57ae0b08fec"
+internal const val GQL_POST_SAVE = "96dbe868ad5b00109ed72048a82290abb86f66ff653cde724458b6f7549918f8"
+internal const val GQL_COMMENT_SAVE = "2d2a823e0b5053d39de7d319fd8ccf8b87ddf0ab3ad97cfd621d82f376fcf174"
+internal const val GQL_SUBREDDIT_INFO = "8c1815b07b762aee3c086cc84306f14b3907018e9ee152046c8e4d08ad4c7b88"
+internal const val GQL_OPT_IN_QUARANTINED = "48f2a98b4df9e6ebb67451c25b35be3f6bd597391a1e13984e0c68680dbdf84a"
+internal const val GQL_OPT_IN_GATED = "2f5d960d89de68ea1ce9fcac9cbacfd1161c78e990c8bf79668cf03555bd5678"
+
+/** SubredditInfoByName's variables, as Reddit's app sends them. */
+internal fun subredditInfoVariables(name: String) = buildJsonObject {
+    put("subredditName", name)
+    put("loggedOutIsOptedIn", false)
+    put("filterGated", true)
+    put("includeRecapFields", false)
+    put("includeWelcomePage", true)
+    put("includeDevvitData", true)
+    put("includeFeatureVariants", false)
+    put("includeManualFeatureVariants", false)
+    put("includeCommunityGuidanceChecklist", false)
+}
+
+/** A mutation's result: throws Reddit's reason (locked, archived…) unless it went through. */
+internal fun gqlCheckOk(result: JsonElement?) {
+    if (result["ok"].bool() == true) return
+    throw Exception(result["fieldErrors"][0]["message"].str() ?: result["errors"][0]["message"].str() ?: "Reddit refused it")
+}
 
 /** A post (not an ad or an unavailable one) in GraphQL's results. */
 internal fun gqlIsPost(n: JsonElement?): Boolean =

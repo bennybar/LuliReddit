@@ -194,8 +194,16 @@ class CommentsViewModel(
     }
 
     fun toggleCollapse(commentId: String) = edit { t ->
-        // Expanding a comment also shows its folded replies.
-        val next = if (commentId in t.collapsed) t.collapsed - commentId - CommentTree.folded(commentId) else t.collapsed + commentId
+        val folded = CommentTree.folded(commentId)
+        val next = when {
+            // Expanding a comment also shows its folded replies.
+            commentId in t.collapsed -> t.collapsed - commentId - folded
+            folded in t.collapsed -> t.collapsed - folded
+            // "Collapse only the replies": its own text stays (when it has replies to hide).
+            app.settings.value.collapseRepliesOnly &&
+                t.flat.firstOrNull { it.id == commentId }?.replies?.any { !it.isMore } == true -> t.collapsed + folded
+            else -> t.collapsed + commentId
+        }
         t.copy(collapsed = next, flat = CommentTree.flatten(t.comments, next))
     }
 

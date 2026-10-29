@@ -249,12 +249,21 @@ class CommentsController
   }
 
   void toggleCollapse(String commentId) => _edit((t) {
-        // Expanding a comment also shows its folded replies.
+        final folded = CommentTree.folded(commentId);
         final next = {...t.collapsed};
         if (next.contains(commentId)) {
+          // Expanding a comment also shows its folded replies.
           next
             ..remove(commentId)
-            ..remove(CommentTree.folded(commentId));
+            ..remove(folded);
+        } else if (next.contains(folded)) {
+          next.remove(folded);
+        } else if (ref.read(settingsControllerProvider).collapseRepliesOnly &&
+            t.flat.any((c) =>
+                c.id == commentId && c.replies.any((r) => !r.isMore))) {
+          // "Collapse only the replies": its own text stays (when it has
+          // replies to hide).
+          next.add(folded);
         } else {
           next.add(commentId);
         }

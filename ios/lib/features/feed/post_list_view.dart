@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
+import '../../core/network/reddit_client.dart';
+import '../../core/providers.dart';
 import '../../core/route_observer.dart';
 import '../../core/theme/motion.dart';
 import '../../core/widgets/error_view.dart';
@@ -208,7 +210,32 @@ class _PostListViewState extends ConsumerState<PostListView>
             if (widget.header != null) widget.header!,
             SizedBox(
               height: 360,
-              child: ErrorView(message: e, onRetry: notifier.refresh),
+              // A quarantined or gated subreddit: opt in right here.
+              child: FutureBuilder<bool>(
+                future: e is RedditApiException &&
+                        !widget.feedKey.startsWith('m::')
+                    ? ref.read(redditRepositoryProvider).canOptIn(e.reason)
+                    : Future.value(false),
+                builder: (context, snap) => snap.data != true
+                    ? ErrorView(message: e, onRetry: notifier.refresh)
+                    : ErrorView(
+                        message: e,
+                        retryLabel: 'View anyway',
+                        onRetry: () async {
+                          try {
+                            await ref
+                                .read(redditRepositoryProvider)
+                                .optInSubreddit(widget.feedKey,
+                                    (e as RedditApiException).reason!);
+                            await notifier.refresh();
+                          } catch (err) {
+                            if (context.mounted) {
+                              showActionError(context, 'opt in', err);
+                            }
+                          }
+                        },
+                      ),
+              ),
             ),
           ],
         ),

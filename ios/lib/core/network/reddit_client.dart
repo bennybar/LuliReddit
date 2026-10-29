@@ -104,6 +104,7 @@ class RedditClient {
   Future<bool> _renewWebToken({bool rejected = false}) async {
     final cookie = _webCookie;
     if (cookie == null) return false;
+    final user = _username;
     final last = _renewedAt;
     final wait = Duration(minutes: rejected ? 1 : 5);
     if (_renewing == null &&
@@ -117,9 +118,11 @@ class RedditClient {
     });
     final fresh = await _renewing;
     if (fresh == null) return false;
+    // An account switch while renewing: the fresh cookie is the old account's.
+    if (!_configured || _username != user) return false;
     if (_webCookie == cookie) {
       _webCookie = fresh;
-      await _store.updateWebCookie(fresh);
+      await _store.updateWebCookie(fresh, user);
     }
     return true;
   }

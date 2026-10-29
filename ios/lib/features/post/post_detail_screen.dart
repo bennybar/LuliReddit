@@ -726,6 +726,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
             opAuthor: thread.post.author,
             collapsed: collapsed,
             tapToCollapse: settings.tapToCollapse,
+            voteEdge: settings.voteEdge,
             onToggle: () => _notifier.toggleCollapse(c.id),
             onVote: (dir) => _vote(c, dir),
             onReply: () => _reply(c),
@@ -1676,6 +1677,7 @@ class _CommentRow extends StatelessWidget {
     required this.opAuthor,
     required this.collapsed,
     required this.tapToCollapse,
+    required this.voteEdge,
     required this.onToggle,
     required this.onVote,
     required this.onReply,
@@ -1691,6 +1693,7 @@ class _CommentRow extends StatelessWidget {
   final String opAuthor;
   final bool collapsed;
   final bool tapToCollapse;
+  final bool voteEdge; // Settings → Mark comments you voted on
   final VoidCallback onToggle;
   final void Function(int dir) onVote;
   final VoidCallback onReply;
@@ -1700,6 +1703,13 @@ class _CommentRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
       calm ? _calmRow(context) : _card(context);
+
+  /// The edge on a comment you voted on, in the vote's color.
+  Color? _voteEdge(BuildContext context) {
+    if (!voteEdge || comment.likes == null) return null;
+    final votes = Theme.of(context).extension<VoteColors>()!;
+    return comment.likes! ? votes.up : votes.down;
+  }
 
   Color _nameColor(ColorScheme cs) => comment.distinguished == 'moderator'
       ? const Color(0xFF4CAF50)
@@ -1869,6 +1879,14 @@ class _CommentRow extends StatelessWidget {
               width: 4,
               child: ColoredBox(color: edge.withValues(alpha: 0.9)),
             ),
+          if (_voteEdge(context) case final vote?)
+            PositionedDirectional(
+              end: 0,
+              top: 0,
+              bottom: 0,
+              width: 4,
+              child: ColoredBox(color: vote),
+            ),
         ],
       ),
     );
@@ -1956,6 +1974,7 @@ class _CommentRow extends StatelessWidget {
         depth: depth,
         rail: cs.outlineVariant,
         opRail: isOp ? cs.primary.withValues(alpha: 0.55) : null,
+        voteEdge: _voteEdge(context),
         rtl: Directionality.of(context) == TextDirection.rtl,
       ),
       child: Padding(
@@ -2046,10 +2065,12 @@ class _RailsPainter extends CustomPainter {
       {required this.depth,
       required this.rail,
       required this.opRail,
+      required this.voteEdge,
       required this.rtl});
   final int depth;
   final Color rail;
   final Color? opRail; // the OP's own rail (the innermost one)
+  final Color? voteEdge; // along the end: a comment you voted on
   final bool rtl;
 
   @override
@@ -2064,6 +2085,12 @@ class _RailsPainter extends CustomPainter {
           Rect.fromLTWH(rtl ? size.width - x - w : x, top, w, bottom - top),
           Paint()..color = color);
     }
+    if (voteEdge != null) {
+      const x = 6.0 + w;
+      canvas.drawRect(
+          Rect.fromLTWH(rtl ? x - w : size.width - x, top, w, bottom - top),
+          Paint()..color = voteEdge!);
+    }
   }
 
   @override
@@ -2071,6 +2098,7 @@ class _RailsPainter extends CustomPainter {
       old.depth != depth ||
       old.rail != rail ||
       old.opRail != opRail ||
+      old.voteEdge != voteEdge ||
       old.rtl != rtl;
 }
 

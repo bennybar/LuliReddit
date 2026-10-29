@@ -45,4 +45,14 @@ void main() {
         ]),
         'reddit_session=s; token_v2=fresh; csrf_token=c');
   });
+
+  test('reads the account a reddit_session belongs to', () {
+    String part(String s) =>
+        base64Url.encode(utf8.encode(s)).replaceAll('=', '');
+    final session =
+        '${part('{"alg":"RS256"}')}.${part('{"sub":"t2_abc","exp":1}')}.sig';
+    expect(sessionAccount('loid=1; reddit_session=$session'), 't2_abc');
+    expect(sessionAccount('loid=1; reddit_session=opaque'), isNull);
+    expect(sessionAccount('loid=1'), isNull);
+  });
 }

@@ -48,6 +48,7 @@ import androidx.compose.material.icons.outlined.FilterAlt
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.MarkEmailRead
 import androidx.compose.material.icons.outlined.NotificationsActive
@@ -73,6 +74,7 @@ import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.DoneAll
 import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.ThumbsUpDown
 import androidx.compose.material.icons.rounded.UnfoldLess
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.FontDownload
@@ -150,6 +152,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.bennybar.luli_for_reddit.feature.inbox.RedditAppNotifications
 import com.bennybar.luli_for_reddit.app
+import com.bennybar.luli_for_reddit.feature.media.clearVideoCache
 import com.bennybar.luli_for_reddit.core.Backup
 import com.bennybar.luli_for_reddit.core.RedditConstants
 import com.bennybar.luli_for_reddit.core.UpdateChecker
@@ -166,6 +169,7 @@ import com.bennybar.luli_for_reddit.settings.ThemeMode
 import com.bennybar.luli_for_reddit.settings.TopBarMode
 import com.bennybar.luli_for_reddit.ui.Overlays
 import kotlinx.coroutines.CoroutineScope
+import coil3.SingletonImageLoader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -280,6 +284,9 @@ fun SettingsList(
     var redditAccess by remember { mutableStateOf(RedditAppNotifications.hasAccess(context)) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { redditAccess = RedditAppNotifications.hasAccess(context) }
     val hiddenSubs by app.hiddenHomeSubs.ids.collectAsStateWithLifecycle()
+    // What Ilay keeps in its cache folder: saved pages, images, videos.
+    var cacheBytes by remember { mutableStateOf<Long?>(null) }
+    LaunchedEffect(Unit) { cacheBytes = withContext(Dispatchers.IO) { context.cacheDir.walk().filter { it.isFile }.sumOf { it.length() } } }
 
     val pickBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch { restoreData(context, uri) }
@@ -500,6 +507,16 @@ fun SettingsList(
             "Otherwise long-press. Comment text can't be selected while this is on",
             Icons.Rounded.UnfoldLess, s.tapToCollapse, ctrl::setTapToCollapse,
         )
+        switch(
+            "Collapse only the replies",
+            "Collapsing a comment keeps its own text and hides its replies",
+            Icons.Rounded.UnfoldLess, s.collapseRepliesOnly, ctrl::setCollapseRepliesOnly,
+        )
+        switch(
+            "Mark comments you voted on",
+            "An edge in the vote's color on comments you upvoted or downvoted",
+            Icons.Rounded.ThumbsUpDown, s.voteEdge, ctrl::setVoteEdge,
+        )
         tile(
             "Collapse low-scoring comments",
             s.collapseBelowScore?.let { "Comments below $it points start collapsed" } ?: "Off",
@@ -686,8 +703,21 @@ fun SettingsList(
             pickOption(listOf(5, 10, 30, 60).map { PickOption(it, "$it minutes") }, s.subsCacheMinutes)
                 ?.let(ctrl::setSubsCacheMinutes)
         })
-        tile("Clear cache", icon = Icons.Rounded.Cached, onClick = launch {
+        tile("Image cache size", "Up to ${s.imageCacheMb} MB · after restarting Ilay", Icons.Outlined.Image, onClick = launch {
+            pickOption(listOf(256, 512, 1024, 2048).map { PickOption(it, "$it MB") }, s.imageCacheMb)
+                ?.let(ctrl::setImageCacheMb)
+        })
+        tile("Video cache size", "Up to ${s.videoCacheMb} MB · after restarting Ilay", Icons.Outlined.VideoLibrary, onClick = launch {
+            pickOption(listOf(100, 200, 500, 1000).map { PickOption(it, "$it MB") }, s.videoCacheMb)
+                ?.let(ctrl::setVideoCacheMb)
+        })
+        tile("Clear cache", cacheBytes?.let { "${it shr 20} MB of saved pages, images and videos" }, Icons.Rounded.Cached, onClick = launch {
             app.client.clearCache()
+            withContext(Dispatchers.IO) {
+                SingletonImageLoader.get(context).let { it.memoryCache?.clear(); it.diskCache?.clear() }
+                clearVideoCache(context)
+                cacheBytes = context.cacheDir.walk().filter { it.isFile }.sumOf { it.length() }
+            }
             nav.showSnackbar("Cache cleared")
         })
         tile("Back up data", "Export settings, For You model & history (no login/keys)", Icons.Rounded.Backup) {

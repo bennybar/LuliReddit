@@ -142,6 +142,7 @@ class RedditClient(
      */
     private suspend fun refreshWebToken(rejected: Boolean = false): Boolean {
         val cookie = webCookie ?: return false
+        val user = username
         return renewLock.withLock {
             if (webCookie != cookie) return@withLock true // renewed meanwhile
             val wait = if (rejected) 60_000 else 5 * 60_000
@@ -149,8 +150,10 @@ class RedditClient(
             val fresh = renewWebToken(cookie)
             renewedAt = System.currentTimeMillis()
             if (fresh == null) return@withLock false
+            // An account switch while renewing: the fresh cookie is the old account's.
+            if (!configured || username != user) return@withLock false
             webCookie = fresh
-            store.updateWebCookie(fresh)
+            store.updateWebCookie(fresh, user)
             true
         }
     }

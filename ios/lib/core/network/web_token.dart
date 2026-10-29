@@ -37,19 +37,32 @@ String withCookie(String header, String name, String? value) {
   return parts.join('; ');
 }
 
-/// When a token_v2 JWT expires; null if it can't be read.
-DateTime? tokenExpiry(String token) {
+/// Claim [name] of a JWT (token_v2, reddit_session); null if it can't be read.
+Object? jwtClaim(String jwt, String name) {
   try {
-    final payload = token.split('.')[1];
+    final payload = jwt.split('.')[1];
     final claims = jsonDecode(
         utf8.decode(base64Url.decode(base64Url.normalize(payload)))) as Map;
-    final exp = claims['exp'];
-    return exp is num
-        ? DateTime.fromMillisecondsSinceEpoch((exp * 1000).toInt())
-        : null;
+    return claims[name];
   } catch (_) {
     return null;
   }
+}
+
+/// When a token_v2 JWT expires; null if it can't be read.
+DateTime? tokenExpiry(String token) {
+  final exp = jwtClaim(token, 'exp');
+  return exp is num
+      ? DateTime.fromMillisecondsSinceEpoch((exp * 1000).toInt())
+      : null;
+}
+
+/// The account (t2_…) [cookieHeader]'s reddit_session belongs to, if
+/// readable.
+String? sessionAccount(String cookieHeader) {
+  final session = cookieValue(cookieHeader, 'reddit_session');
+  final sub = session == null ? null : jwtClaim(session, 'sub');
+  return sub is String ? sub : null;
 }
 
 /// Whether [cookieHeader]'s token_v2 is missing or expires within 5 minutes.
@@ -109,5 +122,8 @@ Future<String?> renewWebToken(String cookieHeader) async {
   } on DioException {
     return null;
   }
+  // The page renews reddit_session too: it must still be the same account,
+  // so a renewal can't hand out another account's token.
+  if (sessionAccount(cookie) != sessionAccount(cookieHeader)) return null;
   return needsNewToken(cookie) ? null : cookie;
 }

@@ -824,8 +824,66 @@ class RedditRepository {
 
   /// dir: 1 upvote, -1 downvote, 0 clear.
   Future<void> vote(String fullname, int dir) async {
-    await _client.post('/api/vote', data: {'id': fullname, 'dir': '$dir', 'rank': '10'});
+    await orGql(
+        () => _client.post('/api/vote',
+            data: {'id': fullname, 'dir': '$dir', 'rank': '10'}), () {
+      final post = fullname.startsWith('t3_');
+      return gqlMutation(
+          post ? 'UpdatePostVoteState' : 'UpdateCommentVoteState',
+          post ? gqlPostVote : gqlCommentVote,
+          post ? 'updatePostVoteState' : 'updateCommentVoteState', {
+        post ? 'postId' : 'commentId': fullname,
+        'voteState': dir == 1 ? 'UP' : (dir == -1 ? 'DOWN' : 'NONE'),
+      });
+    });
   }
+
+  /// Website sign-in: [rest], or when Reddit's edge refuses it (403, as it
+  /// did for search and /by_id) the same action through GraphQL ([gql]).
+  Future<void> orGql(
+      Future<void> Function() rest, Future<void> Function() gql) async {
+    try {
+      await rest();
+    } on RedditApiException catch (e) {
+      if (e.statusCode != 403 || !await _client.webMode) rethrow;
+      await gql();
+    }
+  }
+
+  /// A GraphQL mutation taking [input], whose result is [field].
+  Future<void> gqlMutation(String operation, String hash, String field,
+      Map<String, dynamic> input) async {
+    final data = await _client.gql(operation, hash, {'input': input});
+    gqlCheckOk(data[field]);
+  }
+
+  /// Opts in to a quarantined or gated ([reason]) subreddit so its posts
+  /// load. Only quarantine has an OAuth API; the website sign-in uses
+  /// GraphQL, like Reddit's app.
+  Future<void> optInSubreddit(String name, String reason) async {
+    if (!await _client.webMode) {
+      await _client.post('/api/quarantine_option',
+          data: {'sr_name': name, 'accept': 'true'});
+      return;
+    }
+    if (reason == 'gated') {
+      await gqlMutation('UpdateOptInToGatedSubreddit', gqlOptInGated,
+          'optInToGatedSubreddit', {'subredditName': name});
+      return;
+    }
+    final info = await _client.gql('SubredditInfoByName', gqlSubredditInfo,
+        gqlSubredditInfoVariables(name));
+    final id = (info['subredditInfoByName'] as Map?)?['id'] as String?;
+    if (id == null) throw Exception("r/$name wasn't found");
+    await gqlMutation('UpdateOptInToQuarantinedSubreddit',
+        gqlOptInQuarantined, 'updateSubredditQuarantineOptInState',
+        {'subredditId': id, 'optInState': 'OPTED_IN'});
+  }
+
+  /// Whether [reason] (a refused subreddit's) is one the user can opt in to
+  /// here.
+  Future<bool> canOptIn(String? reason) async =>
+      reason == 'quarantined' || (reason == 'gated' && await _client.webMode);
 
   Future<void> setSubscribed(String subredditName, bool subscribe) async {
     await _client.post('/api/subscribe', data: {
@@ -836,8 +894,18 @@ class RedditRepository {
   }
 
   Future<void> setSaved(String fullname, bool saved) async {
-    await _client.post(saved ? '/api/save' : '/api/unsave',
-        data: {'id': fullname});
+    await orGql(
+        () => _client.post(saved ? '/api/save' : '/api/unsave',
+            data: {'id': fullname}), () {
+      final post = fullname.startsWith('t3_');
+      return gqlMutation(
+          post ? 'UpdatePostSaveState' : 'UpdateCommentSaveState',
+          post ? gqlPostSave : gqlCommentSave,
+          post ? 'updatePostSaveState' : 'updateCommentSaveState', {
+        post ? 'postId' : 'commentId': fullname,
+        'saveState': saved ? 'SAVED' : 'NONE',
+      });
+    });
   }
 
   // --- Participate: reply / submit / edit / delete ---

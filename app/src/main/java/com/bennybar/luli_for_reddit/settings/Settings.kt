@@ -80,6 +80,8 @@ data class Settings(
     val appFont: AppFont = AppFont.GOOGLE_SANS, // the app's typeface (Google Sans by default from v2)
     val inAppBrowser: Boolean = false, // open web links in a Custom Tab, not the browser app
     val tapToCollapse: Boolean = false, // tap a comment to collapse it (else long-press)
+    val collapseRepliesOnly: Boolean = false, // collapsing keeps the comment's own text, hides its replies
+    val voteEdge: Boolean = true, // comments you voted on get an edge in the vote's color
     val volumeKeyNavigation: Boolean = false, // in a thread, volume keys jump between top-level comments
     val collapseBelowScore: Int? = null, // comments scoring below this start collapsed (null = off)
     val collapseTopLevel: Boolean = false, // threads open with top-level comments' replies collapsed
@@ -115,6 +117,8 @@ data class Settings(
     val midResThumbnails: Boolean = true, // load smaller preview images in feeds
     val subsCacheEnabled: Boolean = true, // cache subscription list in memory
     val subsCacheMinutes: Int = 10, // how long to keep the subs cache
+    val imageCacheMb: Int = 512, // image disk cache (Coil); applies on the next start
+    val videoCacheMb: Int = 200, // played-video cache (Media3); applies on the next start
     val feedKeepMinutes: Int = 30, // how long the frontpage keeps its posts before returning to it reloads
     val hiddenPostDays: Int = 7, // how long Ilay keeps posts you hid out of every feed (Reddit hides them too)
     val textScale: Double = 1.0, // global text size multiplier (0.8–1.4)

@@ -110,11 +110,12 @@ class SecureStore {
 
   /// The active website session's cookies, renewed (a fresh token_v2; see
   /// web_token.dart), also in its saved account so switching back keeps them.
-  Future<void> updateWebCookie(String cookie) async {
-    await _write(_kWebCookie, cookie);
-    final user = await read(_kUsername);
+  /// [user] is whose they are: the active slot only takes them while [user]
+  /// is still the active account.
+  Future<void> updateWebCookie(String cookie, String user) async {
+    if (await read(_kUsername) == user) await _write(_kWebCookie, cookie);
     final accounts = await _accountsMap();
-    final acct = user == null ? null : accounts[user];
+    final acct = accounts[user];
     if (acct != null && acct['mode'] == 'web') {
       acct['cookie'] = cookie;
       await _saveAccounts(accounts);

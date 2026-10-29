@@ -63,6 +63,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
+import androidx.compose.material3.Surface
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -104,6 +105,7 @@ import com.bennybar.luli_for_reddit.feature.compose.errorText
 import com.bennybar.luli_for_reddit.feature.compose.showGiphyPicker
 import com.bennybar.luli_for_reddit.feature.foryou.showTuneSheet
 import com.bennybar.luli_for_reddit.feature.markdown.MarkdownToolbar
+import com.bennybar.luli_for_reddit.feature.markdown.RedditMarkdown
 import com.bennybar.luli_for_reddit.model.Comment
 import com.bennybar.luli_for_reddit.model.Post
 import com.bennybar.luli_for_reddit.settings.PostDisplay
@@ -226,6 +228,8 @@ private fun <T> ComposeSheet(
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var media by remember { mutableStateOf<MediaAttachment?>(null) }
+    // Preview: the text rendered as the comment will show.
+    var previewing by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
     val cs = MaterialTheme.colorScheme
 
@@ -279,22 +283,33 @@ private fun <T> ComposeSheet(
                 .imePadding()
                 .verticalScroll(rememberScrollState()),
         ) {
-            Text(title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                TextButton(onClick = { previewing = !previewing }, enabled = value.text.isNotBlank() || previewing) {
+                    Text(if (previewing) "Edit" else "Preview")
+                }
+            }
             Spacer(Modifier.height(12.dp))
-            // The state-based field: it also takes GIFs / stickers from the
-            // keyboard (as the attachment, where attachments are allowed).
-            TextField(
-                state = rememberMirroredState(value, ::setText),
-                modifier = Modifier.fillMaxWidth().focusRequester(focus).then(
-                    if (allowAttachments) Modifier.keyboardMediaReceiver(onMedia = { media = it; error = null }, onError = { error = it }) else Modifier,
-                ),
-                lineLimits = TextFieldLineLimits.MultiLine(3, 8),
-                placeholder = { Text("Markdown supported") },
-                shape = BloomFieldShape,
-                colors = bloomFieldColors(),
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-            )
-            MarkdownToolbar(value, ::setText)
+            if (previewing) {
+                Surface(color = cs.surfaceContainerLow, shape = BloomFieldShape, modifier = Modifier.fillMaxWidth()) {
+                    RedditMarkdown(value.text, Modifier.padding(16.dp))
+                }
+            } else {
+                // The state-based field: it also takes GIFs / stickers from the
+                // keyboard (as the attachment, where attachments are allowed).
+                TextField(
+                    state = rememberMirroredState(value, ::setText),
+                    modifier = Modifier.fillMaxWidth().focusRequester(focus).then(
+                        if (allowAttachments) Modifier.keyboardMediaReceiver(onMedia = { media = it; error = null }, onError = { error = it }) else Modifier,
+                    ),
+                    lineLimits = TextFieldLineLimits.MultiLine(3, 8),
+                    placeholder = { Text("Markdown supported") },
+                    shape = BloomFieldShape,
+                    colors = bloomFieldColors(),
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                )
+                MarkdownToolbar(value, ::setText)
+            }
             Spacer(Modifier.height(6.dp))
             if (allowAttachments) {
                 AttachmentControls(

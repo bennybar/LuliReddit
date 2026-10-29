@@ -25,12 +25,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
 import okhttp3.MultipartBody
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -354,8 +356,59 @@ class RedditRepository(val client: RedditClient) {
 
     /** dir: 1 upvote, -1 downvote, 0 clear. */
     suspend fun vote(fullname: String, dir: Int) {
-        client.post("/api/vote", mapOf("id" to fullname, "dir" to "$dir", "rank" to "10"))
+        orGql({ client.post("/api/vote", mapOf("id" to fullname, "dir" to "$dir", "rank" to "10")) }) {
+            val post = fullname.startsWith("t3_")
+            val state = when (dir) { 1 -> "UP"; -1 -> "DOWN"; else -> "NONE" }
+            gqlMutation(
+                if (post) "UpdatePostVoteState" else "UpdateCommentVoteState",
+                if (post) GQL_POST_VOTE else GQL_COMMENT_VOTE,
+                if (post) "updatePostVoteState" else "updateCommentVoteState",
+            ) { put(if (post) "postId" else "commentId", fullname); put("voteState", state) }
+        }
     }
+
+    /**
+     * Website sign-in: [rest], or when Reddit's edge refuses it (403, as it
+     * did for search and /by_id) the same action through GraphQL ([gql]).
+     */
+    private suspend fun orGql(rest: suspend () -> Unit, gql: suspend () -> Unit) {
+        try {
+            rest()
+        } catch (e: RedditApiException) {
+            if (e.statusCode != 403 || !client.isWebMode()) throw e
+            gql()
+        }
+    }
+
+    /** A GraphQL mutation taking `input` (built by [input]), whose result is [field]. */
+    private suspend fun gqlMutation(operation: String, hash: String, field: String, input: JsonObjectBuilder.() -> Unit) {
+        gqlCheckOk(client.gql(operation, hash, buildJsonObject { putJsonObject("input", input) })[field])
+    }
+
+    /**
+     * Opts in to a quarantined or gated ([reason]) subreddit so its posts load.
+     * Only quarantine has an OAuth API; the website sign-in uses GraphQL,
+     * like Reddit's app.
+     */
+    suspend fun optInSubreddit(name: String, reason: String) {
+        if (!client.isWebMode()) {
+            client.post("/api/quarantine_option", mapOf("sr_name" to name, "accept" to "true"))
+            return
+        }
+        if (reason == "gated") {
+            gqlMutation("UpdateOptInToGatedSubreddit", GQL_OPT_IN_GATED, "optInToGatedSubreddit") { put("subredditName", name) }
+        } else {
+            val id = client.gql("SubredditInfoByName", GQL_SUBREDDIT_INFO, subredditInfoVariables(name))["subredditInfoByName"]["id"].str()
+                ?: throw Exception("r/$name wasn't found")
+            gqlMutation("UpdateOptInToQuarantinedSubreddit", GQL_OPT_IN_QUARANTINED, "updateSubredditQuarantineOptInState") {
+                put("subredditId", id); put("optInState", "OPTED_IN")
+            }
+        }
+    }
+
+    /** Whether [reason] (a refused subreddit's) is one the user can opt in to here. */
+    suspend fun canOptIn(reason: String?): Boolean =
+        reason == "quarantined" || (reason == "gated" && client.isWebMode())
 
     suspend fun setSubscribed(subredditName: String, subscribe: Boolean) {
         client.post("/api/subscribe", mapOf("action" to if (subscribe) "sub" else "unsub", "sr_name" to subredditName))
@@ -363,7 +416,14 @@ class RedditRepository(val client: RedditClient) {
     }
 
     suspend fun setSaved(fullname: String, saved: Boolean) {
-        client.post(if (saved) "/api/save" else "/api/unsave", mapOf("id" to fullname))
+        orGql({ client.post(if (saved) "/api/save" else "/api/unsave", mapOf("id" to fullname)) }) {
+            val post = fullname.startsWith("t3_")
+            gqlMutation(
+                if (post) "UpdatePostSaveState" else "UpdateCommentSaveState",
+                if (post) GQL_POST_SAVE else GQL_COMMENT_SAVE,
+                if (post) "updatePostSaveState" else "updateCommentSaveState",
+            ) { put(if (post) "postId" else "commentId", fullname); put("saveState", if (saved) "SAVED" else "NONE") }
+        }
     }
 
     // --- Participate: reply / submit / edit / delete ---

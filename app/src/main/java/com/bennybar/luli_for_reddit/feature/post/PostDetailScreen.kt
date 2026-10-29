@@ -1330,6 +1330,12 @@ private fun CommentTile(
         else -> cs.onSurface
     }
     val edge = railColors[(depth - 1).coerceIn(0, railColors.size - 1)].copy(alpha = 0.9f)
+    // Settings → Mark comments you voted on: an edge on the other side.
+    val voteEdge = if (!settings.voteEdge) null else when (comment.likes) {
+        true -> votes.up
+        false -> votes.down
+        null -> null
+    }
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val shape = RoundedCornerShape(14.dp)
     val toggle = { actions.toggle(comment) }
@@ -1360,10 +1366,9 @@ private fun CommentTile(
                 // Colored depth edge (only on replies), full height — drawn,
                 // not laid out, so it costs no extra layout pass.
                 .drawBehind {
-                    if (depth > 0) {
-                        val w = 4.dp.toPx()
-                        drawRect(edge, Offset(if (rtl) size.width - w else 0f, 0f), Size(w, size.height))
-                    }
+                    val w = 4.dp.toPx()
+                    if (depth > 0) drawRect(edge, Offset(if (rtl) size.width - w else 0f, 0f), Size(w, size.height))
+                    if (voteEdge != null) drawRect(voteEdge, Offset(if (rtl) 0f else size.width - w, 0f), Size(w, size.height))
                 }
                 .padding(start = if (depth > 0) 4.dp else 0.dp),
         ) {
@@ -1667,6 +1672,7 @@ private fun CalmCommentRow(
     val toggle = { actions.toggle(comment) }
     val up = comment.likes == true
     val down = comment.likes == false
+    val voteEdge = if (!settings.voteEdge) null else if (up) votes.up else if (down) votes.down else null
     var menu by remember { mutableStateOf(false) }
 
     fun swipe(a: SwipeAction): SwipeSpec? = when (a) {
@@ -1695,6 +1701,10 @@ private fun CalmCommentRow(
                         val x = (16 + l * 10 + 4).dp.toPx()
                         val color = if (isOp && l == depth - 1) opRail else rail
                         drawRect(color, Offset(if (rtl) size.width - x - w else x, top), Size(w, (bottom - top).coerceAtLeast(0f)))
+                    }
+                    if (voteEdge != null) {
+                        val x = 6.dp.toPx() + w
+                        drawRect(voteEdge, Offset(if (rtl) x - w else size.width - x, top), Size(w, (bottom - top).coerceAtLeast(0f)))
                     }
                 }
                 .padding(start = (16 + depth * 10).dp, top = 10.dp, end = 16.dp, bottom = 8.dp),

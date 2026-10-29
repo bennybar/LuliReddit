@@ -131,17 +131,24 @@ internal fun buildPlayer(context: Context, audioFocus: Boolean): ExoPlayer {
 @UnstableApi
 @Volatile private var sharedVideoCache: SimpleCache? = null
 
-/** Played video, up to 200 MB (least recently used goes first). */
+/** Played video, up to Settings → Video cache size (least recently used goes first). */
 @OptIn(UnstableApi::class)
 private fun videoCache(context: Context): SimpleCache = sharedVideoCache ?: synchronized(VideoCacheLock) {
     sharedVideoCache ?: SimpleCache(
         File(context.cacheDir, "video"),
-        LeastRecentlyUsedCacheEvictor(200L shl 20),
+        LeastRecentlyUsedCacheEvictor(app.settings.value.videoCacheMb.toLong() shl 20),
         StandaloneDatabaseProvider(context),
     ).also { sharedVideoCache = it }
 }
 
 private object VideoCacheLock
+
+/** Empties the played-video cache (Settings → Clear cache). */
+@OptIn(UnstableApi::class)
+fun clearVideoCache(context: Context) {
+    val cache = videoCache(context)
+    cache.keys.toList().forEach(cache::removeResource)
+}
 
 /** v.redd.it HLS (HLSPlaylist.m3u8) or a progressive mp4 (DASH_720.mp4, imgur, RedGifs…). */
 internal fun mediaItemFor(url: String): MediaItem =

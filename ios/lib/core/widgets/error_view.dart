@@ -14,7 +14,11 @@ String friendlyError(Object? e) {
       case 'banned':
         return 'This community has been banned by Reddit.';
       case 'quarantined':
-        return 'This community is quarantined. Opt in on reddit.com to view it.';
+        return 'This community is quarantined: it may have shocking or highly '
+            'offensive content.';
+      case 'gated':
+        return 'This community may have sensitive content, such as mature '
+            'themes or graphic images.';
       case 'gold_only':
         return 'This community is for premium members only.';
     }
@@ -81,11 +85,13 @@ class ErrorView extends StatelessWidget {
     required this.message,
     this.onRetry,
     this.icon = Icons.cloud_off_rounded,
+    this.retryLabel = 'Retry',
   });
 
   final Object? message;
   final VoidCallback? onRetry;
   final IconData icon;
+  final String retryLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -102,7 +108,7 @@ class ErrorView extends StatelessWidget {
                 textAlign: TextAlign.center),
             if (onRetry != null) ...[
               const SizedBox(height: 16),
-              FilledButton.tonal(onPressed: onRetry, child: const Text('Retry')),
+              FilledButton.tonal(onPressed: onRetry, child: Text(retryLabel)),
             ],
           ],
         ),

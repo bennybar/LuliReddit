@@ -32,7 +32,8 @@ fun friendlyError(e: Any?): String {
         when (e.reason) {
             "private" -> return "This community is private."
             "banned" -> return "This community has been banned by Reddit."
-            "quarantined" -> return "This community is quarantined. Opt in on reddit.com to view it."
+            "quarantined" -> return "This community is quarantined: it may have shocking or highly offensive content."
+            "gated" -> return "This community may have sensitive content, such as mature themes or graphic images."
             "gold_only" -> return "This community is for premium members only."
         }
         when (e.statusCode) {
@@ -73,6 +74,7 @@ fun ErrorView(
     modifier: Modifier = Modifier,
     onRetry: (() -> Unit)? = null,
     icon: ImageVector = Icons.Rounded.CloudOff,
+    retryLabel: String = "Retry",
 ) {
     Column(
         modifier.fillMaxSize().padding(32.dp),
@@ -84,7 +86,7 @@ fun ErrorView(
         Text(if (message is String) message else friendlyError(message), textAlign = TextAlign.Center)
         if (onRetry != null) {
             Spacer(Modifier.height(16.dp))
-            FilledTonalButton(onClick = onRetry, shapes = ButtonDefaults.shapes()) { Text("Retry") }
+            FilledTonalButton(onClick = onRetry, shapes = ButtonDefaults.shapes()) { Text(retryLabel) }
         }
     }
 }

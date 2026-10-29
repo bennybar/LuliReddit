@@ -56,4 +56,13 @@ class WebTokenTest {
             ),
         )
     }
+
+    @Test
+    fun `reads the account a reddit_session belongs to`() {
+        fun part(s: String) = Base64.getUrlEncoder().withoutPadding().encodeToString(s.toByteArray())
+        val session = "${part("""{"alg":"RS256"}""")}.${part("""{"sub":"t2_abc","exp":1}""")}.sig"
+        assertEquals("t2_abc", sessionAccount("loid=1; reddit_session=$session"))
+        assertNull(sessionAccount("loid=1; reddit_session=opaque"))
+        assertNull(sessionAccount("loid=1"))
+    }
 }

@@ -11,6 +11,46 @@ const gqlSearchPeople =
     'db3607c1a7deea8441614a053c5f434f60da0c8c931db952f819a59d534d9743';
 const gqlPostsByIds =
     'b210ea1d852cdc2c25d9bff2d9fa8a406e1a968f36392798812f336694ac27f4';
+const gqlPostVote =
+    '2523ed203f983488aab97d84f12b46910008244b79a61073b419e33ff98cb7e5';
+const gqlCommentVote =
+    'a353fb29741128e9346380c4706af0bf59fc5767608ea6848039c57ae0b08fec';
+const gqlPostSave =
+    '96dbe868ad5b00109ed72048a82290abb86f66ff653cde724458b6f7549918f8';
+const gqlCommentSave =
+    '2d2a823e0b5053d39de7d319fd8ccf8b87ddf0ab3ad97cfd621d82f376fcf174';
+const gqlSubredditInfo =
+    '8c1815b07b762aee3c086cc84306f14b3907018e9ee152046c8e4d08ad4c7b88';
+const gqlOptInQuarantined =
+    '48f2a98b4df9e6ebb67451c25b35be3f6bd597391a1e13984e0c68680dbdf84a';
+const gqlOptInGated =
+    '2f5d960d89de68ea1ce9fcac9cbacfd1161c78e990c8bf79668cf03555bd5678';
+
+/// SubredditInfoByName's variables, as Reddit's app sends them.
+Map<String, dynamic> gqlSubredditInfoVariables(String name) => {
+      'subredditName': name,
+      'loggedOutIsOptedIn': false,
+      'filterGated': true,
+      'includeRecapFields': false,
+      'includeWelcomePage': true,
+      'includeDevvitData': true,
+      'includeFeatureVariants': false,
+      'includeManualFeatureVariants': false,
+      'includeCommunityGuidanceChecklist': false,
+    };
+
+/// A mutation's result: throws Reddit's reason (locked, archived…) unless it
+/// went through.
+void gqlCheckOk(Object? result) {
+  if (result is Map && result['ok'] == true) return;
+  String? first(Object? list) =>
+      list is List && list.isNotEmpty && list.first is Map
+          ? list.first['message'] as String?
+          : null;
+  final r = result is Map ? result : const {};
+  throw Exception(
+      first(r['fieldErrors']) ?? first(r['errors']) ?? 'Reddit refused it');
+}
 
 /// A post (not an ad or an unavailable one) in GraphQL's results.
 bool gqlIsPost(Map n) => const {

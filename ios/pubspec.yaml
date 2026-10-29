@@ -37,6 +37,8 @@ dependencies:
 
   # UI / media
   cached_network_image: ^3.4.1
+  # Its image cache, emptied by Settings → Clear cache.
+  flutter_cache_manager: ^3.4.1
   photo_view: ^0.15.0
   video_player: ^2.9.2
   # setMixWithOthers: muted feed clips mustn't stop the user's music

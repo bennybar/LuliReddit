@@ -1,11 +1,13 @@
 import 'dart:convert';
-import 'dart:io' show Platform;
+import 'dart:io' show Directory, File, Platform;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_icon.dart';
@@ -470,6 +472,24 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             value: s.tapToCollapse,
             onChanged: ctrl.setTapToCollapse,
           ),
+          SwitchListTile(
+            secondary: const Icon(Icons.unfold_less_rounded),
+            title: const Text('Collapse only the replies'),
+            subtitle: const Text(
+                'Collapsing a comment keeps its own text and hides its '
+                'replies'),
+            value: s.collapseRepliesOnly,
+            onChanged: ctrl.setCollapseRepliesOnly,
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.thumbs_up_down_rounded),
+            title: const Text('Mark comments you voted on'),
+            subtitle: const Text(
+                'An edge in the vote\'s color on comments you upvoted or '
+                'downvoted'),
+            value: s.voteEdge,
+            onChanged: ctrl.setVoteEdge,
+          ),
           ListTile(
             leading: const Icon(Icons.unfold_less_rounded),
             title: const Text('Collapse low-scoring comments'),
@@ -686,16 +706,28 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             subtitle: Text('${s.subsCacheMinutes} minutes'),
             onTap: () => _pickCacheMinutes(context, ctrl, s.subsCacheMinutes),
           ),
-          ListTile(
-            leading: const Icon(Icons.cached_rounded),
-            title: const Text('Clear cache'),
-            onTap: () async {
-              await ref.read(redditClientProvider).clearCache();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Cache cleared')));
-              }
-            },
+          // What Ilay keeps in its cache folder: saved pages and images.
+          StatefulBuilder(
+            builder: (context, setTile) => FutureBuilder<int>(
+              future: cacheBytes(),
+              builder: (context, size) => ListTile(
+                leading: const Icon(Icons.cached_rounded),
+                title: const Text('Clear cache'),
+                subtitle: size.data == null
+                    ? null
+                    : Text('${size.data! >> 20} MB of saved pages and images'),
+                onTap: () async {
+                  await ref.read(redditClientProvider).clearCache();
+                  await DefaultCacheManager().emptyCache();
+                  PaintingBinding.instance.imageCache.clear();
+                  setTile(() {});
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Cache cleared')));
+                  }
+                },
+              ),
+            ),
           ),
           ListTile(
             leading: const Icon(Icons.backup_outlined),
@@ -2003,4 +2035,14 @@ class _HiddenSubsDialog extends ConsumerWidget {
       ],
     );
   }
+}
+
+/// The size of Ilay's cache folder (saved pages, images), in bytes.
+Future<int> cacheBytes() async {
+  final dir = await getTemporaryDirectory();
+  var total = 0;
+  await for (final f in Directory(dir.path).list(recursive: true)) {
+    if (f is File) total += await f.length();
+  }
+  return total;
 }

@@ -40,7 +40,9 @@ class IlayApp : Application(), SingletonImageLoader.Factory {
             }
             .memoryCache { MemoryCache.Builder().maxSizePercent(context, 0.25).build() }
             .diskCache {
-                DiskCache.Builder().directory(context.cacheDir.resolve("image_cache")).maxSizeBytes(512L * 1024 * 1024).build()
+                // Settings → Image cache size (read once: the loader is built once).
+                DiskCache.Builder().directory(context.cacheDir.resolve("image_cache"))
+                    .maxSizeBytes(app.settings.value.imageCacheMb.toLong() shl 20).build()
             }
             .crossfade(true)
             .build()

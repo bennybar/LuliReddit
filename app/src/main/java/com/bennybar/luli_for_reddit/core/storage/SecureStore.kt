@@ -197,10 +197,11 @@ class SecureStore(private val context: Context) {
     /**
      * The active website session's cookies, renewed (a fresh token_v2; see
      * WebToken.kt), also in its saved account so switching back keeps them.
+     * [user] is whose they are: the active slot only takes them while [user]
+     * is still the active account.
      */
-    suspend fun updateWebCookie(cookie: String) {
-        write(K_WEB_COOKIE, cookie)
-        val user = username() ?: return
+    suspend fun updateWebCookie(cookie: String, user: String) {
+        if (username() == user) write(K_WEB_COOKIE, cookie)
         val m = accountsMap()
         val acct = m[user] ?: return
         if ((acct["mode"] as? JsonPrimitive)?.content != "web") return

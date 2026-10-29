@@ -76,6 +76,8 @@ class Settings {
     required this.jakartaFont,
     required this.inAppBrowser,
     required this.tapToCollapse,
+    required this.collapseRepliesOnly,
+    required this.voteEdge,
     required this.hideReadPosts,
     required this.markReadOnScroll,
     required this.swipePostStart,
@@ -134,6 +136,10 @@ class Settings {
   final bool jakartaFont; // Plus Jakarta Sans + Unbounded instead of Roboto
   final bool inAppBrowser; // open web links in a Custom Tab, not the browser app
   final bool tapToCollapse; // tap a comment to collapse it (else long-press)
+  // Collapsing keeps the comment's own text, hides its replies.
+  final bool collapseRepliesOnly;
+  // Comments you voted on get an edge in the vote's color.
+  final bool voteEdge;
   final bool hideReadPosts; // skip already-read posts when feeds load
   final bool markReadOnScroll; // a post scrolled past counts as read
   // What swiping does: "start" = from the start edge (rightward in LTR).
@@ -201,6 +207,8 @@ class Settings {
     bool? jakartaFont,
     bool? inAppBrowser,
     bool? tapToCollapse,
+    bool? collapseRepliesOnly,
+    bool? voteEdge,
     bool? hideReadPosts,
     bool? markReadOnScroll,
     SwipeAction? swipePostStart,
@@ -260,6 +268,8 @@ class Settings {
         jakartaFont: jakartaFont ?? this.jakartaFont,
         inAppBrowser: inAppBrowser ?? this.inAppBrowser,
         tapToCollapse: tapToCollapse ?? this.tapToCollapse,
+        collapseRepliesOnly: collapseRepliesOnly ?? this.collapseRepliesOnly,
+        voteEdge: voteEdge ?? this.voteEdge,
         hideReadPosts: hideReadPosts ?? this.hideReadPosts,
         markReadOnScroll: markReadOnScroll ?? this.markReadOnScroll,
         swipePostStart: swipePostStart ?? this.swipePostStart,
@@ -330,6 +340,8 @@ class SettingsController extends Notifier<Settings> {
       jakartaFont: p.getBool('jakartaFont') ?? false,
       inAppBrowser: p.getBool('inAppBrowser') ?? false,
       tapToCollapse: p.getBool('tapToCollapse') ?? false,
+      collapseRepliesOnly: p.getBool('collapseRepliesOnly') ?? false,
+      voteEdge: p.getBool('voteEdge') ?? true,
       hideReadPosts: p.getBool('hideReadPosts') ?? false,
       markReadOnScroll: p.getBool('markReadOnScroll') ?? false,
       swipePostStart:
@@ -515,6 +527,16 @@ class SettingsController extends Notifier<Settings> {
   void setTapToCollapse(bool v) {
     _prefs.setBool('tapToCollapse', v);
     state = state.copyWith(tapToCollapse: v);
+  }
+
+  void setCollapseRepliesOnly(bool v) {
+    _prefs.setBool('collapseRepliesOnly', v);
+    state = state.copyWith(collapseRepliesOnly: v);
+  }
+
+  void setVoteEdge(bool v) {
+    _prefs.setBool('voteEdge', v);
+    state = state.copyWith(voteEdge: v);
   }
 
   void setInAppBrowser(bool v) {

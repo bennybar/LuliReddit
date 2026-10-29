@@ -10,6 +10,7 @@ import '../../models/comment.dart';
 import '../../models/post.dart';
 import '../auth/auth_controller.dart';
 import '../../core/widgets/markdown_toolbar.dart';
+import '../../core/widgets/reddit_markdown.dart';
 import '../media/attachment.dart';
 import '../media/attachment_bar.dart';
 import '../media/giphy_picker.dart';
@@ -148,6 +149,8 @@ class _ComposeSheet<T> extends StatefulWidget {
 class _ComposeSheetState<T> extends State<_ComposeSheet<T>> {
   late final _controller = TextEditingController(text: _initialText());
   bool _busy = false;
+  // Preview: the text rendered as the comment will show.
+  bool _previewing = false;
   String? _error;
   MediaAttachment? _media;
 
@@ -215,32 +218,59 @@ class _ComposeSheetState<T> extends State<_ComposeSheet<T>> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(widget.title,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _controller,
-            autofocus: true,
-            minLines: 3,
-            maxLines: 8,
-            onChanged: _onChanged,
-            // GIFs and stickers from the keyboard, as an attachment.
-            contentInsertionConfiguration: widget.allowAttachments
-                ? keyboardMedia(
-                    (m) => setState(() {
-                          _media = m;
-                          _error = null;
-                        }),
-                    (msg) => setState(() => _error = msg))
-                : null,
-            decoration: const InputDecoration(
-              hintText: 'Markdown supported',
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(widget.title,
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700)),
+              ),
+              ListenableBuilder(
+                listenable: _controller,
+                builder: (context, _) => TextButton(
+                  onPressed:
+                      _controller.text.trim().isNotEmpty || _previewing
+                          ? () => setState(() => _previewing = !_previewing)
+                          : null,
+                  child: Text(_previewing ? 'Edit' : 'Preview'),
+                ),
+              ),
+            ],
           ),
-          MarkdownToolbar(controller: _controller),
+          const SizedBox(height: 12),
+          if (_previewing)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: cs.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: RedditMarkdown(data: _controller.text),
+            )
+          else ...[
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              minLines: 3,
+              maxLines: 8,
+              onChanged: _onChanged,
+              // GIFs and stickers from the keyboard, as an attachment.
+              contentInsertionConfiguration: widget.allowAttachments
+                  ? keyboardMedia(
+                      (m) => setState(() {
+                            _media = m;
+                            _error = null;
+                          }),
+                      (msg) => setState(() => _error = msg))
+                  : null,
+              decoration: const InputDecoration(
+                hintText: 'Markdown supported',
+              ),
+            ),
+            MarkdownToolbar(controller: _controller),
+          ],
           const SizedBox(height: 6),
           if (widget.allowAttachments)
             AttachmentControls(

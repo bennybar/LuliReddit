@@ -58,6 +58,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -78,6 +79,7 @@ import coil3.request.ImageRequest
 import coil3.size.Dimension
 import coil3.size.Size
 import com.bennybar.luli_for_reddit.app
+import com.bennybar.luli_for_reddit.core.net.RedditApiException
 import com.bennybar.luli_for_reddit.data.PostSort
 import com.bennybar.luli_for_reddit.data.TopTime
 import com.bennybar.luli_for_reddit.feature.foryou.DealIn
@@ -228,7 +230,23 @@ fun PostListView(
                 is FeedUi.Error -> LazyColumn(Modifier.fillMaxSize()) {
                     if (header != null) item(key = "header", contentType = "header") { header() }
                     item(key = "error") {
-                        ErrorView(u.error, Modifier.height(360.dp), onRetry = controller::retry)
+                        // A quarantined or gated subreddit: opt in right here.
+                        val reason = (u.error as? RedditApiException)?.reason
+                        val canOptIn by produceState(false, reason) { value = app.repository.canOptIn(reason) }
+                        if (canOptIn && !feedKey.startsWith("m::")) {
+                            ErrorView(u.error, Modifier.height(360.dp), retryLabel = "View anyway", onRetry = {
+                                scope.launch {
+                                    try {
+                                        app.repository.optInSubreddit(feedKey, reason!!)
+                                        controller.retry()
+                                    } catch (e: Exception) {
+                                        nav.showActionError("opt in", e)
+                                    }
+                                }
+                            })
+                        } else {
+                            ErrorView(u.error, Modifier.height(360.dp), onRetry = controller::retry)
+                        }
                     }
                 }
                 is FeedUi.Data -> FeedList(
