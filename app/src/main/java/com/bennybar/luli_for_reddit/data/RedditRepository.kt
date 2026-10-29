@@ -84,6 +84,23 @@ class RedditRepository(val client: RedditClient) {
     /** Posts by fullname (t3_…), in the order given (Reddit reorders and drops removed ones). */
     suspend fun getPostsByIds(fullnames: List<String>): List<Post> {
         if (fullnames.isEmpty()) return emptyList()
+        if (client.isWebMode()) {
+            // /by_id.json is refused for the website sign-in (Reddit Home, Blend).
+            val data = client.gql("PostsByIds", GQL_POSTS_BY_IDS, postsByIdsVariables(fullnames))
+            val byId = parse {
+                (data["postsInfoByIds"].arr() ?: emptyList()).filter(::gqlIsPost).associate { n ->
+                    val raw = gqlPostData(n.obj()!!)
+                    val post = Post.fromData(raw)
+                    // Kept like a listing's, e.g. for a Home page saved for offline.
+                    synchronized(rawPosts) {
+                        rawPosts.remove(post.id)
+                        rawPosts[post.id] = raw
+                    }
+                    "t3_${post.id}" to post
+                }
+            }
+            return fullnames.mapNotNull { byId[it] }
+        }
         val json = client.get("/by_id/${fullnames.joinToString(",")}", mapOf("limit" to fullnames.size, "sr_detail" to true))
         val byId = parse { parsePostListing(json).items.associateBy { "t3_${it.id}" } }
         return fullnames.mapNotNull { byId[it] }

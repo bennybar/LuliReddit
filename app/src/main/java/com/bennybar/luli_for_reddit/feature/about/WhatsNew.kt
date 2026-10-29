@@ -45,6 +45,10 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.42", "Oct 29, 2026",
+        listOf("Reddit Home and Blend load again with the website sign-in, with their galleries, videos and GIFs"),
+    ),
+    Release(
         "2.0.41", "Oct 28, 2026",
         listOf(
             "Search works again with the website sign-in (Reddit had started refusing it)",

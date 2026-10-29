@@ -20,6 +20,10 @@ class Release {
 // TODO(whats-new): this is the Kotlin app's list as-is; it describes the
 // features being ported. Replace it with the iOS app's own releases.
 const changelog = [
+  Release('2.0.42', 'Oct 29, 2026', [
+    'Reddit Home and Blend load again with the website sign-in, with their '
+        'galleries, videos and GIFs',
+  ]),
   Release('2.0.41', 'Oct 28, 2026', [
     'Search works again with the website sign-in (Reddit had started '
         'refusing it)',

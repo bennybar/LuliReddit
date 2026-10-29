@@ -18,6 +18,7 @@ import '../models/multireddit.dart';
 import '../models/post.dart';
 import '../models/reddit_user.dart';
 import '../models/subreddit.dart';
+import 'gql_posts.dart';
 
 /// Sort options for post listings.
 enum PostSort { best, hot, newest, top, rising }
@@ -395,6 +396,25 @@ class RedditRepository {
   /// its own order and drops removed posts, so the result is re-ordered.
   Future<List<Post>> getPostsByIds(List<String> fullnames) async {
     if (fullnames.isEmpty) return const [];
+    if (await _client.webMode) {
+      // /by_id.json is refused for the website sign-in (Reddit Home, Blend).
+      final data = await _client.gql(
+          'PostsByIds', gqlPostsByIds, {...gqlPostFlags, 'ids': fullnames});
+      final byId = <String, Post>{};
+      for (final n in (data['postsInfoByIds'] as List?) ?? const []) {
+        if (n is! Map || !gqlIsPost(n)) continue;
+        final raw = gqlPostData(n);
+        final post = Post.fromData(raw);
+        byId['t3_${post.id}'] = post;
+        // Kept like a listing's, e.g. for a Home page saved for offline.
+        _rawPosts.remove(post.id);
+        _rawPosts[post.id] = raw;
+      }
+      return [
+        for (final f in fullnames)
+          if (byId[f] != null) byId[f]!
+      ];
+    }
     final res = await _client.get<Map<String, dynamic>>(
         '/by_id/${fullnames.join(',')}',
         query: {'limit': fullnames.length, 'sr_detail': true});
@@ -633,22 +653,22 @@ class RedditRepository {
     if (await _client.webMode) {
       // [after] is GraphQL's page cursor. The posts come from the results
       // themselves: /by_id.json is refused too.
-      final page = await _client.gql('SearchPosts', _gqlSearchPosts, {
-        ..._gqlPostFlags,
+      final page = await _client.gql('SearchPosts', gqlSearchPosts, {
+        ...gqlPostFlags,
         'query': query,
         'productSurface': 'android',
         'pageSize': 25,
-        'sort': _gqlSorts[sort] ?? 'RELEVANCE',
+        'sort': gqlSorts[sort] ?? 'RELEVANCE',
         if (after != null) 'afterCursor': after,
         'filters': [
           if (time != 'all') {'key': 'time_range', 'value': time},
           if (subreddit != null) {'key': 'subreddit_names', 'value': subreddit},
         ],
       });
-      final list = _gqlSearch(page, 'posts');
+      final list = gqlSearch(page, 'posts');
       return Listing(items: [
         for (final n in list.nodes)
-          if (n['id'] is String) Post.fromData(_gqlPostData(n))
+          if (n['id'] is String) Post.fromData(gqlPostData(n))
       ], after: list.after);
     }
     final base = subreddit == null ? '/search' : '/r/$subreddit/search';
@@ -671,13 +691,13 @@ class RedditRepository {
   Future<List<Subreddit>> searchSubreddits(String query) async {
     if (await _client.webMode) {
       final page = await _client.gql(
-          'CommunityPickerSearchPaginated', _gqlSearchCommunities, {
+          'CommunityPickerSearchPaginated', gqlSearchCommunities, {
         'query': query.trim().replaceFirst(RegExp(r'^/?r/', caseSensitive: false), ''),
         'productSurface': 'android',
         'first': 25,
       });
       return [
-        for (final n in _gqlSearch(page, 'communities').nodes)
+        for (final n in gqlSearch(page, 'communities').nodes)
           if (n['__typename'] == 'Subreddit' && n['name'] is String)
             Subreddit.fromData({
               'display_name': n['name'],
@@ -703,13 +723,13 @@ class RedditRepository {
 
   Future<List<RedditUser>> searchUsers(String query) async {
     if (await _client.webMode) {
-      final page = await _client.gql('SearchPeople', _gqlSearchPeople, {
+      final page = await _client.gql('SearchPeople', gqlSearchPeople, {
         'query': query,
         'productSurface': 'android',
         'pageSize': 25,
       });
       return [
-        for (final n in _gqlSearch(page, 'authors').nodes)
+        for (final n in gqlSearch(page, 'authors').nodes)
           if (n['__typename'] == 'Redditor' && n['name'] is String)
             RedditUser.fromData({
               'name': n['name'],
@@ -1421,163 +1441,4 @@ class ForYouPage {
   final List<Candidate> leftovers;
   final Map<String, ForYouMeta> meta;
   final List<String> candidateTitles; // for word rarity (IDF)
-}
-
-// Website sign-in: Reddit's edge refuses the website's search endpoints
-// (403), so search runs on Reddit's app GraphQL API, as Reddit's own apps and
-// other clients (e.g. Hydra) do. Its operations are persisted queries, run by
-// name and the hash of the query Reddit already knows.
-const _gqlSearchPosts =
-    'c3d31b88bfa15180fdcd0c8f6f13b8c0e131d0c981c9b9c8a7c537ddd0ed3348';
-const _gqlSearchCommunities =
-    'b58025ad0c98bdb93e9dc1db909accf440573bd7d3a48d2c73a02e96d33f1943';
-const _gqlSearchPeople =
-    'db3607c1a7deea8441614a053c5f434f60da0c8c931db952f819a59d534d9743';
-
-// The post fragment's switches, as Reddit's app sets them for full posts.
-const _gqlPostFlags = {
-  'includeSubredditInPosts': true,
-  'includeAwards': true,
-  'includePostStats': true,
-  'includeCurrentUserAwards': false,
-  'includeStillMediaAltText': true,
-  'includeExtraStillResolutions': true,
-  'includeExtendedVideoAsset': false,
-  'includePlaybackMp4s': true,
-  'includeMuxedMp4s': true,
-  'includeDevvitData': true,
-  'includeCommunityStatus': true,
-  'includeIsModRemovedContentReadAllowed': true,
-  'includeVideoPlaybackInComments': false,
-  'includeSubredditBackgroundColor': true,
-  'includeOverlayData': true,
-  'includeCtaEnrichedPageTitle': true,
-  'includePlaCards': true,
-  'includePlaCardThumbnail': false,
-  'includeWebviewPrefetchField': true,
-  'includeAdBrowserDestinationField': true,
-  'includeCollectionsHeroCard': true,
-  'includeGalleryAdUrl': true,
-  'includeCtaMediaColor': true,
-  'includeFollowedForNotificationsStatus': true,
-  'includePredictedRemovalReasons': true,
-  'includeRedditHandleInfo': true,
-  'includeVerificationStatus': true,
-  'skipModerationInfo': false,
-  'includeIsReceivingPostReplies': false,
-  'includeIsActiveComments': true,
-  'includeMediaSynthesis': true,
-  'skipRedditPlayPlaybackMp4s': true,
-  'includeLinkPreviewTitle': false,
-};
-
-const _gqlSorts = {
-  'relevance': 'RELEVANCE',
-  'hot': 'HOT',
-  'new': 'NEW',
-  'top': 'TOP',
-  'comments': 'COMMENTS',
-};
-
-/// One kind of search result (posts, communities, authors): its nodes, and
-/// the next page's cursor (null at the end).
-({List<Map> nodes, String? after}) _gqlSearch(
-    Map<String, dynamic> data, String kind) {
-  final list = (((data['search'] as Map?)?['general'] as Map?)?[kind]) as Map?;
-  final info = list?['pageInfo'] as Map?;
-  return (
-    nodes: [
-      for (final e in (list?['edges'] as List?) ?? const [])
-        if ((e as Map?)?['node'] is Map) e!['node'] as Map
-    ],
-    after: info?['hasNextPage'] == false ? null : info?['endCursor'] as String?,
-  );
-}
-
-/// A GraphQL post (from search) in the shape Post.fromData reads (Reddit's
-/// listing JSON): enough for a card. Opening it loads the full post.
-Map<String, dynamic> _gqlPostData(Map n) {
-  final id = '${n['id']}'.replaceFirst('t3_', '');
-  final community = (n['subreddit'] ?? n['profile']) as Map?;
-  final sub = community?['name'] as String? ?? '';
-  final url = n['url'] as String? ?? '';
-  final host = Uri.tryParse(url)?.host ?? '';
-  final isSelf = n['isSelfPost'] == true;
-  // The image (a gallery's first) at each size, smallest first.
-  ({String url, int? width, int? height})? size(Object? s) {
-    final m = s as Map?;
-    final u = m?['url'] as String?;
-    final dims = m?['dimensions'] as Map?;
-    return u == null
-        ? null
-        : (
-            url: u,
-            width: (dims?['width'] as num?)?.toInt(),
-            height: (dims?['height'] as num?)?.toInt());
-  }
-  final still = (n['media'] as Map?)?['still'] as Map?;
-  final asset = ((((n['gallery'] as Map?)?['items'] as List?)?.firstOrNull)
-      as Map?)?['media'] as Map?;
-  final sizes = [
-    if (still != null)
-      for (final k in const ['small', 'medium', 'large', 'midlarge480',
-          'xlarge', 'xlargePlus720', 'xxlarge', 'xxxlarge', 'source'])
-        size(still[k]),
-    if (asset != null) ...[
-      for (final k in const ['small', 'medium', 'large', 'xlarge', 'xxlarge',
-          'xxxlarge'])
-        size(asset[k]),
-      size({
-        'url': asset['url'],
-        'dimensions': {'width': asset['width'], 'height': asset['height']},
-      }),
-    ],
-  ].nonNulls.toList();
-  Map<String, dynamic> image(({String url, int? width, int? height}) s) =>
-      {'url': s.url, 'width': s.width, 'height': s.height};
-  final vote = switch (n['voteState']) { 'UP' => true, 'DOWN' => false, _ => null };
-  return {
-    'id': id,
-    'name': n['id'],
-    'title': n['postTitle'] ?? n['title'] ?? '',
-    'author': (n['authorInfo'] as Map?)?['name'] ?? '[deleted]',
-    'subreddit': sub,
-    'subreddit_name_prefixed': community?['prefixedName'] ?? 'r/$sub',
-    'score': (n['score'] as num?)?.toInt() ?? 0,
-    'num_comments': (n['commentCount'] as num?)?.toInt() ?? 0,
-    'created_utc': (DateTime.tryParse('${n['createdAt']}')
-                ?.millisecondsSinceEpoch ??
-            0) /
-        1000,
-    'permalink': n['permalink'] ?? '/r/$sub/comments/$id/',
-    'url': url,
-    'domain': isSelf ? 'self.$sub' : host,
-    'is_self': isSelf,
-    'is_video': host == 'v.redd.it',
-    'selftext': (n['content'] as Map?)?['markdown'] ?? '',
-    'over_18': n['isNsfw'] ?? false,
-    'spoiler': n['isSpoiler'] ?? false,
-    'stickied': n['isStickied'] ?? false,
-    'locked': n['isLocked'] ?? false,
-    'saved': n['isSaved'] ?? false,
-    'likes': vote,
-    'link_flair_text': (n['flair'] as Map?)?['text'],
-    'thumbnail': sizes.isEmpty ? (isSelf ? 'self' : 'default') : sizes.first.url,
-    'post_hint': sizes.isEmpty
-        ? null
-        : host == 'i.redd.it'
-            ? 'image'
-            : host == 'v.redd.it'
-                ? 'hosted:video'
-                : 'link',
-    if (sizes.isNotEmpty)
-      'preview': {
-        'images': [
-          {
-            'source': image(sizes.last),
-            'resolutions': [for (final s in sizes) image(s)],
-          }
-        ],
-      },
-  };
 }

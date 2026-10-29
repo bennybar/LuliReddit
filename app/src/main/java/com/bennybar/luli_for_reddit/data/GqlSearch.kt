@@ -9,6 +9,7 @@ import com.bennybar.luli_for_reddit.core.str
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -18,13 +19,25 @@ import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatterBuilder
 import java.time.temporal.ChronoField
 
-// Website sign-in: Reddit's edge refuses the website's search endpoints
-// (403), so search runs on Reddit's app GraphQL API, as Reddit's own apps and
-// other clients (e.g. Hydra) do. Its operations are persisted queries, run by
+// Website sign-in: Reddit's edge refuses the website's search endpoints and
+// /by_id (403), so search and posts by id (Reddit Home, Blend) run on
+// Reddit's app GraphQL API, as Reddit's own apps and other clients (e.g.
+// Hydra) do. Its operations are persisted queries, run by
 // name and the hash of the query Reddit already knows.
 internal const val GQL_SEARCH_POSTS = "c3d31b88bfa15180fdcd0c8f6f13b8c0e131d0c981c9b9c8a7c537ddd0ed3348"
 internal const val GQL_SEARCH_COMMUNITIES = "b58025ad0c98bdb93e9dc1db909accf440573bd7d3a48d2c73a02e96d33f1943"
 internal const val GQL_SEARCH_PEOPLE = "db3607c1a7deea8441614a053c5f434f60da0c8c931db952f819a59d534d9743"
+internal const val GQL_POSTS_BY_IDS = "b210ea1d852cdc2c25d9bff2d9fa8a406e1a968f36392798812f336694ac27f4"
+
+/** A post (not an ad or an unavailable one) in GraphQL's results. */
+internal fun gqlIsPost(n: JsonElement?): Boolean =
+    n["__typename"].str() in setOf("SubredditPost", "ProfilePost", "DeletedSubredditPost")
+
+/** PostsByIds' variables. */
+internal fun postsByIdsVariables(ids: List<String>) = buildJsonObject {
+    for ((k, v) in postFlags) put(k, v)
+    putJsonArray("ids") { ids.forEach { add(JsonPrimitive(it)) } }
+}
 
 // The post fragment's switches, as Reddit's app sets them for full posts.
 private val postFlags = mapOf(
@@ -100,8 +113,9 @@ internal fun gqlUserData(n: JsonObject): JsonObject = buildJsonObject {
 }
 
 /**
- * A GraphQL post (from search) in the shape Post.fromData reads (Reddit's
- * listing JSON): enough for a card. Opening it loads the full post.
+ * A GraphQL post (search, PostsByIds) in the shape Post.fromData reads
+ * (Reddit's listing JSON): what a card shows, with its media. Opening it
+ * loads the full post.
  */
 internal fun gqlPostData(n: JsonObject): JsonObject {
     val fullname = n["id"].str() ?: ""
@@ -127,6 +141,14 @@ internal fun gqlPostData(n: JsonObject): JsonObject {
             asset["url"].str()?.let { add(Triple(it, asset["width"].int(), asset["height"].int())) }
         }
     }.distinctBy { it.first }
+    val media = n["media"]
+    val hls = media["streaming"]["hlsUrl"].str()
+    val gifMp4 = (media["animated"]["mp4_source"]["url"] ?: media["animated"]["mp4_xxxlarge"]["url"]).str()
+    // Every gallery image, as gallery_data + media_metadata.
+    val galleryItems = n["gallery"]["items"].arr()?.mapNotNull { it["media"].obj()?.takeIf { m -> m["url"].str() != null } }
+        ?: emptyList()
+    val root = n["crosspostRoot"]["post"].obj()
+    val icon = community["styles"]["icon"].str() ?: community["styles"]["legacyIcon"]["url"].str()
     return buildJsonObject {
         put("id", id)
         put("name", fullname)
@@ -157,16 +179,43 @@ internal fun gqlPostData(n: JsonObject): JsonObject {
         put("thumbnail", sizes.firstOrNull()?.first ?: if (isSelf) "self" else "default")
         if (sizes.isNotEmpty()) {
             put("post_hint", when (host) { "i.redd.it" -> "image"; "v.redd.it" -> "hosted:video"; else -> "link" })
-            putJsonObject("preview") {
-                putJsonArray("images") {
-                    addJsonObject {
-                        fun image(s: Triple<String, Int?, Int?>) = buildJsonObject {
-                            put("url", s.first); put("width", s.second); put("height", s.third)
-                        }
-                        put("source", image(sizes.last()))
-                        putJsonArray("resolutions") { sizes.forEach { add(image(it)) } }
+        }
+        if (icon != null) putJsonObject("sr_detail") { put("icon_img", icon.substringBefore('?')) }
+        if (hls != null) {
+            putJsonObject("media") {
+                putJsonObject("reddit_video") {
+                    put("hls_url", hls)
+                    put("is_gif", media["streaming"]["isGif"].bool() == true)
+                }
+            }
+        }
+        if (galleryItems.isNotEmpty()) {
+            putJsonObject("gallery_data") {
+                putJsonArray("items") { galleryItems.indices.forEach { i -> addJsonObject { put("media_id", "g$i") } } }
+            }
+            putJsonObject("media_metadata") {
+                galleryItems.forEachIndexed { i, m ->
+                    putJsonObject("g$i") {
+                        putJsonObject("s") { put("u", m["url"].str()); put("x", m["width"].int()); put("y", m["height"].int()) }
                     }
                 }
+            }
+        }
+        if (root != null && root["id"].str() != fullname) putJsonArray("crosspost_parent_list") { add(gqlPostData(root)) }
+        if (sizes.isNotEmpty() || gifMp4 != null) {
+            putJsonObject("preview") {
+                if (sizes.isNotEmpty()) {
+                    putJsonArray("images") {
+                        addJsonObject {
+                            fun image(s: Triple<String, Int?, Int?>) = buildJsonObject {
+                                put("url", s.first); put("width", s.second); put("height", s.third)
+                            }
+                            put("source", image(sizes.last()))
+                            putJsonArray("resolutions") { sizes.forEach { add(image(it)) } }
+                        }
+                    }
+                }
+                if (gifMp4 != null) putJsonObject("reddit_video_preview") { put("fallback_url", gifMp4) }
             }
         }
     }
