@@ -31,6 +31,9 @@ class SettingsStore(private val p: Prefs) {
             collapseRepliesOnly = b("collapseRepliesOnly", d.collapseRepliesOnly),
             voteEdge = b("voteEdge", d.voteEdge),
             autoTranslate = b("autoTranslate", d.autoTranslate),
+            translateSecondLanguage = p.getString("translateSecondLanguage") ?: d.translateSecondLanguage,
+            translateService = p.getString("translateService") ?: d.translateService,
+            azureRegion = p.getString("azureRegion") ?: d.azureRegion,
             volumeKeyNavigation = b("volumeKeyNavigation", d.volumeKeyNavigation),
             collapseBelowScore = p.getInt("collapseBelowScore"),
             collapseTopLevel = b("collapseTopLevel", d.collapseTopLevel),
@@ -171,6 +174,9 @@ class SettingsStore(private val p: Prefs) {
     fun setCollapseRepliesOnly(v: Boolean) { p.setBool("collapseRepliesOnly", v); set { it.copy(collapseRepliesOnly = v) } }
     fun setVoteEdge(v: Boolean) { p.setBool("voteEdge", v); set { it.copy(voteEdge = v) } }
     fun setAutoTranslate(v: Boolean) { p.setBool("autoTranslate", v); set { it.copy(autoTranslate = v) } }
+    fun setTranslateSecondLanguage(v: String) { p.setString("translateSecondLanguage", v); set { it.copy(translateSecondLanguage = v) } }
+    fun setTranslateService(v: String) { p.setString("translateService", v); set { it.copy(translateService = v) } }
+    fun setAzureRegion(v: String) { p.setString("azureRegion", v); set { it.copy(azureRegion = v) } }
     fun setVolumeKeyNavigation(v: Boolean) { p.setBool("volumeKeyNavigation", v); set { it.copy(volumeKeyNavigation = v) } }
     fun setCollapseBelowScore(v: Int?) {
         if (v == null) p.remove("collapseBelowScore") else p.setInt("collapseBelowScore", v)

@@ -153,6 +153,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.bennybar.luli_for_reddit.feature.inbox.RedditAppNotifications
 import com.bennybar.luli_for_reddit.app
+import com.bennybar.luli_for_reddit.core.Translate
 import com.bennybar.luli_for_reddit.feature.media.clearVideoCache
 import com.bennybar.luli_for_reddit.core.Backup
 import com.bennybar.luli_for_reddit.core.RedditConstants
@@ -274,10 +275,12 @@ fun SettingsList(
     val session by app.session.state.collectAsStateWithLifecycle()
     var aiKeySet by remember { mutableStateOf(false) }
     var giphyKeySet by remember { mutableStateOf(false) }
+    var azureKeySet by remember { mutableStateOf(false) }
     var authMode by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(secureVersion, session) {
         aiKeySet = !app.secureStore.openaiKey().isNullOrEmpty()
         giphyKeySet = !app.secureStore.giphyKey().isNullOrEmpty()
+        azureKeySet = !app.secureStore.azureTranslatorKey().isNullOrEmpty()
         authMode = runCatching { app.secureStore.authMode() }.getOrNull()
     }
     val web = authMode == "web"
@@ -518,11 +521,6 @@ fun SettingsList(
             "An edge in the vote's color on comments you upvoted or downvoted",
             Icons.Rounded.ThumbsUpDown, s.voteEdge, ctrl::setVoteEdge,
         )
-        switch(
-            "Auto-translate posts",
-            "Posts and comments not in your phone's language open translated, on your phone (where it can translate)",
-            Icons.Rounded.Translate, s.autoTranslate, ctrl::setAutoTranslate,
-        )
         tile(
             "Collapse low-scoring comments",
             s.collapseBelowScore?.let { "Comments below $it points start collapsed" } ?: "Off",
@@ -605,6 +603,67 @@ fun SettingsList(
             nav.push(Route.NotificationActivity)
         }
         divider("notifications")
+
+        // ---------------------------------------------------------------- Translation
+        section("Translation")
+        tile(
+            "Second language",
+            s.translateSecondLanguage.ifEmpty { null }?.let { "Translate also offers ${Translate.languageName(it)}" }
+                ?: "Off: Translate offers your phone's language only",
+            Icons.Rounded.Translate,
+            onClick = launch {
+                val options = listOf(PickOption("", "Off")) +
+                    TRANSLATE_LANGUAGES.filter { it != Translate.primary }
+                        .map { PickOption(it, Translate.languageName(it)) }.sortedBy { it.label }
+                pickOption(options, s.translateSecondLanguage, radio = false)?.let(ctrl::setTranslateSecondLanguage)
+            },
+        )
+        switch(
+            "Auto-translate posts",
+            "Posts in neither language open translated into your phone's",
+            Icons.Rounded.Translate, s.autoTranslate, ctrl::setAutoTranslate,
+        )
+        tile(
+            "Translation service",
+            (if (s.translateService == "azure") "Azure Translator" else "OpenAI (your AI key)") +
+                " · for languages your phone can't translate",
+            Icons.Outlined.Dns,
+            onClick = launch {
+                pickOption(
+                    listOf(
+                        PickOption("openai", "OpenAI", "Your AI summaries key; each translation costs a little"),
+                        PickOption("azure", "Azure Translator", "Your Azure key; 2 million characters a month free"),
+                    ),
+                    s.translateService,
+                )?.let(ctrl::setTranslateService)
+            },
+        )
+        if (s.translateService == "azure") {
+            tile(
+                "Azure Translator key",
+                if (azureKeySet) "Key set — tap to change or remove" else "Add your Translator resource's key",
+                Icons.Outlined.Key,
+                onClick = launch {
+                    val r = textDialog(
+                        "Azure Translator key", secret = true, removable = azureKeySet,
+                        note = "Stored securely on this device (never in backups). Translations send the text to Microsoft.",
+                    ) ?: return@launch
+                    when (r) {
+                        TextResult.Remove -> app.secureStore.saveAzureTranslatorKey(null)
+                        is TextResult.Save -> if (r.text.isNotBlank()) app.secureStore.saveAzureTranslatorKey(r.text.trim())
+                    }
+                    secureVersion++
+                },
+            )
+            tile("Azure region", s.azureRegion.ifEmpty { "Global" }, Icons.Rounded.Link, onClick = launch {
+                val r = textDialog(
+                    "Azure region", initial = s.azureRegion, hint = "e.g. westeurope",
+                    note = "Your Translator resource's location. Leave empty for a global resource.",
+                ) as? TextResult.Save ?: return@launch
+                ctrl.setAzureRegion(r.text.trim())
+            })
+        }
+        divider("translation")
 
         // ---------------------------------------------------------------- AI
         section("AI summaries")
@@ -1192,3 +1251,8 @@ private fun ForYouMixSlider(value: Int, onChange: (Int) -> Unit) {
         }
     }
 }
+
+/** Settings → Second language: the languages Ilay can translate into (phone or service). */
+private val TRANSLATE_LANGUAGES = listOf(
+    "ar", "de", "en", "es", "fr", "he", "hi", "id", "it", "ja", "ko", "nl", "pl", "pt", "ru", "th", "tr", "uk", "vi", "zh",
+)

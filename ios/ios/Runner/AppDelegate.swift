@@ -97,10 +97,13 @@ import workmanager_apple
         case "detect":
           result(AppDelegate.detectLanguage(args["text"] as? String ?? ""))
         case "canTranslate":
-          Task { result(await AppDelegate.canTranslate(from: args["from"] as? String ?? "")) }
+          Task {
+            result(await AppDelegate.canTranslate(from: args["from"] as? String ?? "", to: args["to"] as? String ?? ""))
+          }
         case "translate":
           Task { @MainActor in
-            result(await AppDelegate.translate(args["texts"] as? [String] ?? [], from: args["from"] as? String ?? ""))
+            result(await AppDelegate.translate(
+              args["texts"] as? [String] ?? [], from: args["from"] as? String ?? "", to: args["to"] as? String ?? ""))
           }
         default:
           result(FlutterMethodNotImplemented)
@@ -108,9 +111,6 @@ import workmanager_apple
       }
     }
   }
-
-  /// The phone's language: what posts are translated into.
-  private static var targetLanguage: Locale.Language { Locale.current.language }
 
   /// The language [text] is in ("de"), when NaturalLanguage clearly leads with one.
   private static func detectLanguage(_ text: String) -> String? {
@@ -122,11 +122,10 @@ import workmanager_apple
     return best.key.rawValue
   }
 
-  /// Whether the phone can translate [from] into its language (now, or after a download).
-  private static func canTranslate(from: String) async -> Bool {
-    let source = Locale.Language(identifier: from)
-    guard source.languageCode != targetLanguage.languageCode else { return false }
-    let status = await LanguageAvailability().status(from: source, to: targetLanguage)
+  /// Whether the phone can translate [from] into [to] (now, or after a download).
+  private static func canTranslate(from: String, to: String) async -> Bool {
+    let status = await LanguageAvailability().status(
+      from: Locale.Language(identifier: from), to: Locale.Language(identifier: to))
     return status != .unsupported
   }
 
@@ -134,8 +133,9 @@ import workmanager_apple
   /// through the system's download prompt, which needs a view: a clear one
   /// shown over Ilay while it works.
   @MainActor
-  private static func translate(_ texts: [String], from: String) async -> [String]? {
+  private static func translate(_ texts: [String], from: String, to: String) async -> [String]? {
     let source = Locale.Language(identifier: from)
+    let targetLanguage = Locale.Language(identifier: to)
     func run(_ session: TranslationSession) async -> [String]? {
       let requests = texts.enumerated().map { TranslationSession.Request(sourceText: $1, clientIdentifier: "\($0)") }
       guard let responses = try? await session.translations(from: requests) else { return nil }

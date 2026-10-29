@@ -45,6 +45,7 @@ import 'compose_sheet.dart';
 import 'post_actions.dart';
 import 'share_comment_image.dart';
 import 'thread_translation.dart';
+import 'translate_button.dart';
 import '../../core/widgets/error_view.dart';
 
 class PostDetailScreen extends ConsumerStatefulWidget {
@@ -130,6 +131,15 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
         ref.read(threadTranslationProvider(_key).notifier).onThread(t);
       }
     }, fireImmediately: true);
+    // A translation that failed says why, once.
+    ref.listenManual(threadTranslationProvider(_key), (prev, next) {
+      final n = ref.read(threadTranslationProvider(_key).notifier);
+      if (prev?.translating == true && !next.translating && n.error != null) {
+        ScaffoldMessenger.maybeOf(context)
+            ?.showSnackBar(SnackBar(content: Text(n.error!)));
+        n.error = null;
+      }
+    });
     _dwell.start();
     _lifecycle = AppLifecycleListener(
       onStateChange: (s) =>
@@ -578,22 +588,12 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
         title: Text(thread?.post.subredditPrefixed ??
             (widget.subreddit == '_' ? 'Post' : 'r/${widget.subreddit}')),
         actions: [
-          if (thread != null && translation.canTranslate)
-            IconButton(
-              tooltip:
-                  translation.shown != null ? 'Show original' : 'Translate',
-              onPressed: translation.translating
-                  ? null
-                  : ref.read(threadTranslationProvider(_key).notifier).toggle,
-              icon: translation.translating
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : Icon(Icons.translate_rounded,
-                      color: translation.shown != null
-                          ? Theme.of(context).colorScheme.primary
-                          : null),
+          if (thread != null && translation.targets.isNotEmpty)
+            TranslateButton(
+              targets: translation.targets,
+              shownIn: translation.shownIn,
+              busy: translation.translating,
+              onPick: ref.read(threadTranslationProvider(_key).notifier).translateTo,
             ),
           if (thread != null)
             PopupMenuButton<String>(

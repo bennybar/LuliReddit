@@ -64,8 +64,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.material3.LocalContentColor
-import androidx.compose.material.icons.rounded.Translate
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -161,26 +160,36 @@ private fun SummarySheet(
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
     var post by remember { mutableStateOf<Post?>(null) }
-    // A summary not in the phone's language: translated on the phone.
+    // Translate, as on the thread: the phone's language and the second one.
     var summaryLanguage by remember { mutableStateOf<String?>(null) }
-    var translated by remember { mutableStateOf<String?>(null) }
-    var showTranslated by remember { mutableStateOf(false) }
+    var targets by remember { mutableStateOf(emptyList<String>()) }
+    val translated = remember { mutableStateMapOf<String, String>() }
+    var shownIn by remember { mutableStateOf<String?>(null) }
     var translating by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val cs = MaterialTheme.colorScheme
+    val shown = shownIn?.let { translated[it] } ?: result
 
-    fun toggleTranslation() {
-        if (showTranslated || translated != null) {
-            showTranslated = !showTranslated
+    fun translateTo(to: String?) {
+        if (to == null || to in translated) {
+            shownIn = to
             return
         }
         val text = result ?: return
         val from = summaryLanguage ?: return
         translating = true
         scope.launch {
-            translated = Translate.translate(app.context, listOf(text), from)?.single()
+            val out = try {
+                Translate.translate(app.context, listOf(text), from, to)?.single()
+            } catch (e: Exception) {
+                snack("Couldn't translate: ${e.message}")
+                null
+            }
             translating = false
-            if (translated != null) showTranslated = true else snack("Couldn't translate the summary")
+            if (out != null) {
+                translated[to] = out
+                shownIn = to
+            }
         }
     }
 
@@ -213,11 +222,11 @@ private fun SummarySheet(
         }
         loading = false
         val text = result ?: return@LaunchedEffect
-        val lang = Translate.detect(app.context, text)
-        if (lang != null && Translate.canTranslate(app.context, lang)) {
-            summaryLanguage = lang
-            if (app.settings.value.autoTranslate) toggleTranslation()
-        }
+        val lang = Translate.detect(app.context, text) ?: return@LaunchedEffect
+        summaryLanguage = lang
+        targets = Translate.targets(app.context, lang)
+        val s = app.settings.value
+        if (s.autoTranslate && lang != s.translateSecondLanguage && Translate.primary in targets) translateTo(Translate.primary)
     }
 
     // Opens fully, at most 92% tall, and scrolls inside. (It used to open half
@@ -241,18 +250,12 @@ private fun SummarySheet(
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                     modifier = Modifier.weight(1f),
                 )
-                if (result != null && !loading && summaryLanguage != null) {
-                    val label = if (showTranslated) "Show original" else "Translate"
-                    IconTooltip(label) {
-                        IconButton(onClick = ::toggleTranslation, enabled = !translating) {
-                            if (translating) Loading(Modifier.size(18.dp))
-                            else Icon(Icons.Rounded.Translate, label, Modifier.size(18.dp), tint = if (showTranslated) cs.primary else LocalContentColor.current)
-                        }
-                    }
+                if (result != null && !loading && targets.isNotEmpty()) {
+                    TranslateButton(targets, shownIn, translating, ::translateTo, size = 18.dp)
                 }
                 if (result != null && !loading) {
                     IconTooltip("Copy") {
-                        IconButton(onClick = { copyToClipboard((if (showTranslated) translated else null) ?: result!!) }) {
+                        IconButton(onClick = { copyToClipboard(shown ?: "") }) {
                             Icon(Icons.Rounded.ContentCopy, "Copy", Modifier.size(18.dp))
                         }
                     }
@@ -268,7 +271,7 @@ private fun SummarySheet(
                     Spacer(Modifier.height(12.dp))
                     Button(onClick = { attempt++ }) { Text("Retry") }
                 }
-                else -> RedditMarkdown((if (showTranslated) translated else null) ?: result ?: "", selectable = true)
+                else -> RedditMarkdown(shown ?: "", selectable = true)
             }
             if (!loading && error == null) {
                 Spacer(Modifier.height(16.dp))

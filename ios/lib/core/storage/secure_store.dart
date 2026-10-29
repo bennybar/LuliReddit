@@ -24,6 +24,7 @@ class SecureStore {
   static const _kRedirectUri = 'redirect_uri';
   static const _kGiphyKey = 'giphy_api_key';
   static const _kOpenaiKey = 'openai_api_key';
+  static const _kAzureTranslatorKey = 'azure_translator_key';
   static const _kAccessToken = 'access_token';
   static const _kRefreshToken = 'refresh_token';
   static const _kTokenExpiry = 'token_expiry'; // millis since epoch
@@ -52,6 +53,12 @@ class SecureStore {
   Future<String?> get openaiKey => read(_kOpenaiKey);
   Future<void> saveOpenaiKey(String? value) =>
       _write(_kOpenaiKey, (value == null || value.isEmpty) ? null : value);
+
+  // Azure Translator key (Settings → Translation service).
+  // Account-independent.
+  Future<String?> get azureTranslatorKey => read(_kAzureTranslatorKey);
+  Future<void> saveAzureTranslatorKey(String? value) => _write(
+      _kAzureTranslatorKey, (value == null || value.isEmpty) ? null : value);
 
   Future<void> saveCredentials({
     required String clientId,

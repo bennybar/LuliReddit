@@ -2,28 +2,34 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/translate.dart';
 import '../../models/comment.dart';
+import '../auth/auth_controller.dart';
 import '../settings/settings_controller.dart';
 import 'comment_tree.dart';
 import 'comments_controller.dart';
 
-/// A thread's translation: whether it's offered ([canTranslate]: the thread
-/// isn't in the phone's language and the phone can translate it), and the
+/// A thread's translation: the languages Translate offers ([targets]: the
+/// phone's and Settings → Second language, minus the thread's own), and the
 /// translated post ("title", "body") and comment (fullname) texts while
-/// shown ([shown]; null: the original).
+/// shown in [shownIn] ([shown]; null: the original).
 class ThreadTranslationState {
   const ThreadTranslationState(
-      {this.canTranslate = false, this.shown, this.translating = false});
-  final bool canTranslate;
+      {this.targets = const [],
+      this.shown,
+      this.shownIn,
+      this.translating = false});
+  final List<String> targets;
   final Map<String, String>? shown;
+  final String? shownIn;
   final bool translating;
 
   ThreadTranslationState copyWith(
-          {bool? canTranslate,
-          Map<String, String>? Function()? shown,
+          {List<String>? targets,
+          (Map<String, String>?, String?)? shown,
           bool? translating}) =>
       ThreadTranslationState(
-        canTranslate: canTranslate ?? this.canTranslate,
-        shown: shown == null ? this.shown : shown(),
+        targets: targets ?? this.targets,
+        shown: shown == null ? this.shown : shown.$1,
+        shownIn: shown == null ? shownIn : shown.$2,
         translating: translating ?? this.translating,
       );
 }
@@ -41,21 +47,25 @@ class ThreadTranslation extends StateNotifier<ThreadTranslationState> {
   String? _language; // the thread's, once detected
   bool _detecting = false;
   PostThread? _thread;
-  // Every text translated so far, kept while the original is shown.
-  final _texts = <String, String>{};
+  // Every text translated so far, per language, kept while the original is
+  // shown.
+  final _texts = <String, Map<String, String>>{};
 
   /// A thread (re)loaded or grown (more comments): the first one is checked
-  /// for its language (Settings → Auto-translate translates it right away);
-  /// while shown translated, new comments are translated too.
+  /// for its language; while shown translated, new comments are translated
+  /// too.
   void onThread(PostThread thread) {
     _thread = thread;
     if (_language == null && !_detecting) {
       _detect(thread);
-    } else if (state.shown != null) {
-      _translate();
+    } else if (state.shownIn case final to?) {
+      _translate(to);
     }
   }
 
+  /// Offers Translate into the phone's language and the second one. With
+  /// Settings → Auto-translate, a thread in neither opens translated into
+  /// the phone's.
   Future<void> _detect(PostThread t) async {
     _detecting = true;
     // The post and its first comments: a title alone is too short to be sure.
@@ -65,39 +75,58 @@ class ThreadTranslation extends StateNotifier<ThreadTranslationState> {
       for (final c in t.comments.where((c) => !c.isMore).take(5)) c.body,
     ].join('\n');
     final lang = await Translate.detect(sample);
-    if (lang == null || !await Translate.canTranslate(lang) || !mounted) return;
+    if (lang == null || !mounted) return;
+    final s = ref.read(settingsControllerProvider);
+    final targets =
+        await Translate.targets(lang, s, ref.read(secureStoreProvider));
+    if (targets.isEmpty || !mounted) return;
     _language = lang;
-    state = state.copyWith(canTranslate: true);
-    if (ref.read(settingsControllerProvider).autoTranslate) _translate();
-  }
-
-  /// Translate / Show original.
-  void toggle() {
-    if (state.shown != null) {
-      state = state.copyWith(shown: () => null);
-    } else {
-      _translate();
+    state = state.copyWith(targets: targets);
+    if (s.autoTranslate &&
+        lang != s.translateSecondLanguage &&
+        targets.contains(Translate.primary)) {
+      _translate(Translate.primary);
     }
   }
 
-  Future<void> _translate() async {
+  /// Shows the thread in [to], or the original when null.
+  void translateTo(String? to) {
+    if (to == null) {
+      state = state.copyWith(shown: (null, null));
+    } else {
+      _translate(to);
+    }
+  }
+
+  /// Error text for the screen to show once (Reddit-style snack).
+  String? error;
+
+  Future<void> _translate(String to) async {
     final from = _language;
     final t = _thread;
     if (from == null || t == null || state.translating) return;
+    final texts = _texts.putIfAbsent(to, () => {});
     final missing = <String, String>{
-      if (!_texts.containsKey('title')) 'title': t.post.title,
-      if (!_texts.containsKey('body') && t.post.selftext.isNotEmpty)
+      if (!texts.containsKey('title')) 'title': t.post.title,
+      if (!texts.containsKey('body') && t.post.selftext.isNotEmpty)
         'body': t.post.selftext,
       for (final Comment c in CommentTree.flatten(t.comments, const {}))
-        if (!c.isMore && !_texts.containsKey(c.fullname) && c.body.isNotEmpty)
+        if (!c.isMore && !texts.containsKey(c.fullname) && c.body.isNotEmpty)
           c.fullname: c.body,
     };
     if (missing.isEmpty) {
-      state = state.copyWith(shown: () => Map.of(_texts));
+      state = state.copyWith(shown: (Map.of(texts), to));
       return;
     }
     state = state.copyWith(translating: true);
-    final out = await Translate.translate(missing.values.toList(), from);
+    List<String>? out;
+    try {
+      out = await Translate.translate(missing.values.toList(), from, to,
+          ref.read(settingsControllerProvider), ref.read(secureStoreProvider));
+      if (out == null) error = "Couldn't translate this post";
+    } catch (e) {
+      error = "Couldn't translate: ${'$e'.replaceFirst('Exception: ', '')}";
+    }
     if (!mounted) return;
     if (out == null) {
       state = state.copyWith(translating: false);
@@ -105,9 +134,9 @@ class ThreadTranslation extends StateNotifier<ThreadTranslationState> {
     }
     final keys = missing.keys.toList();
     for (var i = 0; i < keys.length && i < out.length; i++) {
-      _texts[keys[i]] = out[i];
+      texts[keys[i]] = out[i];
     }
-    state = state.copyWith(translating: false, shown: () => Map.of(_texts));
+    state = state.copyWith(translating: false, shown: (Map.of(texts), to));
   }
 }
 

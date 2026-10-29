@@ -79,6 +79,9 @@ class Settings {
     required this.collapseRepliesOnly,
     required this.voteEdge,
     required this.autoTranslate,
+    required this.translateSecondLanguage,
+    required this.translateService,
+    required this.azureRegion,
     required this.hideReadPosts,
     required this.markReadOnScroll,
     required this.swipePostStart,
@@ -141,8 +144,14 @@ class Settings {
   final bool collapseRepliesOnly;
   // Comments you voted on get an edge in the vote's color.
   final bool voteEdge;
-  // Posts not in the phone's language open translated (on-device).
+  // Posts in neither translation language open translated into the phone's.
   final bool autoTranslate;
+  // Language code Translate also offers ('' = none).
+  final String translateSecondLanguage;
+  // For what the phone can't translate: 'openai' (the AI key) or 'azure'.
+  final String translateService;
+  // The Azure Translator resource's region ('' = global).
+  final String azureRegion;
   final bool hideReadPosts; // skip already-read posts when feeds load
   final bool markReadOnScroll; // a post scrolled past counts as read
   // What swiping does: "start" = from the start edge (rightward in LTR).
@@ -213,6 +222,9 @@ class Settings {
     bool? collapseRepliesOnly,
     bool? voteEdge,
     bool? autoTranslate,
+    String? translateSecondLanguage,
+    String? translateService,
+    String? azureRegion,
     bool? hideReadPosts,
     bool? markReadOnScroll,
     SwipeAction? swipePostStart,
@@ -275,6 +287,10 @@ class Settings {
         collapseRepliesOnly: collapseRepliesOnly ?? this.collapseRepliesOnly,
         voteEdge: voteEdge ?? this.voteEdge,
         autoTranslate: autoTranslate ?? this.autoTranslate,
+        translateSecondLanguage:
+            translateSecondLanguage ?? this.translateSecondLanguage,
+        translateService: translateService ?? this.translateService,
+        azureRegion: azureRegion ?? this.azureRegion,
         hideReadPosts: hideReadPosts ?? this.hideReadPosts,
         markReadOnScroll: markReadOnScroll ?? this.markReadOnScroll,
         swipePostStart: swipePostStart ?? this.swipePostStart,
@@ -348,6 +364,9 @@ class SettingsController extends Notifier<Settings> {
       collapseRepliesOnly: p.getBool('collapseRepliesOnly') ?? false,
       voteEdge: p.getBool('voteEdge') ?? true,
       autoTranslate: p.getBool('autoTranslate') ?? false,
+      translateSecondLanguage: p.getString('translateSecondLanguage') ?? '',
+      translateService: p.getString('translateService') ?? 'openai',
+      azureRegion: p.getString('azureRegion') ?? '',
       hideReadPosts: p.getBool('hideReadPosts') ?? false,
       markReadOnScroll: p.getBool('markReadOnScroll') ?? false,
       swipePostStart:
@@ -548,6 +567,21 @@ class SettingsController extends Notifier<Settings> {
   void setAutoTranslate(bool v) {
     _prefs.setBool('autoTranslate', v);
     state = state.copyWith(autoTranslate: v);
+  }
+
+  void setTranslateSecondLanguage(String v) {
+    _prefs.setString('translateSecondLanguage', v);
+    state = state.copyWith(translateSecondLanguage: v);
+  }
+
+  void setTranslateService(String v) {
+    _prefs.setString('translateService', v);
+    state = state.copyWith(translateService: v);
+  }
+
+  void setAzureRegion(String v) {
+    _prefs.setString('azureRegion', v);
+    state = state.copyWith(azureRegion: v);
   }
 
   void setInAppBrowser(bool v) {

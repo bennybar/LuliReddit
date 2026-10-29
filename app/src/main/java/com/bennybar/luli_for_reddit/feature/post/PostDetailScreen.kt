@@ -149,6 +149,8 @@ import coil3.compose.AsyncImage
 import com.bennybar.luli_for_reddit.feature.media.rememberPauseWhileScrolling
 import com.bennybar.luli_for_reddit.feature.media.LocalListScrolling
 import com.bennybar.luli_for_reddit.app
+import androidx.compose.ui.unit.Dp
+import com.bennybar.luli_for_reddit.core.Translate
 import com.bennybar.luli_for_reddit.core.compactNumber
 import com.bennybar.luli_for_reddit.core.extractMediaLinks
 import com.bennybar.luli_for_reddit.core.bodySegments
@@ -347,14 +349,8 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
                 },
                 actions = {
                     if (thread != null) {
-                        if (ui.canTranslate) {
-                            val shown = ui.translation != null
-                            IconTooltip(if (shown) "Show original" else "Translate") {
-                                IconButton(onClick = vm::toggleTranslation, enabled = !ui.translating) {
-                                    if (ui.translating) Loading(Modifier.size(20.dp))
-                                    else Icon(Icons.Rounded.Translate, if (shown) "Show original" else "Translate", tint = if (shown) MaterialTheme.colorScheme.primary else LocalContentColor.current)
-                                }
-                            }
+                        if (ui.translateTargets.isNotEmpty()) {
+                            TranslateButton(ui.translateTargets, ui.translatedTo, ui.translating, vm::translateTo)
                         }
                         SortMenu(vm.currentSort, vm::changeSort)
                         IconTooltip("Search comments") {
@@ -1976,5 +1972,42 @@ private fun AuthorDot(name: String, size: Int) {
             fontSize = (size * 0.5f).sp,
             lineHeight = (size * 0.5f).sp,
         )
+    }
+}
+
+/**
+ * Translate: with one language to offer, a toggle (it / the original);
+ * with two (the phone's and Settings → Second language), a menu.
+ */
+@Composable
+internal fun TranslateButton(targets: List<String>, shownIn: String?, busy: Boolean, onPick: (String?) -> Unit, size: Dp = 24.dp) {
+    var menu by remember { mutableStateOf(false) }
+    val label = if (shownIn != null) "Show original" else "Translate"
+    Box {
+        IconTooltip(label) {
+            IconButton(
+                onClick = {
+                    when {
+                        targets.size > 1 -> menu = true
+                        shownIn != null -> onPick(null)
+                        else -> onPick(targets.single())
+                    }
+                },
+                enabled = !busy,
+            ) {
+                if (busy) Loading(Modifier.size(size - 4.dp))
+                else Icon(Icons.Rounded.Translate, label, Modifier.size(size), tint = if (shownIn != null) MaterialTheme.colorScheme.primary else LocalContentColor.current)
+            }
+        }
+        DropdownMenu(menu, onDismissRequest = { menu = false }) {
+            for (t in targets) {
+                DropdownMenuItem(
+                    text = { Text("Translate to ${Translate.languageName(t)}") },
+                    trailingIcon = { if (t == shownIn) Icon(Icons.Rounded.Check, null) },
+                    onClick = { menu = false; onPick(t) },
+                )
+            }
+            if (shownIn != null) DropdownMenuItem(text = { Text("Show original") }, onClick = { menu = false; onPick(null) })
+        }
     }
 }

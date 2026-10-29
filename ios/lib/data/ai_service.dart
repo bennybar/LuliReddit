@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 
+import '../core/translate.dart';
 import '../models/comment.dart';
 import '../models/post.dart';
 
@@ -96,6 +99,48 @@ class AiService {
         {'role': 'user', 'content': question},
       ],
     );
+  }
+
+  /// [texts] translated into [language] (its English name), in order: the
+  /// fallback for languages the phone can't translate (translate.dart). Sent
+  /// as JSON arrays, in batches so a long thread fits a reply.
+  static Future<List<String>> translate({
+    required String baseUrl,
+    required String apiKey,
+    required String model,
+    required List<String> texts,
+    required String language,
+  }) async {
+    final system = 'Translate each string in the JSON array the user sends '
+        'into $language. Keep Markdown, links, line breaks, u/ and r/ names as '
+        'they are. Reply with only a JSON array of the translations: the same '
+        'number of strings, in the same order.';
+    final out = <String>[];
+    for (final batch in Translate.batches(texts, 6000, 60)) {
+      final reply = await _chat(
+        baseUrl: baseUrl,
+        apiKey: apiKey,
+        model: model,
+        messages: [
+          {'role': 'system', 'content': system},
+          {'role': 'user', 'content': jsonEncode(batch)},
+        ],
+      );
+      // Some models wrap it in a ```json fence.
+      final start = reply.indexOf('['), end = reply.lastIndexOf(']');
+      List? list;
+      try {
+        if (start >= 0 && end > start) {
+          list = jsonDecode(reply.substring(start, end + 1)) as List;
+        }
+      } catch (_) {}
+      if (list == null || list.length != batch.length) {
+        throw Exception("The AI's translation didn't come back whole. Try "
+            'again.');
+      }
+      out.addAll(list.map((e) => '$e'));
+    }
+    return out;
   }
 
   /// One /v1/chat/completions call; returns the reply text or throws with a

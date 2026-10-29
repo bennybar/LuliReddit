@@ -1,6 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.post
 
 import com.bennybar.luli_for_reddit.core.AppJson
+import com.bennybar.luli_for_reddit.core.Translate
 import com.bennybar.luli_for_reddit.core.get
 import com.bennybar.luli_for_reddit.core.net.Http
 import com.bennybar.luli_for_reddit.core.net.await
@@ -94,6 +95,27 @@ object AiService {
             add("user" to question)
         }
         return chat(baseUrl, apiKey, model, messages)
+    }
+
+    /**
+     * [texts] translated into [language] (its English name), in order: the
+     * fallback for languages the phone can't translate (Translate.kt). Sent
+     * as JSON arrays, in batches so a long thread fits a reply.
+     */
+    suspend fun translate(baseUrl: String, apiKey: String, model: String, texts: List<String>, language: String): List<String> {
+        val system = "Translate each string in the JSON array the user sends into $language. Keep Markdown, " +
+            "links, line breaks, u/ and r/ names as they are. Reply with only a JSON array of the " +
+            "translations: the same number of strings, in the same order."
+        val out = ArrayList<String>(texts.size)
+        for (batch in Translate.batches(texts, 6_000, 60)) {
+            val reply = chat(baseUrl, apiKey, model, listOf("system" to system, "user" to JsonArray(batch.map(::JsonPrimitive)).toString()))
+            // Some models wrap it in a ```json fence.
+            val json = reply.substringAfter("[", "").substringBeforeLast("]", "")
+            val list = runCatching { AppJson.parseToJsonElement("[$json]") as JsonArray }.getOrNull()
+            if (list == null || list.size != batch.size) throw Exception("The AI's translation didn't come back whole. Try again.")
+            list.mapTo(out) { (it as? JsonPrimitive)?.content ?: "" }
+        }
+        return out
     }
 
     /** One /v1/chat/completions call; returns the reply text or throws with a readable message. */

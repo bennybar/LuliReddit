@@ -14,6 +14,7 @@ import '../../core/app_icon.dart';
 import '../../core/backup.dart';
 import '../../core/network/rate_limit.dart';
 import '../../core/theme/motion.dart';
+import '../../core/translate.dart';
 import '../../core/widgets/pick_one_menu.dart';
 import '../../data/ai_service.dart';
 import '../post/comments_controller.dart' show commentSorts, commentSortLabels;
@@ -28,6 +29,10 @@ import '../notifications/inbox_poller.dart';
 import '../notifications/notification_service.dart';
 import '../updates/update_checker.dart';
 import 'settings_controller.dart';
+
+/// Whether an Azure Translator key is stored (Settings → Translation).
+final azureKeyProvider = FutureProvider<String?>(
+    (ref) => ref.read(secureStoreProvider).azureTranslatorKey);
 
 /// Summary languages: (English name the prompt uses, label). '' = the
 /// thread's own.
@@ -490,15 +495,6 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             value: s.voteEdge,
             onChanged: ctrl.setVoteEdge,
           ),
-          SwitchListTile(
-            secondary: const Icon(Icons.translate_rounded),
-            title: const Text('Auto-translate posts'),
-            subtitle: const Text(
-                'Posts and comments not in your phone\'s language open '
-                'translated, on your phone'),
-            value: s.autoTranslate,
-            onChanged: ctrl.setAutoTranslate,
-          ),
           ListTile(
             leading: const Icon(Icons.unfold_less_rounded),
             title: const Text('Collapse low-scoring comments'),
@@ -610,6 +606,59 @@ class _SettingsListState extends ConsumerState<SettingsList> {
                 "couldn't, and why · Check now"),
             onTap: () => context.push('/notification_activity'),
           ),
+          const Divider(),
+          _section(context, 'Translation'),
+          ListTile(
+            leading: const Icon(Icons.translate_rounded),
+            title: const Text('Second language'),
+            subtitle: Text(s.translateSecondLanguage.isEmpty
+                ? "Off: Translate offers your phone's language only"
+                : 'Translate also offers '
+                    '${Translate.languageName(s.translateSecondLanguage)}'),
+            onTap: () => _pickFrom(context, [
+              ('', 'Off'),
+              for (final e in (Translate.englishNames.entries.toList()
+                    ..sort((a, b) => a.value.compareTo(b.value))))
+                if (e.key != Translate.primary) (e.key, e.value),
+            ], s.translateSecondLanguage, ctrl.setTranslateSecondLanguage),
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.translate_rounded),
+            title: const Text('Auto-translate posts'),
+            subtitle: const Text(
+                "Posts in neither language open translated into your phone's"),
+            value: s.autoTranslate,
+            onChanged: ctrl.setAutoTranslate,
+          ),
+          ListTile(
+            leading: const Icon(Icons.dns_outlined),
+            title: const Text('Translation service'),
+            subtitle: Text('${s.translateService == 'azure' ? 'Azure Translator' : 'OpenAI (your AI key)'}'
+                " · for languages your phone can't translate"),
+            onTap: () => _pickFrom(
+                context,
+                const [('openai', 'OpenAI'), ('azure', 'Azure Translator')],
+                s.translateService,
+                ctrl.setTranslateService),
+          ),
+          if (s.translateService == 'azure') ...[
+            ListTile(
+              leading: const Icon(Icons.key_rounded),
+              title: const Text('Azure Translator key'),
+              subtitle: Text(
+                  ref.watch(azureKeyProvider).valueOrNull?.isNotEmpty == true
+                      ? 'Key set — tap to change or remove'
+                      : "Add your Translator resource's key"),
+              onTap: () => _editAzure(context, ref, ctrl, s, key: true),
+            ),
+            ListTile(
+              leading: const Icon(Icons.public_rounded),
+              title: const Text('Azure region'),
+              subtitle:
+                  Text(s.azureRegion.isEmpty ? 'Global' : s.azureRegion),
+              onTap: () => _editAzure(context, ref, ctrl, s, key: false),
+            ),
+          ],
           const Divider(),
           _section(context, 'AI summaries'),
           ListTile(
@@ -1336,6 +1385,96 @@ class _SettingsListState extends ConsumerState<SettingsList> {
         ),
       ),
     );
+  }
+
+  /// A one-of list in a bottom sheet (Second language, Translation service).
+  void _pickFrom(BuildContext context, List<(String, String)> options,
+      String current, void Function(String) onPick) {
+    showModalBottomSheet(
+      context: context,
+      sheetAnimationStyle: sheetMotion,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (ctx) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(ctx).height * 0.7),
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              for (final (value, label) in options)
+                ListTile(
+                  title: Text(label),
+                  trailing: value == current
+                      ? const Icon(Icons.check_rounded)
+                      : null,
+                  onTap: () {
+                    onPick(value);
+                    Navigator.pop(ctx);
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Azure Translator's key ([key]) or region.
+  Future<void> _editAzure(BuildContext context, WidgetRef ref,
+      SettingsController ctrl, Settings s,
+      {required bool key}) async {
+    final hasKey = ref.read(azureKeyProvider).valueOrNull?.isNotEmpty == true;
+    final text = TextEditingController(text: key ? '' : s.azureRegion);
+    final action = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(key ? 'Azure Translator key' : 'Azure region'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: text,
+              autofocus: true,
+              obscureText: key,
+              autocorrect: false,
+              enableSuggestions: false,
+              decoration:
+                  InputDecoration(hintText: key ? null : 'e.g. westeurope'),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              key
+                  ? 'Stored securely on this device (never in backups). '
+                      'Translations send the text to Microsoft.'
+                  : "Your Translator resource's location. Leave empty for a "
+                      'global resource.',
+              style: const TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          if (key && hasKey)
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, 'remove'),
+                child: const Text('Remove')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, 'save'),
+              child: const Text('Save')),
+        ],
+      ),
+    );
+    if (action == null) return;
+    if (!key) return ctrl.setAzureRegion(text.text.trim());
+    final store = ref.read(secureStoreProvider);
+    if (action == 'remove') {
+      await store.saveAzureTranslatorKey(null);
+    } else if (text.text.trim().isNotEmpty) {
+      await store.saveAzureTranslatorKey(text.text.trim());
+    }
+    ref.invalidate(azureKeyProvider);
   }
 
   Future<void> _editOpenAiKey(

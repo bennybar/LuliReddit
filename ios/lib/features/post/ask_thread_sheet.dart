@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/open_link.dart';
 import '../../core/theme/motion.dart';
+import '../../core/storage/secure_store.dart';
 import '../../core/translate.dart';
 import '../../core/widgets/loading.dart';
 import '../../core/widgets/markdown_style.dart';
@@ -17,6 +18,7 @@ import '../../models/post.dart';
 import '../auth/auth_controller.dart';
 import '../settings/settings_controller.dart';
 import 'summary_store.dart';
+import 'translate_button.dart';
 
 String _aiBaseUrl(Settings s) =>
     s.aiUseCustomUrl ? s.aiBaseUrl : 'https://api.openai.com';
@@ -49,7 +51,8 @@ void showSummarySheet(
       model: s.aiModel,
       style: style,
       language: s.aiSummaryLanguage,
-      autoTranslate: s.autoTranslate,
+      settings: s,
+      secureStore: ref.read(secureStoreProvider),
       threadText: threadText,
       store: ref.read(summaryStoreProvider.notifier),
     ),
@@ -64,7 +67,8 @@ class _SummarySheet extends StatefulWidget {
     required this.model,
     required this.style,
     required this.language,
-    required this.autoTranslate,
+    required this.settings,
+    required this.secureStore,
     required this.threadText,
     required this.store,
   });
@@ -74,7 +78,8 @@ class _SummarySheet extends StatefulWidget {
   final String model;
   final SummaryStyle style;
   final String language;
-  final bool autoTranslate; // Settings → Auto-translate posts
+  final Settings settings; // Translation (second language, auto, service)
+  final SecureStore secureStore;
   final String threadText;
   final SummaryStore store;
 
@@ -86,10 +91,11 @@ class _SummarySheetState extends State<_SummarySheet> {
   bool _loading = true;
   String? _result;
   String? _error;
-  // A summary not in the phone's language: translated on the phone.
+  // Translate, as on the thread: the phone's language and the second one.
   String? _summaryLanguage;
-  String? _translated;
-  bool _showTranslated = false;
+  List<String> _targets = const [];
+  final _translated = <String, String>{};
+  String? _shownIn;
   bool _translating = false;
 
   @override
@@ -98,34 +104,57 @@ class _SummarySheetState extends State<_SummarySheet> {
     _run();
   }
 
-  String? get _shown => (_showTranslated ? _translated : null) ?? _result;
+  String? get _shown => _translated[_shownIn] ?? _result;
 
   Future<void> _offerTranslation(String text) async {
+    final s = widget.settings;
     final lang = await Translate.detect(text);
-    if (lang == null || !await Translate.canTranslate(lang) || !mounted) {
-      return;
+    if (lang == null) return;
+    final targets = await Translate.targets(lang, s, widget.secureStore);
+    if (!mounted) return;
+    setState(() {
+      _summaryLanguage = lang;
+      _targets = targets;
+    });
+    if (s.autoTranslate &&
+        lang != s.translateSecondLanguage &&
+        targets.contains(Translate.primary)) {
+      _translateTo(Translate.primary);
     }
-    setState(() => _summaryLanguage = lang);
-    if (widget.autoTranslate) _toggleTranslation();
   }
 
-  /// Translate / Show original.
-  Future<void> _toggleTranslation() async {
-    if (_showTranslated || _translated != null) {
-      setState(() => _showTranslated = !_showTranslated);
+  /// Shows the summary in [to], or the original when null.
+  Future<void> _translateTo(String? to) async {
+    if (to == null || _translated.containsKey(to)) {
+      setState(() => _shownIn = to);
       return;
     }
     final text = _result;
     final from = _summaryLanguage;
     if (text == null || from == null) return;
     setState(() => _translating = true);
-    final out = await Translate.translate([text], from);
+    String? out;
+    String? error;
+    try {
+      out = (await Translate.translate(
+              [text], from, to, widget.settings, widget.secureStore))
+          ?.single;
+      if (out == null) error = "Couldn't translate the summary";
+    } catch (e) {
+      error = "Couldn't translate: ${'$e'.replaceFirst('Exception: ', '')}";
+    }
     if (!mounted) return;
     setState(() {
       _translating = false;
-      _translated = out?.single;
-      _showTranslated = _translated != null;
+      if (out != null) {
+        _translated[to] = out;
+        _shownIn = to;
+      }
     });
+    if (error != null) {
+      ScaffoldMessenger.maybeOf(context)
+          ?.showSnackBar(SnackBar(content: Text(error)));
+    }
   }
 
   Future<void> _run() async {
@@ -198,18 +227,13 @@ class _SummarySheetState extends State<_SummarySheet> {
                           .titleSmall
                           ?.copyWith(fontWeight: FontWeight.w700)),
                 ),
-                if (_result != null && !_loading && _summaryLanguage != null)
-                  IconButton(
-                    tooltip: _showTranslated ? 'Show original' : 'Translate',
-                    onPressed: _translating ? null : _toggleTranslation,
-                    icon: _translating
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2))
-                        : Icon(Icons.translate_rounded,
-                            size: 18,
-                            color: _showTranslated ? cs.primary : null),
+                if (_result != null && !_loading && _targets.isNotEmpty)
+                  TranslateButton(
+                    targets: _targets,
+                    shownIn: _shownIn,
+                    busy: _translating,
+                    onPick: _translateTo,
+                    size: 18,
                   ),
                 if (_result != null && !_loading)
                   IconButton(
