@@ -16,21 +16,32 @@ class ThreadTranslationState {
       {this.targets = const [],
       this.shown,
       this.shownIn,
-      this.translating = false});
+      this.translating = false,
+      this.comments = const {}});
   final List<String> targets;
   final Map<String, String>? shown;
   final String? shownIn;
   final bool translating;
+  // Comments translated one by one (their ⋯ menu): fullname → text, over the
+  // thread's translation.
+  final Map<String, String> comments;
+
+  /// The texts shown in place of the originals: the thread's translation and
+  /// single comments'.
+  Map<String, String>? get shownTexts =>
+      shown == null && comments.isEmpty ? null : {...?shown, ...comments};
 
   ThreadTranslationState copyWith(
           {List<String>? targets,
           (Map<String, String>?, String?)? shown,
-          bool? translating}) =>
+          bool? translating,
+          Map<String, String>? comments}) =>
       ThreadTranslationState(
         targets: targets ?? this.targets,
         shown: shown == null ? this.shown : shown.$1,
         shownIn: shown == null ? shownIn : shown.$2,
         translating: translating ?? this.translating,
+        comments: comments ?? this.comments,
       );
 }
 
@@ -100,6 +111,45 @@ class ThreadTranslation extends StateNotifier<ThreadTranslationState> {
 
   /// Error text for the screen to show once (Reddit-style snack).
   String? error;
+
+  /// One comment's ⋯ → Translate / Show original, in its own language's
+  /// terms (a thread can mix them); [pick] chooses when there are two
+  /// languages to offer. Returns a message to show, if any.
+  Future<String?> translateComment(
+      String fullname, Future<String?> Function(List<String>) pick) async {
+    if (state.comments.containsKey(fullname)) {
+      state = state.copyWith(comments: {...state.comments}..remove(fullname));
+      return null;
+    }
+    final t = _thread;
+    final c = t == null
+        ? null
+        : CommentTree.flatten(t.comments, const {})
+            .where((c) => c.fullname == fullname)
+            .firstOrNull;
+    if (c == null) return null;
+    final from = await Translate.detect(c.body) ?? _language;
+    if (from == null) return "Couldn't tell which language this comment is in";
+    final s = ref.read(settingsControllerProvider);
+    final store = ref.read(secureStoreProvider);
+    final targets = await Translate.targets(from, s, store);
+    if (targets.isEmpty) {
+      return "Nothing to translate it into: it's in your phone's language. "
+          'Add a second language in Settings → Translation.';
+    }
+    final to = targets.length == 1 ? targets.single : await pick(targets);
+    if (to == null) return null;
+    try {
+      final out = await Translate.translate([c.body], from, to, s, store);
+      if (out == null) return "Couldn't translate this comment";
+      if (mounted) {
+        state = state.copyWith(comments: {...state.comments, fullname: out.single});
+      }
+      return null;
+    } catch (e) {
+      return "Couldn't translate: ${'$e'.replaceFirst('Exception: ', '')}";
+    }
+  }
 
   Future<void> _translate(String to) async {
     final from = _language;

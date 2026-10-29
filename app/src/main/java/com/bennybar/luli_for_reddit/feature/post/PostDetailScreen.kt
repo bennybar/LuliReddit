@@ -149,6 +149,8 @@ import coil3.compose.AsyncImage
 import com.bennybar.luli_for_reddit.feature.media.rememberPauseWhileScrolling
 import com.bennybar.luli_for_reddit.feature.media.LocalListScrolling
 import com.bennybar.luli_for_reddit.app
+import com.bennybar.luli_for_reddit.feature.settings.PickOption
+import com.bennybar.luli_for_reddit.feature.settings.pickOption
 import androidx.compose.ui.unit.Dp
 import com.bennybar.luli_for_reddit.core.Translate
 import com.bennybar.luli_for_reddit.core.compactNumber
@@ -223,7 +225,7 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
         }
     }
     // Translated (Translate in the top bar, or Settings → Auto-translate).
-    val thread = remember(ui.thread, ui.translation) { ui.thread?.translated(ui.translation) }
+    val thread = remember(ui.thread, ui.translation, ui.commentTranslations) { ui.thread?.translated(ui.shownTexts) }
     val flat = thread?.flat ?: emptyList()
     val since = dwell.since
     dwell.post = thread?.post ?: initialPost
@@ -313,6 +315,10 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
     val actions = remember(vm, nav) { ThreadActions(vm, nav, scope) }
     actions.post = thread?.post
     actions.flat = flat
+    actions.translatedComments = ui.commentTranslations.keys
+    actions.translateButton = if (ui.translateTargets.isEmpty()) null else {
+        { size -> TranslateButton(ui.translateTargets, ui.translatedTo, ui.translating, vm::translateTo, size) }
+    }
 
     // A reply just posted: once it's in the list, scroll to it and highlight
     // it for a moment (the search highlight).
@@ -349,9 +355,6 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
                 },
                 actions = {
                     if (thread != null) {
-                        if (ui.translateTargets.isNotEmpty()) {
-                            TranslateButton(ui.translateTargets, ui.translatedTo, ui.translating, vm::translateTo)
-                        }
                         SortMenu(vm.currentSort, vm::changeSort)
                         IconTooltip("Search comments") {
                             IconButton(onClick = ::toggleSearch) {
@@ -609,6 +612,17 @@ private class ThreadActions(val vm: CommentsViewModel, val nav: AppNavigator, va
 
     fun share(c: Comment) = nav.share("https://reddit.com${c.permalink}")
 
+    /** The post's Translate button, when it has languages to offer (set by the screen). */
+    var translateButton: (@Composable (Dp) -> Unit)? = null
+
+    /** Comments translated one by one (set by the screen). */
+    var translatedComments: Set<String> = emptySet()
+
+    /** ⋯ → Translate / Show original on one comment. */
+    fun translate(c: Comment) = vm.translateComment(c.fullname) { targets ->
+        pickOption(targets.map { PickOption(it, "Translate to ${Translate.languageName(it)}") }, null, radio = false)
+    }
+
     fun block(c: Comment) {
         scope.launch { confirmBlockUser(c.author) }
     }
@@ -641,7 +655,10 @@ private fun CommentList(
             state = listState,
             contentPadding = PaddingValues(top = 6.dp, bottom = 96.dp),
         ) {
-            item(key = "header", contentType = "header") { PostHeader(thread.post, fresh = true) }
+            item(key = "header", contentType = "header") {
+                // Translate sits on the post, with its share / save.
+                PostHeader(thread.post, fresh = true, translate = actions.translateButton)
+            }
             if (flat.isEmpty()) {
                 item(key = "empty", contentType = "empty") {
                     Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { Text("No comments yet") }
@@ -932,7 +949,7 @@ private fun ThreadToolbar(
  * false for the feed's copy shown while loading, which can be stale.
  */
 @Composable
-private fun PostHeader(post: Post, fresh: Boolean) {
+private fun PostHeader(post: Post, fresh: Boolean, translate: (@Composable (Dp) -> Unit)? = null) {
     val p = post
     val cs = MaterialTheme.colorScheme
     val nav = LocalNavigator.current
@@ -984,7 +1001,7 @@ private fun PostHeader(post: Post, fresh: Boolean) {
 
     val settings by app.settings.state.collectAsState()
     if (settings.postDisplay.isCalm) {
-        CalmPostHeader(p, fresh, score, likes, saved, numComments, ::vote, ::toggleSave)
+        CalmPostHeader(p, fresh, score, likes, saved, numComments, ::vote, ::toggleSave, translate)
         return
     }
 
@@ -1051,6 +1068,7 @@ private fun PostHeader(post: Post, fresh: Boolean) {
                 Text(compactNumber(numComments), style = MaterialTheme.typography.labelLarge)
             }
             Spacer(Modifier.weight(1f))
+            translate?.invoke(24.dp)
             ToggleIcon(saved, { toggleSave() }, Icons.Rounded.Bookmark, Icons.Rounded.BookmarkBorder, "Save")
         }
         HorizontalDivider(Modifier.padding(vertical = 12.dp))
@@ -1072,6 +1090,7 @@ private fun CalmPostHeader(
     numComments: Int,
     vote: (Int) -> Unit,
     toggleSave: () -> Unit,
+    translate: (@Composable (Dp) -> Unit)?,
 ) {
     val cs = MaterialTheme.colorScheme
     val nav = LocalNavigator.current
@@ -1172,6 +1191,7 @@ private fun CalmPostHeader(
             Spacer(Modifier.width(8.dp))
             CalmPill(Icons.Outlined.ModeComment, compactNumber(numComments), onClick = null, height = 40.dp, iconSize = 18.dp, hPad = 14.dp)
             Spacer(Modifier.weight(1f))
+            translate?.invoke(20.dp)
             CalmGhost(Icons.Rounded.Share, "Share", cs.onSurfaceVariant, {
                 app.forYou.learner.share(p)
                 nav.share("https://reddit.com${p.permalink}", subject = p.title)
@@ -1571,6 +1591,10 @@ private fun ColumnScope.CommentMenuItems(
     val groups = buildList<@Composable ColumnScope.() -> Unit> {
         add {
             if (withSave) DropdownMenuItem(text = { Text(if (c.saved) "Unsave" else "Save") }, onClick = { pick { actions.toggleSave(c) } })
+            DropdownMenuItem(
+                text = { Text(if (c.fullname in actions.translatedComments) "Show original" else "Translate") },
+                onClick = { pick { actions.translate(c) } },
+            )
             DropdownMenuItem(text = { Text("Copy text") }, onClick = { pick { copyToClipboard(c.body) } })
             if (c.permalink.isNotEmpty()) DropdownMenuItem(text = { Text("Share") }, onClick = { pick { actions.share(c) } })
             DropdownMenuItem(text = { Text("Share as image") }, onClick = { pick { actions.shareImage(c) } })

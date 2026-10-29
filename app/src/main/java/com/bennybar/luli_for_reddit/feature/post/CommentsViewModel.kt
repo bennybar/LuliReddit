@@ -43,7 +43,13 @@ data class ThreadUiState(
     val translation: Map<String, String>? = null,
     val translatedTo: String? = null,
     val translating: Boolean = false,
-)
+    /** Comments translated one by one (their ⋯ menu): fullname → text, over the thread's translation. */
+    val commentTranslations: Map<String, String> = emptyMap(),
+) {
+    /** The texts shown in place of the originals: the thread's translation and single comments'. */
+    val shownTexts: Map<String, String>?
+        get() = if (translation == null && commentTranslations.isEmpty()) null else (translation ?: emptyMap()) + commentTranslations
+}
 
 /** [this] with [texts] (ThreadUiState.translation) in place of the original post and comment texts. */
 fun PostThread.translated(texts: Map<String, String>?): PostThread {
@@ -271,6 +277,40 @@ class CommentsViewModel(
             missing.keys.zip(out).forEach { (k, v) -> translations[k] = v }
             _state.update { it.copy(translating = false, translation = HashMap(translations), translatedTo = to) }
         }
+    }
+
+    /**
+     * One comment's ⋯ → Translate: in its own language's terms (a thread can
+     * mix them); [pick] chooses when there are two languages to offer.
+     */
+    fun translateComment(fullname: String, pick: suspend (List<String>) -> String?) {
+        if (fullname in _state.value.commentTranslations) {
+            _state.update { it.copy(commentTranslations = it.commentTranslations - fullname) }
+            return
+        }
+        val c = _state.value.thread?.let { t -> CommentTree.flatten(t.comments, emptySet()).firstOrNull { it.fullname == fullname } } ?: return
+        viewModelScope.launch {
+            val ctx = app.context
+            val from = Translate.detect(ctx, c.body) ?: language
+            if (from == null) return@launch snack("Couldn't tell which language this comment is in")
+            val targets = Translate.targets(ctx, from)
+            val to = when (targets.size) {
+                0 -> return@launch snack("Nothing to translate it into: it's in your phone's language. Add a second language in Settings → Translation.")
+                1 -> targets.single()
+                else -> pick(targets) ?: return@launch
+            }
+            val out = try {
+                Translate.translate(ctx, listOf(c.body), from, to)?.single()
+            } catch (e: Exception) {
+                return@launch snack("Couldn't translate: ${e.message}")
+            }
+            if (out == null) return@launch snack("Couldn't translate this comment")
+            _state.update { it.copy(commentTranslations = it.commentTranslations + (fullname to out)) }
+        }
+    }
+
+    private fun snack(text: String) {
+        app.navigatorOrNull?.showSnackbar(text)
     }
 
     val currentSort: String get() = sort.ifEmpty { app.settings.value.defaultCommentSort }

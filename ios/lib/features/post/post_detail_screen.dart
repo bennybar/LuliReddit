@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -44,6 +45,7 @@ import 'ask_thread_sheet.dart';
 import 'compose_sheet.dart';
 import 'post_actions.dart';
 import 'share_comment_image.dart';
+import '../../core/translate.dart';
 import 'thread_translation.dart';
 import 'translate_button.dart';
 import '../../core/widgets/error_view.dart';
@@ -471,6 +473,31 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
     }
   }
 
+  /// ⋯ → Translate / Show original on one comment.
+  Future<void> _translateComment(Comment c) async {
+    final msg = await ref
+        .read(threadTranslationProvider(_key).notifier)
+        .translateComment(c.fullname, (targets) {
+      return showModalBottomSheet<String>(
+        context: context,
+        showDragHandle: true,
+        builder: (ctx) => SafeArea(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            for (final t in targets)
+              ListTile(
+                title: Text('Translate to ${Translate.languageName(t)}'),
+                onTap: () => Navigator.pop(ctx, t),
+              ),
+          ]),
+        ),
+      );
+    });
+    if (msg != null && mounted) {
+      ScaffoldMessenger.maybeOf(context)
+          ?.showSnackBar(SnackBar(content: Text(msg)));
+    }
+  }
+
   /// The comment ⋯ menu's entries, in groups: share-ish actions, then yours
   /// (or block), then moderator actions.
   List<PopupMenuEntry<VoidCallback>> _menuItems(Comment c, bool isOwn,
@@ -480,6 +507,14 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
     final groups = <List<MenuOption<VoidCallback>>>[
       [
         if (withSave) item(c.saved ? 'Unsave' : 'Save', () => _toggleSave(c)),
+        item(
+            ref
+                    .read(threadTranslationProvider(_key))
+                    .comments
+                    .containsKey(c.fullname)
+                ? 'Show original'
+                : 'Translate',
+            () => _translateComment(c)),
         item('Copy text', () {
           Clipboard.setData(ClipboardData(text: c.body));
           ScaffoldMessenger.of(context)
@@ -561,10 +596,11 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
     // Translated (Translate in the app bar, or Settings → Auto-translate).
     final translation = ref.watch(threadTranslationProvider(_key));
     final raw = async.valueOrNull;
-    if (raw != _translatedFrom || translation.shown != _translatedWith) {
+    final texts = translation.shownTexts;
+    if (raw != _translatedFrom || !mapEquals(texts, _translatedWith)) {
       _translatedFrom = raw;
-      _translatedWith = translation.shown;
-      _translated = raw == null ? null : translatedThread(raw, translation.shown);
+      _translatedWith = texts;
+      _translated = raw == null ? null : translatedThread(raw, texts);
     }
     final thread = _translated;
     _post = thread?.post;
@@ -588,13 +624,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
         title: Text(thread?.post.subredditPrefixed ??
             (widget.subreddit == '_' ? 'Post' : 'r/${widget.subreddit}')),
         actions: [
-          if (thread != null && translation.targets.isNotEmpty)
-            TranslateButton(
-              targets: translation.targets,
-              shownIn: translation.shownIn,
-              busy: translation.translating,
-              onPick: ref.read(threadTranslationProvider(_key).notifier).translateTo,
-            ),
           if (thread != null)
             PopupMenuButton<String>(
               icon: const Icon(Icons.sort_rounded),
@@ -736,7 +765,25 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
       padding: const EdgeInsets.only(top: 6, bottom: 96),
       itemCount: 1 + (flat.isEmpty ? 1 : flat.length),
       itemBuilder: (context, index) {
-        if (index == 0) return _PostHeader(post: thread.post, fresh: true);
+        if (index == 0) {
+          // Translate sits on the post, with its share / save.
+          final tr = ref.watch(threadTranslationProvider(_key));
+          return _PostHeader(
+            post: thread.post,
+            fresh: true,
+            translate: tr.targets.isEmpty
+                ? null
+                : (size) => TranslateButton(
+                      targets: tr.targets,
+                      shownIn: tr.shownIn,
+                      busy: tr.translating,
+                      onPick: ref
+                          .read(threadTranslationProvider(_key).notifier)
+                          .translateTo,
+                      size: size,
+                    ),
+          );
+        }
         if (flat.isEmpty) {
           return const Padding(
             padding: EdgeInsets.all(40),
@@ -1207,8 +1254,12 @@ class _LoadingWithHeader extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _PostHeader extends ConsumerStatefulWidget {
-  const _PostHeader({required this.post, required this.fresh});
+  const _PostHeader(
+      {required this.post, required this.fresh, this.translate});
   final Post post;
+  // The post's Translate button (at an icon size), when it has languages to
+  // offer.
+  final Widget Function(double size)? translate;
   // True for the post as just fetched with its comments. False for the feed's
   // copy shown while loading, which can be stale and must not be synced.
   final bool fresh;
@@ -1427,6 +1478,7 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
                 ]),
               ),
               const Spacer(),
+              if (widget.translate != null) widget.translate!(24),
               ToggleIcon(
                 checked: saved,
                 onChanged: (_) => _toggleSave(),
@@ -1582,6 +1634,7 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
                     onTap: () {}),
               ]),
               const Spacer(),
+              if (widget.translate != null) widget.translate!(20),
               CalmGhost(
                 icon: Icons.share_rounded,
                 label: 'Share',
