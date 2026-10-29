@@ -18,6 +18,7 @@ import '../models/multireddit.dart';
 import '../models/post.dart';
 import '../models/reddit_user.dart';
 import '../models/subreddit.dart';
+import 'gql_comments.dart';
 import 'gql_posts.dart';
 
 /// Sort options for post listings.
@@ -436,17 +437,37 @@ class RedditRepository {
     int limit = 25,
   }) async {
     final base = subreddit == null ? '' : '/r/$subreddit';
-    final res = await _client.get<Map<String, dynamic>>(
-      '$base/${sort.path}',
-      // sr_detail: each post carries its subreddit's icon for the card.
-      query: {
-        'limit': limit,
-        'sr_detail': true,
-        if (after != null) 'after': after,
-        if (sort.needsTime) 't': time.param,
-      },
-    );
-    return _parsePostListing(res.data!);
+    return orGql(() async {
+      final res = await _client.get<Map<String, dynamic>>(
+        '$base/${sort.path}',
+        // sr_detail: each post carries its subreddit's icon for the card.
+        query: {
+          'limit': limit,
+          'sr_detail': true,
+          if (after != null) 'after': after,
+          if (sort.needsTime) 't': time.param,
+        },
+      );
+      return _parsePostListing(res.data!);
+    }, () async {
+      // Reddit's app loads a feed page as post ids, then the posts by id
+      // (its page sizes: 6 first, then 24).
+      var cursor = after;
+      // PostsByIds drops removed posts, so a page can come back empty while
+      // the feed goes on: skip ahead a few pages, not end it there.
+      for (var i = 0; i < 5; i++) {
+        final query = gqlFeedQuery(subreddit, sort, time, cursor);
+        if (query == null) throw RedditApiException(403);
+        final ids = gqlFeedPostIds(
+            await _client.gql(query.operation, query.hash, query.variables));
+        final posts = await getPostsByIds(ids);
+        cursor = ids.lastOrNull;
+        if (posts.isNotEmpty || cursor == null) {
+          return Listing(items: posts, after: cursor);
+        }
+      }
+      return Listing<Post>(items: const [], after: null);
+    });
   }
 
   /// The last cached first page for exactly this feed, or null. Used to paint
@@ -501,20 +522,37 @@ class RedditRepository {
     final unknown = subreddit.isEmpty || subreddit == '_';
     final path =
         unknown ? '/comments/$postId' : '/r/$subreddit/comments/$postId';
-    final res = await _client.get<List<dynamic>>(
-      path,
-      query: {
-        'sort': sort,
-        'limit': limit,
-        // Focus on a single comment (from a permalink / inbox reply): Reddit
-        // returns that comment's thread, with a few parents for context.
-        if (focusCommentId != null) ...{
-          'comment': focusCommentId,
-          'context': 3,
+    return orGql(() async {
+      final res = await _client.get<List<dynamic>>(
+        path,
+        query: {
+          'sort': sort,
+          'limit': limit,
+          // Focus on a single comment (from a permalink / inbox reply): Reddit
+          // returns that comment's thread, with a few parents for context.
+          if (focusCommentId != null) ...{
+            'comment': focusCommentId,
+            'context': 3,
+          },
         },
-      },
-    );
-    return res.data!;
+      );
+      return res.data!;
+    }, () async {
+      // Reddit's app loads the post by id and its comments side by side.
+      final (posts, comments) = await (
+        _client.gql('PostsByIds', gqlPostsByIds, {
+          ...gqlPostFlags,
+          'ids': ['t3_$postId'],
+        }),
+        _client.gql('PostComments', gqlPostComments,
+            gqlPostCommentsVariables('t3_$postId', sort, focusCommentId, null)),
+      ).wait;
+      final post = (posts['postsInfoByIds'] as List?)?.firstOrNull;
+      if (post is! Map || !gqlIsPost(post)) {
+        throw Exception("This post isn't available");
+      }
+      return gqlThreadData(gqlPostData(post), gqlTrees(comments));
+    });
   }
 
   /// Parses a comments response (live or saved offline).
@@ -541,6 +579,22 @@ class RedditRepository {
     String sort = 'confidence',
     int depth = 0,
   }) async {
+    // A "more" row from the GraphQL fallback: continue it by its cursor.
+    final more = childrenIds.length == 1 && childrenIds.first.startsWith(gqlMore)
+        ? childrenIds.first.substring(gqlMore.length)
+        : null;
+    if (more != null) {
+      final space = more.indexOf(' ');
+      final parent = space < 0 ? null : more.substring(0, space);
+      final cursor = more.substring(space + 1);
+      final data = await _client.gql('PostComments', gqlPostComments,
+          gqlPostCommentsVariables(linkFullname, sort, null, cursor));
+      return [
+        for (final t in gqlCommentThings(gqlTrees(data), linkFullname,
+            moreParent: parent))
+          Comment.fromChild(t, depth)
+      ];
+    }
     final res = await _client.get<Map<String, dynamic>>(
       '/api/morechildren',
       query: {
@@ -839,14 +893,18 @@ class RedditRepository {
   }
 
   /// Website sign-in: [rest], or when Reddit's edge refuses it (403, as it
-  /// did for search and /by_id) the same action through GraphQL ([gql]).
-  Future<void> orGql(
-      Future<void> Function() rest, Future<void> Function() gql) async {
+  /// did for search and /by_id) the same thing through GraphQL ([gql]). A 403
+  /// with a reason (a private, quarantined or gated subreddit) is Reddit's
+  /// own answer, not the edge's page.
+  Future<T> orGql<T>(
+      Future<T> Function() rest, Future<T> Function() gql) async {
     try {
-      await rest();
+      return await rest();
     } on RedditApiException catch (e) {
-      if (e.statusCode != 403 || !await _client.webMode) rethrow;
-      await gql();
+      if (e.statusCode != 403 || e.reason != null || !await _client.webMode) {
+        rethrow;
+      }
+      return await gql();
     }
   }
 

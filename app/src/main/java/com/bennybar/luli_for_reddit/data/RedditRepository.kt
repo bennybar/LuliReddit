@@ -22,6 +22,8 @@ import com.bennybar.luli_for_reddit.model.Post
 import com.bennybar.luli_for_reddit.model.RedditUser
 import com.bennybar.luli_for_reddit.model.Subreddit
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -124,8 +126,24 @@ class RedditRepository(val client: RedditClient) {
         limit: Int = 25,
     ): Listing<Post> {
         val base = if (subreddit == null) "" else "/r/$subreddit"
-        val res = client.getResult("$base/${sort.path}", postsQuery(sort, time, after, limit))
-        return parse { parsePostListing(res.json, res.fromCache) }
+        return orGql({
+            val res = client.getResult("$base/${sort.path}", postsQuery(sort, time, after, limit))
+            parse { parsePostListing(res.json, res.fromCache) }
+        }) {
+            // Reddit's app loads a feed page as post ids, then the posts by id
+            // (its page sizes: 6 first, then 24).
+            var cursor = after
+            // PostsByIds drops removed posts, so a page can come back empty
+            // while the feed goes on: skip ahead a few pages, not end it there.
+            for (i in 0 until 5) {
+                val (operation, hash, vars) = gqlFeedQuery(subreddit, sort, time, cursor) ?: throw RedditApiException(403)
+                val ids = gqlFeedPostIds(client.gql(operation, hash, vars))
+                val posts = getPostsByIds(ids)
+                cursor = ids.lastOrNull()
+                if (posts.isNotEmpty() || cursor == null) return@orGql Listing(posts, cursor)
+            }
+            Listing(emptyList(), null)
+        }
     }
 
     /** The last cached first page for exactly this feed, or null (to paint instantly). */
@@ -170,7 +188,18 @@ class RedditRepository(val client: RedditClient) {
             query["comment"] = focusCommentId
             query["context"] = 3
         }
-        return client.get(path, query)
+        return orGql({ client.get(path, query) }) {
+            // Reddit's app loads the post by id and its comments side by side.
+            coroutineScope {
+                val post = async { client.gql("PostsByIds", GQL_POSTS_BY_IDS, postsByIdsVariables(listOf("t3_$postId"))) }
+                val forest = async {
+                    client.gql("PostComments", GQL_POST_COMMENTS, postCommentsVariables("t3_$postId", sort, focusCommentId, null))
+                }
+                val p = post.await()["postsInfoByIds"][0].obj()?.takeIf(::gqlIsPost) ?: throw Exception("This post isn't available")
+                val trees = forest.await()["postInfoById"]["commentForest"]["trees"].arr() ?: emptyList()
+                parse { gqlThreadData(gqlPostData(p), trees) }
+            }
+        }
     }
 
     /** Parses a comments response (live or saved offline). */
@@ -191,6 +220,13 @@ class RedditRepository(val client: RedditClient) {
         sort: String = "confidence",
         depth: Int = 0,
     ): List<Comment> {
+        // A "more" row from the GraphQL fallback: continue it by its cursor.
+        childrenIds.singleOrNull()?.takeIf { it.startsWith(GQL_MORE) }?.let { more ->
+            val (parent, cursor) = more.removePrefix(GQL_MORE).split(' ', limit = 2).let { it[0] to it.getOrElse(1) { "" } }
+            val data = client.gql("PostComments", GQL_POST_COMMENTS, postCommentsVariables(linkFullname, sort, null, cursor))
+            val trees = data["postInfoById"]["commentForest"]["trees"].arr() ?: emptyList()
+            return parse { gqlCommentThings(trees, linkFullname, moreParent = parent).map { Comment.fromChild(it, depth) } }
+        }
         val json = client.get(
             "/api/morechildren",
             linkedMapOf(
@@ -369,14 +405,16 @@ class RedditRepository(val client: RedditClient) {
 
     /**
      * Website sign-in: [rest], or when Reddit's edge refuses it (403, as it
-     * did for search and /by_id) the same action through GraphQL ([gql]).
+     * did for search and /by_id) the same thing through GraphQL ([gql]). A
+     * 403 with a reason (a private, quarantined or gated subreddit) is
+     * Reddit's own answer, not the edge's page.
      */
-    private suspend fun orGql(rest: suspend () -> Unit, gql: suspend () -> Unit) {
+    private suspend fun <T> orGql(rest: suspend () -> T, gql: suspend () -> T): T {
         try {
-            rest()
+            return rest()
         } catch (e: RedditApiException) {
-            if (e.statusCode != 403 || !client.isWebMode()) throw e
-            gql()
+            if (e.statusCode != 403 || e.reason != null || !client.isWebMode()) throw e
+            return gql()
         }
     }
 

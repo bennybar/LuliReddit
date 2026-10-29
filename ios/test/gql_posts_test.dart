@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luli_for_reddit/data/gql_posts.dart';
+import 'package:luli_for_reddit/data/reddit_repository.dart';
 import 'package:luli_for_reddit/models/post.dart';
 
 Map<String, dynamic> node(Map<String, dynamic> extra) => {
@@ -77,4 +78,42 @@ void main() {
     expect(gqlIsPost({'__typename': 'SubredditPost'}), isTrue);
     expect(gqlIsPost({'__typename': 'UnavailablePost'}), isFalse);
   });
+
+  test("a feed page's post ids skip ads, its cursor is the last post", () {
+    final data = {
+      'subredditV3': {
+        'elements': {
+          'edges': [
+            {'node': {'__typename': 'CellGroup', 'groupId': 't3_a', 'id': 'x'}},
+            {'node': {'__typename': 'CellGroup', 'groupId': 't3_ad', 'adPayload': {'impressionId': '1'}}},
+            {'node': {'__typename': 'CellGroup', 'groupId': 't3_a'}},
+            {'node': {'__typename': 'CellGroup', 'id': 't3_b'}},
+            {'node': {'__typename': 'CellGroup', 'groupId': 'carousel_1'}},
+          ],
+        },
+      },
+    };
+    expect(gqlFeedPostIds(data), ['t3_a', 't3_b']);
+    final q = gqlFeedQuery('pics', PostSort.top, TopTime.week, 't3_b')!;
+    expect(q.operation, 'SubredditFeedSdui');
+    expect(q.variables['subredditName'], 'pics');
+    expect(q.variables['sort'], 'TOP');
+    expect(q.variables['time'], 'WEEK');
+    expect(q.variables['after'], 'dDNfYg=='); // base64("t3_b")
+  });
+
+  test('each feed picks its query', () {
+    expect(gqlFeedQuery(null, PostSort.best, TopTime.day, null)!.operation,
+        'HomeFeedSdui');
+    expect(gqlFeedQuery('popular', PostSort.hot, TopTime.day, null)!.operation,
+        'PopularFeedSdui');
+    expect(gqlFeedQuery('All', PostSort.rising, TopTime.day, null)!.operation,
+        'AllFeedSdui');
+    final home = gqlFeedQuery(null, PostSort.newest, TopTime.day, null)!;
+    expect(home.variables['sort'], 'NEW');
+    expect(home.variables.containsKey('time'), isFalse);
+    expect(home.variables.containsKey('after'), isFalse);
+    expect(gqlFeedQuery('pics+news', PostSort.hot, TopTime.day, null), isNull);
+  });
 }
+

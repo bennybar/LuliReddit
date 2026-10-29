@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import 'reddit_repository.dart' show PostSort, PostSortApi, TopTime, TopTimeApi;
+
 // Website sign-in: Reddit's edge refuses the website's search endpoints and
 // /by_id (403), so search and posts by id (Reddit Home, Blend) run on
 // Reddit's app GraphQL API, as Reddit's own apps and other clients (e.g.
@@ -25,6 +29,14 @@ const gqlOptInQuarantined =
     '48f2a98b4df9e6ebb67451c25b35be3f6bd597391a1e13984e0c68680dbdf84a';
 const gqlOptInGated =
     '2f5d960d89de68ea1ce9fcac9cbacfd1161c78e990c8bf79668cf03555bd5678';
+const gqlHomeFeed =
+    '03d0ec0f2674005fe6c9777f952bd063ea2236527794344d4579fec8a669bea0';
+const gqlPopularFeed =
+    'effee8db2d66287bea4e08a3ccf3a5fcb2db245c363be6fe50a3ba01e9962a24';
+const gqlAllFeed =
+    'dea8ebf08bd9127a580fd664b9c312e590a195690f5c04c32d60b9370d876fb0';
+const gqlSubredditFeed =
+    '45faffc9969af3d623a079e279c9d9a535b6f877809426a9a8ed203f046a23f0';
 
 /// SubredditInfoByName's variables, as Reddit's app sends them.
 Map<String, dynamic> gqlSubredditInfoVariables(String name) => {
@@ -103,6 +115,47 @@ const gqlSorts = {
   'top': 'TOP',
   'comments': 'COMMENTS',
 };
+
+/// getPosts' feed as Reddit's app loads it ([subreddit] null: the
+/// frontpage): operation, hash and variables, or null for a feed the app has
+/// no equivalent of (combined subreddits, a+b).
+({String operation, String hash, Map<String, dynamic> variables})?
+    gqlFeedQuery(String? subreddit, PostSort sort, TopTime time, String? after) {
+  if (subreddit != null && subreddit.contains('+')) return null;
+  final (operation, hash) = switch (subreddit?.toLowerCase()) {
+    null => ('HomeFeedSdui', gqlHomeFeed),
+    'popular' => ('PopularFeedSdui', gqlPopularFeed),
+    'all' => ('AllFeedSdui', gqlAllFeed),
+    _ => ('SubredditFeedSdui', gqlSubredditFeed),
+  };
+  return (
+    operation: operation,
+    hash: hash,
+    variables: {
+      if (operation == 'SubredditFeedSdui') 'subredditName': subreddit,
+      'sort': sort.path.toUpperCase(),
+      if (sort.needsTime) 'time': time.param.toUpperCase(),
+      // A feed's cursor is the last post's fullname, base64-encoded, so the
+      // listing's `after` stays a plain t3_ fullname like the website's.
+      if (after != null) 'after': base64.encode(utf8.encode(after)),
+    },
+  );
+}
+
+/// The post ids (t3_…) on a page of a feed. The feed itself is
+/// server-driven UI: each post comes as cells named by its id, among ads and
+/// other cells.
+List<String> gqlFeedPostIds(Map<String, dynamic> data) {
+  final root = data.values.firstOrNull as Map?;
+  final ids = <String>{};
+  for (final e in ((root?['elements'] as Map?)?['edges'] as List?) ?? const []) {
+    final n = (e as Map?)?['node'] as Map?;
+    if (n == null || n['adPayload'] != null) continue;
+    final id = n['groupId'] ?? n['id'];
+    if (id is String && id.startsWith('t3_')) ids.add(id);
+  }
+  return ids.toList();
+}
 
 /// One kind of search result (posts, communities, authors): its nodes, and
 /// the next page's cursor (null at the end).

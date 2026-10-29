@@ -1,6 +1,8 @@
 package com.bennybar.luli_for_reddit.data
 
 import com.bennybar.luli_for_reddit.core.AppJson
+import com.bennybar.luli_for_reddit.core.get
+import com.bennybar.luli_for_reddit.core.str
 import com.bennybar.luli_for_reddit.model.Post
 import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
@@ -106,5 +108,36 @@ class GqlSearchTest {
         val (nodes, next) = gqlSearch(data, "communities")
         assertEquals(1, nodes.size)
         assertNull(next)
+    }
+
+    @Test
+    fun `a feed page's post ids skip ads, its cursor is the last post`() {
+        val data = AppJson.parseToJsonElement(
+            """{"subredditV3":{"elements":{"edges":[
+               {"node":{"__typename":"CellGroup","groupId":"t3_a","id":"x"}},
+               {"node":{"__typename":"CellGroup","groupId":"t3_ad","adPayload":{"impressionId":"1"}}},
+               {"node":{"__typename":"CellGroup","groupId":"t3_a"}},
+               {"node":{"__typename":"CellGroup","id":"t3_b"}},
+               {"node":{"__typename":"CellGroup","groupId":"carousel_1"}}]}}}""",
+        ).jsonObject
+        assertEquals(listOf("t3_a", "t3_b"), gqlFeedPostIds(data))
+        val (operation, _, vars) = gqlFeedQuery("pics", PostSort.TOP, TopTime.WEEK, "t3_b")!!
+        assertEquals("SubredditFeedSdui", operation)
+        assertEquals("pics", vars["subredditName"].str())
+        assertEquals("TOP", vars["sort"].str())
+        assertEquals("WEEK", vars["time"].str())
+        assertEquals("dDNfYg==", vars["after"].str()) // base64("t3_b")
+    }
+
+    @Test
+    fun `each feed picks its query`() {
+        assertEquals("HomeFeedSdui", gqlFeedQuery(null, PostSort.BEST, TopTime.DAY, null)!!.first)
+        assertEquals("PopularFeedSdui", gqlFeedQuery("popular", PostSort.HOT, TopTime.DAY, null)!!.first)
+        assertEquals("AllFeedSdui", gqlFeedQuery("All", PostSort.RISING, TopTime.DAY, null)!!.first)
+        val home = gqlFeedQuery(null, PostSort.NEWEST, TopTime.DAY, null)!!.third
+        assertEquals("NEW", home["sort"].str())
+        assertNull(home["time"])
+        assertNull(home["after"])
+        assertNull(gqlFeedQuery("pics+news", PostSort.HOT, TopTime.DAY, null))
     }
 }

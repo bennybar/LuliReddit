@@ -20,9 +20,21 @@ class Release {
 // TODO(whats-new): this is the Kotlin app's list as-is; it describes the
 // features being ported. Replace it with the iOS app's own releases.
 const changelog = [
-  Release('2.0.42', 'Oct 29, 2026', [
+  Release('2.0.43', 'Oct 29, 2026', [
+    'Translate posts, comments and AI summaries: on the post, in a comment\'s '
+        '⋯ menu, into your phone\'s language or a second one (Settings → '
+        'Translation). On the phone where it can, else with your OpenAI key or '
+        'Azure Translator',
     'Reddit Home and Blend load again with the website sign-in, with their '
-        'galleries, videos and GIFs',
+        'galleries, videos and GIFs, and Home no longer falls back to For You '
+        'after a while away',
+    'Quarantined and restricted communities: "View anyway" right in Ilay',
+    'Comments: collapse only the replies, and an edge marks the ones you '
+        'voted on (Settings → Posts & comments)',
+    'Preview a reply before sending it',
+    'Clear cache now empties images too and shows how much it frees',
+    'With the website sign-in, feeds, comments, votes and saves switch to '
+        'Reddit\'s app API if the website refuses them',
   ]),
   Release('2.0.41', 'Oct 28, 2026', [
     'Search works again with the website sign-in (Reddit had started '

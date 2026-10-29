@@ -18,6 +18,7 @@ import kotlinx.serialization.json.putJsonObject
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatterBuilder
 import java.time.temporal.ChronoField
+import java.util.Base64
 
 // Website sign-in: Reddit's edge refuses the website's search endpoints and
 // /by_id (403), so search and posts by id (Reddit Home, Blend) run on
@@ -35,6 +36,10 @@ internal const val GQL_COMMENT_SAVE = "2d2a823e0b5053d39de7d319fd8ccf8b87ddf0ab3
 internal const val GQL_SUBREDDIT_INFO = "8c1815b07b762aee3c086cc84306f14b3907018e9ee152046c8e4d08ad4c7b88"
 internal const val GQL_OPT_IN_QUARANTINED = "48f2a98b4df9e6ebb67451c25b35be3f6bd597391a1e13984e0c68680dbdf84a"
 internal const val GQL_OPT_IN_GATED = "2f5d960d89de68ea1ce9fcac9cbacfd1161c78e990c8bf79668cf03555bd5678"
+internal const val GQL_HOME_FEED = "03d0ec0f2674005fe6c9777f952bd063ea2236527794344d4579fec8a669bea0"
+internal const val GQL_POPULAR_FEED = "effee8db2d66287bea4e08a3ccf3a5fcb2db245c363be6fe50a3ba01e9962a24"
+internal const val GQL_ALL_FEED = "dea8ebf08bd9127a580fd664b9c312e590a195690f5c04c32d60b9370d876fb0"
+internal const val GQL_SUBREDDIT_FEED = "45faffc9969af3d623a079e279c9d9a535b6f877809426a9a8ed203f046a23f0"
 
 /** SubredditInfoByName's variables, as Reddit's app sends them. */
 internal fun subredditInfoVariables(name: String) = buildJsonObject {
@@ -115,6 +120,40 @@ private val gqlTime = DateTimeFormatterBuilder()
     .optionalStart().appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true).optionalEnd()
     .appendPattern("[XXX][XX]")
     .toFormatter()
+
+/**
+ * getPosts' feed as Reddit's app loads it ([subreddit] null: the frontpage):
+ * operation, hash and variables, or null for a feed the app has no
+ * equivalent of (combined subreddits, a+b).
+ */
+internal fun gqlFeedQuery(subreddit: String?, sort: PostSort, time: TopTime, after: String?): Triple<String, String, JsonObject>? {
+    val (operation, hash) = when {
+        subreddit == null -> "HomeFeedSdui" to GQL_HOME_FEED
+        subreddit.equals("popular", ignoreCase = true) -> "PopularFeedSdui" to GQL_POPULAR_FEED
+        subreddit.equals("all", ignoreCase = true) -> "AllFeedSdui" to GQL_ALL_FEED
+        '+' in subreddit -> return null
+        else -> "SubredditFeedSdui" to GQL_SUBREDDIT_FEED
+    }
+    return Triple(operation, hash, buildJsonObject {
+        if (operation == "SubredditFeedSdui") put("subredditName", subreddit)
+        put("sort", sort.path.uppercase())
+        if (sort.needsTime) put("time", time.param.uppercase())
+        // A feed's cursor is the last post's fullname, base64-encoded, so the
+        // listing's `after` stays a plain t3_ fullname like the website's.
+        if (after != null) put("after", Base64.getEncoder().encodeToString(after.toByteArray()))
+    })
+}
+
+/**
+ * The post ids (t3_…) on a page of a feed. The feed itself is server-driven
+ * UI: each post comes as cells named by its id, among ads and other cells.
+ */
+internal fun gqlFeedPostIds(data: JsonObject): List<String> =
+    (data.values.firstOrNull()["elements"]["edges"].arr() ?: emptyList()).mapNotNull { e ->
+        val n = e["node"].obj() ?: return@mapNotNull null
+        if (n["adPayload"].let { it != null && it !is JsonNull }) return@mapNotNull null
+        (n["groupId"].str() ?: n["id"].str())?.takeIf { it.startsWith("t3_") }
+    }.distinct()
 
 /** A GraphQL time in epoch seconds, or 0. */
 internal fun gqlSeconds(iso: String?): Double =
