@@ -1,5 +1,8 @@
 import AVFoundation
 import Flutter
+import NaturalLanguage
+import SwiftUI
+import Translation
 import UIKit
 import UserNotifications
 import workmanager_apple
@@ -83,6 +86,82 @@ import workmanager_apple
         }
       }
     }
+
+    // On-device translation (translate.dart): Apple's Translation framework,
+    // and NaturalLanguage to tell which language a post is in.
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "IlayTranslate") {
+      let channel = FlutterMethodChannel(name: "ilay/translate", binaryMessenger: registrar.messenger())
+      channel.setMethodCallHandler { call, result in
+        let args = call.arguments as? [String: Any] ?? [:]
+        switch call.method {
+        case "detect":
+          result(AppDelegate.detectLanguage(args["text"] as? String ?? ""))
+        case "canTranslate":
+          Task { result(await AppDelegate.canTranslate(from: args["from"] as? String ?? "")) }
+        case "translate":
+          Task { @MainActor in
+            result(await AppDelegate.translate(args["texts"] as? [String] ?? [], from: args["from"] as? String ?? ""))
+          }
+        default:
+          result(FlutterMethodNotImplemented)
+        }
+      }
+    }
+  }
+
+  /// The phone's language: what posts are translated into.
+  private static var targetLanguage: Locale.Language { Locale.current.language }
+
+  /// The language [text] is in ("de"), when NaturalLanguage clearly leads with one.
+  private static func detectLanguage(_ text: String) -> String? {
+    let recognizer = NLLanguageRecognizer()
+    recognizer.processString(String(text.prefix(2000)))
+    let guesses = recognizer.languageHypotheses(withMaximum: 2).sorted { $0.value > $1.value }
+    guard let best = guesses.first, best.value >= 0.25,
+          best.value > (guesses.dropFirst().first?.value ?? 0) + 0.05 else { return nil }
+    return best.key.rawValue
+  }
+
+  /// Whether the phone can translate [from] into its language (now, or after a download).
+  private static func canTranslate(from: String) async -> Bool {
+    let source = Locale.Language(identifier: from)
+    guard source.languageCode != targetLanguage.languageCode else { return false }
+    let status = await LanguageAvailability().status(from: source, to: targetLanguage)
+    return status != .unsupported
+  }
+
+  /// [texts] translated in order, or nil. A language not downloaded yet goes
+  /// through the system's download prompt, which needs a view: a clear one
+  /// shown over Ilay while it works.
+  @MainActor
+  private static func translate(_ texts: [String], from: String) async -> [String]? {
+    let source = Locale.Language(identifier: from)
+    func run(_ session: TranslationSession) async -> [String]? {
+      let requests = texts.enumerated().map { TranslationSession.Request(sourceText: $1, clientIdentifier: "\($0)") }
+      guard let responses = try? await session.translations(from: requests) else { return nil }
+      var out = texts
+      for r in responses { if let i = Int(r.clientIdentifier ?? "") { out[i] = r.targetText } }
+      return out
+    }
+    if await LanguageAvailability().status(from: source, to: targetLanguage) == .installed {
+      return await run(TranslationSession(installedSource: source, target: targetLanguage))
+    }
+    guard let top = UIApplication.shared.connectedScenes.compactMap({ ($0 as? UIWindowScene)?.keyWindow?.rootViewController }).first
+    else { return nil }
+    var presenter = top
+    while let next = presenter.presentedViewController { presenter = next }
+    return await withCheckedContinuation { cont in
+      let host = UIHostingController(rootView: TranslateHost(
+        config: .init(source: source, target: targetLanguage),
+        work: { session in
+          let out = await run(session)
+          presenter.dismiss(animated: false)
+          cont.resume(returning: out)
+        }))
+      host.view.backgroundColor = .clear
+      host.modalPresentationStyle = .overFullScreen
+      presenter.present(host, animated: false)
+    }
   }
 
   /// Settings → AI summaries (and the comment sort) where the share extension
@@ -118,5 +197,16 @@ import workmanager_apple
     let url = URL(fileURLWithPath: out)
     try? FileManager.default.removeItem(at: url)
     try await export.export(to: url, as: .mp4)
+  }
+}
+
+/// Runs [work] with a translation session from SwiftUI's translationTask,
+/// which asks to download the language first when it isn't on the phone.
+private struct TranslateHost: View {
+  let config: TranslationSession.Configuration
+  let work: (TranslationSession) async -> Void
+
+  var body: some View {
+    Color.clear.translationTask(config) { session in await work(session) }
   }
 }

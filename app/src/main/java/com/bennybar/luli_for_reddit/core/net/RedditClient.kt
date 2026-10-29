@@ -158,6 +158,17 @@ class RedditClient(
         }
     }
 
+    /**
+     * The website session's cookies with a current token_v2, for loading
+     * reddit.com pages (Reddit Home): the saved one has usually expired after
+     * the app was closed a day.
+     */
+    suspend fun freshWebCookie(): String? {
+        ensureConfig()
+        webCookie?.let { if (needsNewToken(it)) refreshWebToken() }
+        return webCookie
+    }
+
     /** Whether requests go through the website session (website sign-in). */
     suspend fun isWebMode(): Boolean {
         ensureConfig()

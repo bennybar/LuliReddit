@@ -139,7 +139,10 @@ class RedditHomeEngine {
       if (await store.authMode != 'web') {
         throw StateError('Reddit Home needs website sign-in');
       }
-      final cookie = await store.webCookie ?? '';
+      // With a current token_v2: an expired one fails the first load after a
+      // while away.
+      final cookie =
+          await _ref.read(redditClientProvider).freshWebCookie() ?? '';
       final l = _l;
       final progress = _ref.read(redditHomeProgressProvider.notifier);
       if (firstPage) {
@@ -245,7 +248,10 @@ class RedditHomeEngine {
     try {
       final store = _ref.read(secureStoreProvider);
       if (await store.authMode != 'web') return const BlendSignedOut();
-      final cookie = await store.webCookie ?? '';
+      // With a current token_v2: an expired one fails the first load after a
+      // while away.
+      final cookie =
+          await _ref.read(redditClientProvider).freshWebCookie() ?? '';
       final l = _l;
       final page = await l.next(restart: first, cookieHeader: cookie);
       if (stale()) return const BlendFailed(); // superseded

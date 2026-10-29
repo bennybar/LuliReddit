@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/open_link.dart';
 import '../../core/theme/motion.dart';
+import '../../core/translate.dart';
 import '../../core/widgets/loading.dart';
 import '../../core/widgets/markdown_style.dart';
 import '../../core/widgets/reddit_markdown.dart';
@@ -48,6 +49,7 @@ void showSummarySheet(
       model: s.aiModel,
       style: style,
       language: s.aiSummaryLanguage,
+      autoTranslate: s.autoTranslate,
       threadText: threadText,
       store: ref.read(summaryStoreProvider.notifier),
     ),
@@ -62,6 +64,7 @@ class _SummarySheet extends StatefulWidget {
     required this.model,
     required this.style,
     required this.language,
+    required this.autoTranslate,
     required this.threadText,
     required this.store,
   });
@@ -71,6 +74,7 @@ class _SummarySheet extends StatefulWidget {
   final String model;
   final SummaryStyle style;
   final String language;
+  final bool autoTranslate; // Settings → Auto-translate posts
   final String threadText;
   final SummaryStore store;
 
@@ -82,11 +86,46 @@ class _SummarySheetState extends State<_SummarySheet> {
   bool _loading = true;
   String? _result;
   String? _error;
+  // A summary not in the phone's language: translated on the phone.
+  String? _summaryLanguage;
+  String? _translated;
+  bool _showTranslated = false;
+  bool _translating = false;
 
   @override
   void initState() {
     super.initState();
     _run();
+  }
+
+  String? get _shown => (_showTranslated ? _translated : null) ?? _result;
+
+  Future<void> _offerTranslation(String text) async {
+    final lang = await Translate.detect(text);
+    if (lang == null || !await Translate.canTranslate(lang) || !mounted) {
+      return;
+    }
+    setState(() => _summaryLanguage = lang);
+    if (widget.autoTranslate) _toggleTranslation();
+  }
+
+  /// Translate / Show original.
+  Future<void> _toggleTranslation() async {
+    if (_showTranslated || _translated != null) {
+      setState(() => _showTranslated = !_showTranslated);
+      return;
+    }
+    final text = _result;
+    final from = _summaryLanguage;
+    if (text == null || from == null) return;
+    setState(() => _translating = true);
+    final out = await Translate.translate([text], from);
+    if (!mounted) return;
+    setState(() {
+      _translating = false;
+      _translated = out?.single;
+      _showTranslated = _translated != null;
+    });
   }
 
   Future<void> _run() async {
@@ -120,6 +159,7 @@ class _SummarySheetState extends State<_SummarySheet> {
           _result = out;
           _loading = false;
         });
+        _offerTranslation(out);
       }
     } catch (e) {
       if (mounted) {
@@ -158,12 +198,25 @@ class _SummarySheetState extends State<_SummarySheet> {
                           .titleSmall
                           ?.copyWith(fontWeight: FontWeight.w700)),
                 ),
+                if (_result != null && !_loading && _summaryLanguage != null)
+                  IconButton(
+                    tooltip: _showTranslated ? 'Show original' : 'Translate',
+                    onPressed: _translating ? null : _toggleTranslation,
+                    icon: _translating
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : Icon(Icons.translate_rounded,
+                            size: 18,
+                            color: _showTranslated ? cs.primary : null),
+                  ),
                 if (_result != null && !_loading)
                   IconButton(
                     tooltip: 'Copy',
                     icon: const Icon(Icons.content_copy_rounded, size: 18),
                     onPressed: () {
-                      Clipboard.setData(ClipboardData(text: _result!));
+                      Clipboard.setData(ClipboardData(text: _shown!));
                       ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Copied')));
                     },
@@ -182,7 +235,7 @@ class _SummarySheetState extends State<_SummarySheet> {
               FilledButton(onPressed: _run, child: const Text('Retry')),
             ] else
               RedditMarkdown(
-                  data: _result ?? '',
+                  data: _shown ?? '',
                   selectable: true,
                   styleSheet: redditMarkdownStyle(context)),
             if (!_loading && _error == null) ...[

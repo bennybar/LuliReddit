@@ -490,6 +490,15 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             value: s.voteEdge,
             onChanged: ctrl.setVoteEdge,
           ),
+          SwitchListTile(
+            secondary: const Icon(Icons.translate_rounded),
+            title: const Text('Auto-translate posts'),
+            subtitle: const Text(
+                'Posts and comments not in your phone\'s language open '
+                'translated, on your phone'),
+            value: s.autoTranslate,
+            onChanged: ctrl.setAutoTranslate,
+          ),
           ListTile(
             leading: const Icon(Icons.unfold_less_rounded),
             title: const Text('Collapse low-scoring comments'),

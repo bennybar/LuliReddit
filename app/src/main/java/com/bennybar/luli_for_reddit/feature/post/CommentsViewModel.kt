@@ -5,6 +5,7 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bennybar.luli_for_reddit.app
+import com.bennybar.luli_for_reddit.core.Translate
 import com.bennybar.luli_for_reddit.data.COMMENT_SORTS
 import com.bennybar.luli_for_reddit.model.Comment
 import com.bennybar.luli_for_reddit.model.Post
@@ -36,7 +37,25 @@ data class ThreadUiState(
     val refreshing: Boolean = false,
     val error: Throwable? = null,
     val sort: String = "",
+    /** The thread isn't in the phone's language, and the phone can translate it. */
+    val canTranslate: Boolean = false,
+    /** Shown translated: post ("title", "body") and comment (fullname) texts. Null: the original. */
+    val translation: Map<String, String>? = null,
+    val translating: Boolean = false,
 )
+
+/** [this] with [texts] (ThreadUiState.translation) in place of the original post and comment texts. */
+fun PostThread.translated(texts: Map<String, String>?): PostThread {
+    if (texts == null) return this
+    fun tr(c: Comment): Comment =
+        if (c.isMore) c else c.copy(body = texts[c.fullname] ?: c.body, replies = c.replies.map(::tr))
+    val comments = comments.map(::tr)
+    return copy(
+        post = post.copy(title = texts["title"] ?: post.title, selftext = texts["body"] ?: post.selftext),
+        comments = comments,
+        flat = CommentTree.flatten(comments, collapsed),
+    )
+}
 
 /**
  * Comments in the first request. Reddit answers 30 in about half the time of
@@ -67,6 +86,10 @@ class CommentsViewModel(
     // The tree changed locally (vote, reply, edit, load more…) since the first
     // page: the full page then must not replace it.
     private var touched = false
+    // The thread's language (when the phone can translate it) and every text
+    // translated so far, kept while the original is shown.
+    private var language: String? = null
+    private val translations = HashMap<String, String>()
 
     init {
         load(showLoading = true)
@@ -155,8 +178,16 @@ class CommentsViewModel(
             try {
                 touched = false
                 val (t, more) = build()
-                _state.value = ThreadUiState(thread = t, loading = false, sort = sort)
-                if (more) loadFullPage()
+                val shown = _state.value
+                _state.value = ThreadUiState(
+                    thread = t, loading = false, sort = sort,
+                    canTranslate = shown.canTranslate, translation = shown.translation,
+                )
+                if (language == null) detectLanguage(t) else if (shown.translation != null) translate()
+                if (more) {
+                    loadFullPage()
+                    if (_state.value.translation != null) translate()
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -170,6 +201,64 @@ class CommentsViewModel(
                     _state.value = ThreadUiState(thread = null, loading = false, error = e, sort = sort)
                 }
             }
+        }
+    }
+
+    /**
+     * Offers Translate when the post isn't in the phone's language and the
+     * phone can translate it; Settings → Auto-translate translates it right away.
+     */
+    private suspend fun detectLanguage(t: PostThread) {
+        val ctx = app.context
+        // The post and its first comments: a title alone is too short to be sure.
+        val sample = (listOf(t.post.title, t.post.selftext) + t.comments.filter { !it.isMore }.take(5).map { it.body })
+        val lang = Translate.detect(ctx, sample.joinToString("\n")) ?: return
+        if (!Translate.canTranslate(ctx, lang)) return
+        language = lang
+        _state.update { it.copy(canTranslate = true) }
+        if (app.settings.value.autoTranslate) translate()
+    }
+
+    /** Translate / Show original. */
+    fun toggleTranslation() {
+        if (_state.value.translation != null) _state.update { it.copy(translation = null) } else translate()
+    }
+
+    /** Shows the thread translated, translating what isn't yet (the post, comments loaded since). */
+    private fun translate() {
+        val from = language ?: return
+        val t = _state.value.thread ?: return
+        val missing = buildMap {
+            if ("title" !in translations) put("title", t.post.title)
+            if ("body" !in translations && t.post.selftext.isNotEmpty()) put("body", t.post.selftext)
+            for (c in CommentTree.flatten(t.comments, emptySet())) {
+                if (!c.isMore && c.fullname !in translations && c.body.isNotEmpty()) put(c.fullname, c.body)
+            }
+        }
+        if (missing.isEmpty()) {
+            _state.update { it.copy(translation = HashMap(translations)) }
+            return
+        }
+        _state.update { it.copy(translating = true) }
+        viewModelScope.launch {
+            val out = Translate.translate(app.context, missing.values.toList(), from)
+            if (out == null) {
+                _state.update { it.copy(translating = false) }
+                val ctx = app.context
+                val settings = Translate.downloadSettings(ctx)
+                if (Translate.needsDownload(ctx, from)) {
+                    app.navigatorOrNull?.showSnackbar(
+                        "Download ${Translate.languageName(from)} in your phone's Live Translate settings to translate it",
+                        actionLabel = if (settings != null) "Open" else null,
+                        onAction = { settings?.let(ctx::startActivity) },
+                    )
+                } else {
+                    app.navigatorOrNull?.showSnackbar("Couldn't translate this post")
+                }
+                return@launch
+            }
+            missing.keys.zip(out).forEach { (k, v) -> translations[k] = v }
+            _state.update { it.copy(translating = false, translation = HashMap(translations)) }
         }
     }
 
@@ -274,6 +363,7 @@ class CommentsViewModel(
                     CommentTree.replaceMore(_state.value.thread?.comments ?: s.comments, moreNode, app.commentVotes.apply(flat))
                 }
                 edit { it.withTree(tree).copy(loadingMore = it.loadingMore - moreNode.fullname) }
+                if (_state.value.translation != null) translate()
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {

@@ -44,6 +44,7 @@ import 'ask_thread_sheet.dart';
 import 'compose_sheet.dart';
 import 'post_actions.dart';
 import 'share_comment_image.dart';
+import 'thread_translation.dart';
 import '../../core/widgets/error_view.dart';
 
 class PostDetailScreen extends ConsumerStatefulWidget {
@@ -90,6 +91,11 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
   Post? _dwellPost;
   DateTime? _since; // previous visit to this thread; null on the first
 
+  // The thread as shown (translated or not), rebuilt only when it changes.
+  PostThread? _translatedFrom;
+  Map<String, String>? _translatedWith;
+  PostThread? _translated;
+
   String get _key => widget.focusCommentId != null
       ? '${widget.subreddit}/${widget.postId}/focus_${widget.focusCommentId}'
       : '${widget.subreddit}/${widget.postId}';
@@ -116,6 +122,14 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
     // After this frame: a provider can't change while the tree builds.
     WidgetsBinding.instance
         .addPostFrameCallback((_) => visits.record(widget.postId));
+    // Each loaded thread goes to its translation (language check, new
+    // comments while shown translated).
+    ref.listenManual(commentsControllerProvider(_key), (_, next) {
+      final t = next.valueOrNull;
+      if (t != null) {
+        ref.read(threadTranslationProvider(_key).notifier).onThread(t);
+      }
+    }, fireImmediately: true);
     _dwell.start();
     _lifecycle = AppLifecycleListener(
       onStateChange: (s) =>
@@ -534,7 +548,15 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
     final username =
         ref.watch(authControllerProvider).valueOrNull?.username ?? '';
     final settings = ref.watch(settingsControllerProvider);
-    final thread = async.valueOrNull;
+    // Translated (Translate in the app bar, or Settings → Auto-translate).
+    final translation = ref.watch(threadTranslationProvider(_key));
+    final raw = async.valueOrNull;
+    if (raw != _translatedFrom || translation.shown != _translatedWith) {
+      _translatedFrom = raw;
+      _translatedWith = translation.shown;
+      _translated = raw == null ? null : translatedThread(raw, translation.shown);
+    }
+    final thread = _translated;
     _post = thread?.post;
     _dwellPost = thread?.post ?? widget.initialPost;
     _flat = thread?.flat ?? const [];
@@ -556,6 +578,23 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
         title: Text(thread?.post.subredditPrefixed ??
             (widget.subreddit == '_' ? 'Post' : 'r/${widget.subreddit}')),
         actions: [
+          if (thread != null && translation.canTranslate)
+            IconButton(
+              tooltip:
+                  translation.shown != null ? 'Show original' : 'Translate',
+              onPressed: translation.translating
+                  ? null
+                  : ref.read(threadTranslationProvider(_key).notifier).toggle,
+              icon: translation.translating
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : Icon(Icons.translate_rounded,
+                      color: translation.shown != null
+                          ? Theme.of(context).colorScheme.primary
+                          : null),
+            ),
           if (thread != null)
             PopupMenuButton<String>(
               icon: const Icon(Icons.sort_rounded),
@@ -655,10 +694,10 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
                 ),
               ),
             ),
-            data: (thread) {
+            data: (_) {
               final list = RefreshBox(
                 onRefresh: _refresh,
-                child: _commentList(thread, username, settings),
+                child: _commentList(thread!, username, settings),
               );
               if (widget.focusCommentId == null) return list;
               return Column(

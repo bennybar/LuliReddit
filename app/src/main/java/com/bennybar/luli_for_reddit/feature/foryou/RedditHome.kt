@@ -514,7 +514,8 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
         try {
             val store = c.secureStore
             if (store.authMode() != "web") throw IllegalStateException("Reddit Home needs website sign-in")
-            val cookie = store.webCookie() ?: ""
+            // With a current token_v2: an expired one fails the first load after a while away.
+            val cookie = c.client.freshWebCookie() ?: ""
             val l = loader ?: RedditHomeLoader(c.context).also { loader = it }
             if (firstPage) {
                 loadGen++
@@ -635,7 +636,8 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
         return try {
             val store = c.secureStore
             if (store.authMode() != "web") return BlendResult.SignedOut
-            val cookie = store.webCookie() ?: ""
+            // With a current token_v2: an expired one fails the first load after a while away.
+            val cookie = c.client.freshWebCookie() ?: ""
             val l = loader ?: RedditHomeLoader(c.context).also { loader = it }
             val page = l.next(restart = first, cookieHeader = cookie)
             if (gen != blendGen || c.session.username != user) return BlendResult.Failed // superseded

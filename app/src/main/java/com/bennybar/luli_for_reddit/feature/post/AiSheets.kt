@@ -64,6 +64,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -83,6 +85,7 @@ import androidx.compose.ui.unit.sp
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import android.net.Uri
 import com.bennybar.luli_for_reddit.app
+import com.bennybar.luli_for_reddit.core.Translate
 import com.bennybar.luli_for_reddit.core.isShareLink
 import com.bennybar.luli_for_reddit.core.resolveShareLink
 import com.bennybar.luli_for_reddit.core.routeForRedditUrl
@@ -158,7 +161,28 @@ private fun SummarySheet(
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
     var post by remember { mutableStateOf<Post?>(null) }
+    // A summary not in the phone's language: translated on the phone.
+    var summaryLanguage by remember { mutableStateOf<String?>(null) }
+    var translated by remember { mutableStateOf<String?>(null) }
+    var showTranslated by remember { mutableStateOf(false) }
+    var translating by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     val cs = MaterialTheme.colorScheme
+
+    fun toggleTranslation() {
+        if (showTranslated || translated != null) {
+            showTranslated = !showTranslated
+            return
+        }
+        val text = result ?: return
+        val from = summaryLanguage ?: return
+        translating = true
+        scope.launch {
+            translated = Translate.translate(app.context, listOf(text), from)?.single()
+            translating = false
+            if (translated != null) showTranslated = true else snack("Couldn't translate the summary")
+        }
+    }
 
     LaunchedEffect(attempt) {
         loading = true
@@ -188,6 +212,12 @@ private fun SummarySheet(
             error = (e.message ?: e.toString()).removePrefix("Exception: ")
         }
         loading = false
+        val text = result ?: return@LaunchedEffect
+        val lang = Translate.detect(app.context, text)
+        if (lang != null && Translate.canTranslate(app.context, lang)) {
+            summaryLanguage = lang
+            if (app.settings.value.autoTranslate) toggleTranslation()
+        }
     }
 
     // Opens fully, at most 92% tall, and scrolls inside. (It used to open half
@@ -211,9 +241,18 @@ private fun SummarySheet(
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                     modifier = Modifier.weight(1f),
                 )
+                if (result != null && !loading && summaryLanguage != null) {
+                    val label = if (showTranslated) "Show original" else "Translate"
+                    IconTooltip(label) {
+                        IconButton(onClick = ::toggleTranslation, enabled = !translating) {
+                            if (translating) Loading(Modifier.size(18.dp))
+                            else Icon(Icons.Rounded.Translate, label, Modifier.size(18.dp), tint = if (showTranslated) cs.primary else LocalContentColor.current)
+                        }
+                    }
+                }
                 if (result != null && !loading) {
                     IconTooltip("Copy") {
-                        IconButton(onClick = { copyToClipboard(result!!) }) {
+                        IconButton(onClick = { copyToClipboard((if (showTranslated) translated else null) ?: result!!) }) {
                             Icon(Icons.Rounded.ContentCopy, "Copy", Modifier.size(18.dp))
                         }
                     }
@@ -229,7 +268,7 @@ private fun SummarySheet(
                     Spacer(Modifier.height(12.dp))
                     Button(onClick = { attempt++ }) { Text("Retry") }
                 }
-                else -> RedditMarkdown(result ?: "", selectable = true)
+                else -> RedditMarkdown((if (showTranslated) translated else null) ?: result ?: "", selectable = true)
             }
             if (!loading && error == null) {
                 Spacer(Modifier.height(16.dp))

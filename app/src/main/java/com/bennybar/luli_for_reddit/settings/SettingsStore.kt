@@ -30,6 +30,7 @@ class SettingsStore(private val p: Prefs) {
             tapToCollapse = b("tapToCollapse", d.tapToCollapse),
             collapseRepliesOnly = b("collapseRepliesOnly", d.collapseRepliesOnly),
             voteEdge = b("voteEdge", d.voteEdge),
+            autoTranslate = b("autoTranslate", d.autoTranslate),
             volumeKeyNavigation = b("volumeKeyNavigation", d.volumeKeyNavigation),
             collapseBelowScore = p.getInt("collapseBelowScore"),
             collapseTopLevel = b("collapseTopLevel", d.collapseTopLevel),
@@ -169,6 +170,7 @@ class SettingsStore(private val p: Prefs) {
     fun setTapToCollapse(v: Boolean) { p.setBool("tapToCollapse", v); set { it.copy(tapToCollapse = v) } }
     fun setCollapseRepliesOnly(v: Boolean) { p.setBool("collapseRepliesOnly", v); set { it.copy(collapseRepliesOnly = v) } }
     fun setVoteEdge(v: Boolean) { p.setBool("voteEdge", v); set { it.copy(voteEdge = v) } }
+    fun setAutoTranslate(v: Boolean) { p.setBool("autoTranslate", v); set { it.copy(autoTranslate = v) } }
     fun setVolumeKeyNavigation(v: Boolean) { p.setBool("volumeKeyNavigation", v); set { it.copy(volumeKeyNavigation = v) } }
     fun setCollapseBelowScore(v: Int?) {
         if (v == null) p.remove("collapseBelowScore") else p.setInt("collapseBelowScore", v)

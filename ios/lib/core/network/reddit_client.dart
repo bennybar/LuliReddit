@@ -230,6 +230,16 @@ class RedditClient {
   }
 
   /// Whether requests go through the website session (website sign-in).
+  /// The website session's cookies with a current token_v2, for loading
+  /// reddit.com pages (Reddit Home): the saved one has usually expired after
+  /// the app was closed a day.
+  Future<String?> freshWebCookie() async {
+    await _ensureConfig();
+    final cookie = _webCookie;
+    if (cookie != null && needsNewToken(cookie)) await _renewWebToken();
+    return _webCookie;
+  }
+
   Future<bool> get webMode async {
     await _ensureConfig();
     return _webMode;

@@ -70,6 +70,7 @@ import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -219,7 +220,8 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
             vm.refresh()
         }
     }
-    val thread = ui.thread
+    // Translated (Translate in the top bar, or Settings → Auto-translate).
+    val thread = remember(ui.thread, ui.translation) { ui.thread?.translated(ui.translation) }
     val flat = thread?.flat ?: emptyList()
     val since = dwell.since
     dwell.post = thread?.post ?: initialPost
@@ -345,6 +347,15 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
                 },
                 actions = {
                     if (thread != null) {
+                        if (ui.canTranslate) {
+                            val shown = ui.translation != null
+                            IconTooltip(if (shown) "Show original" else "Translate") {
+                                IconButton(onClick = vm::toggleTranslation, enabled = !ui.translating) {
+                                    if (ui.translating) Loading(Modifier.size(20.dp))
+                                    else Icon(Icons.Rounded.Translate, if (shown) "Show original" else "Translate", tint = if (shown) MaterialTheme.colorScheme.primary else LocalContentColor.current)
+                                }
+                            }
+                        }
                         SortMenu(vm.currentSort, vm::changeSort)
                         IconTooltip("Search comments") {
                             IconButton(onClick = ::toggleSearch) {

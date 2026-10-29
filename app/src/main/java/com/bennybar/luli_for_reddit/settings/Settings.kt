@@ -82,6 +82,7 @@ data class Settings(
     val tapToCollapse: Boolean = false, // tap a comment to collapse it (else long-press)
     val collapseRepliesOnly: Boolean = false, // collapsing keeps the comment's own text, hides its replies
     val voteEdge: Boolean = true, // comments you voted on get an edge in the vote's color
+    val autoTranslate: Boolean = false, // translate posts not in the phone's language on opening (on-device)
     val volumeKeyNavigation: Boolean = false, // in a thread, volume keys jump between top-level comments
     val collapseBelowScore: Int? = null, // comments scoring below this start collapsed (null = off)
     val collapseTopLevel: Boolean = false, // threads open with top-level comments' replies collapsed

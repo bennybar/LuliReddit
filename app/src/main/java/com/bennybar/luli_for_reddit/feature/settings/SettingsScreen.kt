@@ -75,6 +75,7 @@ import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.DoneAll
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.ThumbsUpDown
+import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.UnfoldLess
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.FontDownload
@@ -516,6 +517,11 @@ fun SettingsList(
             "Mark comments you voted on",
             "An edge in the vote's color on comments you upvoted or downvoted",
             Icons.Rounded.ThumbsUpDown, s.voteEdge, ctrl::setVoteEdge,
+        )
+        switch(
+            "Auto-translate posts",
+            "Posts and comments not in your phone's language open translated, on your phone (where it can translate)",
+            Icons.Rounded.Translate, s.autoTranslate, ctrl::setAutoTranslate,
         )
         tile(
             "Collapse low-scoring comments",
