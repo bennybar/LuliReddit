@@ -461,6 +461,7 @@ fun SortBar(
     onRedditHome: (() -> Unit)? = null, // null unless enabled in Settings
     blend: Boolean = false,
     onBlend: (() -> Unit)? = null, // null unless Reddit Home is enabled
+    sorts: List<PostSort> = PostSort.entries,
 ) {
     val scope = rememberCoroutineScope()
     val label = when {
@@ -474,7 +475,7 @@ fun SortBar(
         AssistChip(
             onClick = {
                 scope.launch {
-                    showSortSheet(sort, time, onPick, isFrontpage, forYou && !blend, onForYou, redditHome, onRedditHome, blend, onBlend)
+                    showSortSheet(sort, time, onPick, isFrontpage, forYou && !blend, onForYou, redditHome, onRedditHome, blend, onBlend, sorts)
                 }
             },
             label = { Text(label) },
@@ -516,6 +517,7 @@ private suspend fun showSortSheet(
     onRedditHome: (() -> Unit)?,
     blend: Boolean,
     onBlend: (() -> Unit)?,
+    sorts: List<PostSort>,
 ) {
     val pick = Overlays.show<SortPick> { done ->
         ModalBottomSheet(onDismissRequest = { done(null) }) {
@@ -530,7 +532,7 @@ private suspend fun showSortSheet(
                     if (isFrontpage && onRedditHome != null) {
                         SheetTile(Icons.Rounded.Home, "Home", "Your reddit.com Home", checked = redditHome) { done(SortPick.Home) }
                     }
-                    for (s in PostSort.entries) {
+                    for (s in sorts) {
                         SheetTile(iconFor(s), s.label, null, checked = !forYou && !blend && !redditHome && s == sort) { done(SortPick.Sort(s)) }
                     }
                 }

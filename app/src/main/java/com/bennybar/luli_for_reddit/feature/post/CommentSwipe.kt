@@ -40,7 +40,9 @@ class SwipeSpec(val icon: ImageVector, val color: Color, val onTrigger: () -> Un
  * from the start edge toward the end (rightward in left-to-right languages,
  * leftward in Hebrew/Arabic), [end] the other way. A null side does nothing.
  * Reveals the action's icon as you drag and fires on release past the
- * threshold.
+ * threshold. A [content] with no background of its own (the Calm rows)
+ * passes [slideColor]: it's filled with it while dragged, so it slides over
+ * the action like a card instead of the action tinting it.
  */
 @Composable
 fun SwipeActions(
@@ -48,6 +50,7 @@ fun SwipeActions(
     start: SwipeSpec?,
     end: SwipeSpec?,
     modifier: Modifier = Modifier,
+    slideColor: Color? = null,
     content: @Composable () -> Unit,
 ) {
     if (!enabled || (start == null && end == null)) {
@@ -108,6 +111,10 @@ fun SwipeActions(
                 Icon(spec.icon, null, tint = spec.color, modifier = Modifier.size(if (active) 30.dp else 24.dp))
             }
         }
-        Box(Modifier.offset { IntOffset(dx.roundToInt(), 0) }) { content() }
+        Box(
+            Modifier
+                .offset { IntOffset(dx.roundToInt(), 0) }
+                .then(if (slideColor != null && dx != 0f) Modifier.background(slideColor) else Modifier),
+        ) { content() }
     }
 }

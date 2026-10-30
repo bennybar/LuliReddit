@@ -20,6 +20,7 @@ import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.MotionScheme
 import com.bennybar.luli_for_reddit.feature.about.maybeShowWhatsNew
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -279,18 +280,26 @@ fun HomeScreen() {
         }
     }
 
+    // The drawer opens with the theme's spatial spring: Expressive's bounce
+    // carries it past the screen's edge and shows the page behind it (#41).
+    // Standard (no bounce) for the drawer, Expressive again inside it.
+    val motion = MaterialTheme.motionScheme
+    MaterialTheme(motionScheme = MotionScheme.standard()) {
     ModalNavigationDrawer(
         drawerState = drawer,
         gesturesEnabled = sideBar,
         drawerContent = {
             if (sideBar) {
-                SideBar(index, unread, onTab = ::selectTab) { pick ->
-                    shellScope.launch { drawer.close() }
-                    pick()
+                MaterialTheme(motionScheme = motion) {
+                    SideBar(index, unread, onTab = ::selectTab) { pick ->
+                        shellScope.launch { drawer.close() }
+                        pick()
+                    }
                 }
             }
         },
     ) {
+    MaterialTheme(motionScheme = motion) {
     CompositionLocalProvider(LocalSideBar provides if (sideBar) ({ shellScope.launch { drawer.open() } }) else null) {
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
         KeepAliveTabs(
@@ -330,6 +339,8 @@ fun HomeScreen() {
             onSelected = ::selectTab,
         )
         }
+    }
+    }
     }
     }
     }

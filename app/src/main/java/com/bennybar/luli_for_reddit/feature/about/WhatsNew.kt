@@ -45,6 +45,15 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.44", "Oct 30, 2026",
+        listOf(
+            "Profiles: sort posts and comments by New, Hot or Top, and the profile header slides away as you scroll",
+            "Custom feed share links (reddit.com/u/…/s/…) open the feed, not the user",
+            "Swiping a comment in the Calm style slides it over the vote icon like a card, instead of tinting it",
+            "The side bar no longer shows the page behind it while it opens",
+        ),
+    ),
+    Release(
         "2.0.43", "Oct 29, 2026",
         listOf(
             "Translate posts, comments and AI summaries: on the post, in a comment's ⋯ menu, into your phone's language or a second one (Settings → Translation). On the phone where it can, else with your OpenAI key or Azure Translator",

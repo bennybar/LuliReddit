@@ -323,7 +323,7 @@ class _PostListViewState extends ConsumerState<PostListView>
                 index -= 1;
               }
               if (index == 0) {
-                final sortBar = _SortBar(
+                final sortBar = SortBar(
                   sort: state.sort,
                   time: state.time,
                   onPick: notifier.changeSort,
@@ -543,8 +543,9 @@ class _NewPostsPill extends StatelessWidget {
   }
 }
 
-class _SortBar extends StatelessWidget {
-  const _SortBar({
+class SortBar extends StatelessWidget {
+  const SortBar({
+    super.key,
     required this.sort,
     required this.time,
     required this.onPick,
@@ -555,6 +556,7 @@ class _SortBar extends StatelessWidget {
     this.onRedditHome,
     this.blend = false,
     this.onBlend,
+    this.sorts = PostSort.values,
   });
   final PostSort sort;
   final TopTime time;
@@ -566,6 +568,7 @@ class _SortBar extends StatelessWidget {
   final VoidCallback? onRedditHome; // null unless enabled in Settings
   final bool blend;
   final VoidCallback? onBlend; // null unless Reddit Home is enabled
+  final List<PostSort> sorts;
 
   @override
   Widget build(BuildContext context) {
@@ -649,7 +652,7 @@ class _SortBar extends StatelessWidget {
                   onRedditHome!();
                 },
               ),
-            for (final s in PostSort.values)
+            for (final s in sorts)
               ListTile(
                 leading: Icon(_iconFor(s)),
                 title: Text(s.label),

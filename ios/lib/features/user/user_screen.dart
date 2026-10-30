@@ -20,6 +20,8 @@ import '../feed/paged_list.dart';
 import '../feed/post_card.dart';
 import '../post/post_actions.dart';
 import '../../core/widgets/error_view.dart';
+import '../../data/reddit_repository.dart';
+import '../feed/post_list_view.dart' show SortBar;
 
 final userAboutProvider =
     FutureProvider.autoDispose.family<RedditUser, String>((ref, name) {
@@ -71,13 +73,23 @@ class UserScreen extends ConsumerWidget {
 /// A profile's header and its Posts / Comments (and your own Saved /
 /// Upvoted) lists: the user screen, and the Profile tab ([belowHeader]: its
 /// "Your stuff" row).
-class UserProfileBody extends ConsumerWidget {
+class UserProfileBody extends ConsumerStatefulWidget {
   const UserProfileBody({super.key, required this.username, this.belowHeader});
   final String username;
   final Widget? belowHeader;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<UserProfileBody> createState() => _UserProfileBodyState();
+}
+
+class _UserProfileBodyState extends ConsumerState<UserProfileBody> {
+  // Posts and comments, newest first like reddit.com; Hot and Top too.
+  PostSort _sort = PostSort.newest;
+  TopTime _time = TopTime.all;
+
+  @override
+  Widget build(BuildContext context) {
+    final username = widget.username;
     final about = ref.watch(userAboutProvider(username));
     final me = ref.watch(
             authControllerProvider.select((a) => a.valueOrNull?.username)) ??
@@ -91,6 +103,9 @@ class UserProfileBody extends ConsumerWidget {
     final staleAfter = isSelf
         ? const Duration(seconds: 30)
         : const Duration(minutes: 5);
+    final sort = _sort;
+    final time = sort.needsTime ? _time : null;
+    final sortKey = '${sort.path}_${time?.param}';
 
     final tabs = <Tab>[
       const Tab(text: 'Posts'),
@@ -99,68 +114,119 @@ class UserProfileBody extends ConsumerWidget {
       if (isSelf) const Tab(text: 'Upvoted'),
     ];
 
+    // The header (and the Profile tab's row under it) scrolls away with the
+    // lists and comes back at their top; the tabs stay.
     return DefaultTabController(
       length: tabs.length,
-      child: Column(
-        children: [
-          about.when(
-            loading: () => const SizedBox(
-                height: 96, child: Center(child: Loading())),
-            error: (e, _) => Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text('Could not load profile: ${friendlyError(e)}')),
-            data: (u) =>
-                _ProfileHeader(user: u, canFollow: !isSelf && me.isNotEmpty),
-          ),
-          if (belowHeader != null) belowHeader!,
-          TabBar(
-              isScrollable: true,
-              tabAlignment: TabAlignment.start,
-              tabs: tabs),
-          Expanded(
-            child: TabBarView(
+      child: NestedScrollView(
+        headerSliverBuilder: (context, _) => [
+          SliverToBoxAdapter(
+            child: Column(
               children: [
-                PagedList<Post>(
-                  fetch: (a) => repo.getUserPosts(username, after: a),
-                  itemBuilder: (_, p) => PostCard(key: ValueKey(p.id), post: p),
-                  emptyLabel: 'No posts yet',
-                  staleAfter: staleAfter,
+                about.when(
+                  loading: () => const SizedBox(
+                      height: 96, child: Center(child: Loading())),
+                  error: (e, _) => Padding(
+                      padding: const EdgeInsets.all(16),
+                      child:
+                          Text('Could not load profile: ${friendlyError(e)}')),
+                  data: (u) => _ProfileHeader(
+                      user: u, canFollow: !isSelf && me.isNotEmpty),
                 ),
-                PagedList<Comment>(
-                  // Your votes from threads that Reddit hasn't caught up with.
-                  fetch: (a) async {
-                    final l = await repo.getUserComments(username, after: a);
-                    return Listing(items: votes.apply(l.items), after: l.after);
-                  },
-                  itemBuilder: (_, c) => _ProfileCommentCard(
-                      key: ValueKey(c.id), comment: c),
-                  emptyLabel: 'No comments yet',
-                  staleAfter: staleAfter,
-                ),
-                if (isSelf)
-                  PagedList<Object>(
-                    fetch: (a) => repo.getUserSaved(username, after: a),
-                    itemBuilder: (_, item) => item is Post
-                        ? PostCard(key: ValueKey(item.id), post: item)
-                        : _ProfileCommentCard(
-                            key: ValueKey((item as Comment).id),
-                            comment: item),
-                    emptyLabel: 'Nothing saved',
-                    staleAfter: staleAfter,
-                  ),
-                if (isSelf)
-                  PagedList<Post>(
-                    fetch: (a) =>
-                        repo.getUserPosts(username, where: 'upvoted', after: a),
-                    itemBuilder: (_, p) =>
-                        PostCard(key: ValueKey(p.id), post: p),
-                    emptyLabel: 'Nothing upvoted',
-                    staleAfter: staleAfter,
-                  ),
+                if (widget.belowHeader != null) widget.belowHeader!,
               ],
             ),
           ),
         ],
+        body: Column(
+          children: [
+            Builder(builder: (context) {
+              final tabsController = DefaultTabController.of(context);
+              return Row(
+                children: [
+                  Expanded(
+                    child: TabBar(
+                        isScrollable: true,
+                        tabAlignment: TabAlignment.start,
+                        tabs: tabs),
+                  ),
+                  ListenableBuilder(
+                    listenable: tabsController,
+                    builder: (context, _) => tabsController.index < 2
+                        ? SortBar(
+                            sort: sort,
+                            time: _time,
+                            sorts: const [
+                              PostSort.newest,
+                              PostSort.hot,
+                              PostSort.top
+                            ],
+                            onPick: (s, {time}) => setState(() {
+                              _sort = s;
+                              if (time != null) _time = time;
+                            }),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                ],
+              );
+            }),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  PagedList<Post>(
+                    key: ValueKey('posts_$sortKey'),
+                    nested: true,
+                    fetch: (a) => repo.getUserPosts(username,
+                        after: a, sort: sort, time: time),
+                    itemBuilder: (_, p) =>
+                        PostCard(key: ValueKey(p.id), post: p),
+                    emptyLabel: 'No posts yet',
+                    staleAfter: staleAfter,
+                  ),
+                  PagedList<Comment>(
+                    key: ValueKey('comments_$sortKey'),
+                    nested: true,
+                    // Your votes from threads that Reddit hasn't caught up
+                    // with.
+                    fetch: (a) async {
+                      final l = await repo.getUserComments(username,
+                          after: a, sort: sort, time: time);
+                      return Listing(
+                          items: votes.apply(l.items), after: l.after);
+                    },
+                    itemBuilder: (_, c) => _ProfileCommentCard(
+                        key: ValueKey(c.id), comment: c),
+                    emptyLabel: 'No comments yet',
+                    staleAfter: staleAfter,
+                  ),
+                  if (isSelf)
+                    PagedList<Object>(
+                      nested: true,
+                      fetch: (a) => repo.getUserSaved(username, after: a),
+                      itemBuilder: (_, item) => item is Post
+                          ? PostCard(key: ValueKey(item.id), post: item)
+                          : _ProfileCommentCard(
+                              key: ValueKey((item as Comment).id),
+                              comment: item),
+                      emptyLabel: 'Nothing saved',
+                      staleAfter: staleAfter,
+                    ),
+                  if (isSelf)
+                    PagedList<Post>(
+                      nested: true,
+                      fetch: (a) => repo.getUserPosts(username,
+                          where: 'upvoted', after: a),
+                      itemBuilder: (_, p) =>
+                          PostCard(key: ValueKey(p.id), post: p),
+                      emptyLabel: 'Nothing upvoted',
+                      staleAfter: staleAfter,
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

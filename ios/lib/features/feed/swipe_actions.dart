@@ -36,7 +36,10 @@ class SwipeSpec {
 /// from the start edge toward the end (rightward in left-to-right languages,
 /// leftward in Hebrew/Arabic), [end] the other way. A null side does nothing.
 /// Reveals the action's icon as you drag and fires on release past the
-/// threshold. Pass [enabled] = false to disable.
+/// threshold. Pass [enabled] = false to disable. A [child] with no
+/// background of its own (the Calm comment rows) passes [slideColor]: it's
+/// filled with it while dragged, so it slides over the action like a card
+/// instead of the action tinting it.
 class SwipeActions extends StatefulWidget {
   const SwipeActions({
     super.key,
@@ -44,12 +47,14 @@ class SwipeActions extends StatefulWidget {
     this.start,
     this.end,
     this.enabled = true,
+    this.slideColor,
   });
 
   final Widget child;
   final SwipeSpec? start;
   final SwipeSpec? end;
   final bool enabled;
+  final Color? slideColor;
 
   @override
   State<SwipeActions> createState() => _SwipeActionsState();
@@ -115,7 +120,14 @@ class _SwipeActionsState extends State<SwipeActions> {
                     color: spec.color, size: active ? 30 : 24),
               ),
             ),
-          Transform.translate(offset: Offset(_dx, 0), child: widget.child),
+          Transform.translate(
+              offset: Offset(_dx, 0),
+              // Always the same tree (switching would rebuild the row).
+              child: ColoredBox(
+                  color: _dx != 0
+                      ? widget.slideColor ?? Colors.transparent
+                      : Colors.transparent,
+                  child: widget.child)),
         ],
       ),
     );

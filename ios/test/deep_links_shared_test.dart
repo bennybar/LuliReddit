@@ -26,4 +26,15 @@ void main() {
     expect(postIdInRoute('/comments/_/abc123?comment=x'), 'abc123');
     expect(postIdInRoute('/r/apple'), isNull);
   });
+
+  test('custom feed share links resolve first, not to the user', () {
+    final feed = Uri.parse('https://www.reddit.com/u/abidd43/s/kAKtvQZpm9');
+    expect(isShareLink(feed), isTrue);
+    expect(routeForRedditUrl(feed), isNull);
+    expect(isShareLink(Uri.parse('https://www.reddit.com/u/abidd43')), isFalse);
+    expect(
+        routeForRedditUrl(
+            Uri.parse('https://www.reddit.com/user/abidd43/m/ask_stuff/')),
+        '/m/abidd43/ask_stuff');
+  });
 }

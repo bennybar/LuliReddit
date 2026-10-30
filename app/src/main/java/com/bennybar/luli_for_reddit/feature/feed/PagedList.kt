@@ -142,6 +142,8 @@ fun <T> PagedList(
     source: PagedSource<T>,
     itemKey: (T) -> Any,
     modifier: Modifier = Modifier,
+    /** On the list itself (inside its pull-to-refresh), e.g. a nestedScroll. */
+    listModifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(start = 10.dp, top = 8.dp, end = 10.dp, bottom = 130.dp),
     emptyLabel: String = "Nothing here",
     contentType: (T) -> Any? = { null },
@@ -190,7 +192,7 @@ fun <T> PagedList(
             }
         }
         state.items.isEmpty() -> RefreshBox(refreshing, onRefresh = ::refresh, modifier = modifier.fillMaxSize()) {
-            LazyColumn(Modifier.fillMaxSize()) {
+            LazyColumn(Modifier.fillMaxSize().then(listModifier)) {
                 item {
                     Spacer(Modifier.height(120.dp))
                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { Text(emptyLabel) }
@@ -202,7 +204,7 @@ fun <T> PagedList(
             LoadMoreNearEnd(listState, fromEnd = 4, page = state.items.size to state.after, onLoadMore = source::loadMore)
             val items = remember(state.items) { state.items.distinctBy(itemKey) }
             LazyColumn(
-                Modifier.fillMaxSize(),
+                Modifier.fillMaxSize().then(listModifier),
                 state = listState,
                 contentPadding = contentPadding,
                 verticalArrangement = Arrangement.spacedBy(8.dp),

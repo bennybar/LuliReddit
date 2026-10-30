@@ -20,6 +20,13 @@ class Release {
 // TODO(whats-new): this is the Kotlin app's list as-is; it describes the
 // features being ported. Replace it with the iOS app's own releases.
 const changelog = [
+  Release('2.0.44', 'Oct 30, 2026', [
+    'Profiles: sort posts and comments by New, Hot or Top, and the profile '
+        'header slides away as you scroll',
+    'Custom feed share links (reddit.com/u/…/s/…) open the feed, not the user',
+    'Swiping a comment in the Calm style slides it over the vote icon like a '
+        'card, instead of tinting it',
+  ]),
   Release('2.0.43', 'Oct 29, 2026', [
     'Translate posts, comments and AI summaries: on the post, in a comment\'s '
         '⋯ menu, into your phone\'s language or a second one (Settings → '

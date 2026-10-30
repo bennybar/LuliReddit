@@ -29,8 +29,13 @@ String? routeForRedditUrl(Uri uri) {
     return '/comments/_/${segs[1]}';
   }
   // A share link must be resolved first (resolveShareLink): /r/<sub>/s/<code>
-  // is a post, not the subreddit.
-  if (segs.length >= 4 && segs[0] == 'r' && segs[2] == 's') return null;
+  // is a post, not the subreddit; /u/<name>/s/<code> a custom feed, not the
+  // user.
+  if (segs.length >= 4 &&
+      (segs[0] == 'r' || segs[0] == 'u' || segs[0] == 'user') &&
+      segs[2] == 's') {
+    return null;
+  }
 
   // Multireddit: /user/<name>/m/<multi>
   if (segs.length >= 4 &&
@@ -76,12 +81,14 @@ bool _isRedditHost(String host) {
       h.endsWith('.reddit.com');
 }
 
-/// A share link (`reddit.com/r/<sub>/s/<code>`): it only redirects to the
-/// real post / comment URL.
+/// A share link (`reddit.com/r/<sub>/s/<code>`, or `/u/<name>/s/<code>` for
+/// a custom feed): it only redirects to the real post / comment / feed URL.
 bool isShareLink(Uri uri) {
   if (!_isRedditHost(uri.host)) return false;
   final s = uri.pathSegments.where((x) => x.isNotEmpty).toList();
-  return s.length >= 4 && s[0] == 'r' && s[2] == 's';
+  return s.length >= 4 &&
+      (s[0] == 'r' || s[0] == 'u' || s[0] == 'user') &&
+      s[2] == 's';
 }
 
 /// Follows a [isShareLink] URL's redirects (up to 3) to the link it stands

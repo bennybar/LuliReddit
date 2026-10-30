@@ -642,24 +642,36 @@ class RedditRepository {
   }
 
   /// [where] ∈ submitted | upvoted | downvoted | hidden  (post listings)
+  /// [sort] (and [time] for Top) only for submitted.
   Future<Listing<Post>> getUserPosts(String username,
-      {String where = 'submitted', String? after, int limit = 25}) async {
+      {String where = 'submitted',
+      String? after,
+      int limit = 25,
+      PostSort? sort,
+      TopTime? time}) async {
     final res = await _client.get<Map<String, dynamic>>(
       '/user/$username/$where',
       query: {
         'limit': limit,
         'sr_detail': true,
         if (after != null) 'after': after,
+        if (sort != null) 'sort': sort.path,
+        if (time != null) 't': time.param,
       },
     );
     return _parsePostListing(res.data!);
   }
 
   Future<Listing<Comment>> getUserComments(String username,
-      {String? after}) async {
+      {String? after, PostSort? sort, TopTime? time}) async {
     final res = await _client.get<Map<String, dynamic>>(
       '/user/$username/comments',
-      query: {'limit': 25, if (after != null) 'after': after},
+      query: {
+        'limit': 25,
+        if (after != null) 'after': after,
+        if (sort != null) 'sort': sort.path,
+        if (time != null) 't': time.param,
+      },
     );
     final data = res.data?['data'] as Map<String, dynamic>?;
     final children = (data?['children'] as List?) ?? const [];

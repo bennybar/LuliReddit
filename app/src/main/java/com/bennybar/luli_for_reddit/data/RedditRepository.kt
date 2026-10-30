@@ -253,14 +253,27 @@ class RedditRepository(val client: RedditClient) {
     suspend fun getUserAbout(username: String): RedditUser =
         RedditUser.fromData(client.get("/user/$username/about")["data"]!!)
 
-    /** [where] ∈ submitted | upvoted | downvoted | hidden (post listings). */
-    suspend fun getUserPosts(username: String, where: String = "submitted", after: String? = null, limit: Int = 25): Listing<Post> {
-        val json = client.get("/user/$username/$where", linkedMapOf<String, Any?>("limit" to limit, "after" to after, "sr_detail" to true))
+    /** [where] ∈ submitted | upvoted | downvoted | hidden (post listings); [sort] (and [time] for Top) only for submitted. */
+    suspend fun getUserPosts(
+        username: String,
+        where: String = "submitted",
+        after: String? = null,
+        limit: Int = 25,
+        sort: PostSort? = null,
+        time: TopTime? = null,
+    ): Listing<Post> {
+        val json = client.get(
+            "/user/$username/$where",
+            linkedMapOf<String, Any?>("limit" to limit, "after" to after, "sr_detail" to true, "sort" to sort?.path, "t" to time?.param),
+        )
         return parse { parsePostListing(json) }
     }
 
-    suspend fun getUserComments(username: String, after: String? = null): Listing<Comment> {
-        val json = client.get("/user/$username/comments", linkedMapOf<String, Any?>("limit" to 25, "after" to after))
+    suspend fun getUserComments(username: String, after: String? = null, sort: PostSort? = null, time: TopTime? = null): Listing<Comment> {
+        val json = client.get(
+            "/user/$username/comments",
+            linkedMapOf<String, Any?>("limit" to 25, "after" to after, "sort" to sort?.path, "t" to time?.param),
+        )
         return parse {
             val data = json["data"]
             Listing(

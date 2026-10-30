@@ -28,6 +28,19 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Constraints
+import com.bennybar.luli_for_reddit.data.PostSort
+import com.bennybar.luli_for_reddit.data.TopTime
+import kotlin.math.roundToInt
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.Composable
@@ -140,46 +153,108 @@ fun UserProfileBody(username: String, modifier: Modifier = Modifier, belowHeader
     // Your own lists reload on every return from a post (scores and votes
     // you just changed); others' after the usual five minutes.
     val staleAfter = if (isSelf) 30_000L else 5 * 60_000L
+    // Posts and comments, newest first like reddit.com; Hot and Top too.
+    var sort by rememberSaveable { mutableStateOf(PostSort.NEWEST) }
+    var time by rememberSaveable { mutableStateOf(TopTime.ALL) }
+    val sortKey = if (sort.needsTime) "${sort.path}_${time.param}" else sort.path
+    val sortTime = time.takeIf { sort.needsTime }
+
+    // The header (and the Profile tab's row under it) slides away as a list
+    // scrolls down and comes back once it's back at the top; the tabs stay.
+    // On each list, inside its pull-to-refresh: the header comes back before
+    // a pull refreshes.
+    var headerHeight by remember { mutableIntStateOf(0) }
+    var headerOffset by remember { mutableFloatStateOf(0f) }
+    val collapse = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (available.y >= 0) return Offset.Zero
+                val next = (headerOffset + available.y).coerceAtLeast(-headerHeight.toFloat())
+                val used = next - headerOffset
+                headerOffset = next
+                return Offset(0f, used)
+            }
+
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (available.y <= 0) return Offset.Zero
+                val next = (headerOffset + available.y).coerceAtMost(0f)
+                val used = next - headerOffset
+                headerOffset = next
+                return Offset(0f, used)
+            }
+        }
+    }
+    val listModifier = Modifier.nestedScroll(collapse)
 
     Column(modifier) {
-        when (val a = about) {
-            Async.Loading -> Box(Modifier.fillMaxWidth().height(96.dp), contentAlignment = Alignment.Center) {
-                Loading()
-            }
-            is Async.Error -> Text("Could not load profile: ${friendlyError(a.error)}", Modifier.padding(16.dp))
-            is Async.Data -> ProfileHeader(a.value, canFollow = !isSelf && me.isNotEmpty())
-        }
-        belowHeader()
-        PrimaryScrollableTabRow(
-            selectedTabIndex = pager.currentPage,
-            edgePadding = 0.dp,
-            containerColor = MaterialTheme.colorScheme.surface,
+        Column(
+            Modifier.clipToBounds().layout { measurable, constraints ->
+                val p = measurable.measure(constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity))
+                headerHeight = p.height
+                val offset = headerOffset.roundToInt().coerceAtLeast(-p.height)
+                layout(p.width, p.height + offset) { p.place(0, offset) }
+            },
         ) {
-            tabs.forEachIndexed { i, t ->
-                Tab(
-                    selected = pager.currentPage == i,
-                    onClick = { scope.launch { pager.animateScrollToPage(i) } },
-                    text = { Text(t) },
+            when (val a = about) {
+                Async.Loading -> Box(Modifier.fillMaxWidth().height(96.dp), contentAlignment = Alignment.Center) {
+                    Loading()
+                }
+                is Async.Error -> Text("Could not load profile: ${friendlyError(a.error)}", Modifier.padding(16.dp))
+                is Async.Data -> ProfileHeader(a.value, canFollow = !isSelf && me.isNotEmpty())
+            }
+            belowHeader()
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            PrimaryScrollableTabRow(
+                selectedTabIndex = pager.currentPage,
+                modifier = Modifier.weight(1f),
+                edgePadding = 0.dp,
+                containerColor = MaterialTheme.colorScheme.surface,
+            ) {
+                tabs.forEachIndexed { i, t ->
+                    Tab(
+                        selected = pager.currentPage == i,
+                        onClick = { scope.launch { pager.animateScrollToPage(i) } },
+                        text = { Text(t) },
+                    )
+                }
+            }
+            if (tabs[pager.currentPage] == "Posts" || tabs[pager.currentPage] == "Comments") {
+                SortBar(
+                    sort,
+                    time,
+                    onPick = { s, t ->
+                        sort = s
+                        if (t != null) time = t
+                    },
+                    sorts = listOf(PostSort.NEWEST, PostSort.HOT, PostSort.TOP),
                 )
             }
         }
         HorizontalPager(pager, Modifier.weight(1f), beyondViewportPageCount = 0, key = { tabs[it] }) { page ->
             when (tabs[page]) {
                 "Posts" -> PagedList(
-                    rememberPagedSource("u_${username}_posts") { a -> repo.getUserPosts(username, after = a) },
+                    rememberPagedSource("u_${username}_posts_$sortKey") { a ->
+                        repo.getUserPosts(username, after = a, sort = sort, time = sortTime)
+                    },
                     itemKey = Post::id,
+                    listModifier = listModifier,
                     emptyLabel = "No posts yet",
                     staleAfterMillis = staleAfter,
                 ) { PostCard(it) }
                 "Comments" -> PagedList(
-                    rememberPagedSource("u_${username}_comments") { a -> repo.getUserComments(username, after = a) },
+                    rememberPagedSource("u_${username}_comments_$sortKey") { a ->
+                        repo.getUserComments(username, after = a, sort = sort, time = sortTime)
+                    },
                     itemKey = Comment::fullname,
+                    listModifier = listModifier,
                     emptyLabel = "No comments yet",
                     staleAfterMillis = staleAfter,
                 ) { ProfileCommentCard(it) }
                 "Saved" -> PagedList(
                     rememberPagedSource("u_${username}_saved") { a -> repo.getUserSaved(username, after = a) },
                     itemKey = { if (it is Post) it.fullname else (it as Comment).fullname },
+                    listModifier = listModifier,
                     emptyLabel = "Nothing saved",
                     staleAfterMillis = staleAfter,
                     contentType = { if (it is Post) "post" else "comment" },
@@ -187,6 +262,7 @@ fun UserProfileBody(username: String, modifier: Modifier = Modifier, belowHeader
                 else -> PagedList(
                     rememberPagedSource("u_${username}_upvoted") { a -> repo.getUserPosts(username, where = "upvoted", after = a) },
                     itemKey = Post::id,
+                    listModifier = listModifier,
                     emptyLabel = "Nothing upvoted",
                     staleAfterMillis = staleAfter,
                 ) { PostCard(it) }

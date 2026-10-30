@@ -1719,6 +1719,7 @@ private fun CalmCommentRow(
         enabled = settings.swipeActions,
         start = swipe(settings.swipeCommentStart),
         end = swipe(settings.swipeCommentEnd),
+        slideColor = com.bennybar.luli_for_reddit.feature.feed.calmCardColor(),
     ) {
         Column(
             Modifier

@@ -43,11 +43,11 @@ fun externalViewIntent(context: Context, uri: Uri): Intent {
 /** Reddit's media hosts (i.redd.it, v.redd.it, preview.redd.it…): open in the image / video viewer. */
 fun isRedditMediaHost(host: String?): Boolean = host?.lowercase()?.endsWith(".redd.it") == true
 
-/** A share link (`reddit.com/r/<sub>/s/<code>`): it only redirects to the real post / comment URL. */
+/** A share link (`reddit.com/r/<sub>/s/<code>`, or `/u/<name>/s/<code>` for a custom feed): it only redirects to the real post / comment / feed URL. */
 fun isShareLink(uri: Uri): Boolean {
     if (!isRedditHost(uri.host)) return false
     val s = uri.pathSegments.filter { it.isNotEmpty() }
-    return s.size >= 4 && s[0] == "r" && s[2] == "s"
+    return s.size >= 4 && (s[0] == "r" || s[0] == "u" || s[0] == "user") && s[2] == "s"
 }
 
 /** Follows a [isShareLink] URL's redirects (up to 3) to the link it stands for; null if it can't. */
@@ -92,8 +92,8 @@ fun routeForRedditUrl(uri: Uri): Route? {
     // Gallery: /gallery/<id> is the post itself.
     if (segs.size >= 2 && segs[0] == "gallery") return Route.Post("_", segs[1])
     // A share link must be resolved first (resolveShareLink): /r/<sub>/s/<code>
-    // is a post, not the subreddit.
-    if (segs.size >= 4 && segs[0] == "r" && segs[2] == "s") return null
+    // is a post, not the subreddit; /u/<name>/s/<code> a custom feed, not the user.
+    if (segs.size >= 4 && (segs[0] == "r" || segs[0] == "u" || segs[0] == "user") && segs[2] == "s") return null
 
     // Multireddit: /user/<name>/m/<multi>
     if (segs.size >= 4 && (segs[0] == "user" || segs[0] == "u") && segs[2] == "m") {

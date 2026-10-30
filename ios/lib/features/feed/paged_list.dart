@@ -14,6 +14,7 @@ class PagedList<T> extends StatefulWidget {
     this.padding = const EdgeInsets.fromLTRB(10, 8, 10, 130),
     this.emptyLabel = 'Nothing here',
     this.staleAfter = const Duration(minutes: 5),
+    this.nested = false,
   });
 
   final Future<Listing<T>> Function(String? after) fetch;
@@ -22,6 +23,9 @@ class PagedList<T> extends StatefulWidget {
   final String emptyLabel;
   // How old the list may get before returning to it reloads it.
   final Duration staleAfter;
+  // In a NestedScrollView's body: scrolls with it (its controller), so the
+  // header above collapses.
+  final bool nested;
 
   @override
   State<PagedList<T>> createState() => _PagedListState<T>();
@@ -39,11 +43,6 @@ class _PagedListState<T> extends State<PagedList<T>> with RouteAware {
   @override
   void initState() {
     super.initState();
-    _scroll.addListener(() {
-      if (_scroll.position.pixels >= _scroll.position.maxScrollExtent - 500) {
-        _loadMore();
-      }
-    });
     _load();
   }
 
@@ -143,8 +142,17 @@ class _PagedListState<T> extends State<PagedList<T>> with RouteAware {
     }
     return RefreshBox(
       onRefresh: _load,
-      child: ListView.separated(
-        controller: _scroll,
+      child: NotificationListener<ScrollUpdateNotification>(
+        onNotification: (n) {
+          if (n.depth == 0 &&
+              n.metrics.axis == Axis.vertical &&
+              n.metrics.pixels >= n.metrics.maxScrollExtent - 500) {
+            _loadMore();
+          }
+          return false;
+        },
+        child: ListView.separated(
+        controller: widget.nested ? null : _scroll,
         padding: widget.padding,
         itemCount: _items.length + 1,
         separatorBuilder: (_, __) => const SizedBox(height: 8),
@@ -158,6 +166,7 @@ class _PagedListState<T> extends State<PagedList<T>> with RouteAware {
           }
           return widget.itemBuilder(context, _items[i]);
         },
+        ),
       ),
     );
   }
