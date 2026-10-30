@@ -20,6 +20,10 @@ class Release {
 // TODO(whats-new): this is the Kotlin app's list as-is; it describes the
 // features being ported. Replace it with the iOS app's own releases.
 const changelog = [
+  Release('2.0.45', 'Oct 30, 2026', [
+    'Explore: the people you follow have their own Following section, and '
+        'open their profile',
+  ]),
   Release('2.0.44', 'Oct 30, 2026', [
     'Profiles: sort posts and comments by New, Hot or Top, and the profile '
         'header slides away as you scroll',

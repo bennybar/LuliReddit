@@ -261,7 +261,16 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                     if (recent.length >= 5) break;
                   }
                   final favs = list.where((s) => s.userHasFavorited).toList();
-                  final rest = list.where((s) => !s.userHasFavorited).toList();
+                  // The users you follow (their profiles, u_<name>) get their
+                  // own section.
+                  final following = list
+                      .where((s) =>
+                          !s.userHasFavorited && s.name.startsWith('u_'))
+                      .toList();
+                  final rest = list
+                      .where((s) =>
+                          !s.userHasFavorited && !s.name.startsWith('u_'))
+                      .toList();
                   return [
                     if (recent.isNotEmpty) ...[
                       _sectionHeader(context, 'Recently visited'),
@@ -271,16 +280,25 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                       _sectionHeader(context, 'Favorites'),
                       _subList(ref, favs),
                     ],
-                    _sectionHeader(context,
-                        favs.isEmpty ? 'Subscriptions' : 'Communities'),
-                    if (rest.isEmpty && favs.isEmpty)
+                    if (following.isNotEmpty) ...[
+                      _sectionHeader(context, 'Following'),
+                      _subList(ref, following),
+                    ],
+                    if (rest.isEmpty && favs.isEmpty && following.isEmpty) ...[
+                      _sectionHeader(context, 'Subscriptions'),
                       const SliverToBoxAdapter(
                           child: Padding(
                               padding: EdgeInsets.all(32),
                               child: Center(
-                                  child: Text('You have no subscriptions yet'))))
-                    else
+                                  child: Text('You have no subscriptions yet')))),
+                    ] else if (rest.isNotEmpty) ...[
+                      _sectionHeader(
+                          context,
+                          favs.isEmpty && following.isEmpty
+                              ? 'Subscriptions'
+                              : 'Communities'),
                       _subList(ref, rest),
+                    ],
                   ];
                 },
               ),
@@ -405,7 +423,8 @@ class _SubredditRow extends ConsumerWidget {
           content: cs.onSecondaryContainer,
           imageUrl: s.iconUrl),
       title: Text(s.namePrefixed),
-      subtitle: Text('${compactNumber(s.subscribers)} members'),
+      subtitle: Text('${compactNumber(s.subscribers)} '
+          '${s.name.startsWith('u_') ? 'followers' : 'members'}'),
       trailing: ToggleIcon(
         checked: s.userHasFavorited,
         on: Icons.star_rounded,
@@ -426,7 +445,10 @@ class _SubredditRow extends ConsumerWidget {
           }
         },
       ),
-      onTap: () => context.push('/r/${s.name}'),
+      // A followed user is a subscription to their profile, u_<name>.
+      onTap: () => context.push(s.name.startsWith('u_')
+          ? '/u/${s.name.substring(2)}'
+          : '/r/${s.name}'),
     );
   }
 }

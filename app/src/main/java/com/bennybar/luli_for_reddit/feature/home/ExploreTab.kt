@@ -307,7 +307,8 @@ internal fun ExploreTab() {
                     favOnly = favOnly,
                     sort = sort,
                     recentFromHistory = history.map { it.subreddit },
-                    onOpen = { nav.openSubreddit(it.name) },
+                    // A followed user is a subscription to their profile, u_<name>.
+                    onOpen = { if (it.name.startsWith("u_")) nav.openUser(it.name.removePrefix("u_")) else nav.openSubreddit(it.name) },
                     onStar = ::toggleFavorite,
                 )
             }
@@ -358,7 +359,8 @@ private fun LazyListScope.subscriptionSections(
         if (recent.size >= 5) break
     }
     val favs = list.filter { it.userHasFavorited }
-    val rest = list.filter { !it.userHasFavorited }
+    // The users you follow (their profiles, u_<name>) get their own section.
+    val (following, rest) = list.filter { !it.userHasFavorited }.partition { it.name.startsWith("u_") }
     if (recent.isNotEmpty()) {
         header("recent", "Recently visited")
         rows("recent", recent)
@@ -367,12 +369,17 @@ private fun LazyListScope.subscriptionSections(
         header("favs", "Favorites")
         rows("fav", favs)
     }
-    header("subs", if (favs.isEmpty()) "Subscriptions" else "Communities")
-    if (rest.isEmpty() && favs.isEmpty()) {
+    if (following.isNotEmpty()) {
+        header("following", "Following")
+        rows("following", following)
+    }
+    if (rest.isEmpty() && favs.isEmpty() && following.isEmpty()) {
+        header("subs", "Subscriptions")
         item(key = "none") {
             Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { Text("You have no subscriptions yet") }
         }
-    } else {
+    } else if (rest.isNotEmpty()) {
+        header("subs", if (favs.isEmpty() && following.isEmpty()) "Subscriptions" else "Communities")
         rows("rest", rest)
     }
 }
@@ -391,7 +398,7 @@ internal fun SubredditRow(s: Subreddit, onOpen: (Subreddit) -> Unit, onStar: ((S
     val cs = MaterialTheme.colorScheme
     Tile(
         title = { Text(s.namePrefixed) },
-        subtitle = { Text("${compactNumber(s.subscribers)} members") },
+        subtitle = { Text("${compactNumber(s.subscribers)} ${if (s.name.startsWith("u_")) "followers" else "members"}") },
         leading = {
             LetterAvatar(s.name, 40.dp, cs.secondaryContainer, cs.onSecondaryContainer, imageUrl = s.iconUrl)
         },

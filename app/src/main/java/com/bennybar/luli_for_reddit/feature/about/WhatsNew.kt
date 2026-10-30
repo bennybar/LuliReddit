@@ -45,6 +45,12 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.45", "Oct 30, 2026",
+        listOf(
+            "Explore: the people you follow have their own Following section, and open their profile",
+        ),
+    ),
+    Release(
         "2.0.44", "Oct 30, 2026",
         listOf(
             "Profiles: sort posts and comments by New, Hot or Top, and the profile header slides away as you scroll",
