@@ -1383,6 +1383,7 @@ private fun CommentTile(
         enabled = settings.swipeActions,
         start = swipe(settings.swipeCommentStart),
         end = swipe(settings.swipeCommentEnd),
+        actionInset = PaddingValues(start = 10.dp + indent, end = 10.dp, bottom = 8.dp),
     ) {
         Column(
             Modifier

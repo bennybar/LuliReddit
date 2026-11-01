@@ -6,14 +6,17 @@ void main() {
   Future<List<String>> swipe(WidgetTester t, TextDirection dir, double dx,
       {bool endSide = true}) async {
     final fired = <String>[];
-    await t.pumpWidget(Directionality(
-      textDirection: dir,
-      child: SwipeActions(
-        start: SwipeSpec(Icons.add, Colors.green, () => fired.add('start')),
-        end: endSide
-            ? SwipeSpec(Icons.remove, Colors.red, () => fired.add('end'))
-            : null,
-        child: const SizedBox(width: 300, height: 80),
+    await t.pumpWidget(MediaQuery(
+      data: const MediaQueryData(size: Size(400, 800)),
+      child: Directionality(
+        textDirection: dir,
+        child: SwipeActions(
+          start: SwipeSpec(Icons.add, Colors.green, () => fired.add('start')),
+          end: endSide
+              ? SwipeSpec(Icons.remove, Colors.red, () => fired.add('end'))
+              : null,
+          child: const SizedBox(width: 300, height: 80),
+        ),
       ),
     ));
     await t.drag(find.byType(SizedBox), Offset(dx, 0));

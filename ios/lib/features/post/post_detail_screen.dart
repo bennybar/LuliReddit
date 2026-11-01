@@ -826,6 +826,10 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
             start: _swipe(settings.swipeCommentStart, c),
             end: _swipe(settings.swipeCommentEnd, c),
             slideColor: calm ? calmCardColor(context) : null,
+            actionInset: calm
+                ? EdgeInsets.zero
+                : EdgeInsetsDirectional.fromSTEB(
+                    10 + c.depth.clamp(0, 6) * 8.0, 0, 10, 8),
             child: folded
                 ? Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

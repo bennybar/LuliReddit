@@ -20,6 +20,10 @@ class Release {
 // TODO(whats-new): this is the Kotlin app's list as-is; it describes the
 // features being ported. Replace it with the iOS app's own releases.
 const changelog = [
+  Release('2.0.47', 'Nov 1, 2026', [
+    'Swiping a post or comment now brings in the action as its own card '
+        'beside it, Gmail style',
+  ]),
   Release('2.0.46', 'Nov 1, 2026', [
     'Expandable top bar: the title, search and ⋯ come back as soon as you '
         'scroll up',
