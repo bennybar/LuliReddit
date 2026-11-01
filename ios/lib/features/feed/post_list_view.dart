@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show ScrollCacheExtent;
+import 'package:flutter/rendering.dart'
+    show RenderAbstractViewport, ScrollCacheExtent;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:visibility_detector/visibility_detector.dart';
@@ -12,6 +13,7 @@ import '../../core/theme/motion.dart';
 import '../../core/widgets/error_view.dart';
 import '../../core/widgets/image_decode.dart';
 import '../../core/widgets/loading.dart';
+import '../../core/widgets/toggles.dart';
 import '../../data/reddit_repository.dart';
 import '../../models/post.dart';
 import '../auth/auth_controller.dart';
@@ -171,6 +173,25 @@ class _PostListViewState extends ConsumerState<PostListView>
         (homeMode ||
             ref.watch(settingsControllerProvider.select((s) => s.forYouFeed)));
 
+    final forYouFeed = widget.feedKey.isEmpty &&
+        ref.watch(settingsControllerProvider.select((s) => s.forYouFeed));
+    final homeAllowed =
+        ref.watch(settingsControllerProvider.select((s) => s.redditHomeAllowed));
+    final chips = _FeedChips(
+      // Rebuilt with the list: it keeps its scroll position through a reload.
+      key: PageStorageKey('feedChips_${widget.feedKey}'),
+      sort: notifier.sort,
+      time: notifier.time,
+      onPick: notifier.changeSort,
+      isFrontpage: widget.feedKey.isEmpty,
+      forYou: forYouFeed,
+      onForYou: notifier.selectForYou,
+      redditHome: homeMode,
+      onRedditHome: homeAllowed ? notifier.selectRedditHome : null,
+      blend: blendMode,
+      onBlend: homeAllowed ? notifier.selectBlend : null,
+    );
+
     final refreshable = RefreshBox(
       key: _refreshKey,
       onRefresh: () {
@@ -187,7 +208,8 @@ class _PostListViewState extends ConsumerState<PostListView>
               padding: feedPadding,
               children: [
                 if (widget.header != null) widget.header!,
-                const SizedBox(height: 120),
+                chips,
+                const SizedBox(height: 68),
                 HomeLoadingDeck(forYou: !homeMode),
               ],
             );
@@ -196,7 +218,7 @@ class _PostListViewState extends ConsumerState<PostListView>
             padding: feedPadding,
             children: [
               if (widget.header != null) widget.header!,
-              const SizedBox(height: 8),
+              chips,
               for (var i = 0; i < 5; i++)
                 const Padding(
                   padding: EdgeInsets.only(bottom: 10),
@@ -323,34 +345,19 @@ class _PostListViewState extends ConsumerState<PostListView>
                 index -= 1;
               }
               if (index == 0) {
-                final sortBar = SortBar(
-                  sort: state.sort,
-                  time: state.time,
-                  onPick: notifier.changeSort,
-                  isFrontpage: widget.feedKey.isEmpty,
-                  forYou: settings.forYouFeed && widget.feedKey.isEmpty,
-                  onForYou: notifier.selectForYou,
-                  redditHome: homeOn && widget.feedKey.isEmpty,
-                  onRedditHome: settings.redditHomeAllowed
-                      ? notifier.selectRedditHome
-                      : null,
-                  blend: blendMode,
-                  onBlend:
-                      settings.redditHomeAllowed ? notifier.selectBlend : null,
-                );
                 // Not your live Home: say what this is instead (until the
                 // next load works).
                 final status = homeStatus;
                 if (status is HomeSaved || status is HomeFellBack) {
                   return Column(children: [
-                    sortBar,
+                    chips,
                     _HomeStatusStrip(
                         status: status!,
                         onRetry: notifier.refresh,
                         onSignIn: () => _signIn(notifier)),
                   ]);
                 }
-                return sortBar;
+                return chips;
               }
               index -= 1;
               if (index < posts.length) {
@@ -543,59 +550,32 @@ class _NewPostsPill extends StatelessWidget {
   }
 }
 
+/// The profile's sort: a button that opens the list (no room beside its tabs
+/// for [_FeedChips]).
 class SortBar extends StatelessWidget {
   const SortBar({
     super.key,
     required this.sort,
     required this.time,
     required this.onPick,
-    this.isFrontpage = false,
-    this.forYou = false,
-    this.onForYou,
-    this.redditHome = false,
-    this.onRedditHome,
-    this.blend = false,
-    this.onBlend,
-    this.sorts = PostSort.values,
+    required this.sorts,
   });
   final PostSort sort;
   final TopTime time;
   final void Function(PostSort, {TopTime? time}) onPick;
-  final bool isFrontpage;
-  final bool forYou;
-  final VoidCallback? onForYou;
-  final bool redditHome;
-  final VoidCallback? onRedditHome; // null unless enabled in Settings
-  final bool blend;
-  final VoidCallback? onBlend; // null unless Reddit Home is enabled
   final List<PostSort> sorts;
 
   @override
   Widget build(BuildContext context) {
-    final label = redditHome
-        ? 'Home'
-        : blend
-            ? 'Blend · Beta'
-            : forYou
-                ? 'For You'
-                : (sort.needsTime
-                    ? '${sort.label} · ${time.label}'
-                    : sort.label);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
       child: Row(
         children: [
           ActionChip(
-            avatar: Icon(
-                redditHome
-                    ? Icons.home_rounded
-                    : blend
-                        ? Icons.merge_rounded
-                        : (forYou
-                            ? Icons.auto_awesome_rounded
-                            : Icons.sort_rounded),
-                size: 18),
-            label: Text(label),
+            avatar: const Icon(Icons.sort_rounded, size: 18),
+            label: Text(sort.needsTime
+                ? '${sort.label} · ${time.label}'
+                : sort.label),
             shape: const StadiumBorder(),
             side: BorderSide.none,
             backgroundColor:
@@ -616,80 +596,19 @@ class SortBar extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (isFrontpage && onForYou != null)
-              ListTile(
-                leading: const Icon(Icons.auto_awesome_rounded),
-                title: const Text('For You'),
-                subtitle: const Text('Personalized on your phone'),
-                trailing: forYou && !blend
-                    ? const Icon(Icons.check_rounded)
-                    : null,
-                onTap: () {
-                  Navigator.pop(ctx);
-                  onForYou!();
-                },
-              ),
-            if (isFrontpage && onBlend != null)
-              ListTile(
-                leading: const Icon(Icons.merge_rounded),
-                title: const Text('Blend · Beta'),
-                subtitle:
-                    const Text('Your Reddit Home + For You, ranked for you'),
-                trailing: blend ? const Icon(Icons.check_rounded) : null,
-                onTap: () {
-                  Navigator.pop(ctx);
-                  onBlend!();
-                },
-              ),
-            if (isFrontpage && onRedditHome != null)
-              ListTile(
-                leading: const Icon(Icons.home_rounded),
-                title: const Text('Home'),
-                subtitle: const Text('Your reddit.com Home'),
-                trailing: redditHome ? const Icon(Icons.check_rounded) : null,
-                onTap: () {
-                  Navigator.pop(ctx);
-                  onRedditHome!();
-                },
-              ),
             for (final s in sorts)
               ListTile(
                 leading: Icon(_iconFor(s)),
                 title: Text(s.label),
-                trailing: (!forYou && !blend && !redditHome && s == sort)
-                    ? const Icon(Icons.check_rounded)
-                    : null,
-                onTap: () {
+                trailing: s == sort ? const Icon(Icons.check_rounded) : null,
+                onTap: () async {
                   Navigator.pop(ctx);
                   if (s.needsTime) {
-                    _showTimeSheet(context, s);
+                    final t = await _pickTopTime(context, time);
+                    if (t != null) onPick(s, time: t);
                   } else {
                     onPick(s);
                   }
-                },
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showTimeSheet(BuildContext context, PostSort s) {
-    showModalBottomSheet(
-      context: context,
-      sheetAnimationStyle: sheetMotion,
-      showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final t in TopTime.values)
-              ListTile(
-                title: Text(t.label),
-                trailing: t == time ? const Icon(Icons.check_rounded) : null,
-                onTap: () {
-                  Navigator.pop(ctx);
-                  onPick(s, time: t);
                 },
               ),
           ],
@@ -705,4 +624,233 @@ class SortBar extends StatelessWidget {
         PostSort.top => Icons.leaderboard_rounded,
         PostSort.rising => Icons.trending_up_rounded,
       };
+}
+
+Future<TopTime?> _pickTopTime(BuildContext context, TopTime time) =>
+    showModalBottomSheet<TopTime>(
+      context: context,
+      sheetAnimationStyle: sheetMotion,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final t in TopTime.values)
+              ListTile(
+                title: Text(t.label),
+                trailing: t == time ? const Icon(Icons.check_rounded) : null,
+                onTap: () => Navigator.pop(ctx, t),
+              ),
+          ],
+        ),
+      ),
+    );
+
+enum _FeedMode { forYou, blend, home }
+
+/// A feed's sorts, and on the frontpage its For You / Blend / Home feeds, as
+/// Material 3 Expressive filter chips (#53): one tap, and the tapped chip
+/// morphs into a pill with a check. Top asks for its time range first. Picking
+/// swaps the list for its loading state, which rebuilds this row, so the pick
+/// shows for a moment before it's applied, or the morph would never be seen.
+class _FeedChips extends StatefulWidget {
+  const _FeedChips({
+    super.key,
+    required this.sort,
+    required this.time,
+    required this.onPick,
+    required this.isFrontpage,
+    required this.forYou,
+    required this.onForYou,
+    required this.redditHome,
+    required this.onRedditHome,
+    required this.blend,
+    required this.onBlend,
+  });
+  final PostSort sort;
+  final TopTime time;
+  final void Function(PostSort, {TopTime? time}) onPick;
+  final bool isFrontpage;
+  final bool forYou;
+  final VoidCallback onForYou;
+  final bool redditHome;
+  final VoidCallback? onRedditHome; // null unless enabled in Settings
+  final bool blend;
+  final VoidCallback? onBlend; // null unless Reddit Home is enabled
+
+  @override
+  State<_FeedChips> createState() => _FeedChipsState();
+}
+
+class _FeedChipsState extends State<_FeedChips> {
+  final _scroll = ScrollController();
+  final _keys = <Object, GlobalKey>{};
+  Object? _picked; // a _FeedMode or a PostSort
+  TopTime? _pickedTime;
+
+  Object get _current => widget.redditHome
+      ? _FeedMode.home
+      : widget.blend
+          ? _FeedMode.blend
+          : widget.forYou
+              ? _FeedMode.forYou
+              : widget.sort;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _centerSelected());
+  }
+
+  @override
+  void didUpdateWidget(_FeedChips old) {
+    super.didUpdateWidget(old);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _centerSelected());
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  // Keep the selected chip in view: Home's row can start with it off screen.
+  // Not Scrollable.ensureVisible: that would scroll the feed around it too.
+  void _centerSelected() {
+    final box = _keys[_current]?.currentContext?.findRenderObject();
+    if (!mounted || box == null || !_scroll.hasClients) return;
+    final to = RenderAbstractViewport.of(box)
+        .getOffsetToReveal(box, 0.5)
+        .offset
+        .clamp(0.0, _scroll.position.maxScrollExtent);
+    if ((to - _scroll.offset).abs() < 1) return;
+    _scroll.animateTo(to,
+        duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+  }
+
+  void _choose(Object choice, VoidCallback action, {TopTime? time}) {
+    setState(() {
+      _picked = choice;
+      _pickedTime = time;
+    });
+    Future.delayed(const Duration(milliseconds: 240), () {
+      action();
+      if (mounted) {
+        setState(() {
+          _picked = null;
+          _pickedTime = null;
+        });
+      }
+    });
+  }
+
+  void _tap(Object chip) async {
+    if (_picked != null) return;
+    if (chip is PostSort && chip.needsTime) {
+      final t = await _pickTopTime(context, widget.time);
+      if (t != null && (chip != _current || t != widget.time)) {
+        _choose(chip, () => widget.onPick(chip, time: t), time: t);
+      }
+    } else if (chip != _current) {
+      _choose(
+          chip,
+          switch (chip) {
+            _FeedMode.forYou => widget.onForYou,
+            _FeedMode.blend => () => widget.onBlend?.call(),
+            _FeedMode.home => () => widget.onRedditHome?.call(),
+            _ => () => widget.onPick(chip as PostSort),
+          });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = _picked ?? _current;
+    final chips = <Object>[
+      if (widget.isFrontpage) ...[
+        _FeedMode.forYou,
+        if (widget.onBlend != null) _FeedMode.blend,
+        if (widget.onRedditHome != null) _FeedMode.home,
+      ],
+      ...PostSort.values,
+    ];
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: SingleChildScrollView(
+        controller: _scroll,
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        child: Row(
+          children: [
+            for (final chip in chips)
+              Padding(
+                key: _keys.putIfAbsent(chip, GlobalKey.new),
+                padding: const EdgeInsetsDirectional.only(end: 8),
+                child: _FeedChip(
+                  label: switch (chip) {
+                    _FeedMode.forYou => 'For You',
+                    _FeedMode.blend => 'Blend · Beta',
+                    _FeedMode.home => 'Home',
+                    final PostSort s when s.needsTime && s == shown =>
+                      '${s.label} · ${(_pickedTime ?? widget.time).label}',
+                    final PostSort s => s.label,
+                    _ => '',
+                  },
+                  selected: chip == shown,
+                  onTap: () => _tap(chip),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FeedChip extends StatelessWidget {
+  const _FeedChip(
+      {required this.label, required this.selected, required this.onTap});
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final fg = selected ? cs.onSecondaryContainer : cs.onSurface;
+    return Semantics(
+      container: true,
+      button: true,
+      selected: selected,
+      child: ShapeButton(
+        color: selected ? cs.secondaryContainer : cs.surfaceContainerHigh,
+        shape: (_) => BorderRadius.circular(selected ? 18 : 8),
+        onTap: onTap,
+        child: AnimatedSize(
+          duration: Motion.fastSpatial.duration,
+          curve: Motion.fastSpatial,
+          alignment: AlignmentDirectional.centerStart,
+          child: Container(
+            height: 36,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            alignment: Alignment.center,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (selected) ...[
+                  Icon(Icons.check_rounded, size: 18, color: fg),
+                  const SizedBox(width: 6),
+                ],
+                Text(label,
+                    style: Theme.of(context)
+                        .textTheme
+                        .labelLarge
+                        ?.copyWith(color: fg)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

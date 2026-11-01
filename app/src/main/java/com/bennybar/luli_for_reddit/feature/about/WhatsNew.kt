@@ -45,6 +45,12 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.48", "Nov 1, 2026",
+        listOf(
+            "Feeds: sort with one tap on a row of chips (Best, Hot, New, Top, Rising), and on Home switch to For You, Blend or Home the same way",
+        ),
+    ),
+    Release(
         "2.0.47", "Nov 1, 2026",
         listOf(
             "Swiping a post or comment now brings in the action as its own card beside it, Gmail style",

@@ -23,7 +23,14 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.layout.LazyLayoutCacheWindow
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -33,10 +40,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.automirrored.rounded.TrendingUp
 import androidx.compose.material.icons.rounded.ArrowUpward
-import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Home
-import androidx.compose.material.icons.rounded.Merge
 import androidx.compose.material.icons.rounded.Leaderboard
 import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.Schedule
@@ -44,6 +48,9 @@ import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -92,6 +99,7 @@ import com.bennybar.luli_for_reddit.ui.ErrorView
 import com.bennybar.luli_for_reddit.ui.Overlays
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** The [FeedController] for [feedKey], re-fetched after an account switch. */
@@ -134,6 +142,22 @@ fun PostListView(
     val deckMode = isFrontpage && (homeMode || settings.forYouFeed)
     // The loading deck was just showing: deal the first cards in.
     var dealHome by remember { mutableStateOf(false) }
+    val chipsState = rememberLazyListState()
+    val chips: @Composable () -> Unit = {
+        FeedChips(
+            sort = controller.sort,
+            time = controller.time,
+            state = chipsState,
+            onPick = { s, t -> controller.changeSort(s, t) },
+            isFrontpage = isFrontpage,
+            forYou = settings.forYouFeed && isFrontpage,
+            onForYou = controller::selectForYou,
+            redditHome = homeMode,
+            onRedditHome = if (settings.redditHomeAllowed) controller::selectRedditHome else null,
+            blend = settings.forYouFeed && settings.blendHome && settings.redditHomeAllowed && isFrontpage,
+            onBlend = if (settings.redditHomeAllowed) controller::selectBlend else null,
+        )
+    }
 
     fun refresh(haptic: Boolean = true) {
         if (refreshing) return
@@ -210,19 +234,19 @@ fun PostListView(
                     // Home (no saved page to show yet): the shuffling deck with a
                     // live count of posts found; its cards are then dealt in.
                     if (deckMode) SideEffect { dealHome = true }
-                    LazyColumn(Modifier.fillMaxSize(), contentPadding = FeedPadding, userScrollEnabled = true) {
+                    LazyColumn(Modifier.fillMaxSize(), contentPadding = FeedPadding, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         if (header != null) item(key = "header", contentType = "header") { header() }
+                        item(key = "sortbar", contentType = "sortbar") { chips() }
                         if (deckMode) {
                             item(key = "deck") {
                                 Column {
-                                    Spacer(Modifier.height(120.dp))
+                                    Spacer(Modifier.height(58.dp))
                                     HomeLoadingDeck(forYou = !homeMode)
                                 }
                             }
                         } else {
-                            item(key = "gap") { Spacer(Modifier.height(8.dp)) }
                             items(5, key = { "sk$it" }, contentType = { "skeleton" }) {
-                                PostSkeleton(Modifier.padding(bottom = 10.dp))
+                                PostSkeleton()
                             }
                         }
                     }
@@ -259,7 +283,7 @@ fun PostListView(
                     deckMode = deckMode,
                     dealHome = dealHome,
                     onDealt = { dealHome = false },
-                    onSort = { s, t -> controller.changeSort(s, t) },
+                    chips = chips,
                     onRetry = { refresh() },
                 )
             }
@@ -289,7 +313,7 @@ private fun FeedList(
     deckMode: Boolean,
     dealHome: Boolean,
     onDealt: () -> Unit,
-    onSort: (PostSort, TopTime?) -> Unit,
+    chips: @Composable () -> Unit,
     onRetry: () -> Unit,
 ) {
     val settings by app.settings.state.collectAsStateWithLifecycle()
@@ -365,7 +389,6 @@ private fun FeedList(
             }
     }
 
-    val isFrontpage = feedKey.isEmpty()
     LazyColumn(
         Modifier.fillMaxSize(),
         state = listState,
@@ -373,20 +396,7 @@ private fun FeedList(
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         if (header != null) item(key = "header", contentType = "header") { header() }
-        item(key = "sortbar", contentType = "sortbar") {
-            SortBar(
-                sort = state.sort,
-                time = state.time,
-                onPick = onSort,
-                isFrontpage = isFrontpage,
-                forYou = settings.forYouFeed && isFrontpage,
-                onForYou = controller::selectForYou,
-                redditHome = homeMode,
-                onRedditHome = if (settings.redditHomeAllowed) controller::selectRedditHome else null,
-                blend = settings.forYouFeed && settings.blendHome && settings.redditHomeAllowed && isFrontpage,
-                onBlend = if (settings.redditHomeAllowed) controller::selectBlend else null,
-            )
-        }
+        item(key = "sortbar", contentType = "sortbar") { chips() }
         // Not your live Home: say what this is instead (until the next load works).
         if (homeStatus is HomeStatus.Saved || homeStatus is HomeStatus.FellBack) {
             item(key = "homestatus", contentType = "homestatus") { HomeStatusStrip(homeStatus, onRetry) }
@@ -449,48 +459,20 @@ private fun iconFor(s: PostSort): ImageVector = when (s) {
     PostSort.RISING -> Icons.AutoMirrored.Rounded.TrendingUp
 }
 
+/** The profile's sort: a button that opens the list (no room beside its tabs for [FeedChips]). */
 @Composable
 fun SortBar(
     sort: PostSort,
     time: TopTime,
     onPick: (PostSort, TopTime?) -> Unit,
-    isFrontpage: Boolean = false,
-    forYou: Boolean = false,
-    onForYou: (() -> Unit)? = null,
-    redditHome: Boolean = false,
-    onRedditHome: (() -> Unit)? = null, // null unless enabled in Settings
-    blend: Boolean = false,
-    onBlend: (() -> Unit)? = null, // null unless Reddit Home is enabled
-    sorts: List<PostSort> = PostSort.entries,
+    sorts: List<PostSort>,
 ) {
     val scope = rememberCoroutineScope()
-    val label = when {
-        redditHome -> "Home"
-        blend -> "Blend · Beta"
-        forYou -> "For You"
-        sort.needsTime -> "${sort.label} · ${time.label}"
-        else -> sort.label
-    }
     Row(Modifier.padding(horizontal = 6.dp, vertical = 8.dp)) {
         AssistChip(
-            onClick = {
-                scope.launch {
-                    showSortSheet(sort, time, onPick, isFrontpage, forYou && !blend, onForYou, redditHome, onRedditHome, blend, onBlend, sorts)
-                }
-            },
-            label = { Text(label) },
-            leadingIcon = {
-                Icon(
-                    when {
-                        redditHome -> Icons.Rounded.Home
-                        blend -> Icons.Rounded.Merge
-                        forYou -> Icons.Rounded.AutoAwesome
-                        else -> Icons.AutoMirrored.Rounded.Sort
-                    },
-                    null,
-                    Modifier.size(18.dp),
-                )
-            },
+            onClick = { scope.launch { showSortSheet(sort, time, onPick, sorts) } },
+            label = { Text(if (sort.needsTime) "${sort.label} · ${time.label}" else sort.label) },
+            leadingIcon = { Icon(Icons.AutoMirrored.Rounded.Sort, null, Modifier.size(18.dp)) },
             shape = CircleShape,
             border = null,
             colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
@@ -498,66 +480,171 @@ fun SortBar(
     }
 }
 
-private sealed interface SortPick {
-    data object ForYou : SortPick
-    data object Home : SortPick
-    data object Blend : SortPick
-    data class Sort(val sort: PostSort) : SortPick
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
-private suspend fun showSortSheet(
-    sort: PostSort,
-    time: TopTime,
-    onPick: (PostSort, TopTime?) -> Unit,
-    isFrontpage: Boolean,
-    forYou: Boolean,
-    onForYou: (() -> Unit)?,
-    redditHome: Boolean,
-    onRedditHome: (() -> Unit)?,
-    blend: Boolean,
-    onBlend: (() -> Unit)?,
-    sorts: List<PostSort>,
-) {
-    val pick = Overlays.show<SortPick> { done ->
+private suspend fun showSortSheet(sort: PostSort, time: TopTime, onPick: (PostSort, TopTime?) -> Unit, sorts: List<PostSort>) {
+    val pick = Overlays.show<PostSort> { done ->
         ModalBottomSheet(onDismissRequest = { done(null) }) {
             TapGuard {
                 Column(Modifier.navigationBarsPadding()) {
-                    if (isFrontpage && onForYou != null) {
-                        SheetTile(Icons.Rounded.AutoAwesome, "For You", "Personalized on your phone", checked = forYou) { done(SortPick.ForYou) }
-                    }
-                    if (isFrontpage && onBlend != null) {
-                        SheetTile(Icons.Rounded.Merge, "Blend · Beta", "Your Reddit Home + For You, ranked for you", checked = blend) { done(SortPick.Blend) }
-                    }
-                    if (isFrontpage && onRedditHome != null) {
-                        SheetTile(Icons.Rounded.Home, "Home", "Your reddit.com Home", checked = redditHome) { done(SortPick.Home) }
-                    }
                     for (s in sorts) {
-                        SheetTile(iconFor(s), s.label, null, checked = !forYou && !blend && !redditHome && s == sort) { done(SortPick.Sort(s)) }
+                        SheetTile(iconFor(s), s.label, null, checked = s == sort) { done(s) }
                     }
                 }
             }
         }
     } ?: return
-    when (pick) {
-        SortPick.ForYou -> onForYou?.invoke()
-        SortPick.Home -> onRedditHome?.invoke()
-        SortPick.Blend -> onBlend?.invoke()
-        is SortPick.Sort -> if (pick.sort.needsTime) {
-            val t = Overlays.show<TopTime> { done ->
-                ModalBottomSheet(onDismissRequest = { done(null) }) {
-                    TapGuard {
-                        Column(Modifier.navigationBarsPadding()) {
-                            for (t in TopTime.entries) SheetTile(null, t.label, null, checked = t == time) { done(t) }
-                        }
-                    }
-                }
-            } ?: return
-            onPick(pick.sort, t)
-        } else {
-            onPick(pick.sort, null)
+    if (pick.needsTime) {
+        onPick(pick, pickTopTime(time) ?: return)
+    } else {
+        onPick(pick, null)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+private suspend fun pickTopTime(time: TopTime): TopTime? = Overlays.show<TopTime> { done ->
+    ModalBottomSheet(onDismissRequest = { done(null) }) {
+        TapGuard {
+            Column(Modifier.navigationBarsPadding()) {
+                for (t in TopTime.entries) SheetTile(null, t.label, null, checked = t == time) { done(t) }
+            }
         }
     }
+}
+
+private sealed interface FeedChoice {
+    data object ForYou : FeedChoice
+    data object Blend : FeedChoice
+    data object Home : FeedChoice
+    data class Sort(val sort: PostSort) : FeedChoice
+}
+
+/**
+ * A feed's sorts, and on the frontpage its For You / Blend / Home feeds, as
+ * Material 3 Expressive filter chips (#53): one tap, and the tapped chip
+ * morphs into a pill with a check. Top asks for its time range first. Picking
+ * swaps the list for its loading state, which rebuilds this row, so the pick
+ * shows for a moment before it's applied, or the morph would never be seen.
+ */
+@Composable
+private fun FeedChips(
+    sort: PostSort,
+    time: TopTime,
+    state: LazyListState,
+    onPick: (PostSort, TopTime?) -> Unit,
+    isFrontpage: Boolean,
+    forYou: Boolean,
+    onForYou: () -> Unit,
+    redditHome: Boolean,
+    onRedditHome: (() -> Unit)?, // null unless enabled in Settings
+    blend: Boolean,
+    onBlend: (() -> Unit)?, // null unless Reddit Home is enabled
+) {
+    val scope = rememberCoroutineScope()
+    val current = when {
+        redditHome -> FeedChoice.Home
+        blend -> FeedChoice.Blend
+        forYou -> FeedChoice.ForYou
+        else -> FeedChoice.Sort(sort)
+    }
+    var picked by remember { mutableStateOf<FeedChoice?>(null) }
+    var pickedTime by remember { mutableStateOf<TopTime?>(null) }
+
+    fun choose(choice: FeedChoice, topTime: TopTime? = null, action: () -> Unit) {
+        picked = choice
+        pickedTime = topTime
+        scope.launch {
+            delay(240)
+            action()
+            picked = null
+            pickedTime = null
+        }
+    }
+
+    val shown = picked ?: current
+    val chips = buildList {
+        if (isFrontpage) {
+            add(FeedChoice.ForYou)
+            if (onBlend != null) add(FeedChoice.Blend)
+            if (onRedditHome != null) add(FeedChoice.Home)
+        }
+        addAll(PostSort.entries.map { FeedChoice.Sort(it) })
+    }
+    // Keep the selected chip in view: Home's row can start with it off screen.
+    LaunchedEffect(current) {
+        val i = chips.indexOf(current)
+        val info = state.layoutInfo
+        val seen = info.visibleItemsInfo.find { it.index == i }
+        if (seen == null || seen.offset < 0 || seen.offset + seen.size > info.viewportEndOffset) {
+            state.animateScrollToItem((i - 1).coerceAtLeast(0))
+        }
+    }
+    LazyRow(
+        Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        state = state,
+        contentPadding = PaddingValues(horizontal = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(chips, key = { it.toString() }) { chip ->
+            val label = when (chip) {
+                FeedChoice.ForYou -> "For You"
+                FeedChoice.Blend -> "Blend · Beta"
+                FeedChoice.Home -> "Home"
+                is FeedChoice.Sort ->
+                    if (chip.sort.needsTime && chip == shown) "${chip.sort.label} · ${(pickedTime ?: time).label}" else chip.sort.label
+            }
+            FeedChip(label, chip == shown) {
+                if (picked != null) return@FeedChip
+                when (chip) {
+                    FeedChoice.ForYou -> if (chip != current) choose(chip, action = onForYou)
+                    FeedChoice.Blend -> if (chip != current) choose(chip) { onBlend?.invoke() }
+                    FeedChoice.Home -> if (chip != current) choose(chip) { onRedditHome?.invoke() }
+                    is FeedChoice.Sort -> if (chip.sort.needsTime) {
+                        scope.launch {
+                            val t = pickTopTime(time) ?: return@launch
+                            if (chip != current || t != time) choose(chip, t) { onPick(chip.sort, t) }
+                        }
+                    } else if (chip != current) {
+                        choose(chip) { onPick(chip.sort, null) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun FeedChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val corner by animateDpAsState(if (selected) 18.dp else 8.dp, MaterialTheme.motionScheme.fastSpatialSpec(), label = "chipCorner")
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AnimatedVisibility(
+                    selected,
+                    enter = expandHorizontally(MaterialTheme.motionScheme.fastSpatialSpec()) + fadeIn(),
+                    exit = shrinkHorizontally(MaterialTheme.motionScheme.fastSpatialSpec()) + fadeOut(),
+                ) {
+                    Row {
+                        Icon(Icons.Rounded.Check, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                    }
+                }
+                Text(label)
+            }
+        },
+        modifier = Modifier.height(36.dp),
+        shape = RoundedCornerShape(corner),
+        border = null,
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = cs.surfaceContainerHigh,
+            labelColor = cs.onSurface,
+            selectedContainerColor = cs.secondaryContainer,
+            selectedLabelColor = cs.onSecondaryContainer,
+        ),
+    )
 }
 
 /** A bottom-sheet row: icon, title (+ subtitle), trailing check when selected. */

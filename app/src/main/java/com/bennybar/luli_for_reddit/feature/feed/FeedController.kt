@@ -53,8 +53,10 @@ class FeedController(val key: String) {
     private val subreddit: String? get() = key.ifEmpty { null }
     private val repo get() = app.repository
 
-    private var sort: PostSort = app.settings.value.defaultSort
-    private var time: TopTime = TopTime.DAY
+    var sort: PostSort = app.settings.value.defaultSort
+        private set
+    var time: TopTime = TopTime.DAY
+        private set
     private var started = false
     private var cacheConsulted = false
     private var showingCache = false // a cached page is on screen, fresh one in flight

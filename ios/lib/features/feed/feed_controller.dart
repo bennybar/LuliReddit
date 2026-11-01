@@ -61,6 +61,9 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
 
   PostSort? _sort;
   TopTime _time = TopTime.day;
+  PostSort get sort =>
+      _sort ?? ref.read(settingsControllerProvider).defaultSort;
+  TopTime get time => _time;
   bool _initialized = false;
   bool _cacheConsulted = false;
   bool _showingCache = false; // a cached page is on screen, fresh one in flight
