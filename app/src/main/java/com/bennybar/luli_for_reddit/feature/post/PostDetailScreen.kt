@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import com.bennybar.luli_for_reddit.settings.calmComments
 import com.bennybar.luli_for_reddit.ui.ToggleIcon
 import com.bennybar.luli_for_reddit.ui.popOn
 import androidx.compose.foundation.layout.ColumnScope
@@ -10,11 +11,6 @@ import com.bennybar.luli_for_reddit.ui.PickOneMenu
 import com.bennybar.luli_for_reddit.ui.RefreshBox
 import com.bennybar.luli_for_reddit.ui.Loading
 import com.bennybar.luli_for_reddit.model.UserFlair
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.PlaceholderVerticalAlign
-import androidx.compose.ui.text.Placeholder
-import androidx.compose.foundation.text.appendInlineContent
-import androidx.compose.foundation.text.InlineTextContent
 import com.bennybar.luli_for_reddit.feature.media.GalleryM3Carousel
 import androidx.compose.foundation.layout.widthIn
 import com.bennybar.luli_for_reddit.feature.feed.ReminderLine
@@ -664,7 +660,7 @@ private fun CommentList(
                 item(key = "empty", contentType = "empty") {
                     Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { Text("No comments yet") }
                 }
-            } else if (settings.postDisplay.isCalm) {
+            } else if (settings.calmComments) {
                 // Calm: one container per top-level thread, drawn as contiguous
                 // rows (still one lazy item per comment) whose first / last
                 // rows round the container's top / bottom.
@@ -1028,14 +1024,9 @@ private fun PostHeader(post: Post, fresh: Boolean, translate: (@Composable (Dp) 
         }
         Spacer(Modifier.height(12.dp))
         Text(p.title, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, lineHeight = 1.3.em))
-        p.linkFlairText?.let { flair ->
+        p.linkFlair?.let {
             Spacer(Modifier.height(8.dp))
-            Text(
-                flair,
-                Modifier.clip(RoundedCornerShape(8.dp)).background(cs.surfaceContainerHighest).padding(horizontal = 10.dp, vertical = 4.dp),
-                fontSize = 12.sp,
-                color = cs.onSurfaceVariant,
-            )
+            com.bennybar.luli_for_reddit.feature.feed.Flair(it)
         }
         p.crosspostFrom?.let { from ->
             Spacer(Modifier.height(8.dp))
@@ -1173,7 +1164,7 @@ private fun CalmPostHeader(
             lineHeight = 1.2.em,
             letterSpacing = (-0.01).em,
         )
-        p.linkFlairText?.let { CalmFlair(it, Modifier.padding(top = 8.dp)) }
+        p.linkFlair?.let { CalmFlair(it, Modifier.padding(top = 8.dp)) }
         p.crosspostFrom?.let { from ->
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1501,23 +1492,7 @@ private fun Badge(text: String, bg: Color, fg: Color, size: androidx.compose.ui.
 @Composable
 private fun FlairChip(flair: UserFlair) {
     val cs = MaterialTheme.colorScheme
-    val (text, emoji) = remember(flair) {
-        val emoji = LinkedHashMap<String, InlineTextContent>()
-        val text = buildAnnotatedString {
-            flair.parts.forEachIndexed { i, p ->
-                if (p.emojiUrl != null) {
-                    val id = "e$i"
-                    appendInlineContent(id, "□")
-                    emoji[id] = InlineTextContent(Placeholder(14.sp, 14.sp, PlaceholderVerticalAlign.TextCenter)) {
-                        AsyncImage(p.emojiUrl, null, Modifier.fillMaxSize())
-                    }
-                } else {
-                    append(p.text.orEmpty())
-                }
-            }
-        }
-        text to emoji
-    }
+    val (text, emoji) = com.bennybar.luli_for_reddit.feature.feed.rememberFlairText(flair)
     Text(
         text,
         Modifier.widthIn(max = 160.dp).clip(RoundedCornerShape(6.dp)).background(cs.surfaceContainerHighest).padding(horizontal = 6.dp, vertical = 1.dp),

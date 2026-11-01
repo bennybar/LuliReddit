@@ -1,5 +1,11 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import com.bennybar.luli_for_reddit.model.UserFlair
 import com.bennybar.luli_for_reddit.feature.media.GalleryM3Carousel
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -435,7 +441,7 @@ private fun LargeCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
                 Modifier.readDim(),
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, lineHeight = TitleLineHeight),
             )
-            p.linkFlairText?.let {
+            p.linkFlair?.let {
                 Spacer(Modifier.height(8.dp))
                 Flair(it)
             }
@@ -476,7 +482,7 @@ private fun CardsCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
                 Modifier.readDim(),
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, lineHeight = TitleLineHeight),
             )
-            p.linkFlairText?.let {
+            p.linkFlair?.let {
                 Spacer(Modifier.height(8.dp))
                 Flair(it)
             }
@@ -517,7 +523,7 @@ private fun MiniCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
                         overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, lineHeight = TitleLineHeight),
                     )
-                    p.linkFlairText?.let {
+                    p.linkFlair?.let {
                         Spacer(Modifier.height(6.dp))
                         Flair(it)
                     }
@@ -685,14 +691,38 @@ private fun Header(p: Post, a: PostActions, s: Settings) {
 }
 
 @Composable
-private fun Flair(text: String) {
+internal fun Flair(flair: UserFlair) {
     val cs = MaterialTheme.colorScheme
+    val (text, emoji) = rememberFlairText(flair)
     Text(
         text,
         Modifier.background(cs.surfaceContainerHighest, RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 4.dp),
         fontSize = 12.sp,
         color = cs.onSurfaceVariant,
+        inlineContent = emoji,
     )
+}
+
+/** A flair as text for a [Text], its emoji images drawn inline. */
+@Composable
+internal fun rememberFlairText(flair: UserFlair): Pair<AnnotatedString, Map<String, InlineTextContent>> = remember(flair) {
+    val emoji = LinkedHashMap<String, InlineTextContent>()
+    val text = buildAnnotatedString {
+        flair.parts.forEachIndexed { i, p ->
+            if (p.emojiUrl != null) {
+                val id = "e$i"
+                appendInlineContent(id, "□")
+                emoji[id] = InlineTextContent(Placeholder(14.sp, 14.sp, PlaceholderVerticalAlign.TextCenter)) {
+                    AsyncImage(p.emojiUrl, null, Modifier.fillMaxSize())
+                }
+                // Some flairs have no space of their own after the image.
+                if (flair.parts.getOrNull(i + 1)?.text?.startsWith(" ") == false) append(" ")
+            } else {
+                append(p.text.orEmpty())
+            }
+        }
+    }
+    text to emoji
 }
 
 /**
@@ -1161,7 +1191,7 @@ private fun CalmBody(p: Post, a: PostActions, s: Settings, mediaShape: androidx.
         letterSpacing = (-0.1).sp,
         color = cs.onSurface,
     )
-    p.linkFlairText?.let { CalmFlair(it, Modifier.padding(top = 8.dp)) }
+    p.linkFlair?.let { CalmFlair(it, Modifier.padding(top = 8.dp)) }
     CrosspostLine(p)
     ReminderLine(p)
     if (mediaShape != null) CalmMedia(p, a, s, mediaShape)
@@ -1425,13 +1455,7 @@ private fun CalmMedia(p: Post, a: PostActions, s: Settings, shape: androidx.comp
     }
 }
 
-private val FlairShortcode = Regex(""":[A-Za-z0-9_+\-]+:""")
-private val Whitespace = Regex("\\s+")
-
-/** Flair text without Reddit's `:emoji:` shortcodes (":Discussion: Discussion" → "Discussion"). */
-fun cleanFlair(text: String): String = text.replace(FlairShortcode, " ").replace(Whitespace, " ").trim()
-
-/** A small icon matching common flair words (the flair's emoji images aren't in its text). */
+/** A small icon matching common flair words, for a flair with no images. */
 private fun flairIcon(text: String): ImageVector {
     val t = text.lowercase()
     return when {
@@ -1445,12 +1469,11 @@ private fun flairIcon(text: String): ImageVector {
     }
 }
 
-/** Calm flair pill: 26dp, surfaceContainerHigh, icon + cleaned text. Nothing when it's only emoji. */
+/** Calm flair pill: 26dp, surfaceContainerHigh, the flair's own images, or a matching icon when it has none. */
 @Composable
-fun CalmFlair(raw: String, modifier: Modifier = Modifier) {
-    val text = remember(raw) { cleanFlair(raw) }
-    if (text.isEmpty()) return
+fun CalmFlair(flair: UserFlair, modifier: Modifier = Modifier) {
     val cs = MaterialTheme.colorScheme
+    val (text, emoji) = rememberFlairText(flair)
     Row(
         modifier
             .height(26.dp)
@@ -1458,9 +1481,11 @@ fun CalmFlair(raw: String, modifier: Modifier = Modifier) {
             .padding(start = 8.dp, end = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(flairIcon(text), null, Modifier.size(14.dp), tint = cs.primary)
-        Spacer(Modifier.width(5.dp))
-        Text(text, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (emoji.isEmpty()) {
+            Icon(flairIcon(flair.text), null, Modifier.size(14.dp), tint = cs.primary)
+            Spacer(Modifier.width(5.dp))
+        }
+        Text(text, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, inlineContent = emoji)
     }
 }
 

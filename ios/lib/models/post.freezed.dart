@@ -65,6 +65,8 @@ mixin _$Post {
   String? get subredditIcon => throw _privateConstructorUsedError;
   UserFlair? get authorFlair =>
       throw _privateConstructorUsedError; // votes per poll option
+  UserFlair? get linkFlair =>
+      throw _privateConstructorUsedError; // votes per poll option
   List<int> get pollVotes => throw _privateConstructorUsedError;
   int? get pollChoice =>
       throw _privateConstructorUsedError; // images inside the body, by id
@@ -122,6 +124,7 @@ abstract class $PostCopyWith<$Res> {
     bool? likes,
     String? subredditIcon,
     UserFlair? authorFlair,
+    UserFlair? linkFlair,
     List<int> pollVotes,
     int? pollChoice,
     Map<String, String> bodyMedia,
@@ -183,6 +186,7 @@ class _$PostCopyWithImpl<$Res, $Val extends Post>
     Object? likes = freezed,
     Object? subredditIcon = freezed,
     Object? authorFlair = freezed,
+    Object? linkFlair = freezed,
     Object? pollVotes = null,
     Object? pollChoice = freezed,
     Object? bodyMedia = null,
@@ -349,6 +353,10 @@ class _$PostCopyWithImpl<$Res, $Val extends Post>
                 ? _value.authorFlair
                 : authorFlair // ignore: cast_nullable_to_non_nullable
                       as UserFlair?,
+            linkFlair: freezed == linkFlair
+                ? _value.linkFlair
+                : linkFlair // ignore: cast_nullable_to_non_nullable
+                      as UserFlair?,
             pollVotes: null == pollVotes
                 ? _value.pollVotes
                 : pollVotes // ignore: cast_nullable_to_non_nullable
@@ -416,6 +424,7 @@ abstract class _$$PostImplCopyWith<$Res> implements $PostCopyWith<$Res> {
     bool? likes,
     String? subredditIcon,
     UserFlair? authorFlair,
+    UserFlair? linkFlair,
     List<int> pollVotes,
     int? pollChoice,
     Map<String, String> bodyMedia,
@@ -474,6 +483,7 @@ class __$$PostImplCopyWithImpl<$Res>
     Object? likes = freezed,
     Object? subredditIcon = freezed,
     Object? authorFlair = freezed,
+    Object? linkFlair = freezed,
     Object? pollVotes = null,
     Object? pollChoice = freezed,
     Object? bodyMedia = null,
@@ -640,6 +650,10 @@ class __$$PostImplCopyWithImpl<$Res>
             ? _value.authorFlair
             : authorFlair // ignore: cast_nullable_to_non_nullable
                   as UserFlair?,
+        linkFlair: freezed == linkFlair
+            ? _value.linkFlair
+            : linkFlair // ignore: cast_nullable_to_non_nullable
+                  as UserFlair?,
         pollVotes: null == pollVotes
             ? _value._pollVotes
             : pollVotes // ignore: cast_nullable_to_non_nullable
@@ -701,6 +715,7 @@ class _$PostImpl extends _Post {
     this.likes,
     this.subredditIcon,
     this.authorFlair,
+    this.linkFlair,
     final List<int> pollVotes = const <int>[],
     this.pollChoice,
     final Map<String, String> bodyMedia = const <String, String>{},
@@ -823,6 +838,8 @@ class _$PostImpl extends _Post {
   final String? subredditIcon;
   @override
   final UserFlair? authorFlair;
+  @override
+  final UserFlair? linkFlair;
   // votes per poll option
   final List<int> _pollVotes;
   // votes per poll option
@@ -849,7 +866,7 @@ class _$PostImpl extends _Post {
 
   @override
   String toString() {
-    return 'Post(id: $id, fullname: $fullname, title: $title, subreddit: $subreddit, subredditPrefixed: $subredditPrefixed, author: $author, score: $score, numComments: $numComments, upvoteRatio: $upvoteRatio, created: $created, permalink: $permalink, url: $url, domain: $domain, type: $type, isSelf: $isSelf, selftext: $selftext, over18: $over18, spoiler: $spoiler, stickied: $stickied, locked: $locked, saved: $saved, canModPost: $canModPost, linkFlairText: $linkFlairText, distinguished: $distinguished, feedReason: $feedReason, crosspostFrom: $crosspostFrom, pollOptions: $pollOptions, thumbnailUrl: $thumbnailUrl, previewUrl: $previewUrl, previewMedUrl: $previewMedUrl, blurredPreviewUrl: $blurredPreviewUrl, previewWidth: $previewWidth, previewHeight: $previewHeight, hlsUrl: $hlsUrl, fallbackVideoUrl: $fallbackVideoUrl, gifMp4Url: $gifMp4Url, gallery: $gallery, likes: $likes, subredditIcon: $subredditIcon, authorFlair: $authorFlair, pollVotes: $pollVotes, pollChoice: $pollChoice, bodyMedia: $bodyMedia)';
+    return 'Post(id: $id, fullname: $fullname, title: $title, subreddit: $subreddit, subredditPrefixed: $subredditPrefixed, author: $author, score: $score, numComments: $numComments, upvoteRatio: $upvoteRatio, created: $created, permalink: $permalink, url: $url, domain: $domain, type: $type, isSelf: $isSelf, selftext: $selftext, over18: $over18, spoiler: $spoiler, stickied: $stickied, locked: $locked, saved: $saved, canModPost: $canModPost, linkFlairText: $linkFlairText, distinguished: $distinguished, feedReason: $feedReason, crosspostFrom: $crosspostFrom, pollOptions: $pollOptions, thumbnailUrl: $thumbnailUrl, previewUrl: $previewUrl, previewMedUrl: $previewMedUrl, blurredPreviewUrl: $blurredPreviewUrl, previewWidth: $previewWidth, previewHeight: $previewHeight, hlsUrl: $hlsUrl, fallbackVideoUrl: $fallbackVideoUrl, gifMp4Url: $gifMp4Url, gallery: $gallery, likes: $likes, subredditIcon: $subredditIcon, authorFlair: $authorFlair, linkFlair: $linkFlair, pollVotes: $pollVotes, pollChoice: $pollChoice, bodyMedia: $bodyMedia)';
   }
 
   @override
@@ -923,6 +940,8 @@ class _$PostImpl extends _Post {
                 other.subredditIcon == subredditIcon) &&
             (identical(other.authorFlair, authorFlair) ||
                 other.authorFlair == authorFlair) &&
+            (identical(other.linkFlair, linkFlair) ||
+                other.linkFlair == linkFlair) &&
             const DeepCollectionEquality().equals(
               other._pollVotes,
               _pollVotes,
@@ -978,6 +997,7 @@ class _$PostImpl extends _Post {
     likes,
     subredditIcon,
     authorFlair,
+    linkFlair,
     const DeepCollectionEquality().hash(_pollVotes),
     pollChoice,
     const DeepCollectionEquality().hash(_bodyMedia),
@@ -1034,6 +1054,7 @@ abstract class _Post extends Post {
     final bool? likes,
     final String? subredditIcon,
     final UserFlair? authorFlair,
+    final UserFlair? linkFlair,
     final List<int> pollVotes,
     final int? pollChoice,
     final Map<String, String> bodyMedia,
@@ -1120,6 +1141,8 @@ abstract class _Post extends Post {
   String? get subredditIcon;
   @override
   UserFlair? get authorFlair; // votes per poll option
+  @override
+  UserFlair? get linkFlair; // votes per poll option
   @override
   List<int> get pollVotes;
   @override

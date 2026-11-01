@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.foryou
 
+import com.bennybar.luli_for_reddit.model.FlairPart
+import com.bennybar.luli_for_reddit.model.UserFlair
 import com.bennybar.luli_for_reddit.core.Analytics
 import android.annotation.SuppressLint
 import android.content.Context
@@ -103,6 +105,8 @@ data class PagePost(
             over18 = nsfw,
             spoiler = spoiler,
             linkFlairText = flair,
+            // The page's flair is only words.
+            linkFlair = flair?.let { UserFlair(listOf(FlairPart(text = it))) },
             feedReason = reason,
             previewUrl = image,
             previewMedUrl = image,

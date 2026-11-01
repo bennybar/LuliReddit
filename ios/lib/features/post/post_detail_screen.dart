@@ -753,7 +753,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
 
   Widget _commentList(PostThread thread, String username, Settings settings) {
     final flat = thread.flat;
-    final calm = settings.postDisplay.isCalm;
+    final calm = settings.calmComments;
     // Animated images in the thread pause while it scrolls.
     return ListScrolling(
         child: ScrollablePositionedList.builder(
@@ -1434,14 +1434,14 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
                   .textTheme
                   .titleLarge
                   ?.copyWith(fontWeight: FontWeight.w700, height: 1.3)),
-          if (p.linkFlairText != null) ...[
+          if (p.linkFlair != null) ...[
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                   color: cs.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(8)),
-              child: Text(p.linkFlairText!,
+              child: Text.rich(flairSpan(p.linkFlair!),
                   style:
                       TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
             ),
@@ -1594,10 +1594,10 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
                     height: 1.2,
                     letterSpacing: -0.24)),
           ),
-          if (p.linkFlairText != null)
+          if (p.linkFlair != null)
             Padding(
               padding: const EdgeInsets.only(top: 8),
-              child: CalmFlair(raw: p.linkFlairText!),
+              child: CalmFlair(flair: p.linkFlair!),
             ),
           CrosspostLine(post: p),
           ReminderLine(post: p),
@@ -2321,17 +2321,7 @@ class _FlairChip extends StatelessWidget {
           color: cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(6)),
       child: Text.rich(
-        TextSpan(children: [
-          for (final p in flair.parts)
-            if (p.emojiUrl != null)
-              WidgetSpan(
-                alignment: PlaceholderAlignment.middle,
-                child: CachedNetworkImage(
-                    imageUrl: p.emojiUrl!, width: 14, height: 14),
-              )
-            else
-              TextSpan(text: p.text ?? ''),
-        ]),
+        flairSpan(flair),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),

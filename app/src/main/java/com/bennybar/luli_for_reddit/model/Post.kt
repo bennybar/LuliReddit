@@ -48,6 +48,8 @@ data class Post(
     val saved: Boolean = false,
     val canModPost: Boolean = false,
     val linkFlairText: String? = null,
+    /** The post's flair to show: its words and images (#56). */
+    val linkFlair: UserFlair? = null,
     val distinguished: String? = null,
     /** The mods' suggested comment sort (e.g. "qa" on AMAs), when set. */
     val suggestedSort: String? = null,
@@ -114,7 +116,7 @@ data class Post(
                 subredditIcon = (d["sr_detail"]["community_icon"].str()?.ifEmpty { null } ?: d["sr_detail"]["icon_img"].str()?.ifEmpty { null })
                     ?.replace("&amp;", "&"),
                 author = d["author"].str() ?: "[deleted]",
-                authorFlair = authorFlairOf(d),
+                authorFlair = flairOf(d, "author"),
                 score = d["score"].int() ?: 0,
                 numComments = d["num_comments"].int() ?: 0,
                 upvoteRatio = d["upvote_ratio"].double() ?: 0.0,
@@ -135,6 +137,7 @@ data class Post(
                 saved = d["saved"].isTrue(),
                 canModPost = d["can_mod_post"].isTrue(),
                 linkFlairText = if (flair.isNullOrBlank()) null else flair,
+                linkFlair = flairOf(d, "link"),
                 distinguished = d["distinguished"].str(),
                 crosspostFrom = parent?.get("subreddit").str(),
                 bodyMedia = Comment.mediaUrls(content["media_metadata"]),

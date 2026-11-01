@@ -20,6 +20,13 @@ class Release {
 // TODO(whats-new): this is the Kotlin app's list as-is; it describes the
 // features being ported. Replace it with the iOS app's own releases.
 const changelog = [
+  Release('2.0.49', 'Nov 1, 2026', [
+    'The top bar slides away and back with your finger, over the feed, and '
+        'hides on your first scroll',
+    'Comment style: pick Cards or Calm for comments, apart from your post '
+        'style (Settings → Posts & comments)',
+    'Post flairs show their own images, instead of a generic icon',
+  ]),
   Release('2.0.48', 'Nov 1, 2026', [
     'Feeds: sort with one tap on a row of chips (Best, Hot, New, Top, Rising), '
         'and on Home switch to For You, Blend or Home the same way',

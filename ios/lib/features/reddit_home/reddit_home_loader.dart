@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../../core/network/web_session_cookies.dart';
+import '../../models/flair.dart';
 import '../../models/post.dart';
 
 /// The page shows the logged-out site: the website session has expired.
@@ -100,6 +101,8 @@ class PagePost {
       over18: nsfw,
       spoiler: spoiler,
       linkFlairText: flair,
+      // The page's flair is only words.
+      linkFlair: flair == null ? null : UserFlair([FlairPart(text: flair)]),
       feedReason: reason,
       previewUrl: image,
       previewMedUrl: image,

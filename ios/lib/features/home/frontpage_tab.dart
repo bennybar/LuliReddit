@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +9,7 @@ import '../../core/widgets/glass_surface.dart';
 import '../../core/widgets/pick_one_menu.dart';
 import '../auth/auth_controller.dart';
 import '../feed/post_card.dart' show LetterAvatar;
+import '../feed/feed_controller.dart';
 import '../feed/post_list_view.dart';
 import '../reddit_home/reddit_home_engine.dart';
 import '../settings/settings_controller.dart';
@@ -14,12 +17,77 @@ import 'tab_menu.dart';
 
 /// The Posts tab: the frontpage feed under its top bar (Full or Expandable
 /// mode).
-class FrontpageTab extends ConsumerWidget {
-  const FrontpageTab({super.key, this.chromeVisible = true});
-  final bool chromeVisible;
+class FrontpageTab extends ConsumerStatefulWidget {
+  const FrontpageTab({super.key, this.selected = true});
+  final bool selected;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FrontpageTab> createState() => _FrontpageTabState();
+}
+
+// The top bar floats over the feed and follows the finger, in and out (#55):
+// it slides away as you scroll down and back as you scroll up, and the feed
+// stays put under it instead of being pushed around.
+class _FrontpageTabState extends ConsumerState<FrontpageTab>
+    with SingleTickerProviderStateMixin {
+  final _barKey = GlobalKey();
+  double _barHeight = 0;
+  // 0 = shown, -_barHeight = hidden.
+  late final AnimationController _barShift =
+      AnimationController.unbounded(vsync: this);
+
+  void _slideBar(double to) => _barShift.animateTo(to,
+      duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+
+  @override
+  void didUpdateWidget(FrontpageTab old) {
+    super.didUpdateWidget(old);
+    if (widget.selected && !old.selected) _slideBar(0);
+  }
+
+  @override
+  void dispose() {
+    _barShift.dispose();
+    super.dispose();
+  }
+
+  bool _onFeedScroll(ScrollNotification n) {
+    final m = n.metrics;
+    // The feed itself: not a card's carousel or the chip row.
+    if (m.axis != Axis.vertical || n.depth != 0) return false;
+    final fromTop = m.pixels - m.minScrollExtent;
+    if (n is ScrollUpdateNotification && n.scrollDelta != null) {
+      if (m.pixels > m.maxScrollExtent) return false; // iOS bounce at the end
+      _barShift.stop();
+      // Never hidden past the feed's top, however it got there (a re-tap on
+      // the tab, new posts): there'd be a blank gap above the first card.
+      final shift = math.max(_barShift.value - n.scrollDelta!, -fromTop);
+      _barShift.value = shift.clamp(-_barHeight, 0.0);
+    } else if (n is ScrollEndNotification) {
+      // Don't rest half way; hide only with the feed scrolled far enough to
+      // fill the space the bar leaves.
+      final v = _barShift.value;
+      if (v != 0 && v != -_barHeight) {
+        _slideBar(fromTop >= _barHeight && v < -_barHeight / 2
+            ? -_barHeight
+            : 0);
+      }
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Reloading starts a new list from the top.
+    ref.listen(feedControllerProvider(''), (_, next) {
+      if (next.isLoading || next.hasError) _slideBar(0);
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final h = _barKey.currentContext?.size?.height;
+      if (mounted && h != null && h != _barHeight) {
+        setState(() => _barHeight = h);
+      }
+    });
     final cs = Theme.of(context).colorScheme;
     final username = ref.watch(
             authControllerProvider.select((a) => a.valueOrNull?.username)) ??
@@ -37,15 +105,12 @@ class FrontpageTab extends ConsumerWidget {
         ref.watch(settingsControllerProvider.select((s) => s.showApiUsage));
     final sideBar = SideBarScope.of(context) != null;
     final expandable = mode == TopBarMode.expandable;
-    // Full mode pins the action row; Expandable floats it in on demand.
-    final showActionRow = mode == TopBarMode.full;
-    // The title row. Expandable mode keeps it above the feed so it hides as
-    // you scroll down and comes back as soon as you scroll up (#50), like
-    // the Full mode action row; Full mode scrolls it with the feed.
+    // The title row: the bar itself in Expandable mode; Full mode scrolls it
+    // with the feed.
     final titleRow = Padding(
       // With the ☰ there, line it up with the other tabs' (4px + the
       // button's own inset). The feed (or, in Expandable mode, the
-      // Padding around it) already insets it 7px.
+      // bar) already insets it 7px.
       padding: EdgeInsets.fromLTRB(
           expandable && sideBar ? 0 : 16,
           expandable ? (sideBar ? 8 : 10) : 8,
@@ -99,60 +164,62 @@ class FrontpageTab extends ConsumerWidget {
         ],
       ),
     );
-    return Column(
-      children: [
-        if (expandable)
-          AnimatedSize(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOut,
-            alignment: Alignment.topCenter,
-            child: chromeVisible
-                ? Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 7),
-                    child: titleRow)
-                : const SizedBox(width: double.infinity, height: 0),
-          ),
-        // Full mode: Google-app style search bar with avatar — collapses on
-        // scroll.
-        if (showActionRow)
-          AnimatedSize(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOut,
-            alignment: Alignment.topCenter,
-            child: chromeVisible
-                ? Padding(
-                    // With the ☰ here: the same spot as on the other tabs.
-                    padding: EdgeInsets.fromLTRB(
-                        sideBar ? 4 : 16, sideBar ? 6 : 12, 16, 4),
-                    child: Row(
-                      children: [
-                        const SideBarButton(),
-                        Expanded(
-                          child: showApiUsage
-                              ? const _ApiUsagePill()
-                              : _SearchPill(
-                                  onTap: () => context.push('/search')),
-                        ),
-                        const SizedBox(width: 4),
-                        _NewPostButton(onTap: () => context.push('/submit')),
-                        const _DisplayMenu(),
-                        const SizedBox(width: 4),
-                        _ProfileAvatar(
-                            username: username,
-                            size: 44,
-                            onTap: () => context.push('/u/$username')),
-                      ],
-                    ),
-                  )
-                : const SizedBox(width: double.infinity, height: 0),
-          ),
-        Expanded(
-          child: PostListView(
+    // Full mode: Google-app style search bar with avatar.
+    final actionRow = Padding(
+        // With the ☰ here: the same spot as on the other tabs.
+        padding: EdgeInsets.fromLTRB(
+            sideBar ? 4 : 16, sideBar ? 6 : 12, 16, 4),
+        child: Row(
+          children: [
+            const SideBarButton(),
+            Expanded(
+              child: showApiUsage
+                  ? const _ApiUsagePill()
+                  : _SearchPill(
+                      onTap: () => context.push('/search')),
+            ),
+            const SizedBox(width: 4),
+            _NewPostButton(onTap: () => context.push('/submit')),
+            const _DisplayMenu(),
+            const SizedBox(width: 4),
+            _ProfileAvatar(
+                username: username,
+                size: 44,
+                onTap: () => context.push('/u/$username')),
+          ],
+        ),
+      );
+    return NotificationListener<ScrollNotification>(
+      onNotification: _onFeedScroll,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          PostListView(
             feedKey: '',
             header: expandable ? null : titleRow,
+            topPadding: _barHeight,
           ),
-        ),
-      ],
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: AnimatedBuilder(
+              animation: _barShift,
+              builder: (_, child) => Transform.translate(
+                  offset: Offset(0, _barShift.value), child: child),
+              child: ColoredBox(
+                key: _barKey,
+                color: cs.surface,
+                child: expandable
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 7),
+                        child: titleRow)
+                    : actionRow,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

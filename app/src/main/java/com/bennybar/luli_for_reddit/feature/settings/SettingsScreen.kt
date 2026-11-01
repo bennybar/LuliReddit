@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.settings
 
+import androidx.compose.material.icons.outlined.ModeComment
 import androidx.compose.material.icons.rounded.ViewCarousel
 import com.bennybar.luli_for_reddit.ui.PickOneMenu
 import androidx.compose.material.icons.rounded.CropFree
@@ -164,6 +165,7 @@ import com.bennybar.luli_for_reddit.data.PostSort
 import com.bennybar.luli_for_reddit.feature.media.MediaFolderSettingRow
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.Route
+import com.bennybar.luli_for_reddit.settings.CommentStyle
 import com.bennybar.luli_for_reddit.settings.PostDisplay
 import com.bennybar.luli_for_reddit.settings.AppFont
 import com.bennybar.luli_for_reddit.settings.Settings
@@ -498,6 +500,10 @@ fun SettingsList(
 
         // ---------------------------------------------------------------- Posts & comments
         section("Posts & comments")
+        tile("Comment style", s.commentStyle.label, Icons.Outlined.ModeComment, onClick = launch {
+            pickOption(CommentStyle.entries.map { PickOption(it, it.label) }, s.commentStyle)
+                ?.let(ctrl::setCommentStyle)
+        })
         tile(
             "Default comment sort",
             COMMENT_SORTS.firstOrNull { it.first == s.defaultCommentSort }?.second ?: s.defaultCommentSort,

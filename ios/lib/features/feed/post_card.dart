@@ -20,6 +20,7 @@ import 'content_filters.dart';
 import 'inline_video.dart';
 import 'post_overrides.dart';
 import '../../core/theme/app_theme.dart';
+import '../../models/flair.dart';
 import '../../models/post.dart';
 import '../history/history_store.dart';
 import '../reminders/post_reminders.dart';
@@ -464,9 +465,9 @@ class _PostCardState extends ConsumerState<PostCard> {
           _header(cs, s),
           const SizedBox(height: 10),
           _title(context),
-          if (p.linkFlairText != null) ...[
+          if (p.linkFlair != null) ...[
             const SizedBox(height: 8),
-            _flair(cs, p.linkFlairText!),
+            _flair(cs, p.linkFlair!),
           ],
           CrosspostLine(post: p),
           ReminderLine(post: p),
@@ -493,9 +494,9 @@ class _PostCardState extends ConsumerState<PostCard> {
           _header(cs, s),
           const SizedBox(height: 10),
           _title(context),
-          if (p.linkFlairText != null) ...[
+          if (p.linkFlair != null) ...[
             const SizedBox(height: 8),
-            _flair(cs, p.linkFlairText!),
+            _flair(cs, p.linkFlair!),
           ],
           CrosspostLine(post: p),
           ReminderLine(post: p),
@@ -530,9 +531,9 @@ class _PostCardState extends ConsumerState<PostCard> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _title(context, maxLines: 3, small: true),
-                    if (p.linkFlairText != null) ...[
+                    if (p.linkFlair != null) ...[
                       const SizedBox(height: 6),
-                      _flair(cs, p.linkFlairText!),
+                      _flair(cs, p.linkFlair!),
                     ],
                     CrosspostLine(post: p),
                     ReminderLine(post: p),
@@ -796,12 +797,12 @@ class _PostCardState extends ConsumerState<PostCard> {
     );
   }
 
-  Widget _flair(ColorScheme cs, String text) => Container(
+  Widget _flair(ColorScheme cs, UserFlair flair) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
             color: cs.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(8)),
-        child: Text(text,
+        child: Text.rich(flairSpan(flair),
             style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
       );
 
@@ -1123,10 +1124,10 @@ class _PostCardState extends ConsumerState<PostCard> {
             ),
           )),
         ),
-        if (p.linkFlairText != null)
+        if (p.linkFlair != null)
           Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: CalmFlair(raw: p.linkFlairText!),
+            child: CalmFlair(flair: p.linkFlair!),
           ),
         CrosspostLine(post: p),
         ReminderLine(post: p),
@@ -1481,16 +1482,8 @@ int _javaHash(String s) {
   return h >= 0x80000000 ? h - 0x100000000 : h;
 }
 
-final _flairShortcode = RegExp(r':[A-Za-z0-9_+\-]+:');
-final _whitespace = RegExp(r'\s+');
 
-/// Flair text without Reddit's `:emoji:` shortcodes (":Discussion:
-/// Discussion" → "Discussion").
-String cleanFlair(String text) =>
-    text.replaceAll(_flairShortcode, ' ').replaceAll(_whitespace, ' ').trim();
-
-/// A small icon matching common flair words (the flair's emoji images aren't
-/// in its text).
+/// A small icon matching common flair words, for a flair with no images.
 IconData _flairIcon(String text) {
   final t = text.toLowerCase();
   if (t.contains('discuss')) return Icons.mode_comment_outlined;
@@ -1511,16 +1504,31 @@ IconData _flairIcon(String text) {
   return Icons.sell_rounded;
 }
 
-/// Calm flair pill: 26 tall, icon + cleaned text. Nothing when it's only
-/// emoji.
+/// A flair as a text span, its emoji images drawn inline.
+InlineSpan flairSpan(UserFlair flair) => TextSpan(children: [
+      for (var i = 0; i < flair.parts.length; i++)
+        if (flair.parts[i].emojiUrl != null) ...[
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: CachedNetworkImage(
+                imageUrl: flair.parts[i].emojiUrl!, width: 14, height: 14),
+          ),
+          // Some flairs have no space of their own after the image.
+          if (i + 1 < flair.parts.length &&
+              !(flair.parts[i + 1].text ?? ' ').startsWith(' '))
+            const TextSpan(text: ' '),
+        ] else
+          TextSpan(text: flair.parts[i].text ?? ''),
+    ]);
+
+/// Calm flair pill: 26 tall, the flair's own images, or a matching icon when
+/// it has none.
 class CalmFlair extends StatelessWidget {
-  const CalmFlair({super.key, required this.raw});
-  final String raw;
+  const CalmFlair({super.key, required this.flair});
+  final UserFlair flair;
 
   @override
   Widget build(BuildContext context) {
-    final text = cleanFlair(raw);
-    if (text.isEmpty) return const SizedBox.shrink();
     final cs = Theme.of(context).colorScheme;
     return Container(
       height: 26,
@@ -1531,10 +1539,12 @@ class CalmFlair extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(_flairIcon(text), size: 14, color: cs.primary),
-          const SizedBox(width: 5),
+          if (flair.parts.every((p) => p.emojiUrl == null)) ...[
+            Icon(_flairIcon(flair.text), size: 14, color: cs.primary),
+            const SizedBox(width: 5),
+          ],
           Flexible(
-            child: Text(text,
+            child: Text.rich(flairSpan(flair),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(

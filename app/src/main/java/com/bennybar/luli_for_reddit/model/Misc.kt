@@ -30,11 +30,11 @@ data class Multireddit(
     }
 }
 
-/** One piece of a user flair: some text, or an emoji (an image Reddit hosts). */
+/** One piece of a flair: some text, or an emoji (an image Reddit hosts). */
 @Immutable
 data class FlairPart(val text: String? = null, val emojiUrl: String? = null)
 
-/** A user's flair (#31): its text and emoji, in order. */
+/** A user's (#31) or post's (#56) flair: its text and emoji, in order. */
 @Immutable
 data class UserFlair(val parts: List<FlairPart>) {
     /** Just the words, for where images can't go. */
@@ -42,12 +42,12 @@ data class UserFlair(val parts: List<FlairPart>) {
 }
 
 /**
- * A user's flair from a post or comment: the richtext's text and emoji
- * parts; else the plain text without its :emoji: codes (no image links
- * there). Null when there's none.
+ * A flair from a post or comment ([kind] "author" or "link"): the richtext's
+ * text and emoji parts; else the plain text without its :emoji: codes (no
+ * image links there). Null when there's none.
  */
-fun authorFlairOf(d: JsonElement?): UserFlair? {
-    val rich = d["author_flair_richtext"].arr()
+fun flairOf(d: JsonElement?, kind: String): UserFlair? {
+    val rich = d["${kind}_flair_richtext"].arr()
     val parts = if (!rich.isNullOrEmpty()) {
         rich.mapNotNull { p ->
             when (p["e"].str()) {
@@ -58,7 +58,7 @@ fun authorFlairOf(d: JsonElement?): UserFlair? {
         }
     } else {
         listOfNotNull(
-            d["author_flair_text"].str()?.replace(Regex(":[\\w-]+:"), "")?.replace(Regex("\\s+"), " ")?.trim()
+            d["${kind}_flair_text"].str()?.replace(Regex(":[\\w+-]+:"), " ")?.replace(Regex("\\s+"), " ")?.trim()
                 ?.takeIf { it.isNotEmpty() }?.let { FlairPart(text = it) },
         )
     }

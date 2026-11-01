@@ -1,5 +1,25 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import androidx.compose.animation.core.animate
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Velocity
+import com.bennybar.luli_for_reddit.feature.feed.FeedUi
+import com.bennybar.luli_for_reddit.feature.feed.rememberFeedController
+import com.bennybar.luli_for_reddit.feature.feed.rememberFeedListState
+import kotlin.math.roundToInt
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.CheckableDropdownMenuItem
@@ -19,10 +39,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
@@ -95,7 +113,7 @@ internal fun currentUsername(): String {
 
 /** The Posts tab: the frontpage feed under its top bar (Full or Expandable mode). */
 @Composable
-internal fun FrontpageTab(chromeVisible: Boolean) {
+internal fun FrontpageTab(selected: Boolean) {
     val cs = MaterialTheme.colorScheme
     val nav = LocalNavigator.current
     val username = currentUsername()
@@ -105,98 +123,135 @@ internal fun FrontpageTab(chromeVisible: Boolean) {
     val blend = forYou && settings.blendHome && settings.redditHomeAllowed
     val blendState by app.forYou.redditHome.blendState.collectAsStateWithLifecycle()
     val expandable = settings.topBarMode == TopBarMode.EXPANDABLE
-    // Full mode pins the action row; Expandable floats it in on demand.
-    val showActionRow = settings.topBarMode == TopBarMode.FULL
 
-    Column(Modifier.fillMaxSize()) {
-        // Full mode: Google-app style search bar with avatar — collapses on scroll.
-        if (showActionRow) {
-            AnimatedVisibility(
-                visible = chromeVisible,
-                enter = expandVertically(tween(220), expandFrom = Alignment.Top),
-                exit = shrinkVertically(tween(220), shrinkTowards = Alignment.Top),
-            ) {
-                Row(
-                    // With the ☰ here: the same spot as on the other tabs (#34).
-                    Modifier.fillMaxWidth().padding(
-                        start = if (LocalSideBar.current != null) 4.dp else 16.dp,
-                        top = if (LocalSideBar.current != null) 6.dp else 12.dp,
-                        end = 16.dp,
-                        bottom = 4.dp,
-                    ),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    SideBarButton()
-                    if (settings.showApiUsage) {
-                        ApiUsagePill(Modifier.weight(1f))
-                    } else {
-                        SearchPill("Search Reddit", onClick = { nav.push(Route.Search()) }, modifier = Modifier.weight(1f))
-                    }
-                    Spacer(Modifier.width(4.dp))
-                    NewPostButton { nav.push(Route.Submit()) }
-                    DisplayMenu()
-                    Spacer(Modifier.width(4.dp))
-                    ProfileAvatar(username, 44.dp) { nav.push(Route.User(username)) }
+    // The top bar floats over the feed and follows the finger, in and out (#55):
+    // it slides away as you scroll down and back as you scroll up, and the feed
+    // stays put under it instead of being pushed around.
+    val listState = rememberFeedListState()
+    val scope = rememberCoroutineScope()
+    var barHeight by remember { mutableIntStateOf(0) }
+    var barShift by remember { mutableFloatStateOf(0f) } // 0 = shown, -barHeight = hidden
+    var settling by remember { mutableStateOf<Job?>(null) }
+
+    fun slideBar(to: Float) {
+        settling?.cancel()
+        settling = scope.launch { animate(barShift, to, animationSpec = tween(200)) { v, _ -> barShift = v } }
+    }
+
+    val barScroll = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.UserInput) settling?.cancel()
+                return Offset.Zero
+            }
+
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                barShift = (barShift + consumed.y).coerceIn(-barHeight.toFloat(), 0f)
+                return Offset.Zero
+            }
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                // Don't rest half way; hide only with the feed scrolled far
+                // enough to fill the space the bar leaves.
+                val past = listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset >= barHeight
+                if (barShift != 0f && barShift != -barHeight.toFloat()) {
+                    slideBar(if (past && barShift < -barHeight / 2f) -barHeight.toFloat() else 0f)
                 }
+                return Velocity.Zero
             }
         }
-        // The title row. Expandable mode keeps it above the feed so it hides as
-        // you scroll down and comes back as soon as you scroll up (#50), like
-        // the Full mode action row; Full mode scrolls it with the feed.
-        val titleRow: @Composable () -> Unit = {
+    }
+    // Never hidden past the feed's top, however it got there (a re-tap on the
+    // tab, Back, new posts): there'd be a blank gap above the first card.
+    LaunchedEffect(listState) {
+        snapshotFlow { if (listState.firstVisibleItemIndex == 0) listState.firstVisibleItemScrollOffset else null }
+            .collect { top -> if (top != null) barShift = maxOf(barShift, -top.toFloat()) }
+    }
+    // Reloading starts a new list from the top; returning to the tab shows the bar too.
+    val loaded = rememberFeedController("").ui.collectAsStateWithLifecycle().value is FeedUi.Data
+    LaunchedEffect(loaded, selected) { if (!loaded || selected) slideBar(0f) }
+
+    // Full mode: Google-app style search bar with avatar.
+    val actionRow: @Composable () -> Unit = {
             Row(
+                // With the ☰ here: the same spot as on the other tabs (#34).
                 Modifier.fillMaxWidth().padding(
-                    // With the ☰ there, line it up with the other tabs' (4dp + the button's own inset).
-                    // The feed (or, in Expandable mode, the Box around it) already insets it 7dp.
-                    start = if (expandable && LocalSideBar.current != null) 0.dp else 16.dp,
-                    top = if (expandable) (if (LocalSideBar.current != null) 8.dp else 10.dp) else 8.dp,
-                    end = if (expandable) 4.dp else 16.dp,
+                    start = if (LocalSideBar.current != null) 4.dp else 16.dp,
+                    top = if (LocalSideBar.current != null) 6.dp else 12.dp,
+                    end = 16.dp,
+                    bottom = 4.dp,
                 ),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // Full mode has it in the action row above.
-                if (expandable) SideBarButton(Modifier.offset(x = (-3).dp))
-                Text(
-                    if (homeOn) "Home" else if (blend) "Blend" else if (forYou) "For You" else "Frontpage",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.ExtraBold,
-                )
-                if (!homeOn && forYou) {
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        if (blend) blendSubtitle(blendState) else "Personalized on your phone",
-                        Modifier.weight(1f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        fontSize = 12.sp,
-                        color = cs.onSurfaceVariant,
-                    )
+                SideBarButton()
+                if (settings.showApiUsage) {
+                    ApiUsagePill(Modifier.weight(1f))
                 } else {
-                    Spacer(Modifier.weight(1f))
+                    SearchPill("Search Reddit", onClick = { nav.push(Route.Search()) }, modifier = Modifier.weight(1f))
                 }
-                // Expandable mode: search right here, and one button that floats the toolbar in.
-                if (expandable) {
-                    IconButton(onClick = { nav.push(Route.Search()) }) { Icon(Icons.Rounded.Search, "Search") }
-                    IconButton(onClick = { showFloatingToolbar(nav, username) }) {
-                        Icon(Icons.Rounded.MoreHoriz, "Toolbar")
-                    }
+                Spacer(Modifier.width(4.dp))
+                NewPostButton { nav.push(Route.Submit()) }
+                DisplayMenu()
+                Spacer(Modifier.width(4.dp))
+                ProfileAvatar(username, 44.dp) { nav.push(Route.User(username)) }
+            }
+    }
+    // The title row: the bar itself in Expandable mode; Full mode scrolls it with the feed.
+    val titleRow: @Composable () -> Unit = {
+        Row(
+            Modifier.fillMaxWidth().padding(
+                // With the ☰ there, line it up with the other tabs' (4dp + the button's own inset).
+                // The feed (or, in Expandable mode, the bar) already insets it 7dp.
+                start = if (expandable && LocalSideBar.current != null) 0.dp else 16.dp,
+                top = if (expandable) (if (LocalSideBar.current != null) 8.dp else 10.dp) else 8.dp,
+                end = if (expandable) 4.dp else 16.dp,
+            ),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Full mode has it in the action row above.
+            if (expandable) SideBarButton(Modifier.offset(x = (-3).dp))
+            Text(
+                if (homeOn) "Home" else if (blend) "Blend" else if (forYou) "For You" else "Frontpage",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.ExtraBold,
+            )
+            if (!homeOn && forYou) {
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    if (blend) blendSubtitle(blendState) else "Personalized on your phone",
+                    Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    fontSize = 12.sp,
+                    color = cs.onSurfaceVariant,
+                )
+            } else {
+                Spacer(Modifier.weight(1f))
+            }
+            // Expandable mode: search right here, and one button that floats the toolbar in.
+            if (expandable) {
+                IconButton(onClick = { nav.push(Route.Search()) }) { Icon(Icons.Rounded.Search, "Search") }
+                IconButton(onClick = { showFloatingToolbar(nav, username) }) {
+                    Icon(Icons.Rounded.MoreHoriz, "Toolbar")
                 }
             }
         }
-        if (expandable) {
-            AnimatedVisibility(
-                visible = chromeVisible,
-                enter = expandVertically(tween(220), expandFrom = Alignment.Top),
-                exit = shrinkVertically(tween(220), shrinkTowards = Alignment.Top),
-            ) {
-                Box(Modifier.padding(horizontal = 7.dp)) { titleRow() }
-            }
-        }
+    }
+    Box(Modifier.fillMaxSize().clipToBounds().nestedScroll(barScroll)) {
         PostListView(
             feedKey = "",
-            modifier = Modifier.weight(1f),
             header = if (expandable) null else titleRow,
+            topPadding = with(LocalDensity.current) { barHeight.toDp() },
+            listState = listState,
         )
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .onSizeChanged { barHeight = it.height }
+                .offset { IntOffset(0, barShift.roundToInt()) }
+                .background(cs.surface)
+                .padding(horizontal = if (expandable) 7.dp else 0.dp),
+        ) { if (expandable) titleRow() else actionRow() }
     }
 }
 

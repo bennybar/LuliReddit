@@ -27,7 +27,7 @@ class FlairPart {
   String toString() => 'FlairPart(text: $text, emojiUrl: $emojiUrl)';
 }
 
-/// A user's flair: its text and emoji, in order.
+/// A user's or post's flair (#56): its text and emoji, in order.
 class UserFlair {
   const UserFlair(this.parts);
   final List<FlairPart> parts;
@@ -50,11 +50,11 @@ class UserFlair {
   int get hashCode => Object.hashAll(parts);
 }
 
-/// A user's flair from a post or comment: the richtext's text and emoji
-/// parts; else the plain text without its :emoji: codes (no image links
-/// there). Null when there's none.
-UserFlair? authorFlairOf(Map<String, dynamic>? d) {
-  final rich = d?['author_flair_richtext'];
+/// A flair from a post or comment ([kind] 'author' or 'link'): the richtext's
+/// text and emoji parts; else the plain text without its :emoji: codes (no
+/// image links there). Null when there's none.
+UserFlair? flairOf(Map<String, dynamic>? d, String kind) {
+  final rich = d?['${kind}_flair_richtext'];
   final parts = <FlairPart>[];
   if (rich is List && rich.isNotEmpty) {
     for (final p in rich) {
@@ -67,8 +67,8 @@ UserFlair? authorFlairOf(Map<String, dynamic>? d) {
       }
     }
   } else {
-    final plain = (d?['author_flair_text'] as String? ?? '')
-        .replaceAll(RegExp(r':[\w-]+:'), '')
+    final plain = (d?['${kind}_flair_text'] as String? ?? '')
+        .replaceAll(RegExp(r':[\w+-]+:'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
     if (plain.isNotEmpty) parts.add(FlairPart(text: plain));

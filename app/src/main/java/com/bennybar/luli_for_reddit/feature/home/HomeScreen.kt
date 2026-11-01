@@ -197,7 +197,7 @@ fun HomeScreen() {
         onDispose { nav.snackbarBottomPadding = 0.dp }
     }
 
-    // Hide the nav (and the Full top bar) while scrolling down, reveal on
+    // Hide the nav while scrolling down, reveal on
     // scrolling up or reaching the top — any tab's main list. Mirrors
     // Flutter's UserScrollNotification handling: decide when the user's
     // drag direction changes and when scrolling settles (a fling landing);
@@ -238,6 +238,9 @@ fun HomeScreen() {
                     chrome = true
                 } else {
                     fromTop[index] = fromTop[index]?.let { (it - consumed.y).coerceAtLeast(0f) }
+                    // A drag that starts at the top is still "near top" when
+                    // its direction is first seen: leaving the top decides (#55).
+                    if (direction != 0) update(direction)
                 }
                 return Offset.Zero
             }
@@ -309,7 +312,7 @@ fun HomeScreen() {
             modifier = Modifier.fillMaxSize().statusBarsPadding().nestedScroll(scrollConnection),
         ) { i ->
             when (i) {
-                0 -> FrontpageTab(chromeVisible = chrome)
+                0 -> FrontpageTab(selected = index == 0)
                 1 -> ExploreTab()
                 2 -> InboxScreen(reselect = inboxReselect)
                 else -> ProfileTab()

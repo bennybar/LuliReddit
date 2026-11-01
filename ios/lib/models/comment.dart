@@ -92,7 +92,7 @@ class Comment with _$Comment {
       fullname: d['name'] as String? ?? 't1_$id',
       parentId: d['parent_id'] as String? ?? '',
       author: d['author'] as String? ?? '[deleted]',
-      authorFlair: authorFlairOf(d),
+      authorFlair: flairOf(d, 'author'),
       body: d['body'] as String? ?? '',
       score: (d['score'] as num?)?.toInt() ?? 0,
       created: DateTime.fromMillisecondsSinceEpoch(

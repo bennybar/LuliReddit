@@ -51,6 +51,7 @@ class SettingsStore(private val p: Prefs) {
             defaultSort = idx(PostSort.entries.toTypedArray(), "defaultSort", d.defaultSort),
             defaultCommentSort = p.getString("defaultCommentSort") ?: d.defaultCommentSort,
             postDisplay = idx(PostDisplay.entries.toTypedArray(), "postDisplay", d.postDisplay),
+            commentStyle = idx(CommentStyle.entries.toTypedArray(), "commentStyle", d.commentStyle),
             swipeActions = b("swipeActions", d.swipeActions),
             trackHistory = b("trackHistory", d.trackHistory),
             offlineCache = b("offlineCache", d.offlineCache),
@@ -112,6 +113,7 @@ class SettingsStore(private val p: Prefs) {
     fun setDefaultSort(v: PostSort) { p.setInt("defaultSort", v.ordinal); set { it.copy(defaultSort = v) } }
     fun setDefaultCommentSort(v: String) { p.setString("defaultCommentSort", v); set { it.copy(defaultCommentSort = v) } }
     fun setPostDisplay(v: PostDisplay) { p.setInt("postDisplay", v.ordinal); set { it.copy(postDisplay = v) } }
+    fun setCommentStyle(v: CommentStyle) { p.setInt("commentStyle", v.ordinal); set { it.copy(commentStyle = v) } }
     fun setSwipeActions(v: Boolean) { p.setBool("swipeActions", v); set { it.copy(swipeActions = v) } }
     fun setTrackHistory(v: Boolean) { p.setBool("trackHistory", v); set { it.copy(trackHistory = v) } }
     fun setOfflineCache(v: Boolean) { p.setBool("offlineCache", v); set { it.copy(offlineCache = v) } }

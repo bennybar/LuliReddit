@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.ui.unit.Dp
 import com.bennybar.luli_for_reddit.ui.RefreshBox
 import com.bennybar.luli_for_reddit.ui.Loading
 import com.bennybar.luli_for_reddit.core.timeAgoPhrase
@@ -110,8 +111,15 @@ fun rememberFeedController(feedKey: String): FeedController {
     return remember(feedKey, version) { app.feed.controller(feedKey).also { it.start() } }
 }
 
-/** Feed list bottom padding: room for the floating nav / FABs. */
-val FeedPadding = PaddingValues(start = 7.dp, end = 7.dp, bottom = 130.dp)
+/**
+ * Builds cards about a screen ahead (Flutter's 1200px cache extent; the
+ * default is one item), so they're laid out and their images decoding before
+ * they appear.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun rememberFeedListState(): LazyListState =
+    rememberLazyListState(cacheWindow = remember { LazyLayoutCacheWindow(ahead = 440.dp, behind = 440.dp) })
 
 /**
  * Scrollable list of posts for a feed key ('' = frontpage, subreddit name,
@@ -124,6 +132,8 @@ fun PostListView(
     feedKey: String,
     modifier: Modifier = Modifier,
     header: (@Composable () -> Unit)? = null,
+    topPadding: Dp = 0.dp, // room for a top bar floating over the list
+    listState: LazyListState = rememberFeedListState(),
 ) {
     val controller = rememberFeedController(feedKey)
     val ui by controller.ui.collectAsStateWithLifecycle()
@@ -131,10 +141,7 @@ fun PostListView(
     val nav = LocalNavigator.current
     val view = rememberView()
     val scope = rememberCoroutineScope()
-    // Build cards about a screen ahead (Flutter's 1200px cache extent; the
-    // default is one item), so they're laid out and their images decoding
-    // before they appear.
-    val listState = rememberLazyListState(cacheWindow = remember { LazyLayoutCacheWindow(ahead = 440.dp, behind = 440.dp) })
+    val listPadding = remember(topPadding) { PaddingValues(start = 7.dp, top = topPadding, end = 7.dp, bottom = 130.dp) }
     var refreshing by remember { mutableStateOf(false) }
     val isFrontpage = feedKey.isEmpty()
     val homeMode = isFrontpage && settings.redditHomeAllowed && settings.redditHomeFeed
@@ -228,13 +235,14 @@ fun PostListView(
             isRefreshing = refreshing,
             onRefresh = { refresh() },
             modifier = Modifier.fillMaxSize(),
+            indicatorPadding = topPadding,
         ) {
             when (val u = ui) {
                 FeedUi.Loading -> {
                     // Home (no saved page to show yet): the shuffling deck with a
                     // live count of posts found; its cards are then dealt in.
                     if (deckMode) SideEffect { dealHome = true }
-                    LazyColumn(Modifier.fillMaxSize(), contentPadding = FeedPadding, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    LazyColumn(Modifier.fillMaxSize(), contentPadding = listPadding, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         if (header != null) item(key = "header", contentType = "header") { header() }
                         item(key = "sortbar", contentType = "sortbar") { chips() }
                         if (deckMode) {
@@ -251,7 +259,7 @@ fun PostListView(
                         }
                     }
                 }
-                is FeedUi.Error -> LazyColumn(Modifier.fillMaxSize()) {
+                is FeedUi.Error -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = topPadding)) {
                     if (header != null) item(key = "header", contentType = "header") { header() }
                     item(key = "error") {
                         // A quarantined or gated subreddit: opt in right here.
@@ -284,6 +292,7 @@ fun PostListView(
                     dealHome = dealHome,
                     onDealt = { dealHome = false },
                     chips = chips,
+                    listPadding = listPadding,
                     onRetry = { refresh() },
                 )
             }
@@ -291,7 +300,7 @@ fun PostListView(
         val pending = (ui as? FeedUi.Data)?.state?.hasPending == true
         if (pending) {
             NewPostsPill(
-                Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
+                Modifier.align(Alignment.TopCenter).padding(top = 8.dp + topPadding),
                 onClick = {
                     controller.applyPending()
                     scope.launch { listState.animateScrollToItem(0) }
@@ -314,6 +323,7 @@ private fun FeedList(
     dealHome: Boolean,
     onDealt: () -> Unit,
     chips: @Composable () -> Unit,
+    listPadding: PaddingValues,
     onRetry: () -> Unit,
 ) {
     val settings by app.settings.state.collectAsStateWithLifecycle()
@@ -392,7 +402,7 @@ private fun FeedList(
     LazyColumn(
         Modifier.fillMaxSize(),
         state = listState,
-        contentPadding = FeedPadding,
+        contentPadding = listPadding,
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         if (header != null) item(key = "header", contentType = "header") { header() }

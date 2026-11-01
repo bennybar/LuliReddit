@@ -47,6 +47,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   final _scaffold = GlobalKey<ScaffoldState>();
   int _index = 0;
   bool _chrome = true;
+  ScrollDirection _dragDirection = ScrollDirection.idle;
   DateTime _lastExploreTap = DateTime.fromMillisecondsSinceEpoch(0);
   // The other tabs are built one frame after the first paint (the Posts tab
   // shows first); they then stay alive in the IndexedStack.
@@ -129,10 +130,26 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     );
   }
 
+  // A drag that starts at the top is still "near top" when its direction is
+  // first seen, and there's no second notification: leaving the top decides
+  // (#55).
+  bool _onScrollUpdate(ScrollUpdateNotification n) {
+    final m = n.metrics;
+    if (m.axis == Axis.vertical &&
+        _dragDirection == ScrollDirection.reverse &&
+        _chrome &&
+        !m.outOfRange &&
+        m.pixels > m.minScrollExtent + 4) {
+      setState(() => _chrome = false);
+    }
+    return false;
+  }
+
   bool _onScroll(UserScrollNotification n) {
     // Any tab's main list, including those inside a tab's pager (Inbox,
     // Profile); not the pagers themselves or horizontal carousels.
     if (n.metrics.axis != Axis.vertical) return false;
+    _dragDirection = n.direction;
     final m = n.metrics;
     // Near the top or overscrolling (iOS rubber-band) — keep chrome shown and
     // don't toggle, so the bar doesn't bounce in/out as you scroll back up.
@@ -179,7 +196,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   Widget _tab(int i) {
     if (!_allTabs && i != _index) return const SizedBox.shrink();
     return switch (i) {
-      0 => FrontpageTab(chromeVisible: _chrome),
+      0 => FrontpageTab(selected: _index == 0),
       1 => const ExploreScreen(),
       2 => const InboxScreen(),
       _ => const ProfileTab(),
@@ -226,12 +243,15 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           children: [
             NotificationListener<UserScrollNotification>(
               onNotification: _onScroll,
+              child: NotificationListener<ScrollUpdateNotification>(
+              onNotification: _onScrollUpdate,
               child: SafeArea(
                 bottom: false,
                 child: IndexedStack(
                   index: _index,
                   children: [for (var i = 0; i < 4; i++) _tab(i)],
                 ),
+              ),
               ),
             ),
             if (bottomBar)

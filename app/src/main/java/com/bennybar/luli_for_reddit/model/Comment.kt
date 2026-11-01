@@ -85,7 +85,7 @@ data class Comment(
                 fullname = d["name"].str() ?: "t1_${d["id"].str()?.removePrefix("t1_")}",
                 parentId = d["parent_id"].str() ?: "",
                 author = d["author"].str() ?: "[deleted]",
-                authorFlair = authorFlairOf(d),
+                authorFlair = flairOf(d, "author"),
                 body = d["body"].str() ?: "",
                 score = d["score"].int() ?: 0,
                 createdUtc = (d["created_utc"].long() ?: 0L) * 1000,

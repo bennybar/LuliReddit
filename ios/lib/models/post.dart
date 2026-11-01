@@ -44,6 +44,8 @@ class Post with _$Post {
     @Default(false) bool saved,
     @Default(false) bool canModPost,
     String? linkFlairText,
+    // The post's flair to show: its words and images (#56).
+    UserFlair? linkFlair,
     String? distinguished,
     String? feedReason, // "why you're seeing this" in the For You feed (transient)
     String? crosspostFrom, // subreddit a crosspost originates from
@@ -121,7 +123,7 @@ class Post with _$Post {
       subredditPrefixed: d['subreddit_name_prefixed'] as String? ?? '',
       subredditIcon: icon?.replaceAll('&amp;', '&'),
       author: d['author'] as String? ?? '[deleted]',
-      authorFlair: authorFlairOf(d),
+      authorFlair: flairOf(d, 'author'),
       score: (d['score'] as num?)?.toInt() ?? 0,
       numComments: (d['num_comments'] as num?)?.toInt() ?? 0,
       upvoteRatio: (d['upvote_ratio'] as num?)?.toDouble() ?? 0,
@@ -148,6 +150,7 @@ class Post with _$Post {
       linkFlairText: (d['link_flair_text'] as String?)?.trim().isEmpty ?? true
           ? null
           : d['link_flair_text'] as String?,
+      linkFlair: flairOf(d, 'link'),
       distinguished: d['distinguished'] as String?,
       crosspostFrom: parent?['subreddit'] as String?,
       bodyMedia: mediaUrlsOf(content['media_metadata']),

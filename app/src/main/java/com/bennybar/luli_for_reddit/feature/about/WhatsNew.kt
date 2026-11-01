@@ -45,6 +45,14 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.49", "Nov 1, 2026",
+        listOf(
+            "The top bar slides away and back with your finger, over the feed, and hides on your first scroll",
+            "Comment style: pick Cards or Calm for comments, apart from your post style (Settings → Posts & comments)",
+            "Post flairs show their own images, instead of a generic icon",
+        ),
+    ),
+    Release(
         "2.0.48", "Nov 1, 2026",
         listOf(
             "Feeds: sort with one tap on a row of chips (Best, Hot, New, Top, Rising), and on Home switch to For You, Blend or Home the same way",

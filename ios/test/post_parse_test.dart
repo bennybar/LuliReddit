@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:luli_for_reddit/features/feed/post_card.dart';
 import 'package:luli_for_reddit/models/post.dart';
 
 Post _poll(Map<String, dynamic> poll) => Post.fromData({
@@ -84,19 +83,5 @@ void main() {
       'selftext': 'Look:\n\nhttps://i.redd.it/abc.jpg\n\nNice, right?',
     });
     expect(p.snippet, 'Look:\n\nNice, right?');
-  });
-
-  group('Calm flair', () {
-    test('strips emoji shortcodes', () {
-      expect(cleanFlair(':Discussion: Discussion'), 'Discussion');
-      expect(cleanFlair('Medieval Europe :castle:'), 'Medieval Europe');
-      expect(cleanFlair(':q:  Help   :x_y-1: me'), 'Help me');
-    });
-
-    test('keeps plain text and empties emoji-only flair', () {
-      expect(cleanFlair('OC'), 'OC');
-      expect(cleanFlair('10:30 AM'), '10:30 AM');
-      expect(cleanFlair(':star:'), '');
-    });
   });
 }

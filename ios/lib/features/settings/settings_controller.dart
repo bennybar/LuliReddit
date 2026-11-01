@@ -45,6 +45,17 @@ enum AppFont {
       (jakartaSwitch ? jakarta : googleSans);
 }
 
+/// How comments look (#54): only two layouts, so "same as posts" follows Calm
+/// or not. Persisted by index (`commentStyle`).
+enum CommentStyle {
+  same('Same as posts'),
+  cards('Cards'),
+  calm('Calm');
+
+  const CommentStyle(this.label);
+  final String label;
+}
+
 /// How posts are laid out in feeds. Persisted by index (`postDisplay`).
 enum PostDisplay { large, card, mini, calm, calmCards }
 
@@ -93,6 +104,7 @@ class Settings {
     required this.defaultSort,
     required this.defaultCommentSort,
     required this.postDisplay,
+    required this.commentStyle,
     required this.swipeActions,
     required this.trackHistory,
     required this.offlineCache,
@@ -163,6 +175,14 @@ class Settings {
   final PostSort defaultSort;
   final String defaultCommentSort; // reddit comment sort id (confidence, top, …)
   final PostDisplay postDisplay;
+  final CommentStyle commentStyle;
+
+  /// Calm comment rows instead of cards.
+  bool get calmComments => switch (commentStyle) {
+        CommentStyle.same => postDisplay.isCalm,
+        CommentStyle.cards => false,
+        CommentStyle.calm => true,
+      };
   final bool swipeActions;
   final bool trackHistory;
   final bool offlineCache;
@@ -238,6 +258,7 @@ class Settings {
     PostSort? defaultSort,
     String? defaultCommentSort,
     PostDisplay? postDisplay,
+    CommentStyle? commentStyle,
     bool? swipeActions,
     bool? trackHistory,
     bool? offlineCache,
@@ -305,6 +326,7 @@ class Settings {
         defaultSort: defaultSort ?? this.defaultSort,
         defaultCommentSort: defaultCommentSort ?? this.defaultCommentSort,
         postDisplay: postDisplay ?? this.postDisplay,
+        commentStyle: commentStyle ?? this.commentStyle,
         swipeActions: swipeActions ?? this.swipeActions,
         trackHistory: trackHistory ?? this.trackHistory,
         offlineCache: offlineCache ?? this.offlineCache,
@@ -387,6 +409,7 @@ class SettingsController extends Notifier<Settings> {
       defaultCommentSort: p.getString('defaultCommentSort') ?? 'confidence',
       postDisplay:
           PostDisplay.values[p.getInt('postDisplay') ?? PostDisplay.calm.index],
+      commentStyle: CommentStyle.values[p.getInt('commentStyle') ?? 0],
       swipeActions: p.getBool('swipeActions') ?? true,
       trackHistory: p.getBool('trackHistory') ?? true,
       offlineCache: p.getBool('offlineCache') ?? true,
@@ -473,6 +496,11 @@ class SettingsController extends Notifier<Settings> {
   void setPostDisplay(PostDisplay display) {
     _prefs.setInt('postDisplay', display.index);
     state = state.copyWith(postDisplay: display);
+  }
+
+  void setCommentStyle(CommentStyle style) {
+    _prefs.setInt('commentStyle', style.index);
+    state = state.copyWith(commentStyle: style);
   }
 
   void setSwipeActions(bool v) {

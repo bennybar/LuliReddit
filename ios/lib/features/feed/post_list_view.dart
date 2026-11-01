@@ -37,9 +37,11 @@ final frontpageScrollSignalProvider = StateProvider<int>((ref) => 0);
 /// Scrollable list of posts for a feed key ('' = frontpage, else subreddit).
 /// [header] is rendered as the first scrolling item (e.g. a big title).
 class PostListView extends ConsumerStatefulWidget {
-  const PostListView({super.key, required this.feedKey, this.header});
+  const PostListView(
+      {super.key, required this.feedKey, this.header, this.topPadding = 0});
   final String feedKey;
   final Widget? header;
+  final double topPadding; // room for a top bar floating over the list
 
   @override
   ConsumerState<PostListView> createState() => _PostListViewState();
@@ -192,8 +194,10 @@ class _PostListViewState extends ConsumerState<PostListView>
       onBlend: homeAllowed ? notifier.selectBlend : null,
     );
 
+    final listPadding = feedPadding.copyWith(top: widget.topPadding);
     final refreshable = RefreshBox(
       key: _refreshKey,
+      edgeOffset: widget.topPadding,
       onRefresh: () {
         HapticFeedback.mediumImpact();
         return notifier.refresh();
@@ -205,7 +209,7 @@ class _PostListViewState extends ConsumerState<PostListView>
           if (deckMode) {
             _dealHome = true;
             return ListView(
-              padding: feedPadding,
+              padding: listPadding,
               children: [
                 if (widget.header != null) widget.header!,
                 chips,
@@ -215,7 +219,7 @@ class _PostListViewState extends ConsumerState<PostListView>
             );
           }
           return ListView(
-            padding: feedPadding,
+            padding: listPadding,
             children: [
               if (widget.header != null) widget.header!,
               chips,
@@ -228,6 +232,7 @@ class _PostListViewState extends ConsumerState<PostListView>
           );
         },
         error: (e, _) => ListView(
+          padding: EdgeInsets.only(top: widget.topPadding),
           children: [
             if (widget.header != null) widget.header!,
             SizedBox(
@@ -335,7 +340,7 @@ class _PostListViewState extends ConsumerState<PostListView>
             // Build cards about a screen ahead (the default is 250px), so
             // they're laid out and their images decoding before they appear.
             scrollCacheExtent: const ScrollCacheExtent.pixels(1200),
-            padding: feedPadding,
+            padding: listPadding,
             itemCount: (widget.header != null ? 1 : 0) + itemCount,
             separatorBuilder: (_, __) => const SizedBox(height: 10),
             itemBuilder: (context, rawIndex) {
@@ -434,7 +439,7 @@ class _PostListViewState extends ConsumerState<PostListView>
         refreshable,
         if (hasPending)
           Positioned(
-            top: 8,
+            top: 8 + widget.topPadding,
             left: 0,
             right: 0,
             child: Center(

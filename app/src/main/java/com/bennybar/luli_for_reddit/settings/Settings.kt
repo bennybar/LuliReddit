@@ -69,6 +69,13 @@ enum class SwipeAction(val key: String, val label: String, val icon: ImageVector
     }
 }
 
+/** How comments look (#54): only two layouts, so "same as posts" follows Calm or not. Persisted by index. */
+enum class CommentStyle(val label: String) {
+    SAME("Same as posts"),
+    CARDS("Cards"),
+    CALM("Calm"),
+}
+
 /** Every user setting. Keys/defaults match the Flutter build exactly. */
 @Immutable
 data class Settings(
@@ -104,6 +111,7 @@ data class Settings(
     val defaultSort: PostSort = PostSort.BEST,
     val defaultCommentSort: String = "confidence", // reddit comment sort id
     val postDisplay: PostDisplay = PostDisplay.CALM,
+    val commentStyle: CommentStyle = CommentStyle.SAME,
     val swipeActions: Boolean = true,
     val trackHistory: Boolean = true,
     val offlineCache: Boolean = true,
@@ -151,3 +159,11 @@ data class Settings(
         const val DEFAULT_SEED: Long = 0xFF6750A4
     }
 }
+
+/** Calm comment rows instead of cards. */
+val Settings.calmComments: Boolean
+    get() = when (commentStyle) {
+        CommentStyle.SAME -> postDisplay.isCalm
+        CommentStyle.CARDS -> false
+        CommentStyle.CALM -> true
+    }

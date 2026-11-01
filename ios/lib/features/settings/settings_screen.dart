@@ -462,6 +462,12 @@ class _SettingsListState extends ConsumerState<SettingsList> {
           const Divider(),
           _section(context, 'Posts & comments'),
           ListTile(
+            leading: const Icon(Icons.mode_comment_outlined),
+            title: const Text('Comment style'),
+            subtitle: Text(s.commentStyle.label),
+            onTap: () => _pickCommentStyle(context, ctrl, s.commentStyle),
+          ),
+          ListTile(
             leading: const Icon(Icons.forum_outlined),
             title: const Text('Default comment sort'),
             subtitle:
@@ -1275,6 +1281,31 @@ class _SettingsListState extends ConsumerState<SettingsList> {
                 title: Text('Text only'),
                 subtitle: Text('Images and videos stay bright'),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _pickCommentStyle(
+      BuildContext context, SettingsController ctrl, CommentStyle current) {
+    showModalBottomSheet(
+      context: context,
+      sheetAnimationStyle: sheetMotion,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: RadioGroup<CommentStyle>(
+          groupValue: current,
+          onChanged: (v) {
+            if (v != null) ctrl.setCommentStyle(v);
+            Navigator.pop(ctx);
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final c in CommentStyle.values)
+                RadioListTile<CommentStyle>(value: c, title: Text(c.label)),
             ],
           ),
         ),
