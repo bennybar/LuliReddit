@@ -33,6 +33,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material.icons.automirrored.rounded.VolumeOff
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Forward10
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -41,6 +43,7 @@ import androidx.compose.material.icons.rounded.VideocamOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -164,7 +167,7 @@ private fun fmt(ms: Long): String {
     return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%02d:%02d".format(m, s)
 }
 
-/** Full-screen video player with sound. */
+/** Full-screen video player, with sound unless Settings → Open videos muted. */
 @Composable
 internal fun VideoViewer(route: MediaViewer.Video) {
     ImmersiveMode()
@@ -177,6 +180,12 @@ internal fun VideoViewer(route: MediaViewer.Video) {
             prepare()
             playWhenReady = true
         }
+    }
+    var muted by remember { mutableStateOf(app.settings.value.viewerMuted) }
+    // Muted, it gives up audio focus too, so the user's music keeps playing.
+    LaunchedEffect(muted) {
+        player.volume = if (muted) 0f else 1f
+        player.setAudioAttributes(player.audioAttributes, !muted)
     }
     var error by remember { mutableStateOf<String?>(null) }
     var ready by remember { mutableStateOf(false) }
@@ -343,6 +352,16 @@ internal fun VideoViewer(route: MediaViewer.Video) {
                         modifier = Modifier.weight(1f).padding(horizontal = 10.dp),
                     )
                     Text(fmt(duration), color = Color.White, fontSize = 12.sp)
+                    IconButton(onClick = {
+                        muted = !muted
+                        hideTick++
+                    }) {
+                        Icon(
+                            if (muted) Icons.AutoMirrored.Rounded.VolumeOff else Icons.AutoMirrored.Rounded.VolumeUp,
+                            if (muted) "Unmute" else "Mute",
+                            tint = Color.White,
+                        )
+                    }
                 }
             }
         }

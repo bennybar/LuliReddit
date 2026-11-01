@@ -126,6 +126,7 @@ import com.bennybar.luli_for_reddit.settings.Settings
 import com.bennybar.luli_for_reddit.settings.SwipeAction
 import com.bennybar.luli_for_reddit.state.PostOverride
 import com.bennybar.luli_for_reddit.state.PostOverrides
+import com.bennybar.luli_for_reddit.ui.popOn
 import com.bennybar.luli_for_reddit.ui.theme.LocalVoteColors
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -974,7 +975,7 @@ private fun MiniButton(icon: ImageVector, tint: Color, label: String, onClick: (
     Box(
         Modifier.size(40.dp).clip(CircleShape).toggleable(value = on, role = Role.Switch) { onClick() },
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, label, Modifier.size(20.dp), tint = tint) }
+    ) { Icon(icon, label, Modifier.size(20.dp).popOn(on), tint = tint) }
 }
 
 @Composable
@@ -1213,6 +1214,7 @@ private fun CalmShareSave(live: CalmLive, a: PostActions) {
         if (live.saved) cs.primary else cs.onSurfaceVariant,
         a::toggleSave,
         size = 40.dp,
+        pop = live.saved,
     )
 }
 
@@ -1248,7 +1250,7 @@ private fun CalmButtonGroup(buttons: List<CalmButton>) {
                     .padding(start = if (i == 0) 14.dp else 12.dp, end = if (i == buttons.lastIndex) 14.dp else 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(b.icon, null, Modifier.size(19.dp), tint = fg)
+                Icon(b.icon, null, Modifier.size(19.dp).popOn(b.tint != null), tint = fg)
                 if (b.label != null) {
                     Spacer(Modifier.width(6.dp))
                     Text(b.label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = b.labelTint ?: fg)
@@ -1489,7 +1491,7 @@ fun CalmVoteGroup(
             "Upvote",
             onUp,
         ) { fg ->
-            Icon(Icons.Rounded.ArrowUpward, null, Modifier.size(iconSize), tint = fg)
+            Icon(Icons.Rounded.ArrowUpward, null, Modifier.size(iconSize).popOn(up), tint = fg)
             Spacer(Modifier.width(4.dp))
             Text(compactNumber(score), fontSize = 13.sp, fontWeight = FontWeight.Medium, color = if (down) votes.down else fg)
         }
@@ -1500,7 +1502,7 @@ fun CalmVoteGroup(
             hPad,
             "Downvote",
             onDown,
-        ) { fg -> Icon(Icons.Rounded.ArrowDownward, null, Modifier.size(iconSize), tint = fg) }
+        ) { fg -> Icon(Icons.Rounded.ArrowDownward, null, Modifier.size(iconSize).popOn(down), tint = fg) }
     }
 }
 
@@ -1550,8 +1552,8 @@ private fun CalmSegment(
 
 /** A borderless icon button (Calm's share / save). */
 @Composable
-fun CalmGhost(icon: ImageVector, label: String, tint: Color, onClick: () -> Unit, size: Dp = 36.dp, iconSize: Dp = 19.dp) {
+fun CalmGhost(icon: ImageVector, label: String, tint: Color, onClick: () -> Unit, size: Dp = 36.dp, iconSize: Dp = 19.dp, pop: Boolean = false) {
     Box(Modifier.size(size).clip(CircleShape).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
-        Icon(icon, label, Modifier.size(iconSize), tint = tint)
+        Icon(icon, label, Modifier.size(iconSize).popOn(pop), tint = tint)
     }
 }

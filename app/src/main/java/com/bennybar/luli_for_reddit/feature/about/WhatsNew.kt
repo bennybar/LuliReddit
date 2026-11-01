@@ -45,6 +45,16 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.46", "Nov 1, 2026",
+        listOf(
+            "Expandable top bar: the title, search and ⋯ come back as soon as you scroll up",
+            "Swipe actions fill with the action's color past the trigger point, and the icon pops, Gmail style",
+            "Votes and saves pop when you tap them",
+            "A Downvoted tab on your own profile",
+            "Full-screen videos have a mute button, and Settings → Media can open them muted",
+        ),
+    ),
+    Release(
         "2.0.45", "Oct 30, 2026",
         listOf(
             "Explore: the people you follow have their own Following section, and open their profile",

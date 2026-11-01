@@ -1653,6 +1653,7 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
                 label: saved ? 'Unsave' : 'Save',
                 color: saved ? cs.primary : cs.onSurfaceVariant,
                 onTap: _toggleSave,
+                pop: saved,
               ),
             ]),
           ),
@@ -1990,20 +1991,21 @@ class _CommentRow extends StatelessWidget {
     final votes = Theme.of(context).extension<VoteColors>()!;
     final up = comment.likes == true;
     final down = comment.likes == false;
-    Widget small(IconData icon, String tip, Color color, VoidCallback f) =>
+    Widget small(IconData icon, String tip, Color color, VoidCallback f,
+            [bool on = false]) =>
         IconButton(
           tooltip: tip,
           visualDensity: VisualDensity.compact,
           iconSize: 18,
           onPressed: f,
-          icon: Icon(icon, color: color),
+          icon: PopOn(on: on, child: Icon(icon, color: color)),
         );
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Row(
         children: [
           small(Icons.arrow_upward_rounded, 'Upvote',
-              up ? votes.up : cs.onSurfaceVariant, () => onVote(1)),
+              up ? votes.up : cs.onSurfaceVariant, () => onVote(1), up),
           Text(comment.scoreHidden ? '–' : compactNumber(comment.score),
               style: TextStyle(
                   fontSize: 12,
@@ -2012,7 +2014,7 @@ class _CommentRow extends StatelessWidget {
                       ? votes.up
                       : (down ? votes.down : cs.onSurfaceVariant))),
           small(Icons.arrow_downward_rounded, 'Downvote',
-              down ? votes.down : cs.onSurfaceVariant, () => onVote(-1)),
+              down ? votes.down : cs.onSurfaceVariant, () => onVote(-1), down),
           TextButton.icon(
             onPressed: onReply,
             style: TextButton.styleFrom(
@@ -2033,7 +2035,8 @@ class _CommentRow extends StatelessWidget {
                   : Icons.bookmark_border_rounded,
               comment.saved ? 'Unsave' : 'Save',
               comment.saved ? cs.primary : cs.onSurfaceVariant,
-              onToggleSave),
+              onToggleSave,
+              comment.saved),
           _menuButton(cs, 18),
         ],
       ),
@@ -2051,14 +2054,17 @@ class _CommentRow extends StatelessWidget {
     final up = comment.likes == true;
     final down = comment.likes == false;
     final muted = cs.onSurfaceVariant;
-    Widget round(IconData icon, String tip, Color color, VoidCallback f) =>
+    Widget round(IconData icon, String tip, Color color, VoidCallback f,
+            bool on) =>
         SizedBox(
           width: 32,
           height: 32,
           child: InkWell(
             customBorder: const CircleBorder(),
             onTap: f,
-            child: Icon(icon, size: 16, color: color, semanticLabel: tip),
+            child: PopOn(
+                on: on,
+                child: Icon(icon, size: 16, color: color, semanticLabel: tip)),
           ),
         );
     return CustomPaint(
@@ -2103,7 +2109,7 @@ class _CommentRow extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 2),
                 child: Row(children: [
                   round(Icons.arrow_upward_rounded, 'Upvote',
-                      up ? votes.up : muted, () => onVote(1)),
+                      up ? votes.up : muted, () => onVote(1), up),
                   Text(
                       comment.scoreHidden
                           ? '–'
@@ -2113,7 +2119,7 @@ class _CommentRow extends StatelessWidget {
                           fontWeight: FontWeight.w500,
                           color: up ? votes.up : (down ? votes.down : muted))),
                   round(Icons.arrow_downward_rounded, 'Downvote',
-                      down ? votes.down : muted, () => onVote(-1)),
+                      down ? votes.down : muted, () => onVote(-1), down),
                   const SizedBox(width: 6),
                   InkWell(
                     borderRadius: BorderRadius.circular(16),
@@ -2404,8 +2410,10 @@ class _VotePill extends StatelessWidget {
             onPressed: onUp,
             visualDensity: VisualDensity.compact,
             iconSize: 20,
-            icon: Icon(Icons.arrow_upward_rounded,
-                color: up ? votes.up : cs.onSurfaceVariant),
+            icon: PopOn(
+                on: up,
+                child: Icon(Icons.arrow_upward_rounded,
+                    color: up ? votes.up : cs.onSurfaceVariant)),
           ),
           Text(compactNumber(score),
               style: TextStyle(fontWeight: FontWeight.w700, color: countColor)),
@@ -2414,8 +2422,10 @@ class _VotePill extends StatelessWidget {
             onPressed: onDown,
             visualDensity: VisualDensity.compact,
             iconSize: 20,
-            icon: Icon(Icons.arrow_downward_rounded,
-                color: down ? votes.down : cs.onSurfaceVariant),
+            icon: PopOn(
+                on: down,
+                child: Icon(Icons.arrow_downward_rounded,
+                    color: down ? votes.down : cs.onSurfaceVariant)),
           ),
         ],
       ),

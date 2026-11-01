@@ -39,8 +39,79 @@ class FrontpageTab extends ConsumerWidget {
     final expandable = mode == TopBarMode.expandable;
     // Full mode pins the action row; Expandable floats it in on demand.
     final showActionRow = mode == TopBarMode.full;
+    // The title row. Expandable mode keeps it above the feed so it hides as
+    // you scroll down and comes back as soon as you scroll up (#50), like
+    // the Full mode action row; Full mode scrolls it with the feed.
+    final titleRow = Padding(
+      // With the ☰ there, line it up with the other tabs' (4px + the
+      // button's own inset). The feed (or, in Expandable mode, the
+      // Padding around it) already insets it 7px.
+      padding: EdgeInsets.fromLTRB(
+          expandable && sideBar ? 0 : 16,
+          expandable ? (sideBar ? 8 : 10) : 8,
+          expandable ? 4 : 16,
+          0),
+      child: Row(
+        children: [
+          // Full mode has it in the action row above.
+          if (expandable)
+            Transform.translate(
+                offset: const Offset(-3, 0),
+                child: const SideBarButton()),
+          Text(
+            homeOn
+                ? 'Home'
+                : blend
+                    ? 'Blend'
+                    : (forYou ? 'For You' : 'Frontpage'),
+            style: Theme.of(context)
+                .textTheme
+                .titleLarge
+                ?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          if (!homeOn && forYou) ...[
+            const SizedBox(width: 8),
+            Expanded(
+              child: blend
+                  ? const _BlendSubtitle()
+                  : Text('Personalized on your phone',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 12, color: cs.onSurfaceVariant)),
+            ),
+          ] else
+            const Spacer(),
+          // Expandable mode: search right here, and one button that
+          // floats the toolbar in.
+          if (expandable) ...[
+            IconButton(
+              tooltip: 'Search',
+              icon: const Icon(Icons.search_rounded),
+              onPressed: () => context.push('/search'),
+            ),
+            IconButton(
+              tooltip: 'Toolbar',
+              icon: const Icon(Icons.more_horiz_rounded),
+              onPressed: () => _showFloatingToolbar(context, username),
+            ),
+          ],
+        ],
+      ),
+    );
     return Column(
       children: [
+        if (expandable)
+          AnimatedSize(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOut,
+            alignment: Alignment.topCenter,
+            child: chromeVisible
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 7),
+                    child: titleRow)
+                : const SizedBox(width: double.infinity, height: 0),
+          ),
         // Full mode: Google-app style search bar with avatar — collapses on
         // scroll.
         if (showActionRow)
@@ -78,63 +149,7 @@ class FrontpageTab extends ConsumerWidget {
         Expanded(
           child: PostListView(
             feedKey: '',
-            header: Padding(
-              // With the ☰ there, line it up with the other tabs' (4px + the
-              // button's own inset). This header sits inside the feed, which
-              // already insets it 7px.
-              padding: EdgeInsets.fromLTRB(
-                  expandable && sideBar ? 0 : 16,
-                  expandable ? (sideBar ? 8 : 10) : 8,
-                  expandable ? 4 : 16,
-                  0),
-              child: Row(
-                children: [
-                  // Full mode has it in the action row above.
-                  if (expandable)
-                    Transform.translate(
-                        offset: const Offset(-3, 0),
-                        child: const SideBarButton()),
-                  Text(
-                    homeOn
-                        ? 'Home'
-                        : blend
-                            ? 'Blend'
-                            : (forYou ? 'For You' : 'Frontpage'),
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w800),
-                  ),
-                  if (!homeOn && forYou) ...[
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: blend
-                          ? const _BlendSubtitle()
-                          : Text('Personalized on your phone',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                  fontSize: 12, color: cs.onSurfaceVariant)),
-                    ),
-                  ] else
-                    const Spacer(),
-                  // Expandable mode: search right here, and one button that
-                  // floats the toolbar in.
-                  if (expandable) ...[
-                    IconButton(
-                      tooltip: 'Search',
-                      icon: const Icon(Icons.search_rounded),
-                      onPressed: () => context.push('/search'),
-                    ),
-                    IconButton(
-                      tooltip: 'Toolbar',
-                      icon: const Icon(Icons.more_horiz_rounded),
-                      onPressed: () => _showFloatingToolbar(context, username),
-                    ),
-                  ],
-                ],
-              ),
-            ),
+            header: expandable ? null : titleRow,
           ),
         ),
       ],

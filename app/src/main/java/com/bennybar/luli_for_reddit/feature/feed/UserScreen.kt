@@ -95,7 +95,7 @@ class UserAboutViewModel(private val username: String) : ViewModel() {
     }
 }
 
-/** A user's profile: header + Posts / Comments (and your own Saved / Upvoted) tabs. */
+/** A user's profile: header + Posts / Comments (and your own Saved / Upvoted / Downvoted) tabs. */
 @Composable
 fun UserScreen(username: String) {
     val nav = LocalNavigator.current
@@ -129,7 +129,7 @@ fun UserScreen(username: String) {
 }
 
 /**
- * A profile's header and its Posts / Comments (and your own Saved / Upvoted)
+ * A profile's header and its Posts / Comments (and your own Saved / Upvoted / Downvoted)
  * lists: the user screen, and the Profile tab ([belowHeader]: its "Your stuff" row).
  */
 @Composable
@@ -147,6 +147,7 @@ fun UserProfileBody(username: String, modifier: Modifier = Modifier, belowHeader
         if (isSelf) {
             add("Saved")
             add("Upvoted")
+            add("Downvoted")
         }
     }
     val pager = rememberPagerState { tabs.size }
@@ -259,11 +260,18 @@ fun UserProfileBody(username: String, modifier: Modifier = Modifier, belowHeader
                     staleAfterMillis = staleAfter,
                     contentType = { if (it is Post) "post" else "comment" },
                 ) { item -> if (item is Post) PostCard(item) else ProfileCommentCard(item as Comment) }
-                else -> PagedList(
+                "Upvoted" -> PagedList(
                     rememberPagedSource("u_${username}_upvoted") { a -> repo.getUserPosts(username, where = "upvoted", after = a) },
                     itemKey = Post::id,
                     listModifier = listModifier,
                     emptyLabel = "Nothing upvoted",
+                    staleAfterMillis = staleAfter,
+                ) { PostCard(it) }
+                else -> PagedList(
+                    rememberPagedSource("u_${username}_downvoted") { a -> repo.getUserPosts(username, where = "downvoted", after = a) },
+                    itemKey = Post::id,
+                    listModifier = listModifier,
+                    emptyLabel = "Nothing downvoted",
                     staleAfterMillis = staleAfter,
                 ) { PostCard(it) }
             }

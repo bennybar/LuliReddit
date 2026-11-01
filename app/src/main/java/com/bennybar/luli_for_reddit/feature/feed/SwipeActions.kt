@@ -1,10 +1,15 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -20,7 +25,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -145,17 +152,35 @@ fun SwipeActions(
         val dx = offset.value
         val spec = if (dx == 0f) null else if (tracker.sideFor(dx, rtl) == SwipeTracker.Side.START) start else end
         if (spec != null && abs(dx) > with(density) { 2.dp.toPx() }) {
-            val active = armed > 0f
-            Box(
-                Modifier
-                    .matchParentSize()
-                    .background(spec.color.copy(alpha = if (active) 0.22f else 0.10f), RoundedCornerShape(28.dp))
-                    .padding(horizontal = 28.dp),
-                contentAlignment = if (dx > 0) AbsoluteAlignment.CenterLeft else AbsoluteAlignment.CenterRight,
-            ) {
-                Icon(spec.icon, null, tint = spec.color, modifier = Modifier.size(if (active) 30.dp else 24.dp))
-            }
+            SwipeBackground(spec.icon, spec.color, abs(dx) / with(density) { 64.dp.toPx() }, armed > 0f, dx > 0)
         }
         Box(Modifier.absoluteOffset { IntOffset(offset.value.roundToInt(), 0) }) { content() }
+    }
+}
+
+/**
+ * What a swipe uncovers behind a row, Gmail style (#48): the action's icon
+ * grows as you drag ([progress] 1 = the threshold), and once [active] (past
+ * it) the background fills with the action's color and the icon pops.
+ * [fromLeft]: dragged rightward, so the icon sits at the left edge.
+ */
+@Composable
+internal fun BoxScope.SwipeBackground(icon: ImageVector, color: Color, progress: Float, active: Boolean, fromLeft: Boolean) {
+    val bg by animateColorAsState(if (active) color else color.copy(alpha = 0.14f), tween(150), label = "swipeBg")
+    val onColor = if (color.luminance() > 0.5f) Color.Black else Color.White
+    val tint by animateColorAsState(if (active) onColor else color, tween(150), label = "swipeTint")
+    val pop by animateFloatAsState(
+        if (active) 1.2f else 1f,
+        spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium),
+        label = "swipePop",
+    )
+    Box(
+        Modifier
+            .matchParentSize()
+            .background(bg, RoundedCornerShape(28.dp))
+            .padding(horizontal = 28.dp),
+        contentAlignment = if (fromLeft) AbsoluteAlignment.CenterLeft else AbsoluteAlignment.CenterRight,
+    ) {
+        Icon(icon, null, tint = tint, modifier = Modifier.size(26.dp).scale((0.7f + 0.3f * progress.coerceIn(0f, 1f)) * pop))
     }
 }

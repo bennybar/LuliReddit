@@ -140,49 +140,62 @@ internal fun FrontpageTab(chromeVisible: Boolean) {
                 }
             }
         }
+        // The title row. Expandable mode keeps it above the feed so it hides as
+        // you scroll down and comes back as soon as you scroll up (#50), like
+        // the Full mode action row; Full mode scrolls it with the feed.
+        val titleRow: @Composable () -> Unit = {
+            Row(
+                Modifier.fillMaxWidth().padding(
+                    // With the ☰ there, line it up with the other tabs' (4dp + the button's own inset).
+                    // The feed (or, in Expandable mode, the Box around it) already insets it 7dp.
+                    start = if (expandable && LocalSideBar.current != null) 0.dp else 16.dp,
+                    top = if (expandable) (if (LocalSideBar.current != null) 8.dp else 10.dp) else 8.dp,
+                    end = if (expandable) 4.dp else 16.dp,
+                ),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Full mode has it in the action row above.
+                if (expandable) SideBarButton(Modifier.offset(x = (-3).dp))
+                Text(
+                    if (homeOn) "Home" else if (blend) "Blend" else if (forYou) "For You" else "Frontpage",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                )
+                if (!homeOn && forYou) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        if (blend) blendSubtitle(blendState) else "Personalized on your phone",
+                        Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        fontSize = 12.sp,
+                        color = cs.onSurfaceVariant,
+                    )
+                } else {
+                    Spacer(Modifier.weight(1f))
+                }
+                // Expandable mode: search right here, and one button that floats the toolbar in.
+                if (expandable) {
+                    IconButton(onClick = { nav.push(Route.Search()) }) { Icon(Icons.Rounded.Search, "Search") }
+                    IconButton(onClick = { showFloatingToolbar(nav, username) }) {
+                        Icon(Icons.Rounded.MoreHoriz, "Toolbar")
+                    }
+                }
+            }
+        }
+        if (expandable) {
+            AnimatedVisibility(
+                visible = chromeVisible,
+                enter = expandVertically(tween(220), expandFrom = Alignment.Top),
+                exit = shrinkVertically(tween(220), shrinkTowards = Alignment.Top),
+            ) {
+                Box(Modifier.padding(horizontal = 7.dp)) { titleRow() }
+            }
+        }
         PostListView(
             feedKey = "",
             modifier = Modifier.weight(1f),
-            header = {
-                Row(
-                    Modifier.fillMaxWidth().padding(
-                        // With the ☰ there, line it up with the other tabs' (4dp + the button's own inset).
-                        // This header sits inside the feed, which already insets it 7dp.
-                        start = if (expandable && LocalSideBar.current != null) 0.dp else 16.dp,
-                        top = if (expandable) (if (LocalSideBar.current != null) 8.dp else 10.dp) else 8.dp,
-                        end = if (expandable) 4.dp else 16.dp,
-                    ),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    // Full mode has it in the action row above.
-                    if (expandable) SideBarButton(Modifier.offset(x = (-3).dp))
-                    Text(
-                        if (homeOn) "Home" else if (blend) "Blend" else if (forYou) "For You" else "Frontpage",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.ExtraBold,
-                    )
-                    if (!homeOn && forYou) {
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            if (blend) blendSubtitle(blendState) else "Personalized on your phone",
-                            Modifier.weight(1f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            fontSize = 12.sp,
-                            color = cs.onSurfaceVariant,
-                        )
-                    } else {
-                        Spacer(Modifier.weight(1f))
-                    }
-                    // Expandable mode: search right here, and one button that floats the toolbar in.
-                    if (expandable) {
-                        IconButton(onClick = { nav.push(Route.Search()) }) { Icon(Icons.Rounded.Search, "Search") }
-                        IconButton(onClick = { showFloatingToolbar(nav, username) }) {
-                            Icon(Icons.Rounded.MoreHoriz, "Toolbar")
-                        }
-                    }
-                }
-            },
+            header = if (expandable) null else titleRow,
         )
     }
 }

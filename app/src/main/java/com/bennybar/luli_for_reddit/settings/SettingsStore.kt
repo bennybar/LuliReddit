@@ -73,6 +73,7 @@ class SettingsStore(private val p: Prefs) {
             textScale = p.getDouble("textScale") ?: d.textScale,
             autoplayMedia = b("autoplayMedia", d.autoplayMedia),
             autoplaySound = b("autoplaySound", d.autoplaySound),
+            viewerMuted = b("viewerMuted", d.viewerMuted),
             feedGalleryCarousel = b("feedGalleryCarousel", d.feedGalleryCarousel),
             showApiUsage = b("showApiUsage", d.showApiUsage),
             notifyInbox = b("notifyInbox", d.notifyInbox),
@@ -194,6 +195,7 @@ class SettingsStore(private val p: Prefs) {
     fun setTextScale(v: Double) { p.setDouble("textScale", v); set { it.copy(textScale = v) } }
     fun setAutoplayMedia(v: Boolean) { p.setBool("autoplayMedia", v); set { it.copy(autoplayMedia = v) } }
     fun setAutoplaySound(v: Boolean) { p.setBool("autoplaySound", v); set { it.copy(autoplaySound = v) } }
+    fun setViewerMuted(v: Boolean) { p.setBool("viewerMuted", v); set { it.copy(viewerMuted = v) } }
     fun setFeedGalleryCarousel(v: Boolean) { p.setBool("feedGalleryCarousel", v); set { it.copy(feedGalleryCarousel = v) } }
     fun setShowApiUsage(v: Boolean) { p.setBool("showApiUsage", v); set { it.copy(showApiUsage = v) } }
     fun setNotifyInbox(v: Boolean) { p.setBool("notifyInbox", v); set { it.copy(notifyInbox = v) } }

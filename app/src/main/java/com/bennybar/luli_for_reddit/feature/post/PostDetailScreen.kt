@@ -1,6 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.post
 
 import com.bennybar.luli_for_reddit.ui.ToggleIcon
+import com.bennybar.luli_for_reddit.ui.popOn
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.DropdownMenuGroup
@@ -1203,6 +1204,7 @@ private fun CalmPostHeader(
                 toggleSave,
                 size = 40.dp,
                 iconSize = 20.dp,
+                pop = saved,
             )
         }
         Text(
@@ -1296,7 +1298,7 @@ private fun VotePill(score: Int, likes: Boolean?, onUp: () -> Unit, onDown: () -
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onUp, modifier = Modifier.size(40.dp)) {
-            Icon(Icons.Rounded.ArrowUpward, "Upvote", Modifier.size(20.dp), tint = if (up) votes.up else cs.onSurfaceVariant)
+            Icon(Icons.Rounded.ArrowUpward, "Upvote", Modifier.size(20.dp).popOn(up), tint = if (up) votes.up else cs.onSurfaceVariant)
         }
         Text(
             compactNumber(score),
@@ -1304,7 +1306,7 @@ private fun VotePill(score: Int, likes: Boolean?, onUp: () -> Unit, onDown: () -
             color = if (up) votes.up else if (down) votes.down else cs.onSurfaceVariant,
         )
         IconButton(onClick = onDown, modifier = Modifier.size(40.dp)) {
-            Icon(Icons.Rounded.ArrowDownward, "Downvote", Modifier.size(20.dp), tint = if (down) votes.down else cs.onSurfaceVariant)
+            Icon(Icons.Rounded.ArrowDownward, "Downvote", Modifier.size(20.dp).popOn(down), tint = if (down) votes.down else cs.onSurfaceVariant)
         }
     }
 }
@@ -1535,19 +1537,19 @@ private fun CommentActionsRow(c: Comment, isOwn: Boolean, actions: ThreadActions
     var menu by remember { mutableStateOf(false) }
 
     @Composable
-    fun small(icon: ImageVector, desc: String, tint: Color, onClick: () -> Unit) {
-        IconButton(onClick = onClick, modifier = Modifier.size(36.dp)) { Icon(icon, desc, Modifier.size(18.dp), tint = tint) }
+    fun small(icon: ImageVector, desc: String, tint: Color, on: Boolean = false, onClick: () -> Unit) {
+        IconButton(onClick = onClick, modifier = Modifier.size(36.dp)) { Icon(icon, desc, Modifier.size(18.dp).popOn(on), tint = tint) }
     }
 
     Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        small(Icons.Rounded.ArrowUpward, "Upvote", if (up) votes.up else cs.onSurfaceVariant) { actions.vote(c, 1) }
+        small(Icons.Rounded.ArrowUpward, "Upvote", if (up) votes.up else cs.onSurfaceVariant, up) { actions.vote(c, 1) }
         Text(
             if (c.scoreHidden) "–" else compactNumber(c.score),
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             color = if (up) votes.up else if (down) votes.down else cs.onSurfaceVariant,
         )
-        small(Icons.Rounded.ArrowDownward, "Downvote", if (down) votes.down else cs.onSurfaceVariant) { actions.vote(c, -1) }
+        small(Icons.Rounded.ArrowDownward, "Downvote", if (down) votes.down else cs.onSurfaceVariant, down) { actions.vote(c, -1) }
         TextButton(
             onClick = { actions.reply(c) },
             contentPadding = PaddingValues(horizontal = 8.dp),
@@ -1564,6 +1566,7 @@ private fun CommentActionsRow(c: Comment, isOwn: Boolean, actions: ThreadActions
             if (c.saved) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
             if (c.saved) "Unsave" else "Save",
             if (c.saved) cs.primary else cs.onSurfaceVariant,
+            c.saved,
         ) { actions.toggleSave(c) }
         Box {
             small(Icons.Rounded.MoreHoriz, "More", cs.onSurfaceVariant) { menu = true }
@@ -1815,7 +1818,7 @@ private fun CalmCommentRow(
             Row(Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 val muted = cs.onSurfaceVariant
                 Box(Modifier.size(32.dp).clip(CircleShape).clickable { actions.vote(comment, 1) }, contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.ArrowUpward, "Upvote", Modifier.size(16.dp), tint = if (up) votes.up else muted)
+                    Icon(Icons.Rounded.ArrowUpward, "Upvote", Modifier.size(16.dp).popOn(up), tint = if (up) votes.up else muted)
                 }
                 Text(
                     if (comment.scoreHidden) "–" else compactNumber(comment.score),
@@ -1824,7 +1827,7 @@ private fun CalmCommentRow(
                     color = if (up) votes.up else if (down) votes.down else muted,
                 )
                 Box(Modifier.size(32.dp).clip(CircleShape).clickable { actions.vote(comment, -1) }, contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.ArrowDownward, "Downvote", Modifier.size(16.dp), tint = if (down) votes.down else muted)
+                    Icon(Icons.Rounded.ArrowDownward, "Downvote", Modifier.size(16.dp).popOn(down), tint = if (down) votes.down else muted)
                 }
                 Spacer(Modifier.width(6.dp))
                 Row(

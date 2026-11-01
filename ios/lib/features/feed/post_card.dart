@@ -14,6 +14,7 @@ import '../../core/providers.dart';
 import '../../core/share.dart';
 import '../../core/widgets/error_view.dart';
 import '../../core/widgets/image_decode.dart';
+import '../../core/widgets/toggles.dart';
 import 'expiring_ids.dart';
 import 'content_filters.dart';
 import 'inline_video.dart';
@@ -1428,6 +1429,7 @@ class _PostCardState extends ConsumerState<PostCard> {
         label: saved ? 'Unsave' : 'Save',
         color: saved ? cs.primary : cs.onSurfaceVariant,
         onTap: _toggleSave,
+        pop: saved,
       ),
     ];
   }
@@ -1855,7 +1857,9 @@ class CalmButtonGroup extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(b.icon, size: 19, color: fg),
+                        PopOn(
+                            on: b.toggled == true,
+                            child: Icon(b.icon, size: 19, color: fg)),
                         if (b.label != null) ...[
                           const SizedBox(width: 6),
                           Text(b.label!,
@@ -1885,11 +1889,13 @@ class CalmGhost extends StatelessWidget {
     required this.label,
     required this.color,
     required this.onTap,
+    this.pop = false,
   });
   final IconData icon;
   final String label;
   final Color color;
   final VoidCallback onTap;
+  final bool pop; // pops when it turns true (Save)
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -1898,7 +1904,10 @@ class CalmGhost extends StatelessWidget {
         child: InkWell(
           customBorder: const CircleBorder(),
           onTap: onTap,
-          child: Icon(icon, size: 19, color: color, semanticLabel: label),
+          child: PopOn(
+              on: pop,
+              child:
+                  Icon(icon, size: 19, color: color, semanticLabel: label)),
         ),
       );
 }
@@ -1976,7 +1985,7 @@ class _VotePill extends StatelessWidget {
           tooltip: label,
           visualDensity: VisualDensity.compact,
           iconSize: 20,
-          icon: Icon(icon, color: fg),
+          icon: PopOn(on: on, child: Icon(icon, color: fg)),
         ),
       );
 }

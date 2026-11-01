@@ -106,18 +106,40 @@ class _SwipeActionsState extends State<SwipeActions> {
       behavior: HitTestBehavior.opaque,
       child: Stack(
         children: [
+          // Gmail style (#48): the icon grows as you drag, and past the
+          // threshold the background fills with the action's color and the
+          // icon pops.
           if (spec != null && _dx.abs() > 2)
             Positioned.fill(
-              child: Container(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
                 alignment:
                     _dx > 0 ? Alignment.centerLeft : Alignment.centerRight,
                 padding: const EdgeInsets.symmetric(horizontal: 28),
                 decoration: BoxDecoration(
-                  color: spec.color.withValues(alpha: active ? 0.22 : 0.10),
+                  color:
+                      active ? spec.color : spec.color.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(28),
                 ),
-                child: Icon(spec.icon,
-                    color: spec.color, size: active ? 30 : 24),
+                child: AnimatedScale(
+                  scale: active ? 1.2 : 1,
+                  duration: const Duration(milliseconds: 350),
+                  curve: Curves.easeOutBack,
+                  child: Transform.scale(
+                    scale: 0.7 + 0.3 * (_dx.abs() / _threshold).clamp(0.0, 1.0),
+                    child: TweenAnimationBuilder<Color?>(
+                      tween: ColorTween(
+                          end: !active
+                              ? spec.color
+                              : spec.color.computeLuminance() > 0.5
+                                  ? Colors.black
+                                  : Colors.white),
+                      duration: const Duration(milliseconds: 150),
+                      builder: (_, c, __) =>
+                          Icon(spec.icon, color: c, size: 26),
+                    ),
+                  ),
+                ),
               ),
             ),
           Transform.translate(

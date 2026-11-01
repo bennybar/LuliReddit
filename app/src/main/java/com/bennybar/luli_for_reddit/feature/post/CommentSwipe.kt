@@ -4,10 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -15,9 +11,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -28,6 +22,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import com.bennybar.luli_for_reddit.feature.feed.SwipeBackground
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -99,17 +94,7 @@ fun SwipeActions(
     ) {
         val spec = if (dx == 0f) null else specFor(dx)
         if (spec != null && abs(dx) > 2f) {
-            val active = abs(dx) >= threshold
-            Box(
-                Modifier
-                    .matchParentSize()
-                    .clip(RoundedCornerShape(28.dp))
-                    .background(spec.color.copy(alpha = if (active) 0.22f else 0.10f))
-                    .padding(horizontal = 28.dp),
-                contentAlignment = if (dx > 0) AbsoluteAlignment.CenterLeft else AbsoluteAlignment.CenterRight,
-            ) {
-                Icon(spec.icon, null, tint = spec.color, modifier = Modifier.size(if (active) 30.dp else 24.dp))
-            }
+            SwipeBackground(spec.icon, spec.color, abs(dx) / threshold, abs(dx) >= threshold, dx > 0)
         }
         Box(
             Modifier

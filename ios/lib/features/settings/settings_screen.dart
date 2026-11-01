@@ -565,6 +565,14 @@ class _SettingsListState extends ConsumerState<SettingsList> {
               onChanged: ctrl.setAutoplaySound,
             ),
           SwitchListTile(
+            secondary: const Icon(Icons.volume_off_rounded),
+            title: const Text('Open videos muted'),
+            subtitle: const Text(
+                'Full-screen videos start muted; tap the speaker for sound'),
+            value: s.viewerMuted,
+            onChanged: ctrl.setViewerMuted,
+          ),
+          SwitchListTile(
             secondary: const Icon(Icons.view_carousel_rounded),
             title: const Text('Gallery carousel in feeds'),
             subtitle: const Text('Galleries show a big image with the next '

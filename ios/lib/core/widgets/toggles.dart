@@ -174,3 +174,46 @@ class ToggleIcon extends StatelessWidget {
     );
   }
 }
+
+/// A quick springy pop each time [on] turns true: vote arrows and save
+/// icons (#47), in the spirit of the Expressive toggles' shape change. Not
+/// on first build: a post that's already upvoted doesn't pop as it scrolls in.
+class PopOn extends StatefulWidget {
+  const PopOn({super.key, required this.on, required this.child});
+  final bool on;
+  final Widget child;
+
+  @override
+  State<PopOn> createState() => _PopOnState();
+}
+
+class _PopOnState extends State<PopOn> with SingleTickerProviderStateMixin {
+  late final _c = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 420), value: 1);
+  late final _scale = TweenSequence([
+    TweenSequenceItem(
+        tween: Tween(begin: 1.0, end: 1.35)
+            .chain(CurveTween(curve: Curves.easeOut)),
+        weight: 22),
+    TweenSequenceItem(
+        tween: Tween(begin: 1.35, end: 1.0)
+            .chain(CurveTween(curve: Curves.elasticOut)),
+        weight: 78),
+  ]).animate(_c);
+
+  @override
+  void didUpdateWidget(PopOn old) {
+    super.didUpdateWidget(old);
+    if (widget.on && !old.on) _c.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      ScaleTransition(scale: _scale, child: widget.child);
+}

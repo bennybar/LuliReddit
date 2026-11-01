@@ -29,7 +29,7 @@ final userAboutProvider =
 });
 
 /// A user's profile: header + Posts / Comments (and your own Saved /
-/// Upvoted) tabs.
+/// Upvoted / Downvoted) tabs.
 class UserScreen extends ConsumerWidget {
   const UserScreen({super.key, required this.username});
   final String username;
@@ -71,7 +71,7 @@ class UserScreen extends ConsumerWidget {
 }
 
 /// A profile's header and its Posts / Comments (and your own Saved /
-/// Upvoted) lists: the user screen, and the Profile tab ([belowHeader]: its
+/// Upvoted / Downvoted) lists: the user screen, and the Profile tab ([belowHeader]: its
 /// "Your stuff" row).
 class UserProfileBody extends ConsumerStatefulWidget {
   const UserProfileBody({super.key, required this.username, this.belowHeader});
@@ -112,6 +112,7 @@ class _UserProfileBodyState extends ConsumerState<UserProfileBody> {
       const Tab(text: 'Comments'),
       if (isSelf) const Tab(text: 'Saved'),
       if (isSelf) const Tab(text: 'Upvoted'),
+      if (isSelf) const Tab(text: 'Downvoted'),
     ];
 
     // The header (and the Profile tab's row under it) scrolls away with the
@@ -220,6 +221,16 @@ class _UserProfileBodyState extends ConsumerState<UserProfileBody> {
                       itemBuilder: (_, p) =>
                           PostCard(key: ValueKey(p.id), post: p),
                       emptyLabel: 'Nothing upvoted',
+                      staleAfter: staleAfter,
+                    ),
+                  if (isSelf)
+                    PagedList<Post>(
+                      nested: true,
+                      fetch: (a) => repo.getUserPosts(username,
+                          where: 'downvoted', after: a),
+                      itemBuilder: (_, p) =>
+                          PostCard(key: ValueKey(p.id), post: p),
+                      emptyLabel: 'Nothing downvoted',
                       staleAfter: staleAfter,
                     ),
                 ],

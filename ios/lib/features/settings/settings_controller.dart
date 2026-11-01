@@ -125,6 +125,7 @@ class Settings {
     required this.collapseTopLevel,
     required this.feedGalleryCarousel,
     required this.autoplaySound,
+    required this.viewerMuted,
     required this.hiddenPostDays,
     required this.feedKeepMinutes,
     required this.subredditIcons,
@@ -204,6 +205,7 @@ class Settings {
   final bool collapseTopLevel;
   final bool feedGalleryCarousel; // galleries in feeds as the M3 carousel (else one image at a time)
   final bool autoplaySound; // feed videos start unmuted
+  final bool viewerMuted; // full-screen videos start muted (#51)
   final int hiddenPostDays; // how long Ilay keeps posts you hid out of every feed (Reddit hides them too)
   final int feedKeepMinutes; // how long the frontpage keeps its posts before returning to it reloads
   final bool subredditIcons; // cards show the subreddit's icon (else its first letter)
@@ -269,6 +271,7 @@ class Settings {
     bool? collapseTopLevel,
     bool? feedGalleryCarousel,
     bool? autoplaySound,
+    bool? viewerMuted,
     int? hiddenPostDays,
     int? feedKeepMinutes,
     bool? subredditIcons,
@@ -336,6 +339,7 @@ class Settings {
         collapseTopLevel: collapseTopLevel ?? this.collapseTopLevel,
         feedGalleryCarousel: feedGalleryCarousel ?? this.feedGalleryCarousel,
         autoplaySound: autoplaySound ?? this.autoplaySound,
+        viewerMuted: viewerMuted ?? this.viewerMuted,
         hiddenPostDays: hiddenPostDays ?? this.hiddenPostDays,
         feedKeepMinutes: feedKeepMinutes ?? this.feedKeepMinutes,
         subredditIcons: subredditIcons ?? this.subredditIcons,
@@ -420,6 +424,7 @@ class SettingsController extends Notifier<Settings> {
       collapseTopLevel: p.getBool('collapseTopLevel') ?? false,
       feedGalleryCarousel: p.getBool('feedGalleryCarousel') ?? true,
       autoplaySound: p.getBool('autoplaySound') ?? false,
+      viewerMuted: p.getBool('viewerMuted') ?? false,
       hiddenPostDays: p.getInt('hiddenPostDays') ?? 7,
       feedKeepMinutes: p.getInt('feedKeepMinutes') ?? 30,
       subredditIcons: p.getBool('subredditIcons') ?? true,
@@ -699,6 +704,11 @@ class SettingsController extends Notifier<Settings> {
   void setAutoplaySound(bool v) {
     _prefs.setBool('autoplaySound', v);
     state = state.copyWith(autoplaySound: v);
+  }
+
+  void setViewerMuted(bool v) {
+    _prefs.setBool('viewerMuted', v);
+    state = state.copyWith(viewerMuted: v);
   }
 
   void setFeedGalleryCarousel(bool v) {

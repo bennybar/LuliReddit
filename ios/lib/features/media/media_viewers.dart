@@ -7,6 +7,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -19,6 +20,7 @@ import '../../core/share.dart';
 import '../../core/widgets/loading.dart';
 import '../../models/post.dart';
 import '../feed/inline_video.dart';
+import '../settings/settings_controller.dart';
 import 'save_media.dart';
 
 /// A left-edge swipe-to-go-back strip (iOS-style), safe to overlay on viewers
@@ -67,11 +69,15 @@ void openGalleryViewer(BuildContext context, List<GalleryImage> images,
 
 void openVideoViewer(BuildContext context, String url,
     {String? title, String? downloadUrl, String? externalUrl}) {
+  final muted = ProviderScope.containerOf(context, listen: false)
+      .read(settingsControllerProvider)
+      .viewerMuted;
   Navigator.of(context).push(_overlayRoute(_VideoViewer(
       url: url,
       title: title,
       downloadUrl: downloadUrl,
-      externalUrl: externalUrl)));
+      externalUrl: externalUrl,
+      muted: muted)));
 }
 
 /// A video post's playable URL, without any network lookup: Reddit's own
@@ -505,8 +511,13 @@ class _GalleryViewerState extends State<_GalleryViewer> with _ImmersiveDismiss {
 
 class _VideoViewer extends StatefulWidget {
   const _VideoViewer(
-      {required this.url, this.title, this.downloadUrl, this.externalUrl});
+      {required this.url,
+      this.title,
+      this.downloadUrl,
+      this.externalUrl,
+      this.muted = false});
   final String url;
+  final bool muted; // Settings → Open videos muted
   final String? title;
   final String? downloadUrl; // direct mp4 for saving (HLS can't be saved)
   final String? externalUrl; // original link, for "open in browser" fallback
@@ -528,6 +539,8 @@ class _VideoViewerState extends State<_VideoViewer> {
   String? _error;
   bool _controls = true;
   Timer? _hideTimer;
+  // Muted, it gives up the audio session too, so the user's music keeps playing.
+  late bool _muted = widget.muted;
 
   @override
   void initState() {
@@ -540,7 +553,7 @@ class _VideoViewerState extends State<_VideoViewer> {
     if (lent != null) {
       _borrowed = true;
       _controller = _video = lent;
-      videoSound(lent, muted: false);
+      videoSound(lent, muted: _muted);
       lent
         ..addListener(_watchError)
         ..play();
@@ -559,6 +572,7 @@ class _VideoViewerState extends State<_VideoViewer> {
       await v.initialize();
       if (!mounted) return;
       await v.setLooping(true);
+      if (_muted) videoSound(v, muted: true);
       // Carry on from where the feed card was.
       final at = _pool.position(widget.url);
       if (at != null && mounted) await v.seekTo(at);
@@ -610,6 +624,14 @@ class _VideoViewerState extends State<_VideoViewer> {
     await v.seekTo(target < Duration.zero
         ? Duration.zero
         : (target > max ? max : target));
+    _scheduleHide();
+  }
+
+  void _toggleMute() {
+    final v = _video;
+    if (v == null) return;
+    setState(() => _muted = !_muted);
+    videoSound(v, muted: _muted);
     _scheduleHide();
   }
 
@@ -769,6 +791,15 @@ class _VideoViewerState extends State<_VideoViewer> {
                     Text(_fmt(value.duration),
                         style: const TextStyle(
                             color: Colors.white, fontSize: 12)),
+                    IconButton(
+                      onPressed: _toggleMute,
+                      tooltip: _muted ? 'Unmute' : 'Mute',
+                      icon: Icon(
+                          _muted
+                              ? Icons.volume_off_rounded
+                              : Icons.volume_up_rounded,
+                          color: Colors.white),
+                    ),
                   ],
                 ),
               ),

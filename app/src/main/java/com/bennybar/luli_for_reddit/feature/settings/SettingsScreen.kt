@@ -77,6 +77,7 @@ import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.ThumbsUpDown
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.UnfoldLess
+import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.FontDownload
 import androidx.compose.material.icons.rounded.FormatSize
@@ -571,6 +572,10 @@ fun SettingsList(
                 Icons.AutoMirrored.Rounded.VolumeUp, s.autoplaySound, ctrl::setAutoplaySound,
             )
         }
+        switch(
+            "Open videos muted", "Full-screen videos start muted; tap the speaker for sound",
+            Icons.AutoMirrored.Rounded.VolumeOff, s.viewerMuted, ctrl::setViewerMuted,
+        )
         switch(
             "Gallery carousel in feeds", "Galleries show a big image with the next ones beside it. Off: one image at a time",
             Icons.Rounded.ViewCarousel, s.feedGalleryCarousel, ctrl::setFeedGalleryCarousel,
