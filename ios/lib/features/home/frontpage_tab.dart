@@ -191,34 +191,38 @@ class _FrontpageTabState extends ConsumerState<FrontpageTab>
       );
     return NotificationListener<ScrollNotification>(
       onNotification: _onFeedScroll,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          PostListView(
-            feedKey: '',
-            header: expandable ? null : titleRow,
-            topPadding: _barHeight,
-          ),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: AnimatedBuilder(
-              animation: _barShift,
-              builder: (_, child) => Transform.translate(
-                  offset: Offset(0, _barShift.value), child: child),
-              child: ColoredBox(
-                key: _barKey,
-                color: cs.surface,
-                child: expandable
-                    ? Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 7),
-                        child: titleRow)
-                    : actionRow,
+      // A Stack doesn't clip a Transform: the hidden bar would sit over the
+      // status bar.
+      child: ClipRect(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            PostListView(
+              feedKey: '',
+              header: expandable ? null : titleRow,
+              topPadding: _barHeight,
+            ),
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: AnimatedBuilder(
+                animation: _barShift,
+                builder: (_, child) => Transform.translate(
+                    offset: Offset(0, _barShift.value), child: child),
+                child: ColoredBox(
+                  key: _barKey,
+                  color: cs.surface,
+                  child: expandable
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 7),
+                          child: titleRow)
+                      : actionRow,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
