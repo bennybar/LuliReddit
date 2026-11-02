@@ -20,6 +20,10 @@ class Release {
 // TODO(whats-new): this is the Kotlin app's list as-is; it describes the
 // features being ported. Replace it with the iOS app's own releases.
 const changelog = [
+  Release('2.0.54', 'Nov 2, 2026', [
+    "Nothing new on iPhone this time: this release's change is for Android's "
+        'Back gesture',
+  ]),
   Release('2.0.53', 'Nov 2, 2026', [
     'Settings redesigned: categories with their own pages, rounded containers, '
         'and switches with a tick and a cross. Search still finds everything',

@@ -124,7 +124,7 @@ internal fun ProfileTab() {
                 }
             }
         } else {
-            UserProfileBody(username, Modifier.weight(1f)) { YourStuffRow() }
+            UserProfileBody(username, Modifier.weight(1f), app.feed.tabReselect(3)) { YourStuffRow() }
         }
     }
 }

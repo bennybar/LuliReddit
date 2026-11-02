@@ -176,28 +176,6 @@ fun HomeScreen() {
     val drawer = rememberDrawerState(DrawerValue.Closed)
     val shellScope = rememberCoroutineScope()
 
-    // Back never leaves the app from here. With the side bar on, it opens the
-    // side bar (so the edge swipe that gesture navigation keeps for Back
-    // still brings it out; Back again closes it). Otherwise,
-    // on another tab it returns to Posts, on Posts it scrolls the feed to top
-    // (a setting, on by default) or does nothing (the Home button / recents
-    // leave instead).
-    // Sheets, viewers and pushed screens register their own, later handlers,
-    // which take precedence.
-    BackHandler {
-        if (drawer.isOpen) {
-            shellScope.launch { drawer.close() }
-        } else if (sideBar) {
-            shellScope.launch { drawer.open() }
-        } else if (index != 0) {
-            index = 0
-            chrome = true
-        } else if (app.settings.value.backScrollsToTop) {
-            app.feed.frontpageBackSignal.value++
-            chrome = true
-        }
-    }
-
     // Snackbars float above the floating nav while the shell is showing.
     DisposableEffect(nav, bottomBar) {
         nav.snackbarBottomPadding = if (bottomBar) 86.dp else 0.dp
@@ -262,6 +240,38 @@ fun HomeScreen() {
         }
     }
 
+    // Back never leaves the app from here. With the side bar on: to the top of
+    // the page, then to Posts (#70), then it opens the side bar (so the edge
+    // swipe that gesture navigation keeps for Back still brings it out; Back
+    // again closes it). Otherwise,
+    // on another tab it returns to Posts, on Posts it scrolls the feed to top
+    // (a setting, on by default) or does nothing (the Home button / recents
+    // leave instead).
+    // Sheets, viewers and pushed screens register their own, later handlers,
+    // which take precedence.
+    BackHandler {
+        if (drawer.isOpen) {
+            shellScope.launch { drawer.close() }
+        } else if (sideBar) {
+            if (!scrollConnection.nearTop() && (index != 0 || app.settings.value.backScrollsToTop)) {
+                if (index == 0) app.feed.frontpageBackSignal.value++ else app.feed.tabReselect(index).value++
+                scrollConnection.fromTop[index] = 0f // that scroll isn't seen by the connection
+                chrome = true
+            } else if (index != 0) {
+                index = 0
+                chrome = true
+            } else {
+                shellScope.launch { drawer.open() }
+            }
+        } else if (index != 0) {
+            index = 0
+            chrome = true
+        } else if (app.settings.value.backScrollsToTop) {
+            app.feed.frontpageBackSignal.value++
+            chrome = true
+        }
+    }
+
     // Compose the other tabs one frame after the first paint (the Posts tab
     // shows first); they then stay alive like Flutter's IndexedStack.
     var allTabs by remember { mutableStateOf(false) }
@@ -284,6 +294,7 @@ fun HomeScreen() {
         // Re-tapping the active tab scrolls it to top (Posts also refreshes).
         if (i == index) {
             if (i == 0) app.feed.frontpageScrollSignal.value++ else app.feed.tabReselect(i).value++
+            scrollConnection.fromTop[i] = 0f // that scroll isn't seen by the connection
         } else {
             index = i
             chrome = true // always reveal chrome when switching tabs

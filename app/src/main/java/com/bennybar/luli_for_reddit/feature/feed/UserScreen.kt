@@ -1,5 +1,8 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.Flow
 import androidx.compose.material3.ToggleButton
 import com.bennybar.luli_for_reddit.ui.Loading
 import android.net.Uri
@@ -133,7 +136,12 @@ fun UserScreen(username: String) {
  * lists: the user screen, and the Profile tab ([belowHeader]: its "Your stuff" row).
  */
 @Composable
-fun UserProfileBody(username: String, modifier: Modifier = Modifier, belowHeader: @Composable () -> Unit = {}) {
+fun UserProfileBody(
+    username: String,
+    modifier: Modifier = Modifier,
+    scrollTop: Flow<Int>? = null, // each new value: the list and header back to the top
+    belowHeader: @Composable () -> Unit = {},
+) {
     val scope = rememberCoroutineScope()
     val vm = viewModel(key = "user_$username") { UserAboutViewModel(username) }
     val about by vm.about.collectAsStateWithLifecycle()
@@ -186,6 +194,7 @@ fun UserProfileBody(username: String, modifier: Modifier = Modifier, belowHeader
         }
     }
     val listModifier = Modifier.nestedScroll(collapse)
+    LaunchedEffect(scrollTop) { scrollTop?.drop(1)?.collect { headerOffset = 0f } }
 
     Column(modifier) {
         Column(
@@ -240,6 +249,7 @@ fun UserProfileBody(username: String, modifier: Modifier = Modifier, belowHeader
                     },
                     itemKey = Post::id,
                     listModifier = listModifier,
+                    scrollTop = scrollTop,
                     emptyLabel = "No posts yet",
                     staleAfterMillis = staleAfter,
                 ) { PostCard(it) }
@@ -249,6 +259,7 @@ fun UserProfileBody(username: String, modifier: Modifier = Modifier, belowHeader
                     },
                     itemKey = Comment::fullname,
                     listModifier = listModifier,
+                    scrollTop = scrollTop,
                     emptyLabel = "No comments yet",
                     staleAfterMillis = staleAfter,
                 ) { ProfileCommentCard(it) }
@@ -256,6 +267,7 @@ fun UserProfileBody(username: String, modifier: Modifier = Modifier, belowHeader
                     rememberPagedSource("u_${username}_saved") { a -> repo.getUserSaved(username, after = a) },
                     itemKey = { if (it is Post) it.fullname else (it as Comment).fullname },
                     listModifier = listModifier,
+                    scrollTop = scrollTop,
                     emptyLabel = "Nothing saved",
                     staleAfterMillis = staleAfter,
                     contentType = { if (it is Post) "post" else "comment" },
@@ -264,6 +276,7 @@ fun UserProfileBody(username: String, modifier: Modifier = Modifier, belowHeader
                     rememberPagedSource("u_${username}_upvoted") { a -> repo.getUserPosts(username, where = "upvoted", after = a) },
                     itemKey = Post::id,
                     listModifier = listModifier,
+                    scrollTop = scrollTop,
                     emptyLabel = "Nothing upvoted",
                     staleAfterMillis = staleAfter,
                 ) { PostCard(it) }
@@ -271,6 +284,7 @@ fun UserProfileBody(username: String, modifier: Modifier = Modifier, belowHeader
                     rememberPagedSource("u_${username}_downvoted") { a -> repo.getUserPosts(username, where = "downvoted", after = a) },
                     itemKey = Post::id,
                     listModifier = listModifier,
+                    scrollTop = scrollTop,
                     emptyLabel = "Nothing downvoted",
                     staleAfterMillis = staleAfter,
                 ) { PostCard(it) }

@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.Flow
 import com.bennybar.luli_for_reddit.ui.RefreshBox
 import com.bennybar.luli_for_reddit.ui.Loading
 import androidx.compose.foundation.layout.Arrangement
@@ -149,6 +151,8 @@ fun <T> PagedList(
     contentType: (T) -> Any? = { null },
     /** How old the list may be before a return from a pushed route reloads it. */
     staleAfterMillis: Long = 5 * 60_000L,
+    /** Each new value scrolls the list to its top. */
+    scrollTop: Flow<Int>? = null,
     itemContent: @Composable (T) -> Unit,
 ) {
     val state by source.state.collectAsStateWithLifecycle()
@@ -201,6 +205,7 @@ fun <T> PagedList(
         }
         else -> RefreshBox(refreshing, onRefresh = ::refresh, modifier = modifier.fillMaxSize()) {
             val listState = rememberLazyListState()
+            LaunchedEffect(listState, scrollTop) { scrollTop?.drop(1)?.collect { listState.animateScrollToItem(0) } }
             LoadMoreNearEnd(listState, fromEnd = 4, page = state.items.size to state.after, onLoadMore = source::loadMore)
             val items = remember(state.items) { state.items.distinctBy(itemKey) }
             LazyColumn(

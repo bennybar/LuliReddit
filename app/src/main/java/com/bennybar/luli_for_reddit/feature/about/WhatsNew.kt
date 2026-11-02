@@ -45,6 +45,13 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.54", "Nov 2, 2026",
+        listOf(
+            "With the side bar on, Back takes you to the top of the page, then to Posts, then opens the side bar",
+            "Re-tapping the Profile tab scrolls it back to the top",
+        ),
+    ),
+    Release(
         "2.0.53", "Nov 2, 2026",
         listOf(
             "Settings redesigned: categories with their own pages, rounded containers, and switches with a tick and a cross. Search still finds everything",
