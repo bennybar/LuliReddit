@@ -1,3 +1,5 @@
+import 'package:flutter/rendering.dart';
+import '../../core/widgets/collapsing_fab.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -36,6 +38,7 @@ class SubredditScreen extends ConsumerStatefulWidget {
 
 class _SubredditScreenState extends ConsumerState<SubredditScreen> {
   bool? _subOverride; // optimistic subscribe state
+  bool _fabExpanded = true; // folds scrolling down, opens scrolling up (#62)
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +46,6 @@ class _SubredditScreenState extends ConsumerState<SubredditScreen> {
     final anonymous = ref.watch(authControllerProvider
             .select((a) => a.valueOrNull?.anonymous)) ??
         true;
-    final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
         title: Text('r/${widget.name}'),
@@ -73,21 +75,31 @@ class _SubredditScreenState extends ConsumerState<SubredditScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        tooltip: 'New post',
-        onPressed: () => context.push('/submit?sr=${widget.name}'),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        backgroundColor: cs.primaryContainer,
-        foregroundColor: cs.onPrimaryContainer,
-        child: const Icon(Icons.edit_rounded),
+      floatingActionButton: CollapsingFab(
+        icon: Icons.edit_rounded,
+        label: 'New post',
+        expanded: _fabExpanded,
+        onTap: () => context.push('/submit?sr=${widget.name}'),
       ),
-      body: PostListView(
-        feedKey: widget.name,
-        header: about.when(
-          loading: () => const SizedBox(height: 4, child: LinearProgressIndicator()),
-          error: (_, __) => const SizedBox.shrink(),
-          data: (s) => _header(context, s),
+      body: NotificationListener<UserScrollNotification>(
+        onNotification: (n) {
+          if (n.metrics.axis == Axis.vertical &&
+              n.depth == 0 &&
+              n.direction != ScrollDirection.idle) {
+            final expanded = n.direction == ScrollDirection.forward;
+            if (expanded != _fabExpanded) {
+              setState(() => _fabExpanded = expanded);
+            }
+          }
+          return false;
+        },
+        child: PostListView(
+          feedKey: widget.name,
+          header: about.when(
+            loading: () => const SizedBox(height: 4, child: LinearProgressIndicator()),
+            error: (_, __) => const SizedBox.shrink(),
+            data: (s) => _header(context, s),
+          ),
         ),
       ),
     );

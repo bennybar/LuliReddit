@@ -436,6 +436,12 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             onTap: () => _pickTopBar(context, ctrl, s.topBarMode),
           ),
           ListTile(
+            leading: const Icon(Icons.edit_rounded),
+            title: const Text('Floating button on Home'),
+            subtitle: Text(s.homeFab.label),
+            onTap: () => _pickHomeFab(context, ctrl, s.homeFab),
+          ),
+          ListTile(
             leading: const Icon(Icons.menu_rounded),
             title: const Text('Navigation'),
             subtitle: Text(_navStyles[s.navStyle.clamp(0, 2)].$1),
@@ -1364,6 +1370,31 @@ class _SettingsListState extends ConsumerState<SettingsList> {
                   title: Text(m.label),
                   subtitle: Text(m.description),
                 ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _pickHomeFab(
+      BuildContext context, SettingsController ctrl, HomeFab current) {
+    showModalBottomSheet(
+      context: context,
+      sheetAnimationStyle: sheetMotion,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: RadioGroup<HomeFab>(
+          groupValue: current,
+          onChanged: (v) {
+            if (v != null) ctrl.setHomeFab(v);
+            Navigator.pop(ctx);
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final m in HomeFab.values)
+                RadioListTile<HomeFab>(value: m, title: Text(m.label)),
             ],
           ),
         ),

@@ -45,6 +45,15 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.51", "Nov 2, 2026",
+        listOf(
+            "The side bar shows your avatar and karma, your recently visited subreddits and your favorites",
+            "A floating button on Home that folds as you scroll: New post or Search (Settings → Floating button on Home)",
+            "The New post button in subreddits folds as you scroll, too",
+            "The launcher label is now just \"Ilay\"",
+        ),
+    ),
+    Release(
         "2.0.50", "Nov 2, 2026",
         listOf(
             "\"More replies\" works again, after a change on Reddit's side stopped it loading anything",

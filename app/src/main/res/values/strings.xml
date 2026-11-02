@@ -1,5 +1,7 @@
 <resources>
     <string name="app_name">Ilay for Reddit</string>
+    <!-- The launcher's label (#61); the app stays "Ilay for Reddit" everywhere else. -->
+    <string name="launcher_name">Ilay</string>
     <string name="share_summarize">Summarize with Ilay</string>
     <string name="share_open">Open in Ilay</string>
 </resources>

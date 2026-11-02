@@ -20,6 +20,14 @@ class Release {
 // TODO(whats-new): this is the Kotlin app's list as-is; it describes the
 // features being ported. Replace it with the iOS app's own releases.
 const changelog = [
+  Release('2.0.51', 'Nov 2, 2026', [
+    'The side bar shows your avatar and karma, your recently visited '
+        'subreddits and your favorites',
+    'A floating button on Home that folds as you scroll: New post or Search '
+        '(Settings → Floating button on Home)',
+    'The New post button in subreddits folds as you scroll, too',
+    'The app\'s name on your home screen is now just "Ilay"',
+  ]),
   Release('2.0.50', 'Nov 2, 2026', [
     '"More replies" works again, after a change on Reddit\'s side stopped it '
         'loading anything',

@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.settings
 
+import com.bennybar.luli_for_reddit.settings.HomeFab
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.outlined.ModeComment
 import androidx.compose.material.icons.rounded.ViewCarousel
 import com.bennybar.luli_for_reddit.ui.PickOneMenu
@@ -478,6 +480,9 @@ fun SettingsList(
         tile("Top bar", s.topBarMode.label, Icons.Rounded.ViewHeadline, onClick = launch {
             pickOption(TopBarMode.entries.map { PickOption(it, it.label, it.description) }, s.topBarMode)
                 ?.let(ctrl::setTopBarMode)
+        })
+        tile("Floating button on Home", s.homeFab.label, Icons.Rounded.Edit, onClick = launch {
+            pickOption(HomeFab.entries.map { PickOption(it, it.label) }, s.homeFab)?.let(ctrl::setHomeFab)
         })
         tile("Navigation", NAV_STYLES[s.navStyle.coerceIn(0, 2)].first, Icons.Rounded.Menu, onClick = launch {
             pickOption(NAV_STYLES.mapIndexed { i, (l, d) -> PickOption(i, l, d) }, s.navStyle)?.let(ctrl::setNavStyle)

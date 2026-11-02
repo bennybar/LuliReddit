@@ -40,6 +40,13 @@ enum class TopBarMode(val label: String, val description: String) {
     EXPANDABLE("Expandable", "Just a title with one button that floats the full top bar in on demand"),
 }
 
+/** The floating button on Home (#62). Persisted by index (`homeFab`). */
+enum class HomeFab(val label: String) {
+    OFF("Off"),
+    NEW_POST("New post"),
+    SEARCH("Search"),
+}
+
 /** How posts are laid out in feeds. Persisted by index (`postDisplay`). */
 enum class PostDisplay(val label: String, val icon: ImageVector) {
     LARGE("Default", Icons.Outlined.ViewAgenda),
@@ -147,6 +154,7 @@ data class Settings(
     val showApiUsage: Boolean = false, // show API usage instead of search on Posts screen
     val notifyInbox: Boolean = false, // background-poll the inbox + local notifications
     val redditAppNotifications: Boolean = false, // take over the Reddit app's notifications (needs notification access)
+    val homeFab: HomeFab = HomeFab.OFF, // floating button on Home
     val topBarMode: TopBarMode = TopBarMode.EXPANDABLE, // Posts-screen action layout
     val navLabels: Boolean = true, // show text labels on the bottom nav bar
     val navStyle: Int = 0, // 0 bottom bar, 1 side bar, 2 both (#25)

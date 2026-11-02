@@ -1,5 +1,13 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import com.bennybar.luli_for_reddit.model.Subreddit
+import com.bennybar.luli_for_reddit.model.RedditUser
+import com.bennybar.luli_for_reddit.feature.feed.SectionHeader
+import com.bennybar.luli_for_reddit.feature.feed.LetterAvatar
+import com.bennybar.luli_for_reddit.feature.feed.Async
+import com.bennybar.luli_for_reddit.core.compactNumber
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material.icons.rounded.DynamicFeed
@@ -294,7 +302,7 @@ fun HomeScreen() {
         drawerContent = {
             if (sideBar) {
                 MaterialTheme(motionScheme = motion) {
-                    SideBar(index, unread, onTab = ::selectTab) { pick ->
+                    SideBar(index, unread, open = drawer.targetValue == DrawerValue.Open, onTab = ::selectTab) { pick ->
                         shellScope.launch { drawer.close() }
                         pick()
                     }
@@ -354,20 +362,57 @@ fun HomeScreen() {
  * Settings. [onPick] closes it, then runs the choice.
  */
 @Composable
-private fun SideBar(selected: Int, unread: Int, onTab: (Int) -> Unit, onPick: (() -> Unit) -> Unit) {
+private fun SideBar(selected: Int, unread: Int, open: Boolean, onTab: (Int) -> Unit, onPick: (() -> Unit) -> Unit) {
     val nav = LocalNavigator.current
     val cs = MaterialTheme.colorScheme
     val session by app.session.state.collectAsStateWithLifecycle()
     val s = (session as? SessionState.LoggedIn)?.session
     val anonymous = s?.anonymous != false
+    val username = s?.username.takeUnless { anonymous }
+    // Your avatar and karma: one request, the first time the side bar opens.
+    var me by remember(username) { mutableStateOf<RedditUser?>(null) }
+    LaunchedEffect(username, open) {
+        if (open && username != null && me == null) me = runCatching { app.repository.getUserAbout(username) }.getOrNull()
+    }
+    // The Explore tab's list, so these cost no requests of their own.
+    val subs by viewModel { SubscriptionsViewModel() }.subs.collectAsStateWithLifecycle()
+    val history by app.history.state.collectAsStateWithLifecycle()
+    val list = (subs as? Async.Data)?.value ?: emptyList()
+    val favorites = remember(list) { list.filter { it.userHasFavorited } }
+    val recent = remember(list, history) {
+        val byName = list.associateBy { it.name.lowercase() }
+        history.mapNotNull { byName[it.subreddit.lowercase()] }.distinct().take(5)
+    }
     ModalDrawerSheet(Modifier.width(300.dp)) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)) {
-            Text("Ilay", Modifier.padding(start = 16.dp, top = 20.dp), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
-            Text(
-                if (anonymous) "Browsing without an account" else "u/${s?.username}",
-                Modifier.padding(start = 16.dp, top = 2.dp, bottom = 16.dp),
-                color = cs.onSurfaceVariant,
-            )
+            if (username == null) {
+                Text("Ilay", Modifier.padding(start = 16.dp, top = 20.dp), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
+                Text(
+                    "Browsing without an account",
+                    Modifier.padding(start = 16.dp, top = 2.dp, bottom = 16.dp),
+                    color = cs.onSurfaceVariant,
+                )
+            } else {
+                Column(
+                    Modifier
+                        .padding(top = 8.dp, bottom = 8.dp)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(28.dp))
+                        .clickable { onPick { nav.push(Route.User(username)) } }
+                        .padding(16.dp),
+                ) {
+                    LetterAvatar(username, 64.dp, cs.primaryContainer, cs.onPrimaryContainer, imageUrl = me?.iconUrl, fontSize = 26.sp)
+                    Spacer(Modifier.height(10.dp))
+                    Text("u/$username", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    me?.let {
+                        Text(
+                            "${compactNumber(it.linkKarma + it.commentKarma)} karma",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = cs.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
             navItems.forEachIndexed { i, item ->
                 NavigationDrawerItem(
                     label = { Text(item.label) },
@@ -394,8 +439,28 @@ private fun SideBar(selected: Int, unread: Int, onTab: (Int) -> Unit, onPick: ((
                     onClick = { onPick { nav.push(route) } },
                 )
             }
+            SideBarSubs("Recently visited", recent, onPick)
+            SideBarSubs("Favorites", favorites, onPick)
             Spacer(Modifier.height(16.dp))
         }
+    }
+}
+
+/** A titled list of subreddits in the side bar (#63); nothing when empty. */
+@Composable
+private fun SideBarSubs(title: String, subs: List<Subreddit>, onPick: (() -> Unit) -> Unit) {
+    if (subs.isEmpty()) return
+    val nav = LocalNavigator.current
+    val cs = MaterialTheme.colorScheme
+    SectionHeader(title, Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp))
+    for (sub in subs) {
+        NavigationDrawerItem(
+            label = { Text(sub.namePrefixed, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            icon = { LetterAvatar(sub.name, 28.dp, cs.secondaryContainer, cs.onSecondaryContainer, imageUrl = sub.iconUrl, fontSize = 13.sp) },
+            selected = false,
+            // A followed user is a subscription to their profile, u_<name>.
+            onClick = { onPick { if (sub.name.startsWith("u_")) nav.openUser(sub.name.removePrefix("u_")) else nav.openSubreddit(sub.name) } },
+        )
     }
 }
 

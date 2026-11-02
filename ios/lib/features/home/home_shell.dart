@@ -1,3 +1,9 @@
+import '../history/history_store.dart';
+import '../feed/post_card.dart' show LetterAvatar;
+import '../../models/subreddit.dart';
+import '../../models/reddit_user.dart';
+import '../../core/providers.dart';
+import '../../core/format.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -304,6 +310,9 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   }
 }
 
+final _meProvider = FutureProvider.family<RedditUser, String>((ref, name) =>
+    ref.watch(redditRepositoryProvider).getUserAbout(name));
+
 /// The side bar (Settings › Navigation): the four tabs, then your stuff and
 /// Settings. Picking one closes it, then runs the choice.
 class _SideBar extends ConsumerWidget {
@@ -319,6 +328,22 @@ class _SideBar extends ConsumerWidget {
     final session = ref.watch(authControllerProvider).valueOrNull;
     final anonymous = session?.anonymous != false;
     final router = GoRouter.of(context);
+    // Your avatar and karma: one request, the first time the side bar opens.
+    final me = anonymous || session == null
+        ? null
+        : ref.watch(_meProvider(session.username)).valueOrNull;
+    // The Explore tab's list, so these cost no requests of their own.
+    final subs = ref.watch(subscribedSubredditsProvider).valueOrNull ??
+        const <Subreddit>[];
+    final favorites = subs.where((s) => s.userHasFavorited).toList();
+    final byName = {for (final s in subs) s.name.toLowerCase(): s};
+    final recent = <Subreddit>{};
+    for (final h in ref.watch(historyControllerProvider)) {
+      if (recent.length >= 5) break;
+      final s = byName[h.subreddit.toLowerCase()];
+      if (s != null) recent.add(s);
+    }
+    final sections = [('Recently visited', recent), ('Favorites', favorites)];
     final more = [
       if (!anonymous)
         (Icons.bookmark_border_rounded, 'Saved', '/saved'),
@@ -335,22 +360,57 @@ class _SideBar extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           children: [
-            Padding(
-              padding: const EdgeInsets.only(left: 16, top: 20),
-              child: Text('Ilay',
-                  style: Theme.of(context)
-                      .textTheme
-                      .headlineSmall
-                      ?.copyWith(fontWeight: FontWeight.w800)),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 2, 0, 16),
-              child: Text(
-                  anonymous
-                      ? 'Browsing without an account'
-                      : 'u/${session?.username}',
-                  style: TextStyle(color: cs.onSurfaceVariant)),
-            ),
+            if (anonymous) ...[
+              Padding(
+                padding: const EdgeInsets.only(left: 16, top: 20),
+                child: Text('Ilay',
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineSmall
+                        ?.copyWith(fontWeight: FontWeight.w800)),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 2, 0, 16),
+                child: Text('Browsing without an account',
+                    style: TextStyle(color: cs.onSurfaceVariant)),
+              ),
+            ] else
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(28),
+                  onTap: () {
+                    Scaffold.of(context).closeDrawer();
+                    router.push('/u/${session?.username}');
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        LetterAvatar(
+                          name: session?.username ?? '',
+                          size: 64,
+                          container: cs.primaryContainer,
+                          content: cs.onPrimaryContainer,
+                          imageUrl: me?.iconUrl,
+                          fontSize: 26,
+                        ),
+                        const SizedBox(height: 10),
+                        Text('u/${session?.username}',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700)),
+                        if (me != null)
+                          Text(
+                              '${compactNumber(me.linkKarma + me.commentKarma)} karma',
+                              style: TextStyle(color: cs.onSurfaceVariant)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             for (var i = 0; i < _navItems.length; i++)
               _DrawerItem(
                 icon: i == selected ? _navItems[i].$2 : _navItems[i].$1,
@@ -375,6 +435,35 @@ class _SideBar extends ConsumerWidget {
                   router.push(m.$3);
                 },
               ),
+            for (final (title, list) in sections)
+              if (list.isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 0, 4),
+                  child: Text(title,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: cs.primary, fontWeight: FontWeight.w700)),
+                ),
+                for (final s in list)
+                  _DrawerItem(
+                    leading: LetterAvatar(
+                      name: s.name,
+                      size: 28,
+                      container: cs.secondaryContainer,
+                      content: cs.onSecondaryContainer,
+                      imageUrl: s.iconUrl,
+                      fontSize: 13,
+                    ),
+                    label: s.namePrefixed,
+                    selected: false,
+                    onTap: () {
+                      Scaffold.of(context).closeDrawer();
+                      // A followed user is a subscription to their profile.
+                      router.push(s.name.startsWith('u_')
+                          ? '/u/${s.name.substring(2)}'
+                          : '/r/${s.name}');
+                    },
+                  ),
+              ],
             const SizedBox(height: 16),
           ],
         ),
@@ -386,13 +475,15 @@ class _SideBar extends ConsumerWidget {
 /// An M3 navigation drawer item: a 56px stadium, filled when selected.
 class _DrawerItem extends StatelessWidget {
   const _DrawerItem({
-    required this.icon,
+    this.icon,
+    this.leading,
     required this.label,
     required this.selected,
     required this.onTap,
     this.badge,
   });
-  final IconData icon;
+  final IconData? icon;
+  final Widget? leading; // in place of the icon
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -416,10 +507,12 @@ class _DrawerItem extends StatelessWidget {
               padding: const EdgeInsets.only(left: 16, right: 24),
               child: Row(
                 children: [
-                  Icon(icon, color: fg),
+                  leading ?? Icon(icon, color: fg),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                             color: fg,
                             fontSize: 14,

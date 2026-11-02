@@ -1,3 +1,5 @@
+import 'package:flutter/rendering.dart';
+import '../../core/widgets/collapsing_fab.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -32,6 +34,7 @@ class _FrontpageTabState extends ConsumerState<FrontpageTab>
     with SingleTickerProviderStateMixin {
   final _barKey = GlobalKey();
   double _barHeight = 0;
+  bool _fabExpanded = true; // folds scrolling down, opens scrolling up (#62)
   // 0 = shown, -_barHeight = hidden.
   late final AnimationController _barShift =
       AnimationController.unbounded(vsync: this);
@@ -55,6 +58,10 @@ class _FrontpageTabState extends ConsumerState<FrontpageTab>
     final m = n.metrics;
     // The feed itself: not a card's carousel or the chip row.
     if (m.axis != Axis.vertical || n.depth != 0) return false;
+    if (n is UserScrollNotification && n.direction != ScrollDirection.idle) {
+      final expanded = n.direction == ScrollDirection.forward;
+      if (expanded != _fabExpanded) setState(() => _fabExpanded = expanded);
+    }
     final fromTop = m.pixels - m.minScrollExtent;
     if (n is ScrollUpdateNotification && n.scrollDelta != null) {
       if (m.pixels > m.maxScrollExtent) return false; // iOS bounce at the end
@@ -89,6 +96,10 @@ class _FrontpageTabState extends ConsumerState<FrontpageTab>
       }
     });
     final cs = Theme.of(context).colorScheme;
+    final homeFab =
+        ref.watch(settingsControllerProvider.select((s) => s.homeFab));
+    final bottomBar =
+        ref.watch(settingsControllerProvider.select((s) => s.navStyle)) != 1;
     final username = ref.watch(
             authControllerProvider.select((a) => a.valueOrNull?.username)) ??
         '';
@@ -221,6 +232,22 @@ class _FrontpageTabState extends ConsumerState<FrontpageTab>
                 ),
               ),
             ),
+            if (homeFab != HomeFab.off)
+              Positioned(
+                right: 16,
+                // Above the bottom bar, when there is one.
+                bottom: MediaQuery.viewPaddingOf(context).bottom +
+                    (bottomBar ? 86 : 16),
+                child: CollapsingFab(
+                  icon: homeFab == HomeFab.newPost
+                      ? Icons.edit_rounded
+                      : Icons.search_rounded,
+                  label: homeFab.label,
+                  expanded: _fabExpanded,
+                  onTap: () => context
+                      .push(homeFab == HomeFab.newPost ? '/submit' : '/search'),
+                ),
+              ),
           ],
         ),
       ),

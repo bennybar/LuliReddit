@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material3.FilledTonalToggleButton
 import com.bennybar.luli_for_reddit.ui.Loading
 import androidx.compose.runtime.remember
@@ -33,7 +34,6 @@ import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -117,6 +117,7 @@ fun SubredditScreen(name: String) {
     val about by vm.about.collectAsStateWithLifecycle()
     val session by app.session.state.collectAsStateWithLifecycle()
     val anonymous = (session as? SessionState.LoggedIn)?.session?.anonymous != false
+    val fab = remember { FabScroll() }
     Scaffold(
         topBar = {
             BloomTopBar(
@@ -136,18 +137,13 @@ fun SubredditScreen(name: String) {
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { nav.push(Route.Submit(name)) },
-                shape = RoundedCornerShape(20.dp),
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            ) { Icon(Icons.Rounded.Edit, "New post") }
+            CollapsingFab(Icons.Rounded.Edit, "New post", fab.expanded, onClick = { nav.push(Route.Submit(name)) })
         },
         containerColor = MaterialTheme.colorScheme.surface,
     ) { padding ->
         PostListView(
             feedKey = name,
-            modifier = Modifier.padding(top = padding.calculateTopPadding()),
+            modifier = Modifier.padding(top = padding.calculateTopPadding()).nestedScroll(fab),
             header = {
                 when (val a = about) {
                     Async.Loading -> LinearProgressIndicator(Modifier.fillMaxWidth().height(4.dp))

@@ -86,6 +86,7 @@
              Flutter build's launcher icon used (.MainActivity), so updating
              keeps the icon where the user placed it. -->
         <activity-alias
+            android:label="@string/launcher_name"
             android:name=".MainActivity"
             android:exported="true"
             android:enabled="true"
@@ -98,6 +99,7 @@
             </intent-filter>
         </activity-alias>
         <activity-alias
+            android:label="@string/launcher_name"
             android:name=".IconOcean"
             android:exported="true"
             android:enabled="false"
@@ -110,6 +112,7 @@
             </intent-filter>
         </activity-alias>
         <activity-alias
+            android:label="@string/launcher_name"
             android:name=".IconForest"
             android:exported="true"
             android:enabled="false"
@@ -122,6 +125,7 @@
             </intent-filter>
         </activity-alias>
         <activity-alias
+            android:label="@string/launcher_name"
             android:name=".IconSunset"
             android:exported="true"
             android:enabled="false"
@@ -134,6 +138,7 @@
             </intent-filter>
         </activity-alias>
         <activity-alias
+            android:label="@string/launcher_name"
             android:name=".IconMidnight"
             android:exported="true"
             android:enabled="false"
@@ -147,6 +152,7 @@
         </activity-alias>
 
         <activity-alias
+            android:label="@string/launcher_name"
             android:name=".IconWhite"
             android:exported="true"
             android:enabled="false"

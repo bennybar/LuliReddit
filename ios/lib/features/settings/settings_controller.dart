@@ -13,6 +13,17 @@ final sharedPrefsProvider = Provider<SharedPreferences>(
 );
 
 /// Where the Posts-screen actions (search, new post, profile) live.
+/// The floating button on Home (#62).
+enum HomeFab { off, newPost, search }
+
+extension HomeFabLabel on HomeFab {
+  String get label => switch (this) {
+        HomeFab.off => 'Off',
+        HomeFab.newPost => 'New post',
+        HomeFab.search => 'Search',
+      };
+}
+
 enum TopBarMode { full, expandable }
 
 extension TopBarModeLabel on TopBarMode {
@@ -129,6 +140,7 @@ class Settings {
     required this.autoplayMedia,
     required this.showApiUsage,
     required this.notifyInbox,
+    required this.homeFab,
     required this.topBarMode,
     required this.navLabels,
     required this.aiModel,
@@ -210,6 +222,7 @@ class Settings {
   final bool autoplayMedia; // autoplay videos/GIFs in feeds
   final bool showApiUsage; // show API usage instead of search on Posts screen
   final bool notifyInbox; // background-poll the inbox + local notifications
+  final HomeFab homeFab; // floating button on Home
   final TopBarMode topBarMode; // Posts-screen action layout
   final bool navLabels; // show text labels on the bottom nav bar
   final String aiModel; // OpenAI(-compatible) model id for summaries
@@ -285,6 +298,7 @@ class Settings {
     bool? autoplayMedia,
     bool? showApiUsage,
     bool? notifyInbox,
+    HomeFab? homeFab,
     TopBarMode? topBarMode,
     bool? navLabels,
     String? aiModel,
@@ -354,6 +368,7 @@ class Settings {
         autoplayMedia: autoplayMedia ?? this.autoplayMedia,
         showApiUsage: showApiUsage ?? this.showApiUsage,
         notifyInbox: notifyInbox ?? this.notifyInbox,
+        homeFab: homeFab ?? this.homeFab,
         topBarMode: topBarMode ?? this.topBarMode,
         navLabels: navLabels ?? this.navLabels,
         aiModel: aiModel ?? this.aiModel,
@@ -448,6 +463,8 @@ class SettingsController extends Notifier<Settings> {
       notifyInbox: p.getBool('notifyInbox') ?? false,
       // Default to Expandable. Old installs may have stored the removed
       // "compact" (1) or the old expandable index (2); clamp maps both safely.
+      homeFab: HomeFab.values[
+          (p.getInt('homeFab') ?? 0).clamp(0, HomeFab.values.length - 1)],
       topBarMode: p.getInt('topBarMode') == null
           ? TopBarMode.expandable
           : TopBarMode.values[
@@ -688,6 +705,11 @@ class SettingsController extends Notifier<Settings> {
   void setNotifyInbox(bool v) {
     _prefs.setBool('notifyInbox', v);
     state = state.copyWith(notifyInbox: v);
+  }
+
+  void setHomeFab(HomeFab v) {
+    _prefs.setInt('homeFab', v.index);
+    state = state.copyWith(homeFab: v);
   }
 
   void setTopBarMode(TopBarMode v) {

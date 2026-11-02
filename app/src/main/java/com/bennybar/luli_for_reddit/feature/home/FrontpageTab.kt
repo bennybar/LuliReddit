@@ -1,5 +1,10 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import com.bennybar.luli_for_reddit.settings.HomeFab
+import com.bennybar.luli_for_reddit.feature.feed.FabScroll
+import com.bennybar.luli_for_reddit.feature.feed.CollapsingFab
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.animation.core.animate
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -138,6 +143,7 @@ internal fun FrontpageTab(selected: Boolean) {
         settling = scope.launch { animate(barShift, to, animationSpec = tween(200)) { v, _ -> barShift = v } }
     }
 
+    val fab = remember { FabScroll() }
     val barScroll = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
@@ -237,7 +243,7 @@ internal fun FrontpageTab(selected: Boolean) {
             }
         }
     }
-    Box(Modifier.fillMaxSize().clipToBounds().nestedScroll(barScroll)) {
+    Box(Modifier.fillMaxSize().clipToBounds().nestedScroll(barScroll).nestedScroll(fab)) {
         PostListView(
             feedKey = "",
             header = if (expandable) null else titleRow,
@@ -252,6 +258,20 @@ internal fun FrontpageTab(selected: Boolean) {
                 .background(cs.surface)
                 .padding(horizontal = if (expandable) 7.dp else 0.dp),
         ) { if (expandable) titleRow() else actionRow() }
+        if (settings.homeFab != HomeFab.OFF) {
+            val newPost = settings.homeFab == HomeFab.NEW_POST
+            CollapsingFab(
+                if (newPost) Icons.Rounded.Edit else Icons.Rounded.Search,
+                settings.homeFab.label,
+                fab.expanded,
+                onClick = { nav.push(if (newPost) Route.Submit() else Route.Search()) },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .navigationBarsPadding()
+                    // Above the bottom bar, when there is one.
+                    .padding(end = 16.dp, bottom = if (settings.navStyle != 1) 86.dp else 16.dp),
+            )
+        }
     }
 }
 
