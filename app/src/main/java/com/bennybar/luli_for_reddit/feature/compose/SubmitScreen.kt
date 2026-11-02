@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.compose
 
+import com.bennybar.luli_for_reddit.feature.feed.FeedChip
 import com.bennybar.luli_for_reddit.ui.switchThumb
 import com.bennybar.luli_for_reddit.ui.ConnectedChoice
 import androidx.compose.material3.LocalContentColor
@@ -54,7 +55,6 @@ import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -422,12 +422,7 @@ fun SubmitScreen(subreddit: String?) {
                 Spacer(Modifier.height(12.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (f in flairs) {
-                        FilterChip(
-                            selected = flair?.id == f.id,
-                            onClick = { flair = if (flair?.id == f.id) null else f },
-                            label = { Text(f.text) },
-                            shape = CircleShape,
-                        )
+                        FeedChip(f.text, flair?.id == f.id) { flair = if (flair?.id == f.id) null else f }
                     }
                 }
             }

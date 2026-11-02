@@ -1,5 +1,13 @@
 package com.bennybar.luli_for_reddit
 
+import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.core.Easing
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.EnterTransition
 import com.bennybar.luli_for_reddit.feature.feed.CustomFeedsScreen
 import com.bennybar.luli_for_reddit.feature.about.WhatsNewScreen
 import android.view.KeyEvent
@@ -302,12 +310,31 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
                 // A fast full-width slide: the new page slides in from the
                 // right over a slight parallax of the old one. The back gesture
                 // scrubs the reverse (linear, so the page stays under the finger).
-                enterTransition = { slideInHorizontally(tween(300, easing = Emphasized)) { it } },
-                exitTransition = { slideOutHorizontally(tween(300, easing = Emphasized)) { -it / 4 } },
-                popEnterTransition = { slideInHorizontally(tween(300, easing = Emphasized)) { -it / 4 } },
-                popExitTransition = { slideOutHorizontally(tween(300, easing = Emphasized)) { it } },
-                predictivePopEnterTransition = { slideInHorizontally(tween(300, easing = LinearEasing)) { -it / 4 } },
-                predictivePopExitTransition = { slideOutHorizontally(tween(300, easing = LinearEasing)) { it } },
+                // Search instead fades in over the page, from the top, like Gmail's (#77).
+                enterTransition = {
+                    if (targetState.destination.hasRoute<Route.Search>()) searchIn(Emphasized)
+                    else slideInHorizontally(tween(300, easing = Emphasized)) { it }
+                },
+                exitTransition = {
+                    if (targetState.destination.hasRoute<Route.Search>()) ExitTransition.KeepUntilTransitionsFinished
+                    else slideOutHorizontally(tween(300, easing = Emphasized)) { -it / 4 }
+                },
+                popEnterTransition = {
+                    if (initialState.destination.hasRoute<Route.Search>()) EnterTransition.None
+                    else slideInHorizontally(tween(300, easing = Emphasized)) { -it / 4 }
+                },
+                popExitTransition = {
+                    if (initialState.destination.hasRoute<Route.Search>()) searchOut(Emphasized)
+                    else slideOutHorizontally(tween(300, easing = Emphasized)) { it }
+                },
+                predictivePopEnterTransition = {
+                    if (initialState.destination.hasRoute<Route.Search>()) EnterTransition.None
+                    else slideInHorizontally(tween(300, easing = LinearEasing)) { -it / 4 }
+                },
+                predictivePopExitTransition = {
+                    if (initialState.destination.hasRoute<Route.Search>()) searchOut(LinearEasing)
+                    else slideOutHorizontally(tween(300, easing = LinearEasing)) { it }
+                },
             ) {
                 screen<Route.Login> { LoginScreen() }
                 screen<Route.WebLogin> { WebLoginScreen(it.toRoute<Route.WebLogin>().clearFirst) }
@@ -355,6 +382,12 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
 private val Emphasized = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 
 /** A destination drawn on an opaque surface, so sliding pages never show through. */
+private fun searchIn(easing: Easing) =
+    fadeIn(tween(200)) + expandVertically(tween(300, easing = easing), Alignment.Top) { it / 6 }
+
+private fun searchOut(easing: Easing) =
+    fadeOut(tween(200)) + shrinkVertically(tween(300, easing = easing), Alignment.Top) { it / 6 }
+
 private inline fun <reified T : Any> NavGraphBuilder.screen(
     noinline content: @Composable AnimatedContentScope.(NavBackStackEntry) -> Unit,
 ) = composable<T> { entry ->

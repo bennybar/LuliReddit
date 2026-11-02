@@ -250,6 +250,11 @@ internal fun FrontpageTab(selected: Boolean) {
             header = if (expandable) null else titleRow,
             topPadding = with(LocalDensity.current) { barHeight.toDp() },
             listState = listState,
+            // Right under the bar when it's fully out, off the top when it's gone.
+            floatingChipsY = { height ->
+                if (barHeight == 0) -height
+                else (barHeight + barShift / barHeight * (barHeight + height)).roundToInt()
+            },
         )
         Box(
             Modifier

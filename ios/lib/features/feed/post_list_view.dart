@@ -38,10 +38,19 @@ final frontpageScrollSignalProvider = StateProvider<int>((ref) => 0);
 /// [header] is rendered as the first scrolling item (e.g. a big title).
 class PostListView extends ConsumerStatefulWidget {
   const PostListView(
-      {super.key, required this.feedKey, this.header, this.topPadding = 0});
+      {super.key,
+      required this.feedKey,
+      this.header,
+      this.topPadding = 0,
+      this.barShift});
   final String feedKey;
   final Widget? header;
   final double topPadding; // room for a top bar floating over the list
+
+  /// The floating top bar's position (0 = shown, -[topPadding] = hidden). Past
+  /// the chips in the list, a second row of them floats under it and moves
+  /// with it (#73).
+  final Animation<double>? barShift;
 
   @override
   ConsumerState<PostListView> createState() => _PostListViewState();
@@ -56,6 +65,10 @@ class _PostListViewState extends ConsumerState<PostListView>
   bool _dealHome = false;
   final _scroll = ScrollController();
   final _refreshKey = GlobalKey<RefreshBoxState>();
+  final _headerKey = GlobalKey();
+  final _pastChips = ValueNotifier(false);
+  double _headerHeight = 0;
+  static const _chipsHeight = 52.0; // a chip row, with its padding
   final _prefetched = <String>{};
 
   @override
@@ -63,6 +76,10 @@ class _PostListViewState extends ConsumerState<PostListView>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _scroll.addListener(() {
+      _headerHeight =
+          _headerKey.currentContext?.size?.height ?? _headerHeight;
+      _pastChips.value =
+          _scroll.position.pixels >= _headerHeight + _chipsHeight;
       if (_scroll.position.pixels >=
           _scroll.position.maxScrollExtent - 600) {
         ref.read(feedControllerProvider(widget.feedKey).notifier).loadMore();
@@ -101,6 +118,7 @@ class _PostListViewState extends ConsumerState<PostListView>
     WidgetsBinding.instance.removeObserver(this);
     appRouteObserver.unsubscribe(this);
     _scroll.dispose();
+    _pastChips.dispose();
     super.dispose();
   }
 
@@ -179,9 +197,9 @@ class _PostListViewState extends ConsumerState<PostListView>
         ref.watch(settingsControllerProvider.select((s) => s.forYouFeed));
     final homeAllowed =
         ref.watch(settingsControllerProvider.select((s) => s.redditHomeAllowed));
-    final chips = _FeedChips(
+    Widget chipsRow(String id) => _FeedChips(
       // Rebuilt with the list: it keeps its scroll position through a reload.
-      key: PageStorageKey('feedChips_${widget.feedKey}'),
+      key: PageStorageKey('${id}_${widget.feedKey}'),
       sort: notifier.sort,
       time: notifier.time,
       onPick: notifier.changeSort,
@@ -193,6 +211,8 @@ class _PostListViewState extends ConsumerState<PostListView>
       blend: blendMode,
       onBlend: homeAllowed ? notifier.selectBlend : null,
     );
+    final chips = chipsRow('feedChips');
+    final barShift = widget.barShift;
 
     final listPadding = feedPadding.copyWith(top: widget.topPadding);
     final refreshable = RefreshBox(
@@ -346,7 +366,9 @@ class _PostListViewState extends ConsumerState<PostListView>
             itemBuilder: (context, rawIndex) {
               var index = rawIndex;
               if (widget.header != null) {
-                if (index == 0) return widget.header!;
+                if (index == 0) {
+                  return KeyedSubtree(key: _headerKey, child: widget.header!);
+                }
                 index -= 1;
               }
               if (index == 0) {
@@ -437,6 +459,24 @@ class _PostListViewState extends ConsumerState<PostListView>
     return Stack(
       children: [
         refreshable,
+        if (barShift != null && async.hasValue && !async.isLoading)
+          ValueListenableBuilder<bool>(
+            valueListenable: _pastChips,
+            builder: (_, past, child) => past ? child! : const SizedBox.shrink(),
+            child: AnimatedBuilder(
+              animation: barShift,
+              builder: (_, child) {
+                final bar = widget.topPadding;
+                // Right under the bar when it's fully out, off the top when
+                // it's gone.
+                final y = bar == 0
+                    ? -_chipsHeight
+                    : bar + barShift.value / bar * (bar + _chipsHeight);
+                return Positioned(top: y, left: 0, right: 0, child: child!);
+              },
+              child: chipsRow('floatingChips'),
+            ),
+          ),
         if (hasPending)
           Positioned(
             top: 8 + widget.topPadding,
@@ -791,7 +831,7 @@ class _FeedChipsState extends State<_FeedChips> {
               Padding(
                 key: _keys.putIfAbsent(chip, GlobalKey.new),
                 padding: const EdgeInsetsDirectional.only(end: 8),
-                child: _FeedChip(
+                child: FeedChip(
                   label: switch (chip) {
                     _FeedMode.forYou => 'For You',
                     _FeedMode.blend => 'Blend · Beta',
@@ -812,9 +852,12 @@ class _FeedChipsState extends State<_FeedChips> {
   }
 }
 
-class _FeedChip extends StatelessWidget {
-  const _FeedChip(
-      {required this.label, required this.selected, required this.onTap});
+class FeedChip extends StatelessWidget {
+  const FeedChip(
+      {super.key,
+      required this.label,
+      required this.selected,
+      required this.onTap});
   final String label;
   final bool selected;
   final VoidCallback onTap;

@@ -336,6 +336,15 @@ fun HomeScreen() {
                 else -> ProfileTab()
             }
         }
+        // Content fades out just below the status bar, rather than being cut off (#74).
+        val fade = MaterialTheme.colorScheme.surface
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .height(16.dp)
+                .background(Brush.verticalGradient(listOf(fade, fade.copy(alpha = 0f)))),
+        )
         if (bottomBar) {
         // A fade from the page colour behind the nav, so the pill never sits
         // directly on a post of the same tone; it hides with the nav.

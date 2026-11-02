@@ -183,10 +183,17 @@ class _LuliAppState extends ConsumerState<LuliApp> with WidgetsBindingObserver {
           // Global font-size control (scales all text in the app).
           builder: (context, child) {
             final mq = MediaQuery.of(context);
-            return MediaQuery(
-              data: mq.copyWith(
-                  textScaler: TextScaler.linear(settings.textScale)),
-              child: child!,
+            // The status bar's icons follow the app's theme, not the phone's,
+            // on screens without an AppBar too (#71).
+            return AnnotatedRegion<SystemUiOverlayStyle>(
+              value: Theme.of(context).brightness == Brightness.dark
+                  ? SystemUiOverlayStyle.light
+                  : SystemUiOverlayStyle.dark,
+              child: MediaQuery(
+                data: mq.copyWith(
+                    textScaler: TextScaler.linear(settings.textScale)),
+                child: child!,
+              ),
             );
           },
           localizationsDelegates: const [

@@ -1,3 +1,4 @@
+import '../feed/post_list_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -186,7 +187,7 @@ class _SavedHubScreenState extends ConsumerState<SavedHubScreen> {
                 filled: true,
                 fillColor: cs.surfaceContainerHigh,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(28),
                   borderSide: BorderSide.none,
                 ),
               ),
@@ -202,10 +203,10 @@ class _SavedHubScreenState extends ConsumerState<SavedHubScreen> {
                   ('posts', 'Posts'),
                   ('comments', 'Comments'),
                 ]) ...[
-                  ChoiceChip(
-                    label: Text(t.$2),
+                  FeedChip(
+                    label: t.$2,
                     selected: _type == t.$1,
-                    onSelected: (_) => setState(() => _type = t.$1),
+                    onTap: () => setState(() => _type = t.$1),
                   ),
                   const SizedBox(width: 6),
                 ],

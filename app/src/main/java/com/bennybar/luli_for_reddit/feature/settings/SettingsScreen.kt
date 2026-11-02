@@ -981,7 +981,7 @@ fun SettingsList(
             singleLine = true,
             placeholder = { Text("Search settings") },
             leadingIcon = { Icon(Icons.Rounded.Search, null) },
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(28.dp),
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = cs.surfaceContainerHigh,
                 unfocusedContainerColor = cs.surfaceContainerHigh,

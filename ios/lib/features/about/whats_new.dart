@@ -20,6 +20,16 @@ class Release {
 // TODO(whats-new): this is the Kotlin app's list as-is; it describes the
 // features being ported. Replace it with the iOS app's own releases.
 const changelog = [
+  Release('2.0.55', 'Nov 2, 2026', [
+    "Status bar icons follow the app's theme, so they stay visible when it "
+        "differs from your phone's",
+    'Comments: a big New comment button that folds as you scroll, and larger '
+        'buttons above it',
+    'Home: the filter chips float under the top bar when you scroll back up',
+    'Search bars are fully rounded',
+    "Saved and flair chips match the feed's, and content fades out below the "
+        'status bar',
+  ]),
   Release('2.0.54', 'Nov 2, 2026', [
     "Nothing new on iPhone this time: this release's change is for Android's "
         'Back gesture',

@@ -1,3 +1,4 @@
+import '../feed/post_list_view.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -381,11 +382,11 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
               spacing: 8,
               children: [
                 for (final f in _flairs)
-                  ChoiceChip(
-                    label: Text(f.text),
+                  FeedChip(
+                    label: f.text,
                     selected: _flair?.id == f.id,
-                    onSelected: (s) =>
-                        setState(() => _flair = s ? f : null),
+                    onTap: () => setState(
+                        () => _flair = _flair?.id == f.id ? null : f),
                   ),
               ],
             ),

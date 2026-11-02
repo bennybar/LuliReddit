@@ -1,5 +1,10 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.unit.Dp
 import com.bennybar.luli_for_reddit.ui.RefreshBox
 import com.bennybar.luli_for_reddit.ui.Loading
@@ -135,6 +140,11 @@ fun PostListView(
     header: (@Composable () -> Unit)? = null,
     topPadding: Dp = 0.dp, // room for a top bar floating over the list
     listState: LazyListState = rememberFeedListState(),
+    /**
+     * Past the chips in the list, a second row of them floats here (#73): where
+     * it goes, given its height, so it moves with the top bar and leaves with it.
+     */
+    floatingChipsY: ((Int) -> Int)? = null,
 ) {
     val controller = rememberFeedController(feedKey)
     val ui by controller.ui.collectAsStateWithLifecycle()
@@ -151,11 +161,12 @@ fun PostListView(
     // The loading deck was just showing: deal the first cards in.
     var dealHome by remember { mutableStateOf(false) }
     val chipsState = rememberLazyListState()
-    val chips: @Composable () -> Unit = {
+    val floatingChipsState = rememberLazyListState()
+    val chipsIn: @Composable (LazyListState) -> Unit = { state ->
         FeedChips(
             sort = controller.sort,
             time = controller.time,
-            state = chipsState,
+            state = state,
             onPick = { s, t -> controller.changeSort(s, t) },
             isFrontpage = isFrontpage,
             forYou = settings.forYouFeed && isFrontpage,
@@ -166,6 +177,7 @@ fun PostListView(
             onBlend = if (settings.redditHomeAllowed) controller::selectBlend else null,
         )
     }
+    val chips: @Composable () -> Unit = { chipsIn(chipsState) }
 
     fun refresh(haptic: Boolean = true) {
         if (refreshing) return
@@ -296,6 +308,23 @@ fun PostListView(
                     listPadding = listPadding,
                     onRetry = { refresh() },
                 )
+            }
+        }
+        if (floatingChipsY != null && ui is FeedUi.Data) {
+            // The list's row sits at the top of its padding: past that, it's gone behind the bar.
+            val past by remember(listState) {
+                derivedStateOf {
+                    listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == "sortbar" }
+                        ?.let { it.offset + it.size <= 0 } ?: true
+                }
+            }
+            if (past) {
+                var height by remember { mutableIntStateOf(0) }
+                Box(
+                    Modifier
+                        .onSizeChanged { height = it.height }
+                        .offset { IntOffset(0, floatingChipsY(height)) },
+                ) { chipsIn(floatingChipsState) }
             }
         }
         val pending = (ui as? FeedUi.Data)?.state?.hasPending == true
@@ -625,7 +654,7 @@ private fun FeedChips(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun FeedChip(label: String, selected: Boolean, onClick: () -> Unit) {
+internal fun FeedChip(label: String, selected: Boolean, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     val corner by animateDpAsState(if (selected) 18.dp else 8.dp, MaterialTheme.motionScheme.fastSpatialSpec(), label = "chipCorner")
     // The tick sits inside the label, so it starts from the label's padding:

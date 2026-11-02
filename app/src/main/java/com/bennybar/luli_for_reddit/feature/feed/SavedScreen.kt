@@ -24,8 +24,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ModeComment
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -114,14 +112,7 @@ fun SavedScreen() {
             )
             LazyRow(contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(listOf("all" to "All", "posts" to "Posts", "comments" to "Comments"), key = { it.first }) { (k, label) ->
-                    FilterChip(
-                        selected = type == k,
-                        onClick = { type = k },
-                        label = { Text(label) },
-                        shape = CircleShape,
-                        border = null,
-                        colors = FilterChipDefaults.filterChipColors(containerColor = cs.surfaceContainerHigh),
-                    )
+                    FeedChip(label, type == k) { type = k }
                 }
             }
             Box(Modifier.weight(1f)) {

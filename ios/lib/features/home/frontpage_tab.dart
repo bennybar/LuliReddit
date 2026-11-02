@@ -212,6 +212,7 @@ class _FrontpageTabState extends ConsumerState<FrontpageTab>
               feedKey: '',
               header: expandable ? null : titleRow,
               topPadding: _barHeight,
+              barShift: _barShift,
             ),
             Positioned(
               top: 0,

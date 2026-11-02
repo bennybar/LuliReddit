@@ -1,3 +1,5 @@
+import 'package:flutter/rendering.dart';
+import '../../core/widgets/collapsing_fab.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:flutter/material.dart';
@@ -70,6 +72,7 @@ class PostDetailScreen extends ConsumerStatefulWidget {
 
 class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
     with RouteAware {
+  bool _fabExpanded = true; // New comment folds scrolling down, opens scrolling up
   final ItemScrollController _itemScroll = ItemScrollController();
   final ItemPositionsListener _itemPositions = ItemPositionsListener.create();
   List<Comment> _flat = const [];
@@ -706,8 +709,20 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
               onNextLongPress: () => _showJumpMenu(
                   thread.post.author, username,
                   hasNew: _flat.any((c) => _isNew(c, username))),
+              expanded: _fabExpanded,
             ),
-      body: Stack(
+      body: NotificationListener<UserScrollNotification>(
+        onNotification: (n) {
+          if (n.metrics.axis == Axis.vertical &&
+              n.direction != ScrollDirection.idle) {
+            final expanded = n.direction == ScrollDirection.forward;
+            if (expanded != _fabExpanded) {
+              setState(() => _fabExpanded = expanded);
+            }
+          }
+          return false;
+        },
+        child: Stack(
         children: [
           async.when(
             loading: () => _LoadingWithHeader(post: widget.initialPost),
@@ -752,6 +767,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
             ),
         ],
       ),
+      ),
     );
   }
 
@@ -766,7 +782,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
       // Build comments about a screen ahead, so scrolling shows ready-made
       // rows instead of building them mid-frame.
       minCacheExtent: 900,
-      padding: const EdgeInsets.only(top: 6, bottom: 96),
+      // Room for the floating buttons, so the last comment clears them.
+      padding: const EdgeInsets.only(top: 6, bottom: 160),
       itemCount: 1 + (flat.isEmpty ? 1 : flat.length),
       itemBuilder: (context, index) {
         if (index == 0) {
@@ -1158,8 +1175,10 @@ class _ThreadToolbar extends StatelessWidget {
     this.onAsk,
     required this.onNext,
     required this.onNextLongPress,
+    required this.expanded,
   });
 
+  final bool expanded; // the New comment button shows its label
   final int newCount;
   final bool hasMine;
   final bool hasComments;
@@ -1170,17 +1189,43 @@ class _ThreadToolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final on = cs.onPrimaryContainer;
+    final on = cs.onSurface;
     Widget icon(IconData i, String tip, VoidCallback f) => IconButton(
           tooltip: tip,
-          visualDensity: VisualDensity.compact,
           color: on,
           onPressed: f,
-          icon: Icon(i, size: 22),
+          icon: Icon(i, size: 24),
         );
 
+    // Two levels, like WhatsApp's (#72): a row for moving through the thread,
+    // over a big New comment button that folds as you scroll.
+    final hasRow = newCount > 0 ||
+        hasMine ||
+        onSummarize != null ||
+        onAsk != null ||
+        hasComments;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        if (hasRow) ...[
+          _row(cs, on, icon),
+          const SizedBox(height: 12),
+        ],
+        CollapsingFab(
+          icon: Icons.add_comment_rounded,
+          label: 'New comment',
+          expanded: expanded,
+          onTap: onComment,
+        ),
+      ],
+    );
+  }
+
+  Widget _row(ColorScheme cs, Color on,
+      Widget Function(IconData, String, VoidCallback) icon) {
     return Material(
-      color: cs.primaryContainer,
+      color: cs.surfaceContainerHigh,
       elevation: 3,
       shape: const StadiumBorder(),
       child: Padding(
@@ -1191,7 +1236,7 @@ class _ThreadToolbar extends StatelessWidget {
             if (newCount > 0)
               // The new-comments stepper, on its own tonal segment.
               Container(
-                height: 40,
+                height: 48,
                 decoration: ShapeDecoration(
                     color: on.withValues(alpha: 0.08),
                     shape: const StadiumBorder()),
@@ -1210,7 +1255,6 @@ class _ThreadToolbar extends StatelessWidget {
               icon(Icons.auto_awesome_rounded, 'Summarize thread', onSummarize!),
             if (onAsk != null)
               icon(Icons.forum_rounded, 'Ask about this thread', onAsk!),
-            icon(Icons.add_comment_rounded, 'Comment', onComment),
             if (hasComments)
               // The main action: a filled accent circle. Long-press for the
               // jump menu (OP / yours / new).
@@ -1225,8 +1269,8 @@ class _ThreadToolbar extends StatelessWidget {
                     child: Tooltip(
                       message: 'Next top-level comment (long-press for more)',
                       child: SizedBox(
-                        width: 40,
-                        height: 40,
+                        width: 48,
+                        height: 48,
                         child: Icon(Icons.keyboard_arrow_down_rounded,
                             color: cs.onPrimary),
                       ),

@@ -1,5 +1,9 @@
 package com.bennybar.luli_for_reddit.ui.theme
 
+import androidx.core.view.WindowCompat
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.runtime.SideEffect
+import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -254,6 +258,17 @@ fun isAppInDarkTheme(settings: Settings): Boolean = when (settings.themeMode) {
 fun IlayTheme(settings: Settings, content: @Composable () -> Unit) {
     val dark = isAppInDarkTheme(settings)
     val scheme = rememberColorScheme(settings, dark)
+    // The bars' icons follow the app's theme, not the phone's: with the two
+    // different they'd be dark on dark, or light on light (#71).
+    val view = LocalView.current
+    SideEffect {
+        (view.context as? Activity)?.window?.let { window ->
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = !dark
+                isAppearanceLightNavigationBars = !dark
+            }
+        }
+    }
     val density = LocalDensity.current
     MaterialExpressiveTheme(
         colorScheme = scheme,

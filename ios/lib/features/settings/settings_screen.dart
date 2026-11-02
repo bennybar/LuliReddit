@@ -1018,7 +1018,7 @@ class _SettingsListState extends ConsumerState<SettingsList> {
               filled: true,
               fillColor: cs.surfaceContainerHigh,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(28),
                 borderSide: BorderSide.none,
               ),
             ),

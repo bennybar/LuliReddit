@@ -1,5 +1,9 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.bennybar.luli_for_reddit.feature.feed.FabScroll
+import com.bennybar.luli_for_reddit.feature.feed.CollapsingFab
 import com.bennybar.luli_for_reddit.settings.calmComments
 import com.bennybar.luli_for_reddit.ui.ToggleIcon
 import com.bennybar.luli_for_reddit.ui.popOn
@@ -337,6 +341,7 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
         revealId = null
     }
 
+    val fab = remember { FabScroll() }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -387,11 +392,12 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
                             if (!jumpNext(match = test)) nav.showSnackbar("No such comment here")
                         }
                     },
+                    expanded = fab.expanded,
                 )
             }
         },
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
+        Box(Modifier.fillMaxSize().padding(padding).nestedScroll(fab)) {
             when {
                 thread != null -> Column(Modifier.fillMaxSize()) {
                     if (focusCommentId != null) FocusBanner { nav.pop(); nav.push(Route.Post(subreddit, postId)) }
@@ -650,7 +656,8 @@ private fun CommentList(
         LazyColumn(
             Modifier.fillMaxSize(),
             state = listState,
-            contentPadding = PaddingValues(top = 6.dp, bottom = 96.dp),
+            // Room for the floating buttons, so the last comment clears them.
+            contentPadding = PaddingValues(top = 6.dp, bottom = 160.dp),
         ) {
             item(key = "header", contentType = "header") {
                 // Translate sits on the post, with its share / save.
@@ -873,8 +880,9 @@ private fun showJumpMenu(opAuthor: String, me: String, isNew: ((Comment) -> Bool
 }
 
 /**
- * Everything that moves through the thread in ONE compact floating pill:
- * [↑ N new ↓] [your comment] [summarize] [ask] [comment] [● next top-level].
+ * Two levels, like WhatsApp's (#72): a row for moving through the thread,
+ * [↑ N new ↓] [your comment] [summarize] [ask] [● next top-level], over a big
+ * New comment button that folds as you scroll.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -890,23 +898,25 @@ private fun ThreadToolbar(
     onAsk: (() -> Unit)?,
     onNext: () -> Unit,
     onNextLongPress: () -> Unit,
+    expanded: Boolean,
 ) {
     val cs = MaterialTheme.colorScheme
-    val on = cs.onPrimaryContainer
+    val on = cs.onSurface
 
     @Composable
     fun btn(icon: ImageVector, tip: String, onClick: () -> Unit) {
         IconTooltip(tip) {
-            IconButton(onClick = onClick, modifier = Modifier.size(40.dp)) { Icon(icon, tip, Modifier.size(22.dp), tint = on) }
+            IconButton(onClick = onClick, modifier = Modifier.size(48.dp)) { Icon(icon, tip, Modifier.size(24.dp), tint = on) }
         }
     }
 
-    Surface(color = cs.primaryContainer, shape = CircleShape, shadowElevation = 3.dp) {
+    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    if (newCount > 0 || hasMine || onSummarize != null || onAsk != null || hasComments) Surface(color = cs.surfaceContainerHigh, shape = CircleShape, shadowElevation = 3.dp) {
         Row(Modifier.padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
             if (newCount > 0) {
                 // The new-comments stepper, on its own tonal segment.
                 Row(
-                    Modifier.height(40.dp).clip(CircleShape).background(on.copy(alpha = 0.08f)),
+                    Modifier.height(48.dp).clip(CircleShape).background(on.copy(alpha = 0.08f)),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     btn(Icons.Rounded.KeyboardArrowUp, "Previous new comment", onPrevNew)
@@ -917,13 +927,12 @@ private fun ThreadToolbar(
             if (hasMine) btn(Icons.Rounded.Person, "Your comments", onMine)
             onSummarize?.let { btn(Icons.Rounded.AutoAwesome, "Summarize thread", it) }
             onAsk?.let { btn(Icons.Rounded.Forum, "Ask about this thread", it) }
-            btn(Icons.Rounded.AddComment, "Comment", onComment)
             if (hasComments) {
                 // The main action: a filled accent circle. Long-press for the
                 // jump menu (OP / yours / new).
                 Box(
                     Modifier
-                        .size(40.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
                         .background(cs.primary)
                         .combinedClickable(onClick = onNext, onLongClick = onNextLongPress, onClickLabel = "Next top-level comment"),
@@ -933,6 +942,8 @@ private fun ThreadToolbar(
                 }
             }
         }
+    }
+    CollapsingFab(Icons.Rounded.AddComment, "New comment", expanded, onClick = onComment)
     }
 }
 

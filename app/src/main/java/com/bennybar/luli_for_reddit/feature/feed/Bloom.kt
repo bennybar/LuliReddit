@@ -255,7 +255,7 @@ fun BloomTopBar(
     )
 }
 
-/** Filled pill text field (radius 24/28, no outline) used for search / filter boxes. */
+/** Filled pill text field (fully rounded, no outline) used for search / filter boxes. */
 @Composable
 fun PillTextField(
     value: String,
@@ -264,7 +264,7 @@ fun PillTextField(
     modifier: Modifier = Modifier,
     leading: ImageVector = Icons.Rounded.Search,
     trailing: (@Composable () -> Unit)? = null,
-    radius: Dp = 24.dp,
+    radius: Dp = 28.dp,
     onSearch: ((String) -> Unit)? = null,
     singleLine: Boolean = true,
 ) {

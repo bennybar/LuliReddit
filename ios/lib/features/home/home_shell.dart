@@ -258,6 +258,25 @@ class _HomeShellState extends ConsumerState<HomeShell> {
               ),
               ),
             ),
+            // Content fades out just below the status bar, rather than being
+            // cut off (#74).
+            Positioned(
+              top: MediaQuery.paddingOf(context).top,
+              left: 0,
+              right: 0,
+              height: 16,
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [surface, surface.withValues(alpha: 0)],
+                    ),
+                  ),
+                ),
+              ),
+            ),
             if (bottomBar)
               // A fade from the page colour behind the nav, so the pill never
               // sits directly on a post of the same tone; it hides with the
