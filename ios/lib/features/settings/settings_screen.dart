@@ -80,21 +80,57 @@ const _accentSwatches = <Color>[
   Color(0xFFD81B60), // pink
 ];
 
+/// The main page's categories (#68), in groups: a section of the list, what's
+/// in it, its icon.
+const _categories = [
+  [
+    ('Feed', "Layout, sort, For You, what's hidden", Icons.dynamic_feed_rounded),
+    ('Appearance', 'Theme, font, app icon, navigation', Icons.palette_rounded),
+    ('Posts & comments', 'Comment style, collapsing, swipes', Icons.forum_rounded),
+    ('Media', 'Autoplay, NSFW blur, saving', Icons.perm_media_rounded),
+  ],
+  [
+    ('Notifications', 'Inbox alerts', Icons.notifications_rounded),
+    ('Translation', 'Languages and service', Icons.translate_rounded),
+    ('AI summaries', 'Key, model, style', Icons.auto_awesome_rounded),
+  ],
+  [
+    ('Data & storage', 'History, cache, backup', Icons.storage_rounded),
+    ('Account & keys', 'Login, API keys, clear data', Icons.manage_accounts_rounded),
+    ('Power-user features', 'API usage', Icons.tune_rounded),
+  ],
+  [
+    ('About', 'Version, updates, licenses', Icons.info_rounded),
+  ],
+];
+
+/// Settings: the categories, or the one [section] (a page of its own).
 class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key});
+  const SettingsScreen({super.key, this.section});
+  final String? section;
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('Settings')),
-        body: const SettingsList(),
+        appBar: AppBar(title: Text(section ?? 'Settings')),
+        body: SettingsList(section: section),
       );
+}
+
+/// Where a section of the list starts; draws nothing.
+class _SectionMark extends StatelessWidget {
+  const _SectionMark(this.title);
+  final String title;
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }
 
 /// The settings list — reusable both as the full Settings screen and
 /// embedded. Pass [embedded] when nesting in a scroll view.
 class SettingsList extends ConsumerStatefulWidget {
-  const SettingsList({super.key, this.embedded = false});
+  const SettingsList({super.key, this.embedded = false, this.section});
   final bool embedded;
+  final String? section;
 
   @override
   ConsumerState<SettingsList> createState() => _SettingsListState();
@@ -220,6 +256,7 @@ class _SettingsListState extends ConsumerState<SettingsList> {
               onTap: () =>
                   _pickBlend(context, s.blendReddit, ctrl.setBlendReddit),
             ),
+          const Divider(),
           ListTile(
             leading: const Icon(Icons.timer_outlined),
             title: const Text('Keep feed for'),
@@ -429,6 +466,7 @@ class _SettingsListState extends ConsumerState<SettingsList> {
               style: Theme.of(context).textTheme.bodyMedium,
             ),
           ),
+          const Divider(),
           ListTile(
             leading: const Icon(Icons.view_headline_rounded),
             title: const Text('Top bar'),
@@ -906,17 +944,71 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             title: const Text('Content & conduct policy'),
             onTap: () => context.push('/policy'),
           ),
-          const SizedBox(height: 24),
     ];
 
     final q = _query.trim().toLowerCase();
-    final shown = q.isEmpty ? all : all.where((w) => _matches(w, q)).toList();
+    final section = widget.section;
+    final List<Widget> shown;
+    if (q.isNotEmpty) {
+      shown = all.where((w) => _matches(w, q)).toList();
+    } else if (section != null) {
+      // One section's rows.
+      shown = all
+          .skipWhile((w) => !(w is _SectionMark && w.title == section))
+          .skip(1)
+          .takeWhile((w) => w is! _SectionMark)
+          .toList();
+    } else {
+      // The main page.
+      final sections = {
+        for (final w in all)
+          if (w is _SectionMark) w.title
+      };
+      shown = [
+        for (final (i, group) in _categories.indexed) ...[
+          if (i > 0) const Divider(),
+          for (final (title, subtitle, icon) in group)
+            if (sections.contains(title))
+              ListTile(
+                leading: Icon(icon),
+                title: Text(title),
+                subtitle: Text(subtitle),
+                onTap: () => context.push(Uri(
+                    path: '/settings_section',
+                    queryParameters: {'title': title}).toString()),
+              ),
+        ],
+      ];
+    }
+
+    // Rows sit in rounded containers, joined until a gap (a Divider): a row's
+    // outer corners are round only where the container starts or ends (#68).
+    Widget row(int i) {
+      if (shown[i] is Divider) return const SizedBox(height: 12);
+      final first = i == 0 || shown[i - 1] is Divider;
+      final last = i == shown.length - 1 || shown[i + 1] is Divider;
+      return Padding(
+        padding: EdgeInsets.fromLTRB(16, 0, 16, last ? 0 : 2),
+        child: Material(
+          color: cs.surfaceContainerLow,
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(first ? 24 : 4),
+              bottom: Radius.circular(last ? 24 : 4),
+            ),
+          ),
+          child: shown[i],
+        ),
+      );
+    }
+
     return ListView(
       shrinkWrap: widget.embedded,
       physics: widget.embedded ? const NeverScrollableScrollPhysics() : null,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+        if (section == null) Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
           child: TextField(
             onChanged: (v) => setState(() => _query = v),
             decoration: InputDecoration(
@@ -932,12 +1024,13 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             ),
           ),
         ),
-        ...shown,
+        for (var i = 0; i < shown.length; i++) row(i),
         if (q.isNotEmpty && shown.isEmpty)
           const Padding(
             padding: EdgeInsets.all(40),
             child: Center(child: Text('No settings found')),
           ),
+        const SizedBox(height: 24),
       ],
     );
   }
@@ -1049,14 +1142,7 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             '15 minutes.')));
   }
 
-  Widget _section(BuildContext context, String title) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-        child: Text(title,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.w700,
-                )),
-      );
+  Widget _section(BuildContext context, String title) => _SectionMark(title);
 
   Future<AppIcon?> _pickAppIcon(BuildContext context, AppIcon current) =>
       showModalBottomSheet<AppIcon>(

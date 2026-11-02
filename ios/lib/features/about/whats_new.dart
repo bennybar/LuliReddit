@@ -20,6 +20,15 @@ class Release {
 // TODO(whats-new): this is the Kotlin app's list as-is; it describes the
 // features being ported. Replace it with the iOS app's own releases.
 const changelog = [
+  Release('2.0.53', 'Nov 2, 2026', [
+    'Settings redesigned: categories with their own pages, rounded containers, '
+        'and switches with a tick and a cross. Search still finds everything',
+    "The floating buttons fold and open smoothly, and the Inbox's New message "
+        'button folds too',
+    'Your profile picture shows in the expanded header and the top bar',
+    'Side bar: tap your profile at the top to open the Profile tab, in place '
+        'of its own row',
+  ]),
   Release('2.0.52', 'Nov 2, 2026', [
     'Recently visited now means the subreddits you actually opened, subscribed '
         'or not, in the side bar and in Explore. The list starts fresh with '

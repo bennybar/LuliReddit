@@ -14,6 +14,7 @@ sealed interface Route {
     @Serializable data class WebLogin(val clearFirst: Boolean = false) : Route
     @Serializable data object Home : Route
     @Serializable data object Settings : Route
+    @Serializable data class SettingsSection(val title: String) : Route
     @Serializable data object ManageForYou : Route
     @Serializable data object ContentFilters : Route
     @Serializable data object Policy : Route

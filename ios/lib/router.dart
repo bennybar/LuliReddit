@@ -99,6 +99,10 @@ final routerProvider = Provider<GoRouter>((ref) {
               summarize: state.uri.queryParameters['summarize'] == '1')),
       GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
       GoRoute(
+          path: '/settings_section',
+          builder: (_, state) =>
+              SettingsScreen(section: state.uri.queryParameters['title'])),
+      GoRoute(
           path: '/manage_for_you',
           builder: (_, __) => const ManageForYouScreen()),
       GoRoute(

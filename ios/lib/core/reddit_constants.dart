@@ -7,7 +7,7 @@ class RedditConstants {
   RedditConstants._();
 
   /// App version (keep in sync with pubspec) + GitHub repo for in-app updates.
-  static const String appVersion = '2.0.52';
+  static const String appVersion = '2.0.53';
   static const String githubRepo = 'bennybar/LuliReddit';
 
   // Hosts

@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import com.bennybar.luli_for_reddit.ui.switchThumb
 import android.content.Intent
 import android.graphics.Bitmap
 import androidx.compose.foundation.background
@@ -121,7 +122,7 @@ private fun ShareImageDialog(post: Post, chain: List<Comment>, done: () -> Unit)
                 }
                 Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("Hide usernames", Modifier.weight(1f))
-                    Switch(checked = hideNames, onCheckedChange = { hideNames = it })
+                    Switch(thumbContent = switchThumb(hideNames), checked = hideNames, onCheckedChange = { hideNames = it })
                 }
             }
         },

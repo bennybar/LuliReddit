@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.compose
 
+import com.bennybar.luli_for_reddit.ui.switchThumb
 import com.bennybar.luli_for_reddit.ui.ConnectedChoice
 import androidx.compose.material3.LocalContentColor
 import com.bennybar.luli_for_reddit.ui.Loading
@@ -506,7 +507,7 @@ private fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Un
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-        Switch(checked = checked, onCheckedChange = onChange)
+        Switch(thumbContent = switchThumb(checked), checked = checked, onCheckedChange = onChange)
     }
 }
 

@@ -1,5 +1,10 @@
 package com.bennybar.luli_for_reddit.feature.settings
 
+import androidx.compose.material.icons.rounded.Storage
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.PermMedia
+import androidx.compose.material.icons.rounded.Forum
+import androidx.compose.material.icons.rounded.DynamicFeed
 import com.bennybar.luli_for_reddit.settings.HomeFab
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.outlined.ModeComment
@@ -235,21 +240,43 @@ private fun themeLabel(m: ThemeMode) = when (m) {
     ThemeMode.DARK -> "Dark"
 }
 
+/** The main page's categories (#68), in groups: a section of the list, what's in it, its icon. */
+private val SETTINGS_CATEGORIES = listOf(
+    listOf(
+        Triple("Feed", "Layout, sort, For You, what's hidden", Icons.Rounded.DynamicFeed),
+        Triple("Appearance", "Theme, font, app icon, navigation", Icons.Rounded.Palette),
+        Triple("Posts & comments", "Comment style, collapsing, swipes", Icons.Rounded.Forum),
+        Triple("Media", "Autoplay, NSFW blur, saving", Icons.Rounded.PermMedia),
+    ),
+    listOf(
+        Triple("Notifications", "Inbox alerts", Icons.Rounded.Notifications),
+        Triple("Translation", "Languages and service", Icons.Rounded.Translate),
+        Triple("AI summaries", "Key, model, style", Icons.Rounded.AutoAwesome),
+    ),
+    listOf(
+        Triple("Data & storage", "History, cache, backup", Icons.Rounded.Storage),
+        Triple("Account & keys", "Login, API keys, clear data", Icons.Rounded.ManageAccounts),
+        Triple("Power-user features", "API usage", Icons.Rounded.Tune),
+    ),
+    listOf(Triple("About", "Version, updates, licenses", Icons.Rounded.Info)),
+)
+
+/** Settings: the categories, or the one [section] (a page of its own). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(section: String? = null) {
     val nav = LocalNavigator.current
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings") },
+                title = { Text(section ?: "Settings") },
                 navigationIcon = {
                     IconButton(onClick = { nav.pop() }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
                 },
             )
         },
     ) { padding ->
-        SettingsList(contentPadding = padding)
+        SettingsList(contentPadding = padding, section = section)
     }
 }
 
@@ -266,6 +293,7 @@ fun SettingsList(
     modifier: Modifier = Modifier,
     embedded: Boolean = false,
     contentPadding: PaddingValues = PaddingValues(),
+    section: String? = null,
 ) {
     val s by app.settings.state.collectAsStateWithLifecycle()
     val ctrl = app.settings
@@ -303,7 +331,7 @@ fun SettingsList(
 
     val all = buildList {
         fun section(title: String) = add(Entry("h:$title", null) { SectionHeader(title) })
-        fun divider(k: String) = add(Entry("d:$k", null) { HorizontalDivider(Modifier.padding(vertical = 4.dp)) })
+        fun divider(k: String) = add(Entry("d:$k", null) { Spacer(Modifier.height(12.dp)) })
         fun tile(
             title: String,
             subtitle: String? = null,
@@ -386,6 +414,7 @@ fun SettingsList(
                 )
             }
         }
+        divider("feed-lists")
         tile("Keep feed for", "Home / For You: ${keepLabel(s.feedKeepMinutes)}, then a new feed (pull down to refresh anytime)", Icons.Outlined.Timer, onClick = launch {
             pickOption(listOf(10, 30, 60, 180).map { PickOption(it, keepLabel(it)) }, s.feedKeepMinutes)
                 ?.let(ctrl::setFeedKeepMinutes)
@@ -477,6 +506,7 @@ fun SettingsList(
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
             )
         })
+        divider("appearance-nav")
         tile("Top bar", s.topBarMode.label, Icons.Rounded.ViewHeadline, onClick = launch {
             pickOption(TopBarMode.entries.map { PickOption(it, it.label, it.description) }, s.topBarMode)
                 ?.let(ctrl::setTopBarMode)
@@ -898,11 +928,51 @@ fun SettingsList(
             infoDialog("Licenses", text)
         })
         tile("Version", RedditConstants.APP_VERSION, Icons.Rounded.Info)
-        add(Entry("bottom", null) { Spacer(Modifier.height(24.dp)) })
     }
 
     val q = query.trim().lowercase()
-    val shown = if (q.isEmpty()) all else all.filter { it.search?.lowercase()?.contains(q) == true }
+    val sections = all.map { it.key }.filter { it.startsWith("h:") }
+    val shown = when {
+        q.isNotEmpty() -> all.filter { it.search?.lowercase()?.contains(q) == true }
+        // One section's rows.
+        section != null -> all.dropWhile { it.key != "h:$section" }.drop(1).takeWhile { !it.key.startsWith("h:") }
+        // The main page.
+        else -> buildList {
+            SETTINGS_CATEGORIES.forEachIndexed { i, group ->
+                if (i > 0) add(Entry("d:group$i", null) { Spacer(Modifier.height(12.dp)) })
+                for ((title, subtitle, icon) in group) {
+                    if ("h:$title" !in sections) continue
+                    add(Entry("c:$title", null) { SettingTile(title, subtitle, icon, onClick = { nav.push(Route.SettingsSection(title)) }) })
+                }
+            }
+        }
+    }
+
+    // Rows sit in rounded containers, joined until a gap ("d:"): a row's outer
+    // corners are round only where the container starts or ends (#68).
+    val row = @Composable { i: Int ->
+        val e = shown[i]
+        if (e.key.startsWith("d:")) {
+            e.content()
+        } else {
+            val first = shown.getOrNull(i - 1)?.key?.startsWith("d:") != false
+            val last = shown.getOrNull(i + 1)?.key?.startsWith("d:") != false
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, bottom = if (last) 0.dp else 2.dp)
+                    .clip(
+                        RoundedCornerShape(
+                            topStart = if (first) 24.dp else 4.dp,
+                            topEnd = if (first) 24.dp else 4.dp,
+                            bottomStart = if (last) 24.dp else 4.dp,
+                            bottomEnd = if (last) 24.dp else 4.dp,
+                        ),
+                    )
+                    .background(cs.surfaceContainerLow),
+            ) { e.content() }
+        }
+    }
 
     val searchField = @Composable {
         TextField(
@@ -918,7 +988,7 @@ fun SettingsList(
                 focusedIndicatorColor = Color.Transparent,
                 unfocusedIndicatorColor = Color.Transparent,
             ),
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 4.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 12.dp),
         )
     }
     val noResults = @Composable {
@@ -927,15 +997,16 @@ fun SettingsList(
 
     if (embedded) {
         Column(modifier) {
-            searchField()
-            shown.forEach { it.content() }
+            if (section == null) searchField()
+            shown.indices.forEach { row(it) }
             if (q.isNotEmpty() && shown.isEmpty()) noResults()
         }
     } else {
         LazyColumn(modifier.fillMaxSize(), contentPadding = contentPadding) {
-            item(key = "search") { searchField() }
-            items(shown, key = { it.key }) { it.content() }
+            if (section == null) item(key = "search") { searchField() }
+            items(shown.size, key = { shown[it].key }) { row(it) }
             if (q.isNotEmpty() && shown.isEmpty()) item(key = "none") { noResults() }
+            item(key = "bottom") { Spacer(Modifier.height(24.dp)) }
         }
     }
 }

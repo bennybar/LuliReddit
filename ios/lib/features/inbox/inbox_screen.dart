@@ -1,3 +1,5 @@
+import 'package:flutter/rendering.dart';
+import '../../core/widgets/collapsing_fab.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -54,6 +56,7 @@ class _InboxTabs extends ConsumerStatefulWidget {
 
 class _InboxTabsState extends ConsumerState<_InboxTabs>
     with SingleTickerProviderStateMixin {
+  bool _fabExpanded = true; // folds scrolling down, opens scrolling up
   late final List<(String, String)> _tabs = [
     ...inboxTabs,
     if (widget.webSignIn) ('Reddit', _redditTab),
@@ -121,19 +124,32 @@ class _InboxTabsState extends ConsumerState<_InboxTabs>
           tabs: [for (final t in _tabs) Tab(text: t.$1)],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/compose_message'),
-        icon: const Icon(Icons.edit_rounded),
-        label: const Text('New message'),
+      floatingActionButton: CollapsingFab(
+        icon: Icons.edit_rounded,
+        label: 'New message',
+        expanded: _fabExpanded,
+        onTap: () => context.push('/compose_message'),
       ),
-      body: TabBarView(
-        controller: _tab,
-        children: [
-          for (var i = 0; i < _tabs.length; i++)
-            _tabs[i].$2 == _redditTab
-                ? _RedditNotificationsList(selected: _index == i)
-                : _InboxList(where: _tabs[i].$2),
-        ],
+      body: NotificationListener<UserScrollNotification>(
+        onNotification: (n) {
+          if (n.metrics.axis == Axis.vertical &&
+              n.direction != ScrollDirection.idle) {
+            final expanded = n.direction == ScrollDirection.forward;
+            if (expanded != _fabExpanded) {
+              setState(() => _fabExpanded = expanded);
+            }
+          }
+          return false;
+        },
+        child: TabBarView(
+          controller: _tab,
+          children: [
+            for (var i = 0; i < _tabs.length; i++)
+              _tabs[i].$2 == _redditTab
+                  ? _RedditNotificationsList(selected: _index == i)
+                  : _InboxList(where: _tabs[i].$2),
+          ],
+        ),
       ),
     );
   }

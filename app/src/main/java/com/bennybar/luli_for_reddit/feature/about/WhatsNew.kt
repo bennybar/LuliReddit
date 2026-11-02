@@ -45,6 +45,15 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.53", "Nov 2, 2026",
+        listOf(
+            "Settings redesigned: categories with their own pages, rounded containers, and switches with a tick and a cross. Search still finds everything",
+            "The floating buttons fold and open smoothly, and the Inbox's New message button folds too",
+            "Your profile picture shows in the expanded header and the top bar",
+            "Side bar: tap your profile at the top to open the Profile tab, in place of its own row",
+        ),
+    ),
+    Release(
         "2.0.52", "Nov 2, 2026",
         listOf(
             "Recently visited now means the subreddits you actually opened, subscribed or not, in the side bar and in Explore. The list starts fresh with this update",

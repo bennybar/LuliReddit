@@ -313,6 +313,7 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
                 screen<Route.WebLogin> { WebLoginScreen(it.toRoute<Route.WebLogin>().clearFirst) }
                 screen<Route.Home> { HomeScreen() }
                 screen<Route.Settings> { SettingsScreen() }
+                screen<Route.SettingsSection> { SettingsScreen(it.toRoute<Route.SettingsSection>().title) }
                 screen<Route.ManageForYou> { ManageForYouScreen() }
                 screen<Route.ContentFilters> { ContentFiltersScreen() }
                 screen<Route.Policy> { PolicyScreen() }

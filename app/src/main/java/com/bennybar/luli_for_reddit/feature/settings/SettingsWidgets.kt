@@ -2,6 +2,7 @@
 
 package com.bennybar.luli_for_reddit.feature.settings
 
+import com.bennybar.luli_for_reddit.ui.switchThumb
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.selection.selectable
@@ -138,7 +139,7 @@ internal fun SwitchTile(
             Switch(
                 checked = checked,
                 onCheckedChange = null, // the row handles it
-
+                thumbContent = switchThumb(checked),
                 enabled = enabled,
                 colors = if (accent != null) {
                     SwitchDefaults.colors(checkedTrackColor = accent, checkedThumbColor = MaterialTheme.colorScheme.onError)

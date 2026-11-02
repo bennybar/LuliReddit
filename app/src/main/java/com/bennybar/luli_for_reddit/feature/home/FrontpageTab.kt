@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import com.bennybar.luli_for_reddit.ui.switchThumb
 import com.bennybar.luli_for_reddit.settings.HomeFab
 import com.bennybar.luli_for_reddit.feature.feed.FabScroll
 import com.bennybar.luli_for_reddit.feature.feed.CollapsingFab
@@ -287,11 +288,14 @@ private fun NewPostButton(onClick: () -> Unit) {
 @Composable
 private fun ProfileAvatar(username: String, size: Dp, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
+    val me by app.feed.me.collectAsStateWithLifecycle()
+    LaunchedEffect(username) { app.feed.loadMe() }
     LetterAvatar(
         username,
         size = size,
         container = cs.primaryContainer,
         content = cs.onPrimaryContainer,
+        imageUrl = me?.iconUrl,
         fontSize = 16.sp,
         modifier = Modifier
             .semantics { contentDescription = "Your profile" }
@@ -509,7 +513,7 @@ private fun ToolbarPanel(username: String, onSearch: () -> Unit, onNewPost: () -
                 Icon(Icons.Outlined.PlayCircleOutline, null, tint = cs.onSurfaceVariant)
                 Spacer(Modifier.width(14.dp))
                 Text("Autoplay media", Modifier.weight(1f), fontSize = 16.sp)
-                Switch(checked = settings.autoplayMedia, onCheckedChange = null)
+                Switch(thumbContent = switchThumb(settings.autoplayMedia), checked = settings.autoplayMedia, onCheckedChange = null)
             }
         }
     }

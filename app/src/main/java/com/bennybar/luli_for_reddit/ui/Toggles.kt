@@ -1,11 +1,16 @@
 package com.bennybar.luli_for_reddit.ui
 
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.layout.size
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.FilledTonalIconToggleButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.IconToggleButton
 import androidx.compose.runtime.Composable
@@ -61,4 +66,9 @@ fun Modifier.popOn(on: Boolean): Modifier {
         scaleX = scale.value
         scaleY = scale.value
     }
+}
+
+/** A switch's thumb: a tick when on, a cross when off (Material 3 Expressive). */
+fun switchThumb(checked: Boolean): @Composable () -> Unit = {
+    Icon(if (checked) Icons.Rounded.Check else Icons.Rounded.Close, null, Modifier.size(SwitchDefaults.IconSize))
 }

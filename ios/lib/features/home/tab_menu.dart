@@ -1,5 +1,13 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/providers.dart';
+import '../../models/reddit_user.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
+/// Your own profile, for the avatars in the top bar and side bar: one request
+/// per account, the first time something shows it.
+final meProvider = FutureProvider.family<RedditUser, String>((ref, name) =>
+    ref.watch(redditRepositoryProvider).getUserAbout(name));
 
 /// Opens the side bar (Settings › Navigation: side bar / both); [open] is
 /// null when it's off.

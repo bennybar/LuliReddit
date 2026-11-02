@@ -1,5 +1,8 @@
 package com.bennybar.luli_for_reddit.feature.inbox
 
+import com.bennybar.luli_for_reddit.feature.feed.FabScroll
+import com.bennybar.luli_for_reddit.feature.feed.CollapsingFab
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.bennybar.luli_for_reddit.ui.ConnectedChoice
 import com.bennybar.luli_for_reddit.ui.RefreshBox
 import com.bennybar.luli_for_reddit.ui.Loading
@@ -49,7 +52,6 @@ import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.TravelExplore
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -127,6 +129,7 @@ fun InboxScreen(reselect: Int) {
         if (reselect != initialReselect) lists[pager.currentPage].animateScrollToItem(0)
     }
 
+    val fab = remember { FabScroll() }
     Scaffold(
         topBar = {
             Column {
@@ -169,13 +172,11 @@ fun InboxScreen(reselect: Int) {
             }
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
+            CollapsingFab(
+                Icons.Rounded.Edit,
+                "New message",
+                fab.expanded,
                 onClick = { nav.push(Route.ComposeMessage()) },
-                icon = { Icon(Icons.Rounded.Edit, null) },
-                text = { Text("New message") },
-                shape = RoundedCornerShape(20.dp),
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 // Clear of the home shell's floating nav bar.
                 modifier = Modifier.padding(bottom = nav.snackbarBottomPadding),
             )
@@ -183,7 +184,7 @@ fun InboxScreen(reselect: Int) {
     ) { padding ->
         HorizontalPager(
             pager,
-            Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()),
+            Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()).nestedScroll(fab),
             beyondViewportPageCount = 1,
         ) { page ->
             if (tabs[page].second == REDDIT_TAB) RedditNotificationsList(active = pager.currentPage == page, lists[page])

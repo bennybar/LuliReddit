@@ -328,7 +328,7 @@ class _NewPostButton extends StatelessWidget {
   }
 }
 
-class _ProfileAvatar extends StatelessWidget {
+class _ProfileAvatar extends ConsumerWidget {
   const _ProfileAvatar(
       {required this.username, required this.size, required this.onTap});
   final String username;
@@ -336,7 +336,10 @@ class _ProfileAvatar extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final anonymous = ref.watch(authControllerProvider
+            .select((a) => a.valueOrNull?.anonymous)) ??
+        true;
     final cs = Theme.of(context).colorScheme;
     return Semantics(
       button: true,
@@ -349,6 +352,9 @@ class _ProfileAvatar extends StatelessWidget {
           size: size,
           container: cs.primaryContainer,
           content: cs.onPrimaryContainer,
+          imageUrl: anonymous || username.isEmpty
+              ? null
+              : ref.watch(meProvider(username)).valueOrNull?.iconUrl,
           fontSize: 16,
         ),
       ),

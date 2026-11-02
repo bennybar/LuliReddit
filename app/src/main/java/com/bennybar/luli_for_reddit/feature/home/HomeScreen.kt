@@ -1,7 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.home
 
 import com.bennybar.luli_for_reddit.model.Subreddit
-import com.bennybar.luli_for_reddit.model.RedditUser
 import com.bennybar.luli_for_reddit.feature.feed.SectionHeader
 import com.bennybar.luli_for_reddit.feature.feed.LetterAvatar
 import com.bennybar.luli_for_reddit.feature.feed.Async
@@ -369,11 +368,9 @@ private fun SideBar(selected: Int, unread: Int, open: Boolean, onTab: (Int) -> U
     val s = (session as? SessionState.LoggedIn)?.session
     val anonymous = s?.anonymous != false
     val username = s?.username.takeUnless { anonymous }
-    // Your avatar and karma: one request, the first time the side bar opens.
-    var me by remember(username) { mutableStateOf<RedditUser?>(null) }
-    LaunchedEffect(username, open) {
-        if (open && username != null && me == null) me = runCatching { app.repository.getUserAbout(username) }.getOrNull()
-    }
+    // Your avatar and karma: one request, the first time something shows them.
+    val me by app.feed.me.collectAsStateWithLifecycle()
+    LaunchedEffect(open) { if (open) app.feed.loadMe() }
     // The Explore tab's list, so these cost no requests of their own.
     val subs by viewModel { SubscriptionsViewModel() }.subs.collectAsStateWithLifecycle()
     val visited by app.recentSubreddits.state.collectAsStateWithLifecycle()
@@ -396,7 +393,9 @@ private fun SideBar(selected: Int, unread: Int, open: Boolean, onTab: (Int) -> U
                         .padding(top = 8.dp, bottom = 8.dp)
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(28.dp))
-                        .clickable { onPick { nav.push(Route.User(username)) } }
+                        .background(if (selected == 3) cs.secondaryContainer else Color.Transparent)
+                        // Stands in for the Profile row (#64).
+                        .clickable { onPick { onTab(3) } }
                         .padding(16.dp),
                 ) {
                     LetterAvatar(username, 64.dp, cs.primaryContainer, cs.onPrimaryContainer, imageUrl = me?.iconUrl, fontSize = 26.sp)
@@ -412,6 +411,7 @@ private fun SideBar(selected: Int, unread: Int, open: Boolean, onTab: (Int) -> U
                 }
             }
             navItems.forEachIndexed { i, item ->
+                if (i == 3 && username != null) return@forEachIndexed
                 NavigationDrawerItem(
                     label = { Text(item.label) },
                     icon = { Icon(if (i == selected) item.on else item.off, null) },

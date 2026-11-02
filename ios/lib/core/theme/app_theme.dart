@@ -192,6 +192,14 @@ class AppTheme {
       colorScheme: scheme,
       brightness: brightness,
       scaffoldBackgroundColor: scheme.surface,
+      // Switches show a tick when on, a cross when off (Material 3 Expressive).
+      switchTheme: SwitchThemeData(
+        thumbIcon: WidgetStateProperty.resolveWith((states) => Icon(
+            states.contains(WidgetState.selected)
+                ? Icons.check_rounded
+                : Icons.close_rounded,
+            size: 16)),
+      ),
       // Bundled fonts: Google Sans (Material's type scale was drawn for it,
       // so its sizes and weights stay), or Plus Jakarta Sans for text with
       // Unbounded for display/headline styles (the RunnerSidekick pairing).

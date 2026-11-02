@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.model.RedditUser
 import com.bennybar.luli_for_reddit.AppContainer
 import com.bennybar.luli_for_reddit.model.Multireddit
 import com.bennybar.luli_for_reddit.state.UserScoped
@@ -89,7 +90,22 @@ class FeedModule(private val c: AppContainer) : UserScoped {
         }
     }
 
+    private val _me = MutableStateFlow<RedditUser?>(null)
+    private var meJob: Job? = null
+
+    /** Your own profile, for the avatars in the top bar and side bar. */
+    val me: StateFlow<RedditUser?> = _me
+
+    /** Fetches [me] the first time something shows it, once per account. */
+    fun loadMe() {
+        val session = c.session.session?.takeIf { !it.anonymous } ?: return
+        if (_me.value != null || meJob?.isActive == true) return
+        meJob = c.scope.launch { _me.value = runCatching { c.repository.getUserAbout(session.username) }.getOrNull() }
+    }
+
     override fun onUserChanged(username: String) {
+        meJob?.cancel()
+        _me.value = null
         frontpage?.dispose()
         frontpage = null
         feeds.values.forEach { it.dispose() }

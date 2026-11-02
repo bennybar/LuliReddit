@@ -1,8 +1,6 @@
 import '../history/history_store.dart';
 import '../feed/post_card.dart' show LetterAvatar;
 import '../../models/subreddit.dart';
-import '../../models/reddit_user.dart';
-import '../../core/providers.dart';
 import '../../core/format.dart';
 import 'dart:io';
 
@@ -310,9 +308,6 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   }
 }
 
-final _meProvider = FutureProvider.family<RedditUser, String>((ref, name) =>
-    ref.watch(redditRepositoryProvider).getUserAbout(name));
-
 /// The side bar (Settings › Navigation): the four tabs, then your stuff and
 /// Settings. Picking one closes it, then runs the choice.
 class _SideBar extends ConsumerWidget {
@@ -328,10 +323,10 @@ class _SideBar extends ConsumerWidget {
     final session = ref.watch(authControllerProvider).valueOrNull;
     final anonymous = session?.anonymous != false;
     final router = GoRouter.of(context);
-    // Your avatar and karma: one request, the first time the side bar opens.
+    // Your avatar and karma: one request, the first time something shows them.
     final me = anonymous || session == null
         ? null
-        : ref.watch(_meProvider(session.username)).valueOrNull;
+        : ref.watch(meProvider(session.username)).valueOrNull;
     // The Explore tab's list, so these cost no requests of their own.
     final subs = ref.watch(subscribedSubredditsProvider).valueOrNull ??
         const <Subreddit>[];
@@ -382,12 +377,15 @@ class _SideBar extends ConsumerWidget {
             ] else
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                child: InkWell(
+                child: Material(
+                  color: selected == 3
+                      ? cs.secondaryContainer
+                      : Colors.transparent,
                   borderRadius: BorderRadius.circular(28),
-                  onTap: () {
-                    Scaffold.of(context).closeDrawer();
-                    router.push('/u/${session?.username}');
-                  },
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                  // Stands in for the Profile row (#64).
+                  onTap: () => onTab(3),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Column(
@@ -414,10 +412,11 @@ class _SideBar extends ConsumerWidget {
                       ],
                     ),
                   ),
+                  ),
                 ),
               ),
             for (var i = 0; i < _navItems.length; i++)
-              _DrawerItem(
+              if (i != 3 || anonymous) _DrawerItem(
                 icon: i == selected ? _navItems[i].$2 : _navItems[i].$1,
                 label: _navItems[i].$3,
                 selected: i == selected,
