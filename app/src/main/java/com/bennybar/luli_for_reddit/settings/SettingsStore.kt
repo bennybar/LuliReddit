@@ -60,6 +60,8 @@ class SettingsStore(private val p: Prefs) {
             postDisplay = idx(PostDisplay.entries.toTypedArray(), "postDisplay", d.postDisplay),
             commentStyle = idx(CommentStyle.entries.toTypedArray(), "commentStyle", d.commentStyle),
             swipeActions = b("swipeActions", d.swipeActions),
+            floatingChips = b("floatingChips", d.floatingChips),
+            fullBarNewPost = b("fullBarNewPost", d.fullBarNewPost),
             trackHistory = b("trackHistory", d.trackHistory),
             offlineCache = b("offlineCache", d.offlineCache),
             checkUpdates = b("checkUpdates", d.checkUpdates),
@@ -130,6 +132,8 @@ class SettingsStore(private val p: Prefs) {
     fun setPostDisplay(v: PostDisplay) { p.setInt("postDisplay", v.ordinal); set { it.copy(postDisplay = v) } }
     fun setCommentStyle(v: CommentStyle) { p.setInt("commentStyle", v.ordinal); set { it.copy(commentStyle = v) } }
     fun setSwipeActions(v: Boolean) { p.setBool("swipeActions", v); set { it.copy(swipeActions = v) } }
+    fun setFloatingChips(v: Boolean) { p.setBool("floatingChips", v); set { it.copy(floatingChips = v) } }
+    fun setFullBarNewPost(v: Boolean) { p.setBool("fullBarNewPost", v); set { it.copy(fullBarNewPost = v) } }
     fun setTrackHistory(v: Boolean) { p.setBool("trackHistory", v); set { it.copy(trackHistory = v) } }
     fun setOfflineCache(v: Boolean) { p.setBool("offlineCache", v); set { it.copy(offlineCache = v) } }
     fun setCheckUpdates(v: Boolean) { p.setBool("checkUpdates", v); set { it.copy(checkUpdates = v) } }

@@ -200,10 +200,11 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   Widget _tab(int i) {
     if (!_allTabs && i != _index) return const SizedBox.shrink();
     return switch (i) {
+      // Its feed runs under the status bar; it pads its own top bar.
       0 => FrontpageTab(selected: _index == 0),
-      1 => const ExploreScreen(),
-      2 => const InboxScreen(),
-      _ => const ProfileTab(),
+      1 => const SafeArea(bottom: false, child: ExploreScreen()),
+      2 => const SafeArea(bottom: false, child: InboxScreen()),
+      _ => const SafeArea(bottom: false, child: ProfileTab()),
     };
   }
 
@@ -249,22 +250,19 @@ class _HomeShellState extends ConsumerState<HomeShell> {
               onNotification: _onScroll,
               child: NotificationListener<ScrollUpdateNotification>(
               onNotification: _onScrollUpdate,
-              child: SafeArea(
-                bottom: false,
-                child: IndexedStack(
-                  index: _index,
-                  children: [for (var i = 0; i < 4; i++) _tab(i)],
-                ),
+              child: IndexedStack(
+                index: _index,
+                children: [for (var i = 0; i < 4; i++) _tab(i)],
               ),
               ),
             ),
             // Content fades out just below the status bar, rather than being
-            // cut off (#74).
-            Positioned(
+            // cut off (#74). (Posts has its own, under its top bar.)
+            if (_index != 0) Positioned(
               top: MediaQuery.paddingOf(context).top,
               left: 0,
               right: 0,
-              height: 16,
+              height: 8,
               child: IgnorePointer(
                 child: DecoratedBox(
                   decoration: BoxDecoration(

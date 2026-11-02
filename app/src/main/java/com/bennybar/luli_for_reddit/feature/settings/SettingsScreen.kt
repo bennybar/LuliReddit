@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.settings
 
+import androidx.compose.material.icons.outlined.PostAdd
+import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.PermMedia
@@ -414,6 +416,10 @@ fun SettingsList(
                 )
             }
         }
+        switch(
+            "Floating filter chips", "On Home, show the chips under the top bar when you scroll back up",
+            Icons.Rounded.FilterList, s.floatingChips, ctrl::setFloatingChips,
+        )
         divider("feed-lists")
         tile("Keep feed for", "Home / For You: ${keepLabel(s.feedKeepMinutes)}, then a new feed (pull down to refresh anytime)", Icons.Outlined.Timer, onClick = launch {
             pickOption(listOf(10, 30, 60, 180).map { PickOption(it, keepLabel(it)) }, s.feedKeepMinutes)
@@ -511,6 +517,12 @@ fun SettingsList(
             pickOption(TopBarMode.entries.map { PickOption(it, it.label, it.description) }, s.topBarMode)
                 ?.let(ctrl::setTopBarMode)
         })
+        if (s.topBarMode == TopBarMode.FULL) {
+            switch(
+                "New post in the top bar", "A New post button beside your profile picture",
+                Icons.Outlined.PostAdd, s.fullBarNewPost, ctrl::setFullBarNewPost,
+            )
+        }
         tile("Floating button on Home", s.homeFab.label, Icons.Rounded.Edit, onClick = launch {
             pickOption(HomeFab.entries.map { PickOption(it, it.label) }, s.homeFab)?.let(ctrl::setHomeFab)
         })

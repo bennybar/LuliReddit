@@ -1,5 +1,11 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.WindowInsets
 import com.bennybar.luli_for_reddit.ui.switchThumb
 import com.bennybar.luli_for_reddit.settings.HomeFab
 import com.bennybar.luli_for_reddit.feature.feed.FabScroll
@@ -27,11 +33,6 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.material3.MenuDefaults
-import androidx.compose.material3.CheckableDropdownMenuItem
-import androidx.compose.material3.SelectableDropdownMenuItem
-import androidx.compose.material3.DropdownMenuGroup
-import androidx.compose.material3.DropdownMenuPopup
 import androidx.compose.foundation.layout.offset
 import androidx.compose.material.icons.outlined.PostAdd
 import androidx.compose.material.icons.outlined.Settings
@@ -67,11 +68,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.PlayCircleOutline
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.MoreHoriz
-import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -138,6 +137,7 @@ internal fun FrontpageTab(selected: Boolean) {
     var barHeight by remember { mutableIntStateOf(0) }
     var barShift by remember { mutableFloatStateOf(0f) } // 0 = shown, -barHeight = hidden
     var settling by remember { mutableStateOf<Job?>(null) }
+    var scrollingUp by remember { mutableStateOf(false) }
 
     fun slideBar(to: Float) {
         settling?.cancel()
@@ -154,6 +154,7 @@ internal fun FrontpageTab(selected: Boolean) {
 
             override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
                 barShift = (barShift + consumed.y).coerceIn(-barHeight.toFloat(), 0f)
+                if (consumed.y != 0f) scrollingUp = consumed.y > 0f
                 return Offset.Zero
             }
 
@@ -162,7 +163,8 @@ internal fun FrontpageTab(selected: Boolean) {
                 // enough to fill the space the bar leaves.
                 val past = listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset >= barHeight
                 if (barShift != 0f && barShift != -barHeight.toFloat()) {
-                    slideBar(if (past && barShift < -barHeight / 2f) -barHeight.toFloat() else 0f)
+                    // It finishes the way you were going: a little scroll up brings it out.
+                    slideBar(if (past && !scrollingUp) -barHeight.toFloat() else 0f)
                 }
                 return Velocity.Zero
             }
@@ -184,7 +186,8 @@ internal fun FrontpageTab(selected: Boolean) {
                 // With the ☰ here: the same spot as on the other tabs (#34).
                 Modifier.fillMaxWidth().padding(
                     start = if (LocalSideBar.current != null) 4.dp else 16.dp,
-                    top = if (LocalSideBar.current != null) 6.dp else 12.dp,
+                    // In line with the search screen's bar.
+                    top = 4.dp,
                     end = 16.dp,
                     bottom = 4.dp,
                 ),
@@ -196,11 +199,13 @@ internal fun FrontpageTab(selected: Boolean) {
                 } else {
                     SearchPill("Search Reddit", onClick = { nav.push(Route.Search()) }, modifier = Modifier.weight(1f))
                 }
-                Spacer(Modifier.width(4.dp))
-                NewPostButton { nav.push(Route.Submit()) }
-                DisplayMenu()
-                Spacer(Modifier.width(4.dp))
-                ProfileAvatar(username, 44.dp) { nav.push(Route.User(username)) }
+                if (settings.fullBarNewPost) {
+                    Spacer(Modifier.width(4.dp))
+                    NewPostButton { nav.push(Route.Submit()) }
+                }
+                Spacer(Modifier.width(8.dp))
+                // The menu, without what's already in this bar (#78).
+                ProfileAvatar(username, 44.dp) { showFloatingToolbar(nav, username, compact = true) }
             }
     }
     // The title row: the bar itself in Expandable mode; Full mode scrolls it with the feed.
@@ -251,10 +256,19 @@ internal fun FrontpageTab(selected: Boolean) {
             topPadding = with(LocalDensity.current) { barHeight.toDp() },
             listState = listState,
             // Right under the bar when it's fully out, off the top when it's gone.
-            floatingChipsY = { height ->
+            floatingChipsY = if (!settings.floatingChips) null else ({ height ->
                 if (barHeight == 0) -height
                 else (barHeight + barShift / barHeight * (barHeight + height)).roundToInt()
-            },
+            }),
+        )
+        // With the bar away the feed runs under the status bar, softly faded so
+        // its icons stay readable (#74, #80). The bar covers it when it's out.
+        val fade = cs.surface
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 16.dp)
+                .background(Brush.verticalGradient(listOf(fade.copy(alpha = 0.7f), fade.copy(alpha = 0f)))),
         )
         Box(
             Modifier
@@ -262,6 +276,7 @@ internal fun FrontpageTab(selected: Boolean) {
                 .onSizeChanged { barHeight = it.height }
                 .offset { IntOffset(0, barShift.roundToInt()) }
                 .background(cs.surface)
+                .statusBarsPadding()
                 .padding(horizontal = if (expandable) 7.dp else 0.dp),
         ) { if (expandable) titleRow() else actionRow() }
         if (settings.homeFab != HomeFab.OFF) {
@@ -308,61 +323,6 @@ private fun ProfileAvatar(username: String, size: Dp, onClick: () -> Unit) {
     )
 }
 
-/** Three-dot menu to switch the feed's post display type (and media autoplay). */
-@Composable
-private fun DisplayMenu(onPicked: () -> Unit = {}) {
-    val nav = LocalNavigator.current
-    val settings by app.settings.state.collectAsStateWithLifecycle()
-    var open by remember { mutableStateOf(false) }
-    Box {
-        IconButton(onClick = { open = true }) { Icon(Icons.Rounded.MoreVert, "Display") }
-        // Material 3 Expressive menu: Layout (pick one), Autoplay (on/off), Settings.
-        DropdownMenuPopup(expanded = open, onDismissRequest = { open = false }) {
-            val layouts = PostDisplay.entries
-            DropdownMenuGroup(shapes = MenuDefaults.groupShape(0, 3)) {
-                layouts.forEachIndexed { i, d ->
-                    SelectableDropdownMenuItem(
-                        selected = d == settings.postDisplay,
-                        onClick = {
-                            open = false
-                            app.settings.setPostDisplay(d)
-                            onPicked()
-                        },
-                        text = { Text(d.label) },
-                        shapes = MenuDefaults.itemShape(i, layouts.size),
-                        leadingIcon = { Icon(d.icon, null, Modifier.size(MenuDefaults.LeadingIconSize)) },
-                    )
-                }
-            }
-            Spacer(Modifier.height(MenuDefaults.GroupSpacing))
-            DropdownMenuGroup(shapes = MenuDefaults.groupShape(1, 3)) {
-                CheckableDropdownMenuItem(
-                    checked = settings.autoplayMedia,
-                    onCheckedChange = {
-                        open = false
-                        app.settings.setAutoplayMedia(it)
-                        onPicked()
-                    },
-                    text = { Text("Autoplay media") },
-                    shapes = MenuDefaults.itemShape(0, 1),
-                    leadingIcon = { Icon(Icons.Outlined.PlayCircleOutline, null, Modifier.size(MenuDefaults.LeadingIconSize)) },
-                )
-            }
-            Spacer(Modifier.height(MenuDefaults.GroupSpacing))
-            DropdownMenuGroup(shapes = MenuDefaults.groupShape(2, 3)) {
-                DropdownMenuItem(
-                    text = { Text("Settings") },
-                    leadingIcon = { Icon(Icons.Outlined.Settings, null, Modifier.size(MenuDefaults.LeadingIconSize)) },
-                    onClick = {
-                        open = false
-                        nav.push(Route.Settings)
-                    },
-                )
-            }
-        }
-    }
-}
-
 /**
  * Shows live Reddit API rate-limit usage in place of the search bar
  * (power-user setting). Reddit allows ~100 requests/minute per OAuth client.
@@ -387,7 +347,7 @@ private fun ApiUsagePill(modifier: Modifier = Modifier) {
  * display, profile) in from the top as a dismissible overlay — it never
  * displaces the feed.
  */
-private fun showFloatingToolbar(nav: AppNavigator, username: String) {
+private fun showFloatingToolbar(nav: AppNavigator, username: String, compact: Boolean = false) {
     Overlays.launch { done ->
         val cs = MaterialTheme.colorScheme
         val visible = remember { MutableTransitionState(false).apply { targetState = true } }
@@ -421,6 +381,7 @@ private fun showFloatingToolbar(nav: AppNavigator, username: String) {
             ) {
                 ToolbarPanel(
                     username,
+                    compact = compact,
                     onSearch = { close { nav.push(Route.Search()) } },
                     onNewPost = { close { nav.push(Route.Submit()) } },
                     onProfile = { close { nav.push(Route.User(username)) } },
@@ -441,13 +402,13 @@ private val PanelInner = 6.dp
  * apply at once and leave the panel open, so the change is visible behind it.
  */
 @Composable
-private fun ToolbarPanel(username: String, onSearch: () -> Unit, onNewPost: () -> Unit, onProfile: () -> Unit, onSettings: () -> Unit) {
+private fun ToolbarPanel(username: String, compact: Boolean, onSearch: () -> Unit, onNewPost: () -> Unit, onProfile: () -> Unit, onSettings: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     val settings by app.settings.state.collectAsStateWithLifecycle()
     val seg = cs.surfaceContainerHigh
     Surface(shape = RoundedCornerShape(32.dp), color = cs.surfaceContainer, shadowElevation = 8.dp) {
         Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Row(
+            if (!compact) Row(
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(topStart = PanelOuter, topEnd = PanelOuter, bottomStart = PanelInner, bottomEnd = PanelInner))
@@ -463,8 +424,23 @@ private fun ToolbarPanel(username: String, onSearch: () -> Unit, onNewPost: () -
                 ProfileAvatar(username, 44.dp, onProfile)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                PanelButton(Icons.Outlined.PostAdd, "New post", Modifier.weight(1f), onNewPost)
-                PanelButton(Icons.Outlined.Settings, "Settings", Modifier.weight(1f), onSettings)
+                if (compact) {
+                    // The panel's top row now: Your profile (with an account) and Settings.
+                    val signedIn = app.session.session?.anonymous == false
+                    if (signedIn) {
+                        PanelButton(
+                            Icons.Outlined.AccountCircle, "Your profile", Modifier.weight(1f), onProfile,
+                            RoundedCornerShape(topStart = PanelOuter, topEnd = PanelInner, bottomStart = PanelInner, bottomEnd = PanelInner),
+                        )
+                    }
+                    PanelButton(
+                        Icons.Outlined.Settings, "Settings", Modifier.weight(1f), onSettings,
+                        RoundedCornerShape(topStart = if (signedIn) PanelInner else PanelOuter, topEnd = PanelOuter, bottomStart = PanelInner, bottomEnd = PanelInner),
+                    )
+                } else {
+                    PanelButton(Icons.Outlined.PostAdd, "New post", Modifier.weight(1f), onNewPost)
+                    PanelButton(Icons.Outlined.Settings, "Settings", Modifier.weight(1f), onSettings)
+                }
             }
             Column(
                 Modifier
@@ -525,12 +501,18 @@ private fun ToolbarPanel(username: String, onSearch: () -> Unit, onNewPost: () -
 }
 
 @Composable
-private fun PanelButton(icon: ImageVector, label: String, modifier: Modifier, onClick: () -> Unit) {
+private fun PanelButton(
+    icon: ImageVector,
+    label: String,
+    modifier: Modifier,
+    onClick: () -> Unit,
+    shape: Shape = RoundedCornerShape(PanelInner),
+) {
     val cs = MaterialTheme.colorScheme
     Row(
         modifier
             .height(56.dp)
-            .clip(RoundedCornerShape(PanelInner))
+            .clip(shape)
             .background(cs.surfaceContainerHigh)
             .clickable(onClick = onClick),
         horizontalArrangement = Arrangement.Center,

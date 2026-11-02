@@ -67,6 +67,8 @@ class _PostListViewState extends ConsumerState<PostListView>
   final _refreshKey = GlobalKey<RefreshBoxState>();
   final _headerKey = GlobalKey();
   final _pastChips = ValueNotifier(false);
+  final _chipsOutline = ValueNotifier(0.0);
+  final _chipsOffset = ValueNotifier(0.0); // both rows' sideways scroll
   double _headerHeight = 0;
   static const _chipsHeight = 52.0; // a chip row, with its padding
   final _prefetched = <String>{};
@@ -78,8 +80,12 @@ class _PostListViewState extends ConsumerState<PostListView>
     _scroll.addListener(() {
       _headerHeight =
           _headerKey.currentContext?.size?.height ?? _headerHeight;
-      _pastChips.value =
-          _scroll.position.pixels >= _headerHeight + _chipsHeight;
+      // Floating: from the moment the list's row leaves its place until it's
+      // back in it, the row on show is the floating one, so it looks like one
+      // row (#80). Its outline fades in as it leaves.
+      final past = _scroll.position.pixels - _headerHeight;
+      _pastChips.value = past > 0;
+      _chipsOutline.value = (past / _chipsHeight).clamp(0.0, 1.0);
       if (_scroll.position.pixels >=
           _scroll.position.maxScrollExtent - 600) {
         ref.read(feedControllerProvider(widget.feedKey).notifier).loadMore();
@@ -119,6 +125,8 @@ class _PostListViewState extends ConsumerState<PostListView>
     appRouteObserver.unsubscribe(this);
     _scroll.dispose();
     _pastChips.dispose();
+    _chipsOutline.dispose();
+    _chipsOffset.dispose();
     super.dispose();
   }
 
@@ -197,7 +205,9 @@ class _PostListViewState extends ConsumerState<PostListView>
         ref.watch(settingsControllerProvider.select((s) => s.forYouFeed));
     final homeAllowed =
         ref.watch(settingsControllerProvider.select((s) => s.redditHomeAllowed));
-    Widget chipsRow(String id) => _FeedChips(
+    Widget chipsRow(String id, {double outline = 0}) => _FeedChips(
+      outline: outline,
+      offset: _chipsOffset,
       // Rebuilt with the list: it keeps its scroll position through a reload.
       key: PageStorageKey('${id}_${widget.feedKey}'),
       sort: notifier.sort,
@@ -211,8 +221,21 @@ class _PostListViewState extends ConsumerState<PostListView>
       blend: blendMode,
       onBlend: homeAllowed ? notifier.selectBlend : null,
     );
-    final chips = chipsRow('feedChips');
     final barShift = widget.barShift;
+    final listed = async.hasValue && !async.isLoading;
+    // A reload starts a new list from the top.
+    if (!listed) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _pastChips.value = false);
+    }
+    final Widget chips = barShift == null
+        ? chipsRow('feedChips')
+        : ValueListenableBuilder<bool>(
+            valueListenable: _pastChips,
+            builder: (_, past, child) =>
+                Opacity(opacity: past && listed ? 0 : 1, child: child),
+            child: chipsRow('feedChips'),
+          );
 
     final listPadding = feedPadding.copyWith(top: widget.topPadding);
     final refreshable = RefreshBox(
@@ -459,7 +482,7 @@ class _PostListViewState extends ConsumerState<PostListView>
     return Stack(
       children: [
         refreshable,
-        if (barShift != null && async.hasValue && !async.isLoading)
+        if (barShift != null && listed)
           ValueListenableBuilder<bool>(
             valueListenable: _pastChips,
             builder: (_, past, child) => past ? child! : const SizedBox.shrink(),
@@ -474,7 +497,11 @@ class _PostListViewState extends ConsumerState<PostListView>
                     : bar + barShift.value / bar * (bar + _chipsHeight);
                 return Positioned(top: y, left: 0, right: 0, child: child!);
               },
-              child: chipsRow('floatingChips'),
+              child: ValueListenableBuilder<double>(
+                valueListenable: _chipsOutline,
+                builder: (_, outline, __) =>
+                    chipsRow('floatingChips', outline: outline),
+              ),
             ),
           ),
         if (hasPending)
@@ -701,6 +728,8 @@ enum _FeedMode { forYou, blend, home }
 class _FeedChips extends StatefulWidget {
   const _FeedChips({
     super.key,
+    this.outline = 0,
+    this.offset,
     required this.sort,
     required this.time,
     required this.onPick,
@@ -712,6 +741,8 @@ class _FeedChips extends StatefulWidget {
     required this.blend,
     required this.onBlend,
   });
+  final double outline; // how much of an outline the chips have, 0 to 1
+  final ValueNotifier<double>? offset; // sideways scroll, shared between rows
   final PostSort sort;
   final TopTime time;
   final void Function(PostSort, {TopTime? time}) onPick;
@@ -741,10 +772,27 @@ class _FeedChipsState extends State<_FeedChips> {
               ? _FeedMode.forYou
               : widget.sort;
 
+  void _publishOffset() {
+    if (_scroll.hasClients) widget.offset?.value = _scroll.offset;
+  }
+
+  void _followOffset() {
+    final to = widget.offset?.value;
+    if (to == null || !_scroll.hasClients) return;
+    if ((_scroll.offset - to).abs() > 0.5) {
+      _scroll.jumpTo(to.clamp(0.0, _scroll.position.maxScrollExtent));
+    }
+  }
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _centerSelected());
+    _scroll.addListener(_publishOffset);
+    widget.offset?.addListener(_followOffset);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _followOffset();
+      _centerSelected();
+    });
   }
 
   @override
@@ -755,6 +803,7 @@ class _FeedChipsState extends State<_FeedChips> {
 
   @override
   void dispose() {
+    widget.offset?.removeListener(_followOffset);
     _scroll.dispose();
     super.dispose();
   }
@@ -832,6 +881,7 @@ class _FeedChipsState extends State<_FeedChips> {
                 key: _keys.putIfAbsent(chip, GlobalKey.new),
                 padding: const EdgeInsetsDirectional.only(end: 8),
                 child: FeedChip(
+                  outline: widget.outline,
                   label: switch (chip) {
                     _FeedMode.forYou => 'For You',
                     _FeedMode.blend => 'Blend · Beta',
@@ -857,7 +907,9 @@ class FeedChip extends StatelessWidget {
       {super.key,
       required this.label,
       required this.selected,
-      required this.onTap});
+      required this.onTap,
+      this.outline = 0});
+  final double outline; // 0 to 1
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -880,6 +932,13 @@ class FeedChip extends StatelessWidget {
           alignment: AlignmentDirectional.centerStart,
           child: Container(
             height: 36,
+            foregroundDecoration: outline == 0
+                ? null
+                : BoxDecoration(
+                    borderRadius: BorderRadius.circular(selected ? 18 : 8),
+                    border: Border.all(
+                        color: cs.outlineVariant.withValues(alpha: outline)),
+                  ),
             // The tick sits closer to the edge than the text does (#57).
             padding: EdgeInsetsDirectional.only(
                 start: selected ? 8 : 14, end: 14),

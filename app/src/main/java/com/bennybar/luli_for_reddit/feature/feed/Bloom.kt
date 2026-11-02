@@ -296,7 +296,7 @@ fun SearchPill(label: String, onClick: () -> Unit, modifier: Modifier = Modifier
     val cs = MaterialTheme.colorScheme
     GlassSurface(modifier) {
         Row(
-            Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 18.dp, vertical = 14.dp),
+            Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 18.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(icon, null, tint = cs.onSurfaceVariant)

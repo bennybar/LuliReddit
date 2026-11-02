@@ -126,6 +126,8 @@ data class Settings(
     val postDisplay: PostDisplay = PostDisplay.CALM,
     val commentStyle: CommentStyle = CommentStyle.SAME,
     val swipeActions: Boolean = true,
+    val floatingChips: Boolean = true, // Home: filter chips float under the top bar past the list's own
+    val fullBarNewPost: Boolean = true, // Full top bar: a New post button beside your avatar
     val trackHistory: Boolean = true,
     val offlineCache: Boolean = true,
     val checkUpdates: Boolean = true,

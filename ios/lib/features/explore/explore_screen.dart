@@ -76,7 +76,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                 child: Padding(
                   // With the ☰ here: the same spot as on the other tabs.
                   padding: EdgeInsets.fromLTRB(
-                      sideBar ? 4 : 16, sideBar ? 6 : 12, 16, 4),
+                      sideBar ? 4 : 16, 4, 16, 4), // in line with the search screen's bar
                   child: Row(children: [
                   const SideBarButton(),
                   Expanded(child: Material(
@@ -87,7 +87,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                       onTap: () => context.push('/search'),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 18, vertical: 14),
+                            horizontal: 18, vertical: 12),
                         child: Row(
                           children: [
                             Icon(Icons.search_rounded,

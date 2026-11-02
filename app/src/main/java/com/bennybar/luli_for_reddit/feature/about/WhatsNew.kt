@@ -45,6 +45,15 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.56", "Nov 2, 2026",
+        listOf(
+            "Full top bar: a wider search bar, and your profile picture opens the menu. New post beside it is optional (Settings → Appearance)",
+            "Floating filter chips have an outline and settle into place smoothly, and you can turn them off (Settings → Feed)",
+            "On Home the feed now runs softly under the status bar, and a small scroll up always brings the top bar back",
+            "The search bar lines up better when you open search",
+        ),
+    ),
+    Release(
         "2.0.55", "Nov 2, 2026",
         listOf(
             "Status bar icons follow the app's theme, so they stay visible when it differs from your phone's",

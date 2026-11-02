@@ -327,22 +327,24 @@ fun HomeScreen() {
             selected = index,
             count = 4,
             composeAll = allTabs,
-            modifier = Modifier.fillMaxSize().statusBarsPadding().nestedScroll(scrollConnection),
+            modifier = Modifier.fillMaxSize().nestedScroll(scrollConnection),
         ) { i ->
             when (i) {
+                // Its feed runs under the status bar; it pads its own top bar.
                 0 -> FrontpageTab(selected = index == 0)
-                1 -> ExploreTab()
-                2 -> InboxScreen(reselect = inboxReselect)
-                else -> ProfileTab()
+                1 -> Box(Modifier.statusBarsPadding()) { ExploreTab() }
+                2 -> Box(Modifier.statusBarsPadding()) { InboxScreen(reselect = inboxReselect) }
+                else -> Box(Modifier.statusBarsPadding()) { ProfileTab() }
             }
         }
         // Content fades out just below the status bar, rather than being cut off (#74).
+        // (Posts has its own, under its top bar.)
         val fade = MaterialTheme.colorScheme.surface
-        Box(
+        if (index != 0) Box(
             Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .height(16.dp)
+                .height(8.dp)
                 .background(Brush.verticalGradient(listOf(fade, fade.copy(alpha = 0f)))),
         )
         if (bottomBar) {

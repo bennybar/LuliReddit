@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.runtime.mutableIntStateOf
@@ -162,8 +164,9 @@ fun PostListView(
     var dealHome by remember { mutableStateOf(false) }
     val chipsState = rememberLazyListState()
     val floatingChipsState = rememberLazyListState()
-    val chipsIn: @Composable (LazyListState) -> Unit = { state ->
+    val chipsIn: @Composable (LazyListState, Float) -> Unit = { state, outline ->
         FeedChips(
+            outline = outline,
             sort = controller.sort,
             time = controller.time,
             state = state,
@@ -177,7 +180,32 @@ fun PostListView(
             onBlend = if (settings.redditHomeAllowed) controller::selectBlend else null,
         )
     }
-    val chips: @Composable () -> Unit = { chipsIn(chipsState) }
+    // Floating: from the moment the list's row leaves its place until it's back
+    // in it, the row on show is the floating one, so it looks like one row (#80).
+    val floating = floatingChipsY != null
+    val past by remember(listState) {
+        derivedStateOf {
+            val info = listState.layoutInfo
+            val row = info.visibleItemsInfo.firstOrNull { it.key == "sortbar" }
+            if (row != null) row.offset < 0 else info.totalItemsCount > 0
+        }
+    }
+    // Fades in as it leaves the list's row, so it isn't there the moment they swap.
+    val floatingOutline by remember(listState) {
+        derivedStateOf {
+            val row = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == "sortbar" }
+            if (row == null || row.size == 0) 1f else (-row.offset.toFloat() / row.size).coerceIn(0f, 1f)
+        }
+    }
+    val isData = ui is FeedUi.Data
+    LaunchedEffect(past, floating) {
+        if (!floating) return@LaunchedEffect
+        val (from, to) = if (past) chipsState to floatingChipsState else floatingChipsState to chipsState
+        to.scrollToItem(from.firstVisibleItemIndex, from.firstVisibleItemScrollOffset)
+    }
+    val chips: @Composable () -> Unit = {
+        Box(Modifier.graphicsLayer { alpha = if (floating && isData && past) 0f else 1f }) { chipsIn(chipsState, 0f) }
+    }
 
     fun refresh(haptic: Boolean = true) {
         if (refreshing) return
@@ -310,22 +338,13 @@ fun PostListView(
                 )
             }
         }
-        if (floatingChipsY != null && ui is FeedUi.Data) {
-            // The list's row sits at the top of its padding: past that, it's gone behind the bar.
-            val past by remember(listState) {
-                derivedStateOf {
-                    listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == "sortbar" }
-                        ?.let { it.offset + it.size <= 0 } ?: true
-                }
-            }
-            if (past) {
-                var height by remember { mutableIntStateOf(0) }
-                Box(
-                    Modifier
-                        .onSizeChanged { height = it.height }
-                        .offset { IntOffset(0, floatingChipsY(height)) },
-                ) { chipsIn(floatingChipsState) }
-            }
+        if (floatingChipsY != null && isData && past) {
+            var height by remember { mutableIntStateOf(0) }
+            Box(
+                Modifier
+                    .onSizeChanged { height = it.height }
+                    .offset { IntOffset(0, floatingChipsY(height)) },
+            ) { chipsIn(floatingChipsState, floatingOutline) }
         }
         val pending = (ui as? FeedUi.Data)?.state?.hasPending == true
         if (pending) {
@@ -567,6 +586,7 @@ private sealed interface FeedChoice {
  */
 @Composable
 private fun FeedChips(
+    outline: Float, // how much of an outline the chips have, 0 to 1
     sort: PostSort,
     time: TopTime,
     state: LazyListState,
@@ -632,7 +652,7 @@ private fun FeedChips(
                 is FeedChoice.Sort ->
                     if (chip.sort.needsTime && chip == shown) "${chip.sort.label} · ${(pickedTime ?: time).label}" else chip.sort.label
             }
-            FeedChip(label, chip == shown) {
+            FeedChip(label, chip == shown, outline) {
                 if (picked != null) return@FeedChip
                 when (chip) {
                     FeedChoice.ForYou -> if (chip != current) choose(chip, action = onForYou)
@@ -654,7 +674,7 @@ private fun FeedChips(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-internal fun FeedChip(label: String, selected: Boolean, onClick: () -> Unit) {
+internal fun FeedChip(label: String, selected: Boolean, outline: Float = 0f, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     val corner by animateDpAsState(if (selected) 18.dp else 8.dp, MaterialTheme.motionScheme.fastSpatialSpec(), label = "chipCorner")
     // The tick sits inside the label, so it starts from the label's padding:
@@ -687,7 +707,7 @@ internal fun FeedChip(label: String, selected: Boolean, onClick: () -> Unit) {
         },
         modifier = Modifier.height(36.dp),
         shape = RoundedCornerShape(corner),
-        border = null,
+        border = if (outline > 0f) BorderStroke(1.dp, cs.outlineVariant.copy(alpha = outline)) else null,
         colors = FilterChipDefaults.filterChipColors(
             containerColor = cs.surfaceContainerHigh,
             labelColor = cs.onSurface,

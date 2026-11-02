@@ -126,6 +126,8 @@ class Settings {
     required this.postDisplay,
     required this.commentStyle,
     required this.swipeActions,
+    required this.floatingChips,
+    required this.fullBarNewPost,
     required this.trackHistory,
     required this.offlineCache,
     required this.checkUpdates,
@@ -206,6 +208,8 @@ class Settings {
         CommentStyle.calm => true,
       };
   final bool swipeActions;
+  final bool floatingChips; // Home: chips float under the top bar past the list's own
+  final bool fullBarNewPost; // Full top bar: a New post button beside your avatar
   final bool trackHistory;
   final bool offlineCache;
   final bool checkUpdates;
@@ -284,6 +288,8 @@ class Settings {
     PostDisplay? postDisplay,
     CommentStyle? commentStyle,
     bool? swipeActions,
+    bool? floatingChips,
+    bool? fullBarNewPost,
     bool? trackHistory,
     bool? offlineCache,
     bool? checkUpdates,
@@ -354,6 +360,8 @@ class Settings {
         postDisplay: postDisplay ?? this.postDisplay,
         commentStyle: commentStyle ?? this.commentStyle,
         swipeActions: swipeActions ?? this.swipeActions,
+        floatingChips: floatingChips ?? this.floatingChips,
+        fullBarNewPost: fullBarNewPost ?? this.fullBarNewPost,
         trackHistory: trackHistory ?? this.trackHistory,
         offlineCache: offlineCache ?? this.offlineCache,
         checkUpdates: checkUpdates ?? this.checkUpdates,
@@ -447,6 +455,8 @@ class SettingsController extends Notifier<Settings> {
           PostDisplay.values[p.getInt('postDisplay') ?? PostDisplay.calm.index],
       commentStyle: CommentStyle.values[p.getInt('commentStyle') ?? 0],
       swipeActions: p.getBool('swipeActions') ?? true,
+      floatingChips: p.getBool('floatingChips') ?? true,
+      fullBarNewPost: p.getBool('fullBarNewPost') ?? true,
       trackHistory: p.getBool('trackHistory') ?? true,
       offlineCache: p.getBool('offlineCache') ?? true,
       checkUpdates: p.getBool('checkUpdates') ?? true,
@@ -556,6 +566,16 @@ class SettingsController extends Notifier<Settings> {
   void setSwipeActions(bool v) {
     _prefs.setBool('swipeActions', v);
     state = state.copyWith(swipeActions: v);
+  }
+
+  void setFloatingChips(bool v) {
+    _prefs.setBool('floatingChips', v);
+    state = state.copyWith(floatingChips: v);
+  }
+
+  void setFullBarNewPost(bool v) {
+    _prefs.setBool('fullBarNewPost', v);
+    state = state.copyWith(fullBarNewPost: v);
   }
 
   void setTrackHistory(bool v) {

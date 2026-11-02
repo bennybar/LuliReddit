@@ -256,6 +256,15 @@ class _SettingsListState extends ConsumerState<SettingsList> {
               onTap: () =>
                   _pickBlend(context, s.blendReddit, ctrl.setBlendReddit),
             ),
+          SwitchListTile(
+            secondary: const Icon(Icons.filter_list_rounded),
+            title: const Text('Floating filter chips'),
+            subtitle: const Text(
+                'On Home, show the chips under the top bar when you scroll '
+                'back up'),
+            value: s.floatingChips,
+            onChanged: ctrl.setFloatingChips,
+          ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.timer_outlined),
@@ -473,6 +482,15 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             subtitle: Text(s.topBarMode.label),
             onTap: () => _pickTopBar(context, ctrl, s.topBarMode),
           ),
+          if (s.topBarMode == TopBarMode.full)
+            SwitchListTile(
+              secondary: const Icon(Icons.post_add_rounded),
+              title: const Text('New post in the top bar'),
+              subtitle: const Text('A New post button beside your profile '
+                  'picture'),
+              value: s.fullBarNewPost,
+              onChanged: ctrl.setFullBarNewPost,
+            ),
           ListTile(
             leading: const Icon(Icons.edit_rounded),
             title: const Text('Floating button on Home'),

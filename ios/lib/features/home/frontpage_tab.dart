@@ -8,7 +8,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/network/rate_limit.dart';
 import '../../core/widgets/glass_surface.dart';
-import '../../core/widgets/pick_one_menu.dart';
 import '../auth/auth_controller.dart';
 import '../feed/post_card.dart' show LetterAvatar;
 import '../feed/feed_controller.dart';
@@ -35,6 +34,7 @@ class _FrontpageTabState extends ConsumerState<FrontpageTab>
   final _barKey = GlobalKey();
   double _barHeight = 0;
   bool _fabExpanded = true; // folds scrolling down, opens scrolling up (#62)
+  bool _scrollingUp = false;
   // 0 = shown, -_barHeight = hidden.
   late final AnimationController _barShift =
       AnimationController.unbounded(vsync: this);
@@ -66,6 +66,7 @@ class _FrontpageTabState extends ConsumerState<FrontpageTab>
     if (n is ScrollUpdateNotification && n.scrollDelta != null) {
       if (m.pixels > m.maxScrollExtent) return false; // iOS bounce at the end
       _barShift.stop();
+      if (n.scrollDelta != 0) _scrollingUp = n.scrollDelta! < 0;
       // Never hidden past the feed's top, however it got there (a re-tap on
       // the tab, new posts): there'd be a blank gap above the first card.
       final shift = math.max(_barShift.value - n.scrollDelta!, -fromTop);
@@ -75,9 +76,8 @@ class _FrontpageTabState extends ConsumerState<FrontpageTab>
       // fill the space the bar leaves.
       final v = _barShift.value;
       if (v != 0 && v != -_barHeight) {
-        _slideBar(fromTop >= _barHeight && v < -_barHeight / 2
-            ? -_barHeight
-            : 0);
+        // It finishes the way you were going: a little scroll up brings it out.
+        _slideBar(fromTop >= _barHeight && !_scrollingUp ? -_barHeight : 0);
       }
     }
     return false;
@@ -98,6 +98,11 @@ class _FrontpageTabState extends ConsumerState<FrontpageTab>
     final cs = Theme.of(context).colorScheme;
     final homeFab =
         ref.watch(settingsControllerProvider.select((s) => s.homeFab));
+    final floatingChips =
+        ref.watch(settingsControllerProvider.select((s) => s.floatingChips));
+    final fullBarNewPost =
+        ref.watch(settingsControllerProvider.select((s) => s.fullBarNewPost));
+    final statusTop = MediaQuery.paddingOf(context).top;
     final bottomBar =
         ref.watch(settingsControllerProvider.select((s) => s.navStyle)) != 1;
     final username = ref.watch(
@@ -179,7 +184,7 @@ class _FrontpageTabState extends ConsumerState<FrontpageTab>
     final actionRow = Padding(
         // With the ☰ here: the same spot as on the other tabs.
         padding: EdgeInsets.fromLTRB(
-            sideBar ? 4 : 16, sideBar ? 6 : 12, 16, 4),
+            sideBar ? 4 : 16, 4, 16, 4), // in line with the search screen's bar
         child: Row(
           children: [
             const SideBarButton(),
@@ -189,14 +194,17 @@ class _FrontpageTabState extends ConsumerState<FrontpageTab>
                   : _SearchPill(
                       onTap: () => context.push('/search')),
             ),
-            const SizedBox(width: 4),
-            _NewPostButton(onTap: () => context.push('/submit')),
-            const _DisplayMenu(),
-            const SizedBox(width: 4),
+            if (fullBarNewPost) ...[
+              const SizedBox(width: 4),
+              _NewPostButton(onTap: () => context.push('/submit')),
+            ],
+            const SizedBox(width: 8),
+            // The menu, without what's already in this bar (#78).
             _ProfileAvatar(
                 username: username,
                 size: 44,
-                onTap: () => context.push('/u/$username')),
+                onTap: () =>
+                    _showFloatingToolbar(context, username, compact: true)),
           ],
         ),
       );
@@ -212,7 +220,30 @@ class _FrontpageTabState extends ConsumerState<FrontpageTab>
               feedKey: '',
               header: expandable ? null : titleRow,
               topPadding: _barHeight,
-              barShift: _barShift,
+              barShift: floatingChips ? _barShift : null,
+            ),
+            // With the bar away the feed runs under the status bar, softly
+            // faded so its icons stay readable (#74, #80). The bar covers it
+            // when it's out.
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: statusTop + 16,
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        cs.surface.withValues(alpha: 0.7),
+                        cs.surface.withValues(alpha: 0),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             ),
             Positioned(
               top: 0,
@@ -225,11 +256,14 @@ class _FrontpageTabState extends ConsumerState<FrontpageTab>
                 child: ColoredBox(
                   key: _barKey,
                   color: cs.surface,
-                  child: expandable
-                      ? Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 7),
-                          child: titleRow)
-                      : actionRow,
+                  child: Padding(
+                    padding: EdgeInsets.only(top: statusTop),
+                    child: expandable
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 7),
+                            child: titleRow)
+                        : actionRow,
+                  ),
                 ),
               ),
             ),
@@ -295,7 +329,7 @@ class _SearchPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(28),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
           child: Row(
             children: [
               Icon(Icons.search_rounded, color: cs.onSurfaceVariant),
@@ -363,42 +397,6 @@ class _ProfileAvatar extends ConsumerWidget {
   }
 }
 
-/// Three-dot menu to switch the feed's post display type (and media
-/// autoplay). Grouped like Kotlin's Expressive menu: Layout (pick one),
-/// Autoplay (on/off), Settings.
-class _DisplayMenu extends ConsumerWidget {
-  const _DisplayMenu();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final display =
-        ref.watch(settingsControllerProvider.select((s) => s.postDisplay));
-    final autoplay =
-        ref.watch(settingsControllerProvider.select((s) => s.autoplayMedia));
-    final ctrl = ref.read(settingsControllerProvider.notifier);
-    return PopupMenuButton<VoidCallback>(
-      tooltip: 'Display',
-      icon: const Icon(Icons.more_vert_rounded),
-      onSelected: (f) => f(),
-      itemBuilder: (_) => menuGroups([
-        [
-          for (final d in PostDisplay.values)
-            MenuOption(() => ctrl.setPostDisplay(d), d.label,
-                icon: d.icon, selected: d == display),
-        ],
-        [
-          MenuOption(() => ctrl.setAutoplayMedia(!autoplay), 'Autoplay media',
-              icon: Icons.play_circle_outline_rounded, checked: autoplay),
-        ],
-        [
-          MenuOption(() => context.push('/settings'), 'Settings',
-              icon: Icons.settings_outlined),
-        ],
-      ]),
-    );
-  }
-}
-
 /// Shows live Reddit API rate-limit usage in place of the search bar
 /// (power-user setting). Reddit allows ~100 requests/minute per OAuth client.
 class _ApiUsagePill extends ConsumerWidget {
@@ -438,7 +436,8 @@ class _ApiUsagePill extends ConsumerWidget {
 /// Expandable top-bar mode: floats the full toolbar (search, new post,
 /// display, profile) in from the top as a dismissible overlay — it never
 /// displaces the feed.
-Future<void> _showFloatingToolbar(BuildContext context, String username) {
+Future<void> _showFloatingToolbar(BuildContext context, String username,
+    {bool compact = false}) {
   final router = GoRouter.of(context);
   return showGeneralDialog(
     context: context,
@@ -460,6 +459,7 @@ Future<void> _showFloatingToolbar(BuildContext context, String username) {
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
             child: _ToolbarPanel(
               username: username,
+              compact: compact,
               onSearch: () => go('/search'),
               onNewPost: () => go('/submit'),
               onProfile: () => go('/u/$username'),
@@ -494,12 +494,14 @@ const _panelInner = Radius.circular(6);
 class _ToolbarPanel extends ConsumerWidget {
   const _ToolbarPanel({
     required this.username,
+    this.compact = false,
     required this.onSearch,
     required this.onNewPost,
     required this.onProfile,
     required this.onSettings,
   });
   final String username;
+  final bool compact; // no search or New post: they're in the Full top bar
   final VoidCallback onSearch;
   final VoidCallback onNewPost;
   final VoidCallback onProfile;
@@ -514,6 +516,9 @@ class _ToolbarPanel extends ConsumerWidget {
         ref.watch(settingsControllerProvider.select((s) => s.autoplayMedia));
     final ctrl = ref.read(settingsControllerProvider.notifier);
     final seg = cs.surfaceContainerHigh;
+    final signedIn = !(ref.watch(authControllerProvider
+            .select((a) => a.valueOrNull?.anonymous)) ??
+        true);
     const all = PostDisplay.values;
     return Material(
       color: cs.surfaceContainer,
@@ -524,6 +529,7 @@ class _ToolbarPanel extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (!compact) ...[
             Material(
               color: seg,
               borderRadius: const BorderRadius.only(
@@ -557,19 +563,39 @@ class _ToolbarPanel extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 3),
+            ],
             Row(
               children: [
-                Expanded(
-                    child: _PanelButton(
-                        icon: Icons.post_add_outlined,
-                        label: 'New post',
-                        onTap: onNewPost)),
-                const SizedBox(width: 3),
+                if (!compact)
+                  Expanded(
+                      child: _PanelButton(
+                          icon: Icons.post_add_outlined,
+                          label: 'New post',
+                          onTap: onNewPost))
+                else if (signedIn)
+                  Expanded(
+                      child: _PanelButton(
+                          icon: Icons.account_circle_outlined,
+                          label: 'Your profile',
+                          onTap: onProfile,
+                          radius: const BorderRadius.only(
+                              topLeft: _panelOuter,
+                              topRight: _panelInner,
+                              bottomLeft: _panelInner,
+                              bottomRight: _panelInner))),
+                if (!compact || signedIn) const SizedBox(width: 3),
                 Expanded(
                     child: _PanelButton(
                         icon: Icons.settings_outlined,
                         label: 'Settings',
-                        onTap: onSettings)),
+                        onTap: onSettings,
+                        radius: !compact
+                            ? const BorderRadius.all(_panelInner)
+                            : BorderRadius.only(
+                                topLeft: signedIn ? _panelInner : _panelOuter,
+                                topRight: _panelOuter,
+                                bottomLeft: _panelInner,
+                                bottomRight: _panelInner))),
               ],
             ),
             const SizedBox(height: 3),
@@ -711,7 +737,11 @@ class _LayoutChoice extends StatelessWidget {
 
 class _PanelButton extends StatelessWidget {
   const _PanelButton(
-      {required this.icon, required this.label, required this.onTap});
+      {required this.icon,
+      required this.label,
+      required this.onTap,
+      this.radius = const BorderRadius.all(_panelInner)});
+  final BorderRadius radius;
   final IconData icon;
   final String label;
   final VoidCallback onTap;
@@ -721,7 +751,7 @@ class _PanelButton extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return Material(
       color: cs.surfaceContainerHigh,
-      borderRadius: const BorderRadius.all(_panelInner),
+      borderRadius: radius,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,

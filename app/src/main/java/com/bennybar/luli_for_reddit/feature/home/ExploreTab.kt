@@ -180,7 +180,8 @@ internal fun ExploreTab() {
                     Modifier.padding(
                         start = if (LocalSideBar.current != null) 4.dp else 16.dp,
                         // With the ☰ here: the same spot as on the other tabs (#34).
-                        top = if (LocalSideBar.current != null) 6.dp else 12.dp,
+                        // In line with the search screen's bar.
+                        top = 4.dp,
                         end = 16.dp,
                         bottom = 4.dp,
                     ),
