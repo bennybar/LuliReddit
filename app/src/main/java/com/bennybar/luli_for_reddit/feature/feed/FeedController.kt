@@ -53,9 +53,11 @@ class FeedController(val key: String) {
     private val subreddit: String? get() = key.ifEmpty { null }
     private val repo get() = app.repository
 
-    var sort: PostSort = app.settings.value.defaultSort
+    // A subreddit can have its own default (#60), set in its About sheet.
+    private val ownSort = app.settings.value.subredditSorts[key.lowercase()]
+    var sort: PostSort = ownSort?.sort ?: app.settings.value.defaultSort
         private set
-    var time: TopTime = TopTime.DAY
+    var time: TopTime = ownSort?.time ?: TopTime.DAY
         private set
     private var started = false
     private var cacheConsulted = false

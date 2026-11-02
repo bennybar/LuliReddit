@@ -75,6 +75,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -511,7 +512,7 @@ private suspend fun showSortSheet(sort: PostSort, time: TopTime, onPick: (PostSo
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-private suspend fun pickTopTime(time: TopTime): TopTime? = Overlays.show<TopTime> { done ->
+internal suspend fun pickTopTime(time: TopTime): TopTime? = Overlays.show<TopTime> { done ->
     ModalBottomSheet(onDismissRequest = { done(null) }) {
         TapGuard {
             Column(Modifier.navigationBarsPadding()) {
@@ -627,11 +628,21 @@ private fun FeedChips(
 private fun FeedChip(label: String, selected: Boolean, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     val corner by animateDpAsState(if (selected) 18.dp else 8.dp, MaterialTheme.motionScheme.fastSpatialSpec(), label = "chipCorner")
+    // The tick sits inside the label, so it starts from the label's padding:
+    // pull it out toward the chip's edge, where a chip's leading icon belongs (#57).
+    val pull by animateDpAsState(if (selected) 8.dp else 0.dp, MaterialTheme.motionScheme.fastSpatialSpec(), label = "chipTick")
     FilterChip(
         selected = selected,
         onClick = onClick,
         label = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier.layout { measurable, constraints ->
+                    val p = measurable.measure(constraints)
+                    val px = pull.roundToPx()
+                    layout(p.width - px, p.height) { p.place(-px, 0) }
+                },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 AnimatedVisibility(
                     selected,
                     enter = expandHorizontally(MaterialTheme.motionScheme.fastSpatialSpec()) + fadeIn(),
@@ -639,7 +650,7 @@ private fun FeedChip(label: String, selected: Boolean, onClick: () -> Unit) {
                 ) {
                     Row {
                         Icon(Icons.Rounded.Check, null, Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(8.dp))
                     }
                 }
                 Text(label)

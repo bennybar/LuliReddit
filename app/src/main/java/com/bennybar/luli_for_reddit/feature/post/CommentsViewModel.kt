@@ -406,9 +406,8 @@ class CommentsViewModel(
             try {
                 val flat = app.repository.getMoreComments(
                     s.post.fullname,
-                    moreNode.moreChildren,
+                    moreNode,
                     sort = currentSort, // expanded replies follow the thread's sort
-                    depth = moreNode.depth,
                 )
                 val tree = withContext(Dispatchers.Default) {
                     CommentTree.replaceMore(_state.value.thread?.comments ?: s.comments, moreNode, app.commentVotes.apply(flat))
@@ -417,8 +416,9 @@ class CommentsViewModel(
                 _state.value.translatedTo?.let(::translate)
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: Exception) {
+            } catch (e: Exception) {
                 edit { it.copy(loadingMore = it.loadingMore - moreNode.fullname) }
+                app.navigatorOrNull?.showSnackbar("Couldn't load more replies: ${friendlyError(e)}")
             }
         }
     }

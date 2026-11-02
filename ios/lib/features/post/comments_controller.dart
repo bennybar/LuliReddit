@@ -316,9 +316,8 @@ class CommentsController
     try {
       final flat = await ref.read(redditRepositoryProvider).getMoreComments(
             linkFullname: s.post.fullname,
-            childrenIds: moreNode.moreChildren,
+            moreNode: moreNode,
             sort: _sort, // expanded replies follow the thread's sort
-            depth: moreNode.depth,
           );
       final applied = ref.read(commentVotesProvider.notifier).apply(flat);
       _edit((t) => _withTree(
@@ -328,6 +327,7 @@ class CommentsController
     } catch (_) {
       _edit((t) => t.copyWith(
           loadingMore: {...t.loadingMore}..remove(moreNode.fullname)));
+      rethrow; // the screen says why
     }
   }
 }

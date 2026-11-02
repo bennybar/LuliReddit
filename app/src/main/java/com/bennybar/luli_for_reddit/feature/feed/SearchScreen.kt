@@ -356,7 +356,6 @@ fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time:
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
             when {
-                state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Loading() }
                 state.error != null -> ErrorView(state.error, onRetry = { vm.search(state.query, saveRecent = false) })
                 state.query.isEmpty() -> EmptySearch(
                     saved = saved,
@@ -368,9 +367,10 @@ fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time:
                     onRemoveSaved = app.savedSearches::remove,
                 )
                 else -> HorizontalPager(pager, Modifier.fillMaxSize(), key = { tabs[it] }) { page ->
-                    when (tabs[page]) {
-                        "Posts" -> PostsTab(state, vm)
-                        "Subreddits" -> if (state.subsError != null) {
+                    when {
+                        tabs[page] == "Posts" -> PostsTab(state, vm)
+                        state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Loading() }
+                        tabs[page] == "Subreddits" -> if (state.subsError != null) {
                             ErrorView(state.subsError, onRetry = { vm.search(state.query, saveRecent = false) })
                         } else RefreshableResults(state.subs.isEmpty(), "No subreddits found", vm, state.query) {
                             items(state.subs, key = { it.name }) { s ->
@@ -522,8 +522,11 @@ private fun PostsTab(state: SearchState, vm: SearchViewModel) {
     var refreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     Column(Modifier.fillMaxSize()) {
+        // The chips stay through a search (#58), so the new pick can be seen landing.
         FilterBar(state, vm)
-        RefreshBox(
+        if (state.loading) {
+            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) { Loading() }
+        } else RefreshBox(
             refreshing,
             onRefresh = {
                 scope.launch {

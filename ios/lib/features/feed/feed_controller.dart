@@ -266,7 +266,11 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
       });
     }
     if (!_initialized) {
-      _sort = ref.read(settingsControllerProvider).defaultSort;
+      // A subreddit can have its own default (#60), set in its About sheet.
+      final settings = ref.read(settingsControllerProvider);
+      final own = settings.subredditSorts[arg.toLowerCase()];
+      _sort = own?.sort ?? settings.defaultSort;
+      if (own != null) _time = own.time;
       _initialized = true;
     }
     // Paint the last cached page straight away on a cold open, before the

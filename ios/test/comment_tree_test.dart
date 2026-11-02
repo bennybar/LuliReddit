@@ -108,6 +108,25 @@ void main() {
     expect(CommentTree.flatten(out, {}).any((e) => e.isMore), isFalse);
   });
 
+  test('load more drops comments already on screen, keeps a row for the rest',
+      () {
+    final stub = more('m', 't1_a', 1, ['x', 'y', 'z']);
+    final tree = [
+      c('a', 'u', '', 't3_p',
+          replies: [c('b', 'u', '', 't1_a', depth: 1), stub])
+    ];
+    // Re-reading the thread brings back b, and x twice via its own thread.
+    final fetched = [
+      c('b', 'u', '', 't1_a'),
+      c('x', 'u', '', 't1_a'),
+      c('x', 'u', '', 't1_a'),
+      more('m', 't1_a', 1, ['z']),
+    ];
+    final out = CommentTree.replaceMore(tree, stub, fetched);
+    expect(out[0].replies.map((e) => e.id), ['b', 'x', 'm']);
+    expect(out[0].replies.last.moreChildren, ['z']);
+  });
+
   test('continue-thread stubs get unique ids from their parent', () {
     Comment stub(String parent) => Comment.fromChild({
           'kind': 'more',

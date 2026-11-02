@@ -18,6 +18,7 @@ import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.bennybar.luli_for_reddit.data.PostSort
+import com.bennybar.luli_for_reddit.data.TopTime
 
 /** The app's typeface (Settings → App font). Persisted by [key] (`appFont`). */
 enum class AppFont(val key: String, val label: String, val description: String) {
@@ -76,6 +77,10 @@ enum class CommentStyle(val label: String) {
     CALM("Calm"),
 }
 
+/** A subreddit's own default sort (#60). Persisted in `subredditSorts` as "name|sort|time". */
+@Immutable
+data class SubredditSort(val sort: PostSort, val time: TopTime)
+
 /** Every user setting. Keys/defaults match the Flutter build exactly. */
 @Immutable
 data class Settings(
@@ -109,6 +114,7 @@ data class Settings(
     val seedColor: Long = DEFAULT_SEED, // ARGB
     val blurNsfw: Boolean = true,
     val defaultSort: PostSort = PostSort.BEST,
+    val subredditSorts: Map<String, SubredditSort> = emptyMap(), // by lowercase name; overrides defaultSort there
     val defaultCommentSort: String = "confidence", // reddit comment sort id
     val postDisplay: PostDisplay = PostDisplay.CALM,
     val commentStyle: CommentStyle = CommentStyle.SAME,

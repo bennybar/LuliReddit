@@ -79,6 +79,14 @@ extension PostDisplayLabel on PostDisplay {
   bool get isCalm => this == PostDisplay.calm || this == PostDisplay.calmCards;
 }
 
+/// A subreddit's own default sort (#60). Persisted in `subredditSorts` as
+/// "name|sort|time".
+class SubredditSort {
+  const SubredditSort(this.sort, this.time);
+  final PostSort sort;
+  final TopTime time;
+}
+
 class Settings {
   const Settings({
     required this.themeMode,
@@ -102,6 +110,7 @@ class Settings {
     required this.seedColor,
     required this.blurNsfw,
     required this.defaultSort,
+    required this.subredditSorts,
     required this.defaultCommentSort,
     required this.postDisplay,
     required this.commentStyle,
@@ -173,6 +182,7 @@ class Settings {
   final int seedColor; // ARGB int
   final bool blurNsfw;
   final PostSort defaultSort;
+  final Map<String, SubredditSort> subredditSorts; // by lowercase name; overrides defaultSort there
   final String defaultCommentSort; // reddit comment sort id (confidence, top, …)
   final PostDisplay postDisplay;
   final CommentStyle commentStyle;
@@ -256,6 +266,7 @@ class Settings {
     int? seedColor,
     bool? blurNsfw,
     PostSort? defaultSort,
+    Map<String, SubredditSort>? subredditSorts,
     String? defaultCommentSort,
     PostDisplay? postDisplay,
     CommentStyle? commentStyle,
@@ -324,6 +335,7 @@ class Settings {
         seedColor: seedColor ?? this.seedColor,
         blurNsfw: blurNsfw ?? this.blurNsfw,
         defaultSort: defaultSort ?? this.defaultSort,
+        subredditSorts: subredditSorts ?? this.subredditSorts,
         defaultCommentSort: defaultCommentSort ?? this.defaultCommentSort,
         postDisplay: postDisplay ?? this.postDisplay,
         commentStyle: commentStyle ?? this.commentStyle,
@@ -406,6 +418,15 @@ class SettingsController extends Notifier<Settings> {
       seedColor: p.getInt('seedColor') ?? AppTheme.seed.toARGB32(),
       blurNsfw: p.getBool('blurNsfw') ?? true,
       defaultSort: PostSort.values[p.getInt('defaultSort') ?? PostSort.best.index],
+      subredditSorts: {
+        for (final row in p.getStringList('subredditSorts') ?? const <String>[])
+          if (row.split('|') case [final name, final sort, final time])
+            if (PostSort.values.where((s) => s.path == sort).firstOrNull
+                case final s?)
+              if (TopTime.values.where((t) => t.param == time).firstOrNull
+                  case final t?)
+                name: SubredditSort(s, t),
+      },
       defaultCommentSort: p.getString('defaultCommentSort') ?? 'confidence',
       postDisplay:
           PostDisplay.values[p.getInt('postDisplay') ?? PostDisplay.calm.index],
@@ -486,6 +507,18 @@ class SettingsController extends Notifier<Settings> {
   void setDefaultSort(PostSort sort) {
     _prefs.setInt('defaultSort', sort.index);
     state = state.copyWith(defaultSort: sort);
+  }
+
+  /// [v] null: [name] goes back to following the default sort.
+  void setSubredditSort(String name, SubredditSort? v) {
+    final key = name.toLowerCase();
+    final next = {...state.subredditSorts};
+    v == null ? next.remove(key) : next[key] = v;
+    _prefs.setStringList('subredditSorts', [
+      for (final e in next.entries)
+        '${e.key}|${e.value.sort.path}|${e.value.time.param}'
+    ]);
+    state = state.copyWith(subredditSorts: next);
   }
 
   void setDefaultCommentSort(String sort) {

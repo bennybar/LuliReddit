@@ -3,6 +3,7 @@ package com.bennybar.luli_for_reddit.settings
 import com.bennybar.luli_for_reddit.core.Analytics
 import com.bennybar.luli_for_reddit.core.storage.Prefs
 import com.bennybar.luli_for_reddit.data.PostSort
+import com.bennybar.luli_for_reddit.data.TopTime
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -49,6 +50,12 @@ class SettingsStore(private val p: Prefs) {
             seedColor = p.getLong("seedColor")?.and(0xFFFFFFFFL) ?: d.seedColor,
             blurNsfw = b("blurNsfw", d.blurNsfw),
             defaultSort = idx(PostSort.entries.toTypedArray(), "defaultSort", d.defaultSort),
+            subredditSorts = p.getStringList("subredditSorts").orEmpty().mapNotNull { row ->
+                val parts = row.split('|')
+                val sort = PostSort.entries.find { it.path == parts.getOrNull(1) }
+                val time = TopTime.entries.find { it.param == parts.getOrNull(2) }
+                if (sort == null || time == null) null else parts[0] to SubredditSort(sort, time)
+            }.toMap(),
             defaultCommentSort = p.getString("defaultCommentSort") ?: d.defaultCommentSort,
             postDisplay = idx(PostDisplay.entries.toTypedArray(), "postDisplay", d.postDisplay),
             commentStyle = idx(CommentStyle.entries.toTypedArray(), "commentStyle", d.commentStyle),
@@ -111,6 +118,13 @@ class SettingsStore(private val p: Prefs) {
     fun setSeedColor(argb: Long) { p.setLong("seedColor", argb); set { it.copy(seedColor = argb) } }
     fun setBlurNsfw(v: Boolean) { p.setBool("blurNsfw", v); set { it.copy(blurNsfw = v) } }
     fun setDefaultSort(v: PostSort) { p.setInt("defaultSort", v.ordinal); set { it.copy(defaultSort = v) } }
+    /** [v] null: [name] goes back to following the default sort. */
+    fun setSubredditSort(name: String, v: SubredditSort?) {
+        val key = name.lowercase()
+        val next = if (v == null) value.subredditSorts - key else value.subredditSorts + (key to v)
+        p.setStringList("subredditSorts", next.map { (k, s) -> "$k|${s.sort.path}|${s.time.param}" })
+        set { it.copy(subredditSorts = next) }
+    }
     fun setDefaultCommentSort(v: String) { p.setString("defaultCommentSort", v); set { it.copy(defaultCommentSort = v) } }
     fun setPostDisplay(v: PostDisplay) { p.setInt("postDisplay", v.ordinal); set { it.copy(postDisplay = v) } }
     fun setCommentStyle(v: CommentStyle) { p.setInt("commentStyle", v.ordinal); set { it.copy(commentStyle = v) } }

@@ -82,6 +82,22 @@ class CommentTreeTest {
     }
 
     @Test
+    fun `load more drops comments already on screen, keeps a row for the rest`() {
+        val stub = more("m", "t1_a", 1, listOf("x", "y", "z"))
+        val tree = listOf(c("a", "u", "", "t3_p", 0, listOf(c("b", "u", "", "t1_a", 1), stub)))
+        // Re-reading the thread brings back b, and x twice via its own thread.
+        val fetched = listOf(
+            c("b", "u", "", "t1_a"),
+            c("x", "u", "", "t1_a"),
+            c("x", "u", "", "t1_a"),
+            more("m", "t1_a", 1, listOf("z")),
+        )
+        val replies = CommentTree.replaceMore(tree, stub, fetched)[0].replies
+        assertEquals(listOf("b", "x", "m"), replies.map { it.id })
+        assertEquals(listOf("z"), replies.last().moreChildren)
+    }
+
+    @Test
     fun `thread text ranks comments by score within the budget`() {
         val post = Post.fromData(
             AppJson.parseToJsonElement(

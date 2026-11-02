@@ -45,6 +45,15 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.50", "Nov 2, 2026",
+        listOf(
+            "\"More replies\" works again, after a change on Reddit's side stopped it loading anything",
+            "Each subreddit can have its own default sort (its About & rules sheet → Default sort)",
+            "Search keeps its sort chips on screen while results load",
+            "The tick in the sort chips sits properly toward the chip's edge",
+        ),
+    ),
+    Release(
         "2.0.49", "Nov 1, 2026",
         listOf(
             "The top bar slides away and back with your finger, over the feed, and hides on your first scroll",

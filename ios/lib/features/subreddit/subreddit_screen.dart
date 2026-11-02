@@ -13,9 +13,12 @@ import '../../core/widgets/toggles.dart';
 import '../../models/flair.dart';
 import '../../models/subreddit.dart';
 import '../auth/auth_controller.dart';
+import '../../data/reddit_repository.dart';
+import '../feed/feed_controller.dart';
 import '../feed/post_card.dart' show LetterAvatar;
 import '../feed/post_list_view.dart';
 import '../multireddit/add_to_custom_feed.dart';
+import '../settings/settings_controller.dart';
 import '../../core/widgets/error_view.dart';
 
 final subredditAboutProvider =
@@ -129,6 +132,7 @@ class _SubredditScreenState extends ConsumerState<SubredditScreen> {
                           color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
                 ),
               if (signedIn) _YourFlair(sub: widget.name),
+              _OwnSort(sub: widget.name),
               if (about != null && about.description.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 Text(about.description),
@@ -277,6 +281,76 @@ class _SubredditScreenState extends ConsumerState<SubredditScreen> {
 /// Your user flair in r/[sub]: what it is, and Change when the community
 /// offers flair you can pick (No flair, a choice, or your own words where a
 /// choice allows it).
+/// The sort r/[sub] opens with (#60), in place of Settings' default sort.
+/// Applies right away.
+class _OwnSort extends ConsumerWidget {
+  const _OwnSort({required this.sub});
+  final String sub;
+
+  Future<void> _change(BuildContext context, WidgetRef ref) async {
+    final settings = ref.read(settingsControllerProvider);
+    final own = settings.subredditSorts[sub.toLowerCase()];
+    final feed = ref.read(feedControllerProvider(sub).notifier);
+    final store = ref.read(settingsControllerProvider.notifier);
+    final pick = await showModalBottomSheet<String>(
+      context: context,
+      sheetAnimationStyle: sheetMotion,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final (key, label) in [
+              ('', 'Same as Settings (${settings.defaultSort.label})'),
+              for (final s in PostSort.values) (s.path, s.label),
+            ])
+              ListTile(
+                title: Text(label),
+                trailing: key == (own?.sort.path ?? '')
+                    ? const Icon(Icons.check_rounded)
+                    : null,
+                onTap: () => Navigator.pop(ctx, key),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (pick == null || !context.mounted) return;
+    final sort = PostSort.values.where((s) => s.path == pick).firstOrNull;
+    var time = TopTime.day;
+    if (sort?.needsTime ?? false) {
+      final t = await pickTopTime(context, own?.time ?? TopTime.day);
+      if (t == null) return;
+      time = t;
+    }
+    store.setSubredditSort(sub, sort == null ? null : SubredditSort(sort, time));
+    feed.changeSort(sort ?? settings.defaultSort, time: time);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(settingsControllerProvider);
+    final own = settings.subredditSorts[sub.toLowerCase()];
+    final current = own == null
+        ? '${settings.defaultSort.label} (from Settings)'
+        : own.sort.needsTime
+            ? '${own.sort.label} · ${own.time.label}'
+            : own.sort.label;
+    return Row(
+      children: [
+        Expanded(
+          child: Text('Default sort: $current',
+              style:
+                  TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        ),
+        TextButton(
+            onPressed: () => _change(context, ref),
+            child: const Text('Change')),
+      ],
+    );
+  }
+}
+
 class _YourFlair extends ConsumerStatefulWidget {
   const _YourFlair({required this.sub});
   final String sub;

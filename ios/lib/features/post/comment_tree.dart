@@ -96,13 +96,19 @@ class CommentTree {
             n.copyWith(author: '[deleted]', body: '[deleted]', media: const {}),
       ];
 
-  /// Re-nests a flat /api/morechildren result by parent_id and splices it in
-  /// place of [moreNode] (matched by fullname).
+  /// Re-nests a flat list of fetched comments by parent_id and splices it in
+  /// place of [moreNode] (matched by fullname). They come from re-reading the
+  /// thread, so some are already on screen: those are dropped, as a duplicate
+  /// key would break the list.
   static List<Comment> replaceMore(
       List<Comment> nodes, Comment moreNode, List<Comment> flat) {
+    final seen = {for (final c in flatten(nodes, const {})) c.fullname}
+      ..remove(moreNode.fullname);
     final byParent = <String, List<Comment>>{};
     for (final c in flat) {
-      byParent.putIfAbsent(c.parentId, () => []).add(c);
+      if (seen.add(c.fullname)) {
+        byParent.putIfAbsent(c.parentId, () => []).add(c);
+      }
     }
     Comment attach(Comment c, int depth) => c.copyWith(
           depth: depth,

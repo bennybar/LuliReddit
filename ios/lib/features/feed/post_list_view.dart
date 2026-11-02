@@ -609,7 +609,7 @@ class SortBar extends StatelessWidget {
                 onTap: () async {
                   Navigator.pop(ctx);
                   if (s.needsTime) {
-                    final t = await _pickTopTime(context, time);
+                    final t = await pickTopTime(context, time);
                     if (t != null) onPick(s, time: t);
                   } else {
                     onPick(s);
@@ -631,7 +631,7 @@ class SortBar extends StatelessWidget {
       };
 }
 
-Future<TopTime?> _pickTopTime(BuildContext context, TopTime time) =>
+Future<TopTime?> pickTopTime(BuildContext context, TopTime time) =>
     showModalBottomSheet<TopTime>(
       context: context,
       sheetAnimationStyle: sheetMotion,
@@ -752,7 +752,7 @@ class _FeedChipsState extends State<_FeedChips> {
   void _tap(Object chip) async {
     if (_picked != null) return;
     if (chip is PostSort && chip.needsTime) {
-      final t = await _pickTopTime(context, widget.time);
+      final t = await pickTopTime(context, widget.time);
       if (t != null && (chip != _current || t != widget.time)) {
         _choose(chip, () => widget.onPick(chip, time: t), time: t);
       }
@@ -837,14 +837,16 @@ class _FeedChip extends StatelessWidget {
           alignment: AlignmentDirectional.centerStart,
           child: Container(
             height: 36,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
+            // The tick sits closer to the edge than the text does (#57).
+            padding: EdgeInsetsDirectional.only(
+                start: selected ? 8 : 14, end: 14),
             alignment: Alignment.center,
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (selected) ...[
                   Icon(Icons.check_rounded, size: 18, color: fg),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 8),
                 ],
                 Text(label,
                     style: Theme.of(context)

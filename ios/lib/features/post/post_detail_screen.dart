@@ -455,7 +455,11 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen>
       context.push('/comments/${p.subreddit}/${p.id}'
           '?comment=${c.parentId.replaceFirst('t1_', '')}');
     } else {
-      _notifier.loadMore(c);
+      _notifier.loadMore(c).catchError((Object e) {
+        if (!mounted) return;
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+            content: Text("Couldn't load more replies: ${friendlyError(e)}")));
+      });
     }
   }
 

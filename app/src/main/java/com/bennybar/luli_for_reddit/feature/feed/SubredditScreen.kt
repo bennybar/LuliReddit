@@ -61,6 +61,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
 import com.bennybar.luli_for_reddit.app
 import com.bennybar.luli_for_reddit.core.compactNumber
+import com.bennybar.luli_for_reddit.data.PostSort
+import com.bennybar.luli_for_reddit.data.TopTime
+import com.bennybar.luli_for_reddit.feature.settings.PickOption
+import com.bennybar.luli_for_reddit.feature.settings.pickOption
+import com.bennybar.luli_for_reddit.settings.SubredditSort
 import com.bennybar.luli_for_reddit.model.Subreddit
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.Route
@@ -211,6 +216,7 @@ private suspend fun showAbout(name: String, about: Subreddit?) {
                         Text("${compactNumber(about.subscribers)} members", Modifier.padding(top = 4.dp), color = cs.onSurfaceVariant)
                     }
                     if (signedIn) YourFlair(name)
+                    OwnSort(name)
                     if (about != null && about.description.isNotEmpty()) {
                         Spacer(Modifier.height(12.dp))
                         Text(about.description)
@@ -247,6 +253,39 @@ private fun RuleTile(index: Int, title: String, description: String) {
         AnimatedVisibility(open) {
             if (description.isNotEmpty()) Text(description, Modifier.padding(bottom = 12.dp))
         }
+    }
+}
+
+/** The sort r/[sub] opens with (#60), in place of Settings' default sort. Applies right away. */
+@Composable
+private fun OwnSort(sub: String) {
+    val cs = MaterialTheme.colorScheme
+    val scope = rememberCoroutineScope()
+    val settings by app.settings.state.collectAsStateWithLifecycle()
+    val own = settings.subredditSorts[sub.lowercase()]
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            "Default sort: " + when {
+                own == null -> "${settings.defaultSort.label} (from Settings)"
+                own.sort.needsTime -> "${own.sort.label} · ${own.time.label}"
+                else -> own.sort.label
+            },
+            Modifier.weight(1f),
+            color = cs.onSurfaceVariant,
+        )
+        TextButton(onClick = {
+            scope.launch {
+                val pick = pickOption(
+                    listOf(PickOption("", "Same as Settings (${settings.defaultSort.label})")) +
+                        PostSort.entries.map { PickOption(it.path, it.label) },
+                    own?.sort?.path ?: "",
+                ) ?: return@launch
+                val sort = PostSort.entries.find { it.path == pick }
+                val time = if (sort?.needsTime == true) pickTopTime(own?.time ?: TopTime.DAY) ?: return@launch else TopTime.DAY
+                app.settings.setSubredditSort(sub, sort?.let { SubredditSort(it, time) })
+                app.feed.controller(sub).changeSort(sort ?: settings.defaultSort, time)
+            }
+        }) { Text("Change") }
     }
 }
 

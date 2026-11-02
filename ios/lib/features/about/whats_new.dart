@@ -20,6 +20,14 @@ class Release {
 // TODO(whats-new): this is the Kotlin app's list as-is; it describes the
 // features being ported. Replace it with the iOS app's own releases.
 const changelog = [
+  Release('2.0.50', 'Nov 2, 2026', [
+    '"More replies" works again, after a change on Reddit\'s side stopped it '
+        'loading anything',
+    'Each subreddit can have its own default sort (its About & rules sheet → '
+        'Default sort)',
+    'Search keeps its sort chips on screen while results load',
+    'The tick in the sort chips sits properly toward the chip\'s edge',
+  ]),
   Release('2.0.49', 'Nov 1, 2026', [
     'The top bar slides away and back with your finger, over the feed, and '
         'hides on your first scroll',

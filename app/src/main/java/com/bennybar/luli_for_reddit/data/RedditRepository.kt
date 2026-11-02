@@ -13,6 +13,7 @@ import com.bennybar.luli_for_reddit.core.net.await
 import com.bennybar.luli_for_reddit.core.net.uploadToCatbox
 import com.bennybar.luli_for_reddit.core.obj
 import com.bennybar.luli_for_reddit.core.str
+import com.bennybar.luli_for_reddit.feature.post.CommentTree
 import com.bennybar.luli_for_reddit.model.Comment
 import com.bennybar.luli_for_reddit.model.Flair
 import com.bennybar.luli_for_reddit.model.InboxItem
@@ -41,6 +42,12 @@ import okhttp3.RequestBody.Companion.toRequestBody
 
 /** A thread: the post, its comment tree and the mods' suggested sort (e.g. "qa"). */
 data class Thread(val post: Post, val comments: List<Comment>, val suggestedSort: String?)
+
+/** The most comments one "more replies" request asks for. */
+private const val MORE_LIMIT = 500
+
+/** How many hidden comments one tap fetches one by one, when a page doesn't reach them. */
+private const val MORE_BATCH = 10
 
 /** An uploaded media asset: its public S3 url and Reddit asset id (= media_id). */
 data class MediaAsset(val url: String, val assetId: String)
@@ -216,10 +223,11 @@ class RedditRepository(val client: RedditClient) {
     /** Expands a "load more comments" node (flat list, rendered at [depth]). */
     suspend fun getMoreComments(
         linkFullname: String,
-        childrenIds: List<String>,
+        moreNode: Comment,
         sort: String = "confidence",
-        depth: Int = 0,
     ): List<Comment> {
+        val childrenIds = moreNode.moreChildren
+        val depth = moreNode.depth
         // A "more" row from the GraphQL fallback: continue it by its cursor.
         childrenIds.singleOrNull()?.takeIf { it.startsWith(GQL_MORE) }?.let { more ->
             val (parent, cursor) = more.removePrefix(GQL_MORE).split(' ', limit = 2).let { it[0] to it.getOrElse(1) { "" } }
@@ -227,17 +235,31 @@ class RedditRepository(val client: RedditClient) {
             val trees = data["postInfoById"]["commentForest"]["trees"].arr() ?: emptyList()
             return parse { gqlCommentThings(trees, linkFullname, moreParent = parent).map { Comment.fromChild(it, depth) } }
         }
-        val json = client.get(
-            "/api/morechildren",
-            linkedMapOf(
-                "api_type" to "json",
-                "link_id" to linkFullname,
-                "children" to childrenIds.joinToString(","),
-                "sort" to sort,
-                "limit_children" to false,
-            ),
-        )
-        return parse { (json["json"]["data"]["things"].arr() ?: emptyList()).map { Comment.fromChild(it, depth) } }
+        // Reddit answers /api/morechildren with a 403 since late October 2026
+        // (#59), so the hidden replies come from the thread itself.
+        val postId = linkFullname.removePrefix("t3_")
+        suspend fun fetch(focus: String?): List<Comment> {
+            val raw = getCommentsRaw("", postId, sort, focus, MORE_LIMIT)
+            return parse { CommentTree.flatten(parseThread(raw).comments, emptySet()) }
+        }
+        val parent = moreNode.parentId
+        val page = if (parent.startsWith("t1_")) {
+            val all = fetch(parent.removePrefix("t1_"))
+            CommentTree.flatten(all.find { it.fullname == parent }?.replies ?: emptyList(), emptySet())
+        } else {
+            fetch(null)
+        }
+        // Not the row itself coming back: a "more" row takes its first child's id.
+        if (page.any { !it.isMore && it.id in childrenIds }) return page
+        // Past what one page holds (a huge thread): fetch some of the hidden
+        // comments one by one, and leave the rest on the row.
+        val batch = childrenIds.take(MORE_BATCH).flatMap { id ->
+            val all = fetch(id)
+            CommentTree.flatten(listOfNotNull(all.find { it.id == id }), emptySet())
+        }
+        val rest = childrenIds.drop(MORE_BATCH)
+        if (rest.isEmpty()) return batch
+        return batch + moreNode.copy(moreChildren = rest, moreCount = (moreNode.moreCount - MORE_BATCH).coerceAtLeast(rest.size))
     }
 
     suspend fun getSubredditAbout(name: String): Subreddit =

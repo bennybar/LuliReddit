@@ -9,6 +9,7 @@ import '../core/network/catbox.dart';
 import '../core/network/reddit_client.dart';
 import '../features/foryou/for_you_ranker.dart';
 import '../features/foryou/for_you_stores.dart' show ForYouMeta;
+import '../features/post/comment_tree.dart';
 import '../features/reddit_home/reddit_home_engine.dart';
 import '../models/comment.dart';
 import '../models/flair.dart';
@@ -20,6 +21,13 @@ import '../models/reddit_user.dart';
 import '../models/subreddit.dart';
 import 'gql_comments.dart';
 import 'gql_posts.dart';
+
+/// The most comments one "more replies" request asks for.
+const _moreLimit = 500;
+
+/// How many hidden comments one tap fetches one by one, when a page doesn't
+/// reach them.
+const _moreBatch = 10;
 
 /// Sort options for post listings.
 enum PostSort { best, hot, newest, top, rising }
@@ -575,10 +583,11 @@ class RedditRepository {
   /// Expands a "load more comments" node.
   Future<List<Comment>> getMoreComments({
     required String linkFullname, // t3_xxx
-    required List<String> childrenIds,
+    required Comment moreNode,
     String sort = 'confidence',
-    int depth = 0,
   }) async {
+    final childrenIds = moreNode.moreChildren;
+    final depth = moreNode.depth;
     // A "more" row from the GraphQL fallback: continue it by its cursor.
     final more = childrenIds.length == 1 && childrenIds.first.startsWith(gqlMore)
         ? childrenIds.first.substring(gqlMore.length)
@@ -595,23 +604,47 @@ class RedditRepository {
           Comment.fromChild(t, depth)
       ];
     }
-    final res = await _client.get<Map<String, dynamic>>(
-      '/api/morechildren',
-      query: {
-        'api_type': 'json',
-        'link_id': linkFullname,
-        'children': childrenIds.join(','),
-        'sort': sort,
-        'limit_children': false,
-      },
-    );
-    final things = (((res.data?['json'] as Map?)?['data'] as Map?)?['things']
-            as List?) ??
-        const [];
-    // morechildren returns a flat list; we render them at the requested depth.
+    // Reddit answers /api/morechildren with a 403 since late October 2026
+    // (#59), so the hidden replies come from the thread itself.
+    final postId = linkFullname.replaceFirst('t3_', '');
+    Future<List<Comment>> fetch(String? focus) async {
+      final raw = await getCommentsRaw(
+          subreddit: '',
+          postId: postId,
+          sort: sort,
+          focusCommentId: focus,
+          limit: _moreLimit);
+      return CommentTree.flatten(parseThread(raw).$2, const {});
+    }
+
+    final parent = moreNode.parentId;
+    final List<Comment> page;
+    if (parent.startsWith('t1_')) {
+      final all = await fetch(parent.replaceFirst('t1_', ''));
+      page = CommentTree.flatten(
+          all.where((c) => c.fullname == parent).firstOrNull?.replies ??
+              const [],
+          const {});
+    } else {
+      page = await fetch(null);
+    }
+    // Not the row itself coming back: a "more" row takes its first child's id.
+    if (page.any((c) => !c.isMore && childrenIds.contains(c.id))) return page;
+    // Past what one page holds (a huge thread): fetch some of the hidden
+    // comments one by one, and leave the rest on the row.
+    final batch = <Comment>[];
+    for (final id in childrenIds.take(_moreBatch)) {
+      final found = (await fetch(id)).where((c) => c.id == id).firstOrNull;
+      if (found != null) batch.addAll(CommentTree.flatten([found], const {}));
+    }
+    final rest = childrenIds.skip(_moreBatch).toList();
+    if (rest.isEmpty) return batch;
+    final left = moreNode.moreCount - _moreBatch;
     return [
-      for (final t in things)
-        Comment.fromChild(t as Map<String, dynamic>, depth)
+      ...batch,
+      moreNode.copyWith(
+          moreChildren: rest,
+          moreCount: left > rest.length ? left : rest.length),
     ];
   }
 

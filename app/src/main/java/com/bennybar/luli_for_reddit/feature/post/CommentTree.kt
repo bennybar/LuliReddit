@@ -81,11 +81,14 @@ object CommentTree {
     }
 
     /**
-     * Re-nests a flat /api/morechildren result by parent_id and splices it in
-     * place of [moreNode] (matched by fullname).
+     * Re-nests a flat list of fetched comments by parent_id and splices it in
+     * place of [moreNode] (matched by fullname). They come from re-reading the
+     * thread, so some are already on screen: those are dropped, as a duplicate
+     * key would crash the list.
      */
     fun replaceMore(nodes: List<Comment>, moreNode: Comment, flat: List<Comment>): List<Comment> {
-        val byParent = flat.groupBy { it.parentId }
+        val shown = flatten(nodes, emptySet()).mapTo(HashSet()) { it.fullname } - moreNode.fullname
+        val byParent = flat.filter { it.fullname !in shown }.distinctBy { it.fullname }.groupBy { it.parentId }
         fun attach(c: Comment, depth: Int): Comment =
             c.copy(depth = depth, replies = (byParent[c.fullname] ?: emptyList()).map { attach(it, depth + 1) })
         val roots = (byParent[moreNode.parentId] ?: emptyList()).map { attach(it, moreNode.depth) }

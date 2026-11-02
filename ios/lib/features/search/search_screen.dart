@@ -318,21 +318,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   Tab(text: 'Users'),
                 ]),
         ),
-        body: _loading
-            ? const Center(child: Loading())
-            : _error != null
-                ? ErrorView(
-                    message: _error,
-                    onRetry: () => _search(_query, saveRecent: false))
-                : _query.isEmpty
-                    ? _empty(cs, saved)
-                    : TabBarView(
-                        children: [
-                          _postsTab(),
-                          if (!restricted) _subsTab(),
-                          if (!restricted) _usersTab(),
-                        ],
-                      ),
+        body: _error != null
+            ? ErrorView(
+                message: _error,
+                onRetry: () => _search(_query, saveRecent: false))
+            : _query.isEmpty
+                ? _empty(cs, saved)
+                : TabBarView(
+                    children: [
+                      _postsTab(),
+                      if (!restricted) _subsTab(),
+                      if (!restricted) _usersTab(),
+                    ],
+                  ),
       ),
     );
   }
@@ -464,42 +462,50 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Widget _postsTab() => Column(
         children: [
+          // The chips stay through a search (#58), so the new pick can be seen
+          // landing.
           _filterBar(),
           Expanded(
-            child: RefreshBox(
-              onRefresh: () => _search(_query, saveRecent: false),
-              child: _posts.isEmpty
-                  ? ListView(children: const [
-                      SizedBox(height: 120),
-                      Center(child: Text('No posts found')),
-                    ])
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(10, 6, 10, 130),
-                      itemCount: _posts.length + (_loadingMore ? 1 : 0),
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
-                      itemBuilder: (_, i) {
-                        if (i >= _posts.length) {
-                          return const Padding(
-                            padding: EdgeInsets.all(16),
-                            child: Center(child: Loading()),
-                          );
-                        }
-                        // Page in more results 5 cards from the end.
-                        if (i >= _posts.length - 5) {
-                          WidgetsBinding.instance.addPostFrameCallback(
-                              (_) => _loadMorePosts());
-                        }
-                        return PostCard(
-                            key: ValueKey(_posts[i].id), post: _posts[i]);
-                      },
-                    ),
-            ),
+            child: _loading
+                ? const Center(child: Loading())
+                : RefreshBox(
+                    onRefresh: () => _search(_query, saveRecent: false),
+                    child: _posts.isEmpty
+                        ? ListView(children: const [
+                            SizedBox(height: 120),
+                            Center(child: Text('No posts found')),
+                          ])
+                        : ListView.separated(
+                            padding:
+                                const EdgeInsets.fromLTRB(10, 6, 10, 130),
+                            itemCount: _posts.length + (_loadingMore ? 1 : 0),
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 10),
+                            itemBuilder: (_, i) {
+                              if (i >= _posts.length) {
+                                return const Padding(
+                                  padding: EdgeInsets.all(16),
+                                  child: Center(child: Loading()),
+                                );
+                              }
+                              // Page in more results 5 cards from the end.
+                              if (i >= _posts.length - 5) {
+                                WidgetsBinding.instance.addPostFrameCallback(
+                                    (_) => _loadMorePosts());
+                              }
+                              return PostCard(
+                                  key: ValueKey(_posts[i].id),
+                                  post: _posts[i]);
+                            },
+                          ),
+                  ),
           ),
         ],
       );
 
   Widget _subsTab() {
     final cs = Theme.of(context).colorScheme;
+    if (_loading) return const Center(child: Loading());
     if (_subsError != null) {
       return ErrorView(
           message: _subsError,
@@ -535,6 +541,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Widget _usersTab() {
     final cs = Theme.of(context).colorScheme;
+    if (_loading) return const Center(child: Loading());
     if (_usersError != null) {
       return ErrorView(
           message: _usersError,
