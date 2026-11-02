@@ -65,10 +65,17 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 switch (v) {
                   case '7':
                     ctrl.clearOlderThan(const Duration(days: 7));
+                    ref
+                        .read(recentSubredditsProvider.notifier)
+                        .clearOlderThan(const Duration(days: 7));
                   case '30':
                     ctrl.clearOlderThan(const Duration(days: 30));
+                    ref
+                        .read(recentSubredditsProvider.notifier)
+                        .clearOlderThan(const Duration(days: 30));
                   case 'all':
                     ctrl.clear();
+                    ref.read(recentSubredditsProvider.notifier).clear();
                     ref.read(threadVisitsProvider.notifier).clear();
                 }
               },

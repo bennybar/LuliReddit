@@ -45,6 +45,12 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.52", "Nov 2, 2026",
+        listOf(
+            "Recently visited now means the subreddits you actually opened, subscribed or not, in the side bar and in Explore. The list starts fresh with this update",
+        ),
+    ),
+    Release(
         "2.0.51", "Nov 2, 2026",
         listOf(
             "The side bar shows your avatar and karma, your recently visited subreddits and your favorites",

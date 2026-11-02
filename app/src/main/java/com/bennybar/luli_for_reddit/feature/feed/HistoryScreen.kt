@@ -93,14 +93,17 @@ fun HistoryScreen() {
                                 DropdownMenuItem(text = { Text("Clear older than 7 days") }, onClick = {
                                     clearOpen = false
                                     app.history.clearOlderThan(7 * DAY)
+                                    app.recentSubreddits.clearOlderThan(7 * DAY)
                                 })
                                 DropdownMenuItem(text = { Text("Clear older than 30 days") }, onClick = {
                                     clearOpen = false
                                     app.history.clearOlderThan(30 * DAY)
+                                    app.recentSubreddits.clearOlderThan(30 * DAY)
                                 })
                                 DropdownMenuItem(text = { Text("Clear all history") }, onClick = {
                                     clearOpen = false
                                     app.history.clear()
+                                    app.recentSubreddits.clear()
                                     app.threadVisits.clear()
                                 })
                             }

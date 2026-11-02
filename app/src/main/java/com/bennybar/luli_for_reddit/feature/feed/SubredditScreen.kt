@@ -86,7 +86,11 @@ class SubredditAboutViewModel(private val name: String) : ViewModel() {
     init {
         viewModelScope.launch {
             _about.value = try {
-                Async.Data(app.repository.getSubredditAbout(name))
+                Async.Data(
+                    app.repository.getSubredditAbout(name).also {
+                        if (app.settings.value.trackHistory) app.recentSubreddits.visit(it)
+                    },
+                )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

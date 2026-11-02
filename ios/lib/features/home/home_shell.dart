@@ -336,14 +336,19 @@ class _SideBar extends ConsumerWidget {
     final subs = ref.watch(subscribedSubredditsProvider).valueOrNull ??
         const <Subreddit>[];
     final favorites = subs.where((s) => s.userHasFavorited).toList();
-    final byName = {for (final s in subs) s.name.toLowerCase(): s};
-    final recent = <Subreddit>{};
-    for (final h in ref.watch(historyControllerProvider)) {
-      if (recent.length >= 5) break;
-      final s = byName[h.subreddit.toLowerCase()];
-      if (s != null) recent.add(s);
-    }
-    final sections = [('Recently visited', recent), ('Favorites', favorites)];
+    final recent = [
+      for (final r in ref.watch(recentSubredditsProvider)) r.asSubreddit()
+    ];
+    final trackHistory =
+        ref.watch(settingsControllerProvider.select((s) => s.trackHistory));
+    final sections = [
+      (
+        'Recently visited',
+        recent,
+        trackHistory ? 'Subreddits you open will show here' : null
+      ),
+      ('Favorites', favorites, null),
+    ];
     final more = [
       if (!anonymous)
         (Icons.bookmark_border_rounded, 'Saved', '/saved'),
@@ -435,14 +440,20 @@ class _SideBar extends ConsumerWidget {
                   router.push(m.$3);
                 },
               ),
-            for (final (title, list) in sections)
-              if (list.isNotEmpty) ...[
+            for (final (title, list, empty) in sections)
+              if (list.isNotEmpty || empty != null) ...[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 0, 4),
                   child: Text(title,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           color: cs.primary, fontWeight: FontWeight.w700)),
                 ),
+                if (list.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                    child: Text(empty ?? '',
+                        style: TextStyle(color: cs.onSurfaceVariant)),
+                  ),
                 for (final s in list)
                   _DrawerItem(
                     leading: LetterAvatar(

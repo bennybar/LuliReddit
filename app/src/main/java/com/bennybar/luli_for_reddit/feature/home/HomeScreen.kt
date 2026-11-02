@@ -376,13 +376,11 @@ private fun SideBar(selected: Int, unread: Int, open: Boolean, onTab: (Int) -> U
     }
     // The Explore tab's list, so these cost no requests of their own.
     val subs by viewModel { SubscriptionsViewModel() }.subs.collectAsStateWithLifecycle()
-    val history by app.history.state.collectAsStateWithLifecycle()
+    val visited by app.recentSubreddits.state.collectAsStateWithLifecycle()
+    val settings by app.settings.state.collectAsStateWithLifecycle()
     val list = (subs as? Async.Data)?.value ?: emptyList()
     val favorites = remember(list) { list.filter { it.userHasFavorited } }
-    val recent = remember(list, history) {
-        val byName = list.associateBy { it.name.lowercase() }
-        history.mapNotNull { byName[it.subreddit.lowercase()] }.distinct().take(5)
-    }
+    val recent = remember(visited) { visited.map { it.asSubreddit() } }
     ModalDrawerSheet(Modifier.width(300.dp)) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)) {
             if (username == null) {
@@ -439,20 +437,23 @@ private fun SideBar(selected: Int, unread: Int, open: Boolean, onTab: (Int) -> U
                     onClick = { onPick { nav.push(route) } },
                 )
             }
-            SideBarSubs("Recently visited", recent, onPick)
+            SideBarSubs("Recently visited", recent, onPick, empty = "Subreddits you open will show here".takeIf { settings.trackHistory })
             SideBarSubs("Favorites", favorites, onPick)
             Spacer(Modifier.height(16.dp))
         }
     }
 }
 
-/** A titled list of subreddits in the side bar (#63); nothing when empty. */
+/** A titled list of subreddits in the side bar (#63); when it has none, [empty], or nothing. */
 @Composable
-private fun SideBarSubs(title: String, subs: List<Subreddit>, onPick: (() -> Unit) -> Unit) {
-    if (subs.isEmpty()) return
+private fun SideBarSubs(title: String, subs: List<Subreddit>, onPick: (() -> Unit) -> Unit, empty: String? = null) {
+    if (subs.isEmpty() && empty == null) return
     val nav = LocalNavigator.current
     val cs = MaterialTheme.colorScheme
     SectionHeader(title, Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp))
+    if (subs.isEmpty()) {
+        Text(empty.orEmpty(), Modifier.padding(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 8.dp), color = cs.onSurfaceVariant)
+    }
     for (sub in subs) {
         NavigationDrawerItem(
             label = { Text(sub.namePrefixed, maxLines = 1, overflow = TextOverflow.Ellipsis) },

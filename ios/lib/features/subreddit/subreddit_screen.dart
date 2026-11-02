@@ -1,3 +1,4 @@
+import '../history/history_store.dart';
 import 'package:flutter/rendering.dart';
 import '../../core/widgets/collapsing_fab.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -24,8 +25,12 @@ import '../settings/settings_controller.dart';
 import '../../core/widgets/error_view.dart';
 
 final subredditAboutProvider =
-    FutureProvider.autoDispose.family<Subreddit, String>((ref, name) {
-  return ref.watch(redditRepositoryProvider).getSubredditAbout(name);
+    FutureProvider.autoDispose.family<Subreddit, String>((ref, name) async {
+  final s = await ref.watch(redditRepositoryProvider).getSubredditAbout(name);
+  if (ref.read(settingsControllerProvider).trackHistory) {
+    ref.read(recentSubredditsProvider.notifier).visit(s);
+  }
+  return s;
 });
 
 class SubredditScreen extends ConsumerStatefulWidget {

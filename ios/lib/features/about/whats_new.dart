@@ -20,6 +20,11 @@ class Release {
 // TODO(whats-new): this is the Kotlin app's list as-is; it describes the
 // features being ported. Replace it with the iOS app's own releases.
 const changelog = [
+  Release('2.0.52', 'Nov 2, 2026', [
+    'Recently visited now means the subreddits you actually opened, subscribed '
+        'or not, in the side bar and in Explore. The list starts fresh with '
+        'this update',
+  ]),
   Release('2.0.51', 'Nov 2, 2026', [
     'The side bar shows your avatar and karma, your recently visited '
         'subreddits and your favorites',

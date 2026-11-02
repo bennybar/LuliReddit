@@ -253,13 +253,10 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
 
                   // Default view: recently visited + favorites + the rest.
                   final byName = {for (final s in list) s.name.toLowerCase(): s};
-                  final seen = <String>{};
-                  final recent = <Subreddit>[];
-                  for (final h in ref.watch(historyControllerProvider)) {
-                    final s = byName[h.subreddit.toLowerCase()];
-                    if (s != null && seen.add(s.name)) recent.add(s);
-                    if (recent.length >= 5) break;
-                  }
+                  final recent = [
+                    for (final r in ref.watch(recentSubredditsProvider))
+                      byName[r.name.toLowerCase()] ?? r.asSubreddit()
+                  ];
                   final favs = list.where((s) => s.userHasFavorited).toList();
                   // The users you follow (their profiles, u_<name>) get their
                   // own section.
@@ -274,7 +271,16 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                   return [
                     if (recent.isNotEmpty) ...[
                       _sectionHeader(context, 'Recently visited'),
-                      _subList(ref, recent),
+                      SliverList.builder(
+                        itemCount: recent.length,
+                        itemBuilder: (context, i) => _SubredditRow(
+                          key: ValueKey('recent_${recent[i].name}'),
+                          subreddit: recent[i],
+                          // No star on ones you aren't subscribed to.
+                          star: byName
+                              .containsKey(recent[i].name.toLowerCase()),
+                        ),
+                      ),
                     ],
                     if (favs.isNotEmpty) ...[
                       _sectionHeader(context, 'Favorites'),
@@ -408,8 +414,10 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
 }
 
 class _SubredditRow extends ConsumerWidget {
-  const _SubredditRow({super.key, required this.subreddit});
+  const _SubredditRow(
+      {super.key, required this.subreddit, this.star = true});
   final Subreddit subreddit;
+  final bool star;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -425,26 +433,29 @@ class _SubredditRow extends ConsumerWidget {
       title: Text(s.namePrefixed),
       subtitle: Text('${compactNumber(s.subscribers)} '
           '${s.name.startsWith('u_') ? 'followers' : 'members'}'),
-      trailing: ToggleIcon(
-        checked: s.userHasFavorited,
-        on: Icons.star_rounded,
-        off: Icons.star_border_rounded,
-        description: 'Favorite',
-        // The star toggle: favouriting reorders the list, so reload it after.
-        onChanged: (_) async {
-          try {
-            await ref
-                .read(redditRepositoryProvider)
-                .setSubredditFavorite(s.name, !s.userHasFavorited);
-            ref.invalidate(subscribedSubredditsProvider);
-          } catch (e) {
-            if (context.mounted) {
-              showActionError(context,
-                  s.userHasFavorited ? 'unfavorite' : 'favorite', e);
-            }
-          }
-        },
-      ),
+      trailing: !star
+          ? null
+          : ToggleIcon(
+              checked: s.userHasFavorited,
+              on: Icons.star_rounded,
+              off: Icons.star_border_rounded,
+              description: 'Favorite',
+              // The star toggle: favouriting reorders the list, so reload it
+              // after.
+              onChanged: (_) async {
+                try {
+                  await ref
+                      .read(redditRepositoryProvider)
+                      .setSubredditFavorite(s.name, !s.userHasFavorited);
+                  ref.invalidate(subscribedSubredditsProvider);
+                } catch (e) {
+                  if (context.mounted) {
+                    showActionError(context,
+                        s.userHasFavorited ? 'unfavorite' : 'favorite', e);
+                  }
+                }
+              },
+            ),
       // A followed user is a subscription to their profile, u_<name>.
       onTap: () => context.push(s.name.startsWith('u_')
           ? '/u/${s.name.substring(2)}'

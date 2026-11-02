@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit
 
+import com.bennybar.luli_for_reddit.state.RecentSubreddits
 import com.bennybar.luli_for_reddit.feature.inbox.RedditNotifications
 import android.content.Context
 import com.bennybar.luli_for_reddit.auth.AuthRepository
@@ -84,6 +85,7 @@ class AppContainer(val context: Context) {
     val hiddenHomeSubs = ExpiringIds(prefs, "hiddenHomeSubs") { 7 * 24 * 60 * 60_000L }
     val summaries = SummaryStore(context)
     val history = HistoryStore(prefs)
+    val recentSubreddits = RecentSubreddits(prefs)
     val threadVisits = ThreadVisits(prefs, settings)
     val contentFilters = ContentFiltersStore(prefs)
     val offline = OfflineStore(context, prefs, repository)
@@ -106,7 +108,7 @@ class AppContainer(val context: Context) {
     val navigator: AppNavigator get() = navigatorOrNull ?: error("No activity")
 
     private val userScoped: List<UserScoped>
-        get() = listOf(postOverrides, commentVotes, redditNotifications, hiddenPosts, dismissedPosts, hiddenHomeSubs, summaries, history, threadVisits, contentFilters, offline, feed, post, forYou, inbox, media)
+        get() = listOf(postOverrides, commentVotes, redditNotifications, hiddenPosts, dismissedPosts, hiddenHomeSubs, summaries, history, recentSubreddits, threadVisits, contentFilters, offline, feed, post, forYou, inbox, media)
 
     /** Called once by [IlayApp] after [app] is assigned (modules may use it). */
     fun start() {

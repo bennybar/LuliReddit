@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import com.bennybar.luli_for_reddit.state.RecentSubreddit
 import com.bennybar.luli_for_reddit.ui.ToggleIcon
 import com.bennybar.luli_for_reddit.ui.PickOneMenu
 import com.bennybar.luli_for_reddit.ui.connectedShapes
@@ -118,7 +119,7 @@ internal fun ExploreTab() {
     val nav = LocalNavigator.current
     val vm = viewModel { SubscriptionsViewModel() }
     val subs by vm.subs.collectAsStateWithLifecycle()
-    val history by app.history.state.collectAsStateWithLifecycle()
+    val visited by app.recentSubreddits.state.collectAsStateWithLifecycle()
     val session by app.session.state.collectAsStateWithLifecycle()
     val anonymous = (session as? SessionState.LoggedIn)?.session?.anonymous == true
     val listState = rememberLazyListState()
@@ -306,7 +307,7 @@ internal fun ExploreTab() {
                     query = query,
                     favOnly = favOnly,
                     sort = sort,
-                    recentFromHistory = history.map { it.subreddit },
+                    visited = visited,
                     // A followed user is a subscription to their profile, u_<name>.
                     onOpen = { if (it.name.startsWith("u_")) nav.openUser(it.name.removePrefix("u_")) else nav.openSubreddit(it.name) },
                     onStar = ::toggleFavorite,
@@ -323,7 +324,7 @@ private fun LazyListScope.subscriptionSections(
     query: String,
     favOnly: Boolean,
     sort: String,
-    recentFromHistory: List<String>,
+    visited: List<RecentSubreddit>,
     onOpen: (Subreddit) -> Unit,
     onStar: (Subreddit) -> Unit,
 ) {
@@ -351,19 +352,16 @@ private fun LazyListScope.subscriptionSections(
 
     // Default view: recently visited + favorites + the rest.
     val byName = list.associateBy { it.name.lowercase() }
-    val seen = HashSet<String>()
-    val recent = ArrayList<Subreddit>()
-    for (sub in recentFromHistory) {
-        val s = byName[sub.lowercase()]
-        if (s != null && seen.add(s.name)) recent.add(s)
-        if (recent.size >= 5) break
-    }
+    val recent = visited.map { byName[it.name.lowercase()] ?: it.asSubreddit() }
     val favs = list.filter { it.userHasFavorited }
     // The users you follow (their profiles, u_<name>) get their own section.
     val (following, rest) = list.filter { !it.userHasFavorited }.partition { it.name.startsWith("u_") }
     if (recent.isNotEmpty()) {
         header("recent", "Recently visited")
-        rows("recent", recent)
+        // No star on ones you aren't subscribed to.
+        items(recent, key = { "recent_${it.name}" }, contentType = { "sub" }) {
+            SubredditRow(it, onOpen, if (it.name.lowercase() in byName) onStar else null)
+        }
     }
     if (favs.isNotEmpty()) {
         header("favs", "Favorites")
