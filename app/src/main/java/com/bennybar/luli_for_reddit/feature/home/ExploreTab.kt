@@ -312,6 +312,7 @@ internal fun ExploreTab() {
                     // A followed user is a subscription to their profile, u_<name>.
                     onOpen = { if (it.name.startsWith("u_")) nav.openUser(it.name.removePrefix("u_")) else nav.openSubreddit(it.name) },
                     onStar = ::toggleFavorite,
+                    onClearRecent = { app.recentSubreddits.clear() },
                 )
             }
         }
@@ -328,6 +329,7 @@ private fun LazyListScope.subscriptionSections(
     visited: List<RecentSubreddit>,
     onOpen: (Subreddit) -> Unit,
     onStar: (Subreddit) -> Unit,
+    onClearRecent: () -> Unit,
 ) {
     val q = query.trim().lowercase()
     val active = q.isNotEmpty() || favOnly || sort != "default"
@@ -358,7 +360,13 @@ private fun LazyListScope.subscriptionSections(
     // The users you follow (their profiles, u_<name>) get their own section.
     val (following, rest) = list.filter { !it.userHasFavorited }.partition { it.name.startsWith("u_") }
     if (recent.isNotEmpty()) {
-        header("recent", "Recently visited")
+        // "Clear" empties just this list; post history stays (History has its own clear).
+        item(key = "h_recent") {
+            Row(Modifier.padding(start = 16.dp, top = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                SectionHeader("Recently visited", Modifier.weight(1f))
+                TextButton(onClick = onClearRecent) { Text("Clear") }
+            }
+        }
         // No star on ones you aren't subscribed to.
         items(recent, key = { "recent_${it.name}" }, contentType = { "sub" }) {
             SubredditRow(it, onOpen, if (it.name.lowercase() in byName) onStar else null)

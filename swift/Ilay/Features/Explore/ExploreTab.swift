@@ -124,13 +124,24 @@ struct ExploreTab: View {
                 case let .data(list):
                     let joined = Set(list.map { $0.name.lowercased() })
                     ForEach(subscriptionSections(list: list, query: query, favOnly: favOnly, sort: sort, visited: app.recentSubreddits.state), id: \.key) { section in
-                        Section(section.title) {
+                        Section {
                             if section.subs.isEmpty {
                                 Text(section.empty ?? "").foregroundStyle(.secondary)
                             }
                             ForEach(section.subs, id: \.name) { sub in
                                 // No star on ones you aren't subscribed to.
                                 SubredditRow(sub: sub, starred: joined.contains(sub.name.lowercased())) { toggleFavorite(sub) }
+                            }
+                        } header: {
+                            HStack {
+                                Text(section.title)
+                                if section.key == "recent" {
+                                    Spacer()
+                                    // Empties just this list; post history stays (History has its own clear).
+                                    Button("Clear") { app.recentSubreddits.clear() }
+                                        .font(.subheadline)
+                                        .textCase(nil)
+                                }
                             }
                         }
                     }
