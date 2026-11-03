@@ -781,7 +781,8 @@ private fun OwnPostMenu(post: Post, vm: CommentsViewModel, nav: AppNavigator) {
     Box {
         IconButton(onClick = { open = true }) { Icon(Icons.Rounded.Edit, "Edit or delete") }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            if (post.isSelf) {
+            // Image and gallery posts can carry body text too, and Reddit lets you edit it (#88).
+            if (post.isSelf || post.selftext.isNotBlank()) {
                 DropdownMenuItem(text = { Text("Edit") }, leadingIcon = { Icon(Icons.Rounded.Edit, null) }, onClick = {
                     open = false
                     scope.launch { showEditSheet(post.fullname, post.selftext)?.let { vm.applyEdit(post.fullname, it) } }

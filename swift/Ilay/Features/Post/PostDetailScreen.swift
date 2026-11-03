@@ -202,9 +202,10 @@ struct PostDetailScreen: View {
         }
     }
 
-    /// Edit (self posts), edit flair (where the sub has post flair) / delete for your own post.
+    /// Edit (posts with body text: self posts, and image or gallery posts that carry
+    /// text too, #88), edit flair (where the sub has post flair) / delete for your own post.
     @ViewBuilder private func ownPostItems(_ post: Post) -> some View {
-        if post.isSelf {
+        if post.isSelf || !post.selftext.trimmed.isEmpty {
             Button {
                 Task {
                     if let text = await showEditSheet(post.fullname, initialText: post.selftext) { vm.applyEdit(post.fullname, text) }
