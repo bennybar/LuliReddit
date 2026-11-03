@@ -1,3 +1,0 @@
-- Fix: the "next top-level comment" button now steps through every top-level
-  comment and wraps back to the top, instead of jumping to the bottom once and
-  stopping.

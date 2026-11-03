@@ -3,11 +3,12 @@
 A full Kotlin/Jetpack Compose port of the Flutter app (≤ v1.0.51), released as
 2.0.0. Same applicationId (`com.bennybar.luli_for_reddit`), same signing key,
 so it installs as an update over the Flutter build and keeps the user's data.
-The Flutter app came back on 2026-10-26 as the iOS / second app and lives in
-`ios/` (a Flutter project: `cd ios && flutter …`; Xcode project in
-`ios/ios/Runner.xcworkspace`). Every Kotlin change is backported there; it
-never ships GitHub releases (Android releases are this Kotlin app). Its old
-history is on the GitHub branches `flutter` and `flutter-port`.
+The iOS app is native Swift in `swift/` (see `swift/PORTING.md`); updates go to
+Kotlin and Swift only. Its Release build installs over the old Flutter iOS app
+and keeps its data. iOS never ships GitHub releases (Android releases are this
+Kotlin app). The Flutter app was removed from `ios/` on 2026-11-03: its last
+state is in `main`'s history (`git show 4d6bbfd:ios/...`), its older history on
+the GitHub branches `flutter` and `flutter-port`.
 
 ## Never rename (users depend on these)
 applicationId/namespace `com.bennybar.luli_for_reddit`; OAuth redirect

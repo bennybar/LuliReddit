@@ -1,1 +1,0 @@
-A fast, modern Reddit client with an on-device "For You" feed.

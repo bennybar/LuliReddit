@@ -1,0 +1,69 @@
+<!doctype html>
+<!-- A hand-written copy of the shape of reddit.com's Home page (element and attribute
+     names as of 2026-10, as RedditHomeLoader.readPosts expects them). No real content. -->
+<html>
+<head><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body>
+<shreddit-app user-logged-in="true">
+  <div id="feed">
+    <shreddit-post id="t3_aaa111" post-title="  A recommended picture  " subreddit-prefixed-name="r/pics" author="alice"
+      score="1234" comment-count="56" created-timestamp="2026-10-05T12:34:56.123000+0000" post-type="image"
+      permalink="/r/pics/comments/aaa111/a_recommended_picture/" content-href="https://i.redd.it/aaa111.jpg" domain="i.redd.it">
+      <div slot="credit-bar"><img src="https://styles.redditmedia.com/t5_pics/icon.png"></div>
+      <div slot="post-flair"><span>Art</span></div>
+      <div slot="post-media-container"><img src="https://preview.redd.it/aaa111.jpg?width=640"></div>
+      <shreddit-post-overflow-menu id="menu-aaa111"
+        recommendation-context-json='{"recommendationSource":"similar_subreddit","isContextHidden":false,"content":{"richtext":"{\"document\":[{\"e\":\"par\",\"c\":[{\"e\":\"text\",\"t\":\"Because you visited \"},{\"e\":\"text\",\"t\":\"r/art\"}]}]}"}}'>
+        <button>More</button>
+      </shreddit-post-overflow-menu>
+    </shreddit-post>
+
+    <shreddit-post id="t3_bbb222" post-title="A text post from a subscription" subreddit-prefixed-name="r/AskReddit" author=""
+      score="7" comment-count="not-a-number" created-timestamp="2026-10-05T10:00:00+0000" post-type="text"
+      permalink="/r/AskReddit/comments/bbb222/a_text_post/" content-href="" domain="self.AskReddit" nsfw spoiler>
+      <div slot="text-body"><p>  The body of the post.  </p></div>
+      <shreddit-post-overflow-menu recommendation-context-json='{"recommendationSource":"subscribed_community","isContextHidden":true}'></shreddit-post-overflow-menu>
+    </shreddit-post>
+
+    <shreddit-post id="t3_ad0000" promoted post-title="An ad marked promoted" subreddit-prefixed-name="u/advertiser" author="ads" post-type="link"></shreddit-post>
+    <shreddit-ad-post id="t3_ad0001" post-title="An ad element of its own"></shreddit-ad-post>
+    <shreddit-post id="not-a-post" post-title="No t3_ id"></shreddit-post>
+
+    <shreddit-post id="t3_ccc333" post-title="A video" subreddit-prefixed-name="r/videos" author="carol"
+      score="0" comment-count="1" created-timestamp="garbage" post-type="video"
+      permalink="/r/videos/comments/ccc333/a_video/" content-href="https://v.redd.it/vid333" domain="v.redd.it"></shreddit-post>
+  </div>
+  <div style="height: 8000px"></div>
+</shreddit-app>
+<script>
+  // The menu's "Show fewer" item only renders once it has been opened.
+  var menu = document.getElementById('menu-aaa111');
+  var root = menu.attachShadow({ mode: 'open' });
+  var opener = document.createElement('button');
+  opener.addEventListener('click', function () {
+    var li = document.createElement('li');
+    li.id = 'post-overflow-showFewer';
+    var item = document.createElement('div');
+    item.setAttribute('role', 'menuitem');
+    item.addEventListener('click', function () { window.fewerPicked = true; });
+    li.appendChild(item);
+    root.appendChild(li);
+  });
+  root.appendChild(opener);
+
+  // The next batch arrives when the page is scrolled to its end.
+  var more = false;
+  window.addEventListener('scroll', function () {
+    if (more) return;
+    more = true;
+    var p = document.createElement('shreddit-post');
+    p.id = 't3_ddd444';
+    p.setAttribute('post-title', 'Loaded by scrolling');
+    p.setAttribute('subreddit-prefixed-name', 'r/more');
+    p.setAttribute('author', 'dave');
+    p.setAttribute('post-type', 'text');
+    document.getElementById('feed').appendChild(p);
+  });
+</script>
+</body>
+</html>

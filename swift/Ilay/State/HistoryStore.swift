@@ -1,0 +1,81 @@
+import Foundation
+import Observation
+
+/// A locally-stored record of a viewed post. History is on-device only.
+struct HistoryEntry: Equatable, Sendable {
+    let id: String
+    let subreddit: String
+    let title: String
+    let permalink: String
+    var viewedAt: Int = 0 // millis since epoch; 0 = legacy/unknown
+}
+
+/// Viewed posts, newest first, per account (prefs `history_<user>`, a JSON string list).
+@MainActor @Observable
+final class HistoryStore: UserScoped {
+    private static let base = "history"
+    private static let cap = 500
+
+    @ObservationIgnored private let prefs: Prefs
+    @ObservationIgnored private var key = HistoryStore.base
+    private(set) var state: [HistoryEntry] = []
+
+    /// Ids for O(1) "seen?" checks (feeds dim read posts).
+    private(set) var ids: Set<String> = []
+
+    init(prefs: Prefs) { self.prefs = prefs }
+
+    func onUserChanged(_ username: String) {
+        key = userScopedKey(prefs, username, HistoryStore.base)
+        publish((prefs.getStringList(key) ?? []).compactMap { s in
+            guard let j = parseJsonOrNull(s) else { return nil }
+            return HistoryEntry(
+                id: j["id"].str() ?? "",
+                subreddit: j["sub"].str() ?? "",
+                title: j["title"].str() ?? "",
+                permalink: j["permalink"].str() ?? "",
+                viewedAt: j["ts"].long() ?? 0
+            )
+        })
+    }
+
+    func contains(_ id: String) -> Bool { ids.contains(id) }
+
+    func markViewed(_ p: Post) {
+        let entry = HistoryEntry(id: p.id, subreddit: p.subreddit, title: p.title, permalink: p.permalink, viewedAt: nowMillis())
+        publish(Array(([entry] + state.filter { $0.id != p.id }).prefix(HistoryStore.cap)))
+        persist()
+    }
+
+    func removeViewed(_ id: String) {
+        publish(state.filter { $0.id != id })
+        persist()
+    }
+
+    /// Removes entries older than [ageMillis]; legacy entries (no timestamp) count as old.
+    func clearOlderThan(_ ageMillis: Int) {
+        let cutoff = nowMillis() - ageMillis
+        publish(state.filter { $0.viewedAt >= cutoff })
+        persist()
+    }
+
+    func clear() {
+        publish([])
+        persist()
+    }
+
+    private func publish(_ list: [HistoryEntry]) {
+        state = list
+        ids = Set(list.map(\.id))
+    }
+
+    private func persist() {
+        prefs.setStringList(key, state.map { e in
+            let j: JsonElement = [
+                "id": .string(e.id), "sub": .string(e.subreddit), "title": .string(e.title),
+                "permalink": .string(e.permalink), "ts": .int(e.viewedAt),
+            ]
+            return j.encoded()
+        })
+    }
+}

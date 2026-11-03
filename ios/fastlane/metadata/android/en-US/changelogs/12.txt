@@ -1,1 +1,0 @@
-- Quick "Autoplay media" toggle in the Posts display menu

@@ -1,0 +1,112 @@
+name: Ilay
+options:
+  bundleIdPrefix: com.bennybar
+  deploymentTarget: { iOS: "26.0" }
+  createIntermediateGroups: true
+settings:
+  base:
+    DEVELOPMENT_TEAM: 57L2ULXB7Z
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: "5.0"
+    SWIFT_STRICT_CONCURRENCY: minimal
+    MARKETING_VERSION: "2.0.56"
+    CURRENT_PROJECT_VERSION: "2056"
+    TARGETED_DEVICE_FAMILY: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+packages:
+  swift-markdown:
+    url: https://github.com/swiftlang/swift-markdown
+    from: 0.5.0
+targets:
+  Ilay:
+    type: application
+    platform: iOS
+    sources:
+      - path: Ilay
+        type: syncedFolder
+      - path: ShareExtension/SharedStore.swift
+    dependencies:
+      - package: swift-markdown
+        product: Markdown
+      # "Open in Ilay" and "Summarize with Ilay" in the share sheet. Release ids stay
+      # the Flutter app's, so they survive the switch.
+      - target: ShareOpen
+      - target: ShareSummarize
+    settings:
+      base:
+        PRODUCT_NAME: Ilay
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Ilay/App/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Ilay/App/Ilay.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # Settings → App icon; see AppIcon.swift.
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: AppIcon-ocean AppIcon-forest AppIcon-sunset AppIcon-midnight AppIcon-white
+      configs:
+        # Release installs over the Flutter app: same team, bundle id and data.
+        Release:
+          PRODUCT_BUNDLE_IDENTIFIER: com.bennybar.lulireddit
+          APP_DISPLAY_NAME: Ilay
+          APP_URL_SCHEME: luli
+        # Debug sits beside it, so half-built screens never replace the working
+        # app; it reads the same login through the shared keychain group.
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.bennybar.lulireddit.swiftdev
+          APP_DISPLAY_NAME: Ilay Swift
+          APP_URL_SCHEME: ilayswift
+  ShareOpen:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ShareExtension
+      - path: ShareOpen
+    settings:
+      base:
+        PRODUCT_NAME: ShareOpen
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: ShareOpen/Info.plist
+        CODE_SIGN_ENTITLEMENTS: ShareOpen/ShareOpen.entitlements
+      configs:
+        Release:
+          PRODUCT_BUNDLE_IDENTIFIER: com.bennybar.lulireddit.ShareOpen
+          APP_URL_SCHEME: luli
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.bennybar.lulireddit.swiftdev.ShareOpen
+          APP_URL_SCHEME: ilayswift
+  ShareSummarize:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ShareExtension
+      - path: ShareSummarize
+    settings:
+      base:
+        PRODUCT_NAME: ShareSummarize
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: ShareSummarize/Info.plist
+        CODE_SIGN_ENTITLEMENTS: ShareSummarize/ShareSummarize.entitlements
+      configs:
+        Release:
+          PRODUCT_BUNDLE_IDENTIFIER: com.bennybar.lulireddit.ShareSummarize
+          APP_URL_SCHEME: luli
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.bennybar.lulireddit.swiftdev.ShareSummarize
+          APP_URL_SCHEME: ilayswift
+  IlayTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: IlayTests
+        type: syncedFolder
+      - path: ShareExtension/ShareViewController.swift
+    dependencies:
+      - target: Ilay
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bennybar.lulireddit.tests
+        GENERATE_INFOPLIST_FILE: YES
+        BUNDLE_LOADER: $(TEST_HOST)
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/Ilay.app/Ilay
+schemes:
+  Ilay:
+    build: { targets: { Ilay: all, IlayTests: [test] } }
+    test: { targets: [IlayTests] }
