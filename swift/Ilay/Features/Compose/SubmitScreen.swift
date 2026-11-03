@@ -89,6 +89,9 @@ struct SubmitScreen: View {
                 }
                 TextField("Title", text: $title, axis: .vertical)
                     .lineLimit(1...2)
+                if lengthCounter(title, limit: TextLimit.title) != nil {
+                    LengthCounter(text: title, limit: TextLimit.title)
+                }
                 if !flairs.isEmpty {
                     Picker("Flair", selection: $flairId) {
                         Text("None").tag(String?.none)
@@ -107,9 +110,10 @@ struct SubmitScreen: View {
                 Toggle("Spoiler", isOn: $spoiler)
                 Toggle("Send me reply notifications", isOn: $sendReplies)
             }
-            if let error {
-                Section { Text(error).foregroundStyle(.red) }
-            }
+        }
+        // An alert, not a row at the end of the form: that one was often under the keyboard.
+        .alert(error ?? "", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
+            Button("OK", role: .cancel) {}
         }
         .navigationTitle("New post")
         .navigationSubtitle(hasDraft && !busy ? "Draft saved" : "")
@@ -151,6 +155,9 @@ struct SubmitScreen: View {
                     text: $postBody, selection: $selection, placeholder: "Body (Markdown, optional)",
                     minLines: 5, maxLines: 12
                 )
+                if lengthCounter(postBody, limit: TextLimit.postBody) != nil {
+                    LengthCounter(text: postBody, limit: TextLimit.postBody)
+                }
                 MarkdownToolbar(text: $postBody, selection: $selection)
                 Button("GIF", systemImage: "photo.stack") {
                     Task {
@@ -252,6 +259,10 @@ struct SubmitScreen: View {
         let t = title.trimmed
         if name.isEmpty || t.isEmpty {
             error = "Subreddit and title are required."
+        } else if redditLength(t) > TextLimit.title {
+            error = "The title is too long: the most Reddit takes is \(TextLimit.title) characters."
+        } else if kind == .text, redditLength(postBody.trimmed) > TextLimit.postBody {
+            error = "The text is too long: the most Reddit takes is \(TextLimit.postBody) characters."
         } else if kind == .link, url.isBlank {
             error = "Enter a URL for a link post."
         } else if kind == .image, imageItem == nil {
@@ -290,11 +301,13 @@ struct SubmitScreen: View {
                     let v = try await readPicked(videoItem!, isVideo: true)
                     let posterBytes = await posterFrame(v.bytes)
                     let uploaded = try await repo.uploadMediaAsset(v.bytes, filename: v.filename, mimeType: "video/mp4")
-                    let poster = try await repo.uploadMediaAsset(posterBytes ?? v.bytes, filename: "poster.jpg", mimeType: "image/jpeg")
+                    let poster = try await repo.uploadMediaAsset(posterBytes, filename: "poster.jpg", mimeType: "image/jpeg")
                     let id = try await repo.submitVideoPost(name, title: t, videoUrl: uploaded.url, posterUrl: poster.url, nsfw: nsfw, spoiler: spoiler, sendReplies: sendReplies, flair: flair)
                     if id.isEmpty { finish("Video posted") } else { goToPost(name, id) }
                 }
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
             } catch {
+                UINotificationFeedbackGenerator().notificationOccurred(.error)
                 busy = false
                 self.error = errorText(error)
             }

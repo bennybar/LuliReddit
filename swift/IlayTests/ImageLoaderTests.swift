@@ -56,10 +56,10 @@ final class ImageLoaderTests: XCTestCase {
         }
     }
 
-    private func loader(diskLimit: Int64 = 1 << 30) -> ImageLoader {
+    private func loader(diskLimit: Int64 = 1 << 30, animationBudget: Int = 40 << 20) -> ImageLoader {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [ImageStubProtocol.self]
-        return ImageLoader(directory: directory, diskLimit: diskLimit, session: URLSession(configuration: config))
+        return ImageLoader(directory: directory, diskLimit: diskLimit, session: URLSession(configuration: config), animationBudget: animationBudget)
     }
 
     private var files: [URL] { (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? [] }
@@ -192,6 +192,21 @@ final class ImageLoaderTests: XCTestCase {
         let animated = try XCTUnwrap(animatedLoaded)
         XCTAssertEqual(animated.images?.count, 3)
         XCTAssertEqual(animated.duration, 0.3, accuracy: 0.01)
+    }
+
+    func testAnimationIsCappedByBytes() async throws {
+        ImageStubProtocol.body = try XCTUnwrap(gifData(frames: 3))
+        let frameBytes = 64 * 64 * 4
+        // Room for two of the three 64×64 frames: every other frame, same running time.
+        let twoFrames = await loader(animationBudget: frameBytes * 2 + 100).image(url: url, maxPixelSize: 64, animated: true)
+        let animated = try XCTUnwrap(twoFrames)
+        XCTAssertEqual(Set(try XCTUnwrap(animated.images)).count, 2)
+        XCTAssertEqual(animated.duration, 0.3, accuracy: 0.01)
+        // Not even two fit: frame 0, still.
+        let oneFrame = await loader(animationBudget: frameBytes).image(url: url, maxPixelSize: 64, animated: true)
+        let still = try XCTUnwrap(oneFrame)
+        XCTAssertNil(still.images)
+        XCTAssertEqual(still.size.width, 64)
     }
 
     private func gifData(frames: Int) -> Data? {

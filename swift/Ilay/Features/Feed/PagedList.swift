@@ -102,6 +102,8 @@ struct PagedList<T, Content: View>: View {
     let source: PagedSource<T>
     let itemKey: (T) -> AnyHashable
     let emptyLabel: String
+    /// The empty state's SF Symbol.
+    let emptySymbol: String
     /// A pool of reused cells per value: rows that look alike (Kotlin's contentType).
     let contentType: ((T) -> Int)?
     /// How old the list may be before a return from a pushed route reloads it.
@@ -116,6 +118,7 @@ struct PagedList<T, Content: View>: View {
         source: PagedSource<T>,
         itemKey: @escaping (T) -> AnyHashable,
         emptyLabel: String = "Nothing here",
+        emptySymbol: String = "tray",
         contentType: ((T) -> Int)? = nil,
         staleAfterMillis: Int = 5 * 60_000,
         scrollTop: Int = 0,
@@ -125,6 +128,7 @@ struct PagedList<T, Content: View>: View {
         self.source = source
         self.itemKey = itemKey
         self.emptyLabel = emptyLabel
+        self.emptySymbol = emptySymbol
         self.contentType = contentType
         self.staleAfterMillis = staleAfterMillis
         self.scrollTop = scrollTop
@@ -146,7 +150,8 @@ struct PagedList<T, Content: View>: View {
                 )
                 .ignoresSafeArea()
                 .overlay {
-                    if state.items.isEmpty { Text(emptyLabel).foregroundStyle(.secondary).allowsHitTesting(false) }
+                    // Over the list, so pull to refresh still works through it.
+                    if state.items.isEmpty { ContentUnavailableView(emptyLabel, systemImage: emptySymbol).allowsHitTesting(false) }
                 }
             }
         }
@@ -218,6 +223,7 @@ private enum PagedItem: Hashable {
         list.leadingSwipeActionsConfigurationProvider = { [weak self] in self?.swipe($0, leading: true) }
         list.trailingSwipeActionsConfigurationProvider = { [weak self] in self?.swipe($0, leading: false) }
         collectionView.collectionViewLayout = UICollectionViewCompositionalLayout.list(using: list)
+        LeadingSwipeGate.install(on: collectionView) { [weak self] in self?.swipe($0, leading: true) != nil }
         collectionView.delegate = self
         collectionView.prefetchDataSource = self
         collectionView.alwaysBounceVertical = true

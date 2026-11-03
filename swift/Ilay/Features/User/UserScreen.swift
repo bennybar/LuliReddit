@@ -20,6 +20,12 @@ import SwiftUI
         }
     }
 
+    func retry() {
+        about = .loading
+        started = false
+        load()
+    }
+
     func source<T>(_ key: String, fetch: @escaping (String?) async throws -> Listing<T>) -> PagedSource<T> {
         if let existing = sources[key] as? PagedSource<T> { return existing }
         let new = PagedSource(fetch: fetch)
@@ -94,37 +100,73 @@ struct UserProfileBody<Below: View>: View {
     var body: some View {
         let me = app.session.username
         let current = tabs.contains(tab) ? tab : "Posts"
+        // A deleted (Reddit's 404) or suspended account has no lists either: just say so.
+        let gone: Error? = if case let .error(e) = model.about, e is AppException || (e as? RedditApiException)?.statusCode == 404 { e } else { nil }
         // The header (and the Profile tab's row under it) slides away as a list scrolls down
         // and comes back once it's back at the top; the tabs stay. It sits over the list, which
         // leaves it room: moving with the rows, not resizing them, keeps the scrolling smooth.
-        ZStack(alignment: .top) {
-            list(current)
-            ProfileTop(model: model, headerHeight: $headerHeight, tabsHeight: $tabsHeight) {
-                switch model.about {
-                case .loading:
-                    Loading().frame(maxWidth: .infinity, minHeight: 96)
-                case let .error(error):
-                    Text("Could not load profile: \(friendlyError(error))").padding(16).frame(maxWidth: .infinity, alignment: .leading)
-                case let .data(user):
-                    ProfileHeader(user: user, canFollow: !isSelf && !me.isEmpty)
-                }
-                belowHeader()
-            } tabs: {
-                HStack(spacing: 8) {
-                    ScrollView(.horizontal) {
-                        ConnectedChoice(options: tabs.map { (key: $0, label: $0) }, selected: current, onSelect: { tab = $0 }, fill: false)
-                            .padding(.leading, 16)
-                    }
-                    .scrollIndicators(.hidden)
-                    if current == "Posts" || current == "Comments" {
-                        SortBar(sort: sort, time: time, sorts: [.newest, .hot, .top]) { s, t in
+        Group {
+            if let gone {
+                ErrorView(
+                    message: gone is AppException ? gone : "u/\(username) doesn't exist or has been deleted.",
+                    systemImage: "person.slash"
+                )
+            } else {
+                ZStack(alignment: .top) {
+                    list(current)
+                    ProfileTop(model: model, headerHeight: $headerHeight, tabsHeight: $tabsHeight) {
+                        switch model.about {
+                        case .loading:
+                            Loading().frame(maxWidth: .infinity, minHeight: 96)
+                        case let .error(error):
+                            ErrorView(message: error, onRetry: model.retry)
+                        case let .data(user):
+                            ProfileHeader(user: user, canFollow: !isSelf && !me.isEmpty)
+                        }
+                        belowHeader()
+                    } tabs: {
+                        // Posts / Comments / Saved as segments, your Upvoted and Downvoted (used less) in a menu
+                        // beside them, and the sort for Posts and Comments: on the same row when it fits, else under it.
+                        let more = isSelf ? ["Upvoted", "Downvoted"] : []
+                        let segments = ConnectedChoice(options: tabs.filter { !more.contains($0) }.map { (key: $0, label: $0) }, selected: current, onSelect: { tab = $0 })
+                        let moreMenu = PickOneMenu(
+                            options: more.map { (key: $0, label: $0) },
+                            selected: more.contains(current) ? current : nil,
+                            onPick: { tab = $0 },
+                            icon: { $0 == "Upvoted" ? "arrow.up" : "arrow.down" }
+                        ) {
+                            // On one of its lists, the button names it (no segment is selected then).
+                            if more.contains(current) {
+                                Label(current, systemImage: current == "Upvoted" ? "arrow.up" : "arrow.down").font(.subheadline)
+                            } else {
+                                Label("More", systemImage: "ellipsis").labelStyle(.iconOnly).frame(minHeight: 20)
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .buttonBorderShape(.capsule)
+                        let sortBar = SortBar(sort: sort, time: time, sorts: [.newest, .hot, .top]) { s, t in
                             sort = s
                             if let t { time = t }
                         }
-                        .padding(.trailing, 12)
+                        let sorted = current == "Posts" || current == "Comments"
+                        ViewThatFits(in: .horizontal) {
+                            HStack(spacing: 8) {
+                                segments
+                                if sorted { sortBar }
+                                if !more.isEmpty { moreMenu }
+                            }
+                            VStack(alignment: .trailing, spacing: 6) {
+                                HStack(spacing: 8) {
+                                    segments
+                                    if !more.isEmpty { moreMenu }
+                                }
+                                if sorted { sortBar }
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 6)
                     }
                 }
-                .padding(.vertical, 6)
             }
         }
         .task { model.load() }

@@ -182,6 +182,13 @@ struct ManageForYouScreen: View {
         for e in t.filter({ $0.key.hasPrefix("src.ranked.") }).sorted(by: { $0.value > $1.value }) {
             rows.append(("Placed from \(e.key.dropFirst(11))", "\(e.value)"))
         }
+        // Per source and per feed slot, as rates per impression.
+        func rates(_ k: String) -> String { ["open", "eng", "read30", "hide"].map { rate("\($0).\(k)", "imp.\(k)") }.joined(separator: " · ") }
+        rows.append(("Per source and slot", "open · engaged · 30s+ · hidden"))
+        for e in t.filter({ $0.key.hasPrefix("imp.src.") }).sorted(by: { $0.value > $1.value }) {
+            rows.append(("\(e.key.dropFirst(8)) (\(e.value) seen)", rates("src.\(e.key.dropFirst(8))")))
+        }
+        for b in ["0-9", "10-29", "30+"] { rows.append(("Slots \(b) (\(n("imp.slot.\(b)")) seen)", rates("slot.\(b)"))) }
         let shown = rows
         Overlays.launch(detents: [.medium, .large]) { _ in
             NavigationStack {

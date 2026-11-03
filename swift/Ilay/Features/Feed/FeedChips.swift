@@ -48,7 +48,9 @@ struct FeedChips: View {
             if !engines { Spacer(minLength: 0) }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 6)
+        .padding(.top, 6)
+        // The same 12 as between two cards.
+        .padding(.bottom, 12)
         .animation(.easeOut(duration: 0.15), value: state.floating)
     }
 
@@ -98,6 +100,7 @@ struct FeedChips: View {
         }
         // A menu's label takes the app tint; the sort stays in the label colour.
         .tint(.primary)
+        .sensoryFeedback(.selection, trigger: name)
         .accessibilityLabel("Sort")
         .accessibilityValue(sorted ? name : "")
     }
@@ -135,7 +138,11 @@ private struct FeedSegments: UIViewRepresentable {
     final class Coordinator: NSObject {
         var onPick: (Int) -> Void
         init(onPick: @escaping (Int) -> Void) { self.onPick = onPick }
-        @objc func changed(_ control: UISegmentedControl) { onPick(control.selectedSegmentIndex) }
+        private let feedback = UISelectionFeedbackGenerator()
+        @objc func changed(_ control: UISegmentedControl) {
+            feedback.selectionChanged()
+            onPick(control.selectedSegmentIndex)
+        }
     }
 }
 
@@ -252,7 +259,7 @@ struct HomeStatusStrip: View {
             .padding(.vertical, 8)
             .background(Color(.tertiarySystemFill), in: .rect(cornerRadius: 12))
             .padding(.horizontal, 12)
-            .padding(.bottom, 8)
+            .padding(.bottom, 12)
         }
     }
 

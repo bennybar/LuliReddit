@@ -310,6 +310,7 @@ private struct PostMediaView: View {
                     }
                     .aspectRatio(aspect, contentMode: .fit)
                     .clipShape(.rect(cornerRadius: 16))
+                    .zoomSource()
                 }
                 .buttonStyle(.plain)
             }

@@ -15,15 +15,13 @@ struct MediaAttachment: Equatable {
     }
 }
 
-/// Files are held in memory to upload, so one too big for that (a long phone video)
-/// is refused with a clear message up front.
-private let maxAttachmentBytes = 150 * 1024 * 1024
-
 /// Composer attachment UI: pending-attachment preview plus pick-image / pick-video /
 /// paste buttons. [leading] = extra buttons (e.g. GIF). [catboxForImages]: messages
-/// host even images on Catbox.
+/// host even images on Catbox. [loading] is on while a picked file is being read
+/// (an iCloud download, a video remux): the composer must not send without it.
 struct AttachmentControls<Leading: View>: View {
     @Binding var media: MediaAttachment?
+    @Binding var loading: Bool
     let onError: (String) -> Void
     var catboxForImages = false
     @ViewBuilder let leading: () -> Leading
@@ -33,7 +31,11 @@ struct AttachmentControls<Leading: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            if let media { AttachmentPreview(media: media) { self.media = nil } }
+            if loading {
+                AttachmentLoading()
+            } else if let media {
+                AttachmentPreview(media: media) { self.media = nil }
+            }
             HStack(spacing: 4) {
                 leading()
                 PhotosPicker(selection: $imageItem, matching: .images) {
@@ -44,13 +46,20 @@ struct AttachmentControls<Leading: View>: View {
                     Image(systemName: "video").frame(width: 44, height: 44).contentShape(.rect)
                 }
                 .accessibilityLabel("Attach video")
-                Button(action: paste) {
-                    Image(systemName: "doc.on.clipboard").frame(width: 44, height: 44).contentShape(.rect)
+                // The system Paste button: no "Allow Paste?" prompt, and it's only
+                // enabled when the clipboard holds an image. The file as it is, so a
+                // pasted GIF keeps moving.
+                PasteButton(payloadType: PastedImage.self) { pasted in
+                    guard let first = pasted.first else { return }
+                    Task { @MainActor in media = first.media }
                 }
+                .labelStyle(.iconOnly)
+                .buttonBorderShape(.circle)
                 .accessibilityLabel("Paste image")
             }
             .buttonStyle(.plain)
             .foregroundStyle(.tint)
+            .disabled(loading)
             if let media {
                 Text(media.isVideo || catboxForImages
                     ? "Will be uploaded to catbox.moe and linked (public)."
@@ -65,6 +74,7 @@ struct AttachmentControls<Leading: View>: View {
 
     private func load(_ item: PhotosPickerItem?, isVideo: Bool) {
         guard let item else { return }
+        loading = true
         Task {
             do {
                 // HEIC goes as JPEG and QuickTime as MP4, as a new post does: Reddit takes neither.
@@ -72,19 +82,25 @@ struct AttachmentControls<Leading: View>: View {
             } catch {
                 onError(error.localizedDescription)
             }
+            loading = false
             imageItem = nil
             videoItem = nil
         }
     }
+}
 
-    /// An image off the clipboard (a pasted screenshot/copy).
-    private func paste() {
-        // The file as it is, so a pasted GIF keeps moving.
-        guard let pasted = pasteImageAttachment() else {
-            onError("No image on the clipboard.")
-            return
+/// Holds a pending attachment's place while the picked file is read.
+struct AttachmentLoading: View {
+    var body: some View {
+        HStack(spacing: 10) {
+            ProgressView()
+                .frame(width: 48, height: 48)
+                .background(Color(.tertiarySystemFill), in: .rect(cornerRadius: 8))
+            Text("Preparing attachment…").font(.footnote).foregroundStyle(.secondary)
+            Spacer(minLength: 0)
         }
-        media = pasted
+        .padding(8)
+        .background(Color(.secondarySystemFill), in: .rect(cornerRadius: 12))
     }
 }
 

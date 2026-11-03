@@ -70,60 +70,42 @@ private final class CommentCell: UICollectionViewListCell {
     private let backdrop = UIView()
     /// Calm: one container per top-level thread, drawn as contiguous rows whose first
     /// and last round its top and bottom.
-    private let card = UIView()
-    /// Liquid Glass platter, drawn per row so a thread stays one seamless card (the
+    ///
+    /// A Liquid Glass platter, drawn per row so a thread stays one seamless card (the
     /// system glass effect would put its own rounded edge on every row): a floating
-    /// shadow, a hairline, and a specular rim lit at the thread's top-left and
-    /// bottom-right. Each is cut at the row's edges so rows join without a seam.
-    private let shadow = CALayer()
-    private let contactShadow = CALayer()
-    private let rim = CAShapeLayer()
-    private let specular = CAGradientLayer()
-    private let specularShape = CAShapeLayer()
-    /// Light falling on the top of the glass (first row only).
-    private let sheen = CAGradientLayer()
+    /// shadow, a hairline, a specular rim lit at the thread's top-left and bottom-right,
+    /// and light falling on its top. It's pre-rendered (`piece`) per width and appearance
+    /// into the thread's top row, a middle row, its bottom row and a one-row thread, which
+    /// stretch to a row's height: masked shadows and gradients drawn live cost several
+    /// offscreen passes a row while scrolling.
+    private let card = CALayer()
     private let highlight = UIView()
     private static let radius: CGFloat = 32
+    /// Room around the card in a piece for its shadow.
+    private static let pad: CGFloat = 44
+    private static let padBottom: CGFloat = 60
+    /// The light on the glass's top fades out over this much of the first row.
+    private static let sheenHeight: CGFloat = 80
+    private static var pieces: [String: CGImage] = [:]
     private var calm = false
+    private var dark = false
     private var first = false
     private var last = false
     private var guides: [CALayer] = []
     private let voteEdge = CALayer()
     private var depth = 0
     private var opLevel: Int?
+    /// Where the row's name line ends (`CommentRowView` reports it).
+    var headerBottom: CGFloat = 34
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         backgroundConfiguration = nil
         backgroundView = backdrop
-        card.layer.cornerRadius = Self.radius
-        card.layer.cornerCurve = .continuous
-        card.clipsToBounds = true
-        for (layer, opacity, radius, y) in [(shadow, Float(0.10), 22.0, 10.0), (contactShadow, 0.05, 2, 1)] {
-            layer.shadowColor = UIColor.black.cgColor
-            layer.shadowOpacity = opacity
-            layer.shadowRadius = radius
-            layer.shadowOffset = CGSize(width: 0, height: y)
-            let mask = CALayer()
-            mask.backgroundColor = UIColor.black.cgColor
-            layer.mask = mask
-            backdrop.layer.addSublayer(layer)
-        }
-        rim.fillColor = nil
-        rim.lineWidth = 0.5
-        specularShape.fillColor = nil
-        specularShape.strokeColor = UIColor.black.cgColor
-        specularShape.lineWidth = 1.5
-        specular.mask = specularShape
-        specular.startPoint = CGPoint(x: 0, y: 0)
-        specular.endPoint = CGPoint(x: 1, y: 1)
-        sheen.startPoint = CGPoint(x: 0.5, y: 0)
-        sheen.endPoint = CGPoint(x: 0.5, y: 1)
-        card.layer.addSublayer(sheen)
-        card.addSubview(highlight)
-        card.layer.addSublayer(rim)
-        card.layer.addSublayer(specular)
-        backdrop.addSubview(card)
+        highlight.layer.cornerRadius = Self.radius
+        highlight.layer.cornerCurve = .continuous
+        backdrop.layer.addSublayer(card)
+        backdrop.addSubview(highlight)
         backdrop.layer.addSublayer(voteEdge)
     }
 
@@ -131,24 +113,16 @@ private final class CommentCell: UICollectionViewListCell {
 
     func apply(_ row: CommentRowModel, _ env: ThreadRowEnv, voteColor: UIColor?, accent: UIColor) {
         calm = env.calm
+        dark = env.dark
         first = row.first
         last = row.last
         card.isHidden = !env.calm
-        shadow.isHidden = !env.calm || env.dark
-        contactShadow.isHidden = shadow.isHidden
-        // Opaque, so the shadow under it never shows through.
-        card.backgroundColor = env.dark ? UIColor(white: 0.16, alpha: 1) : .white
-        highlight.backgroundColor = row.highlighted ? accent.withAlphaComponent(0.16) : nil
-        rim.strokeColor = UIColor(white: 0, alpha: env.dark ? 0.4 : 0.07).cgColor
-        let bright = UIColor(white: 1, alpha: env.dark ? 0.55 : 1).cgColor
-        let dim = UIColor(white: 1, alpha: env.dark ? 0.08 : 0.2).cgColor
-        specular.colors = [row.first ? bright : dim, dim, row.last ? bright : dim]
-        sheen.isHidden = !row.first
-        sheen.colors = [UIColor(white: 1, alpha: env.dark ? 0.08 : 0.9).cgColor, UIColor(white: 1, alpha: 0).cgColor]
+        highlight.isHidden = !env.calm || !row.highlighted
+        highlight.backgroundColor = accent.withAlphaComponent(0.16)
         var corners: CACornerMask = []
         if row.first { corners.formUnion([.layerMinXMinYCorner, .layerMaxXMinYCorner]) }
         if row.last { corners.formUnion([.layerMinXMaxYCorner, .layerMaxXMaxYCorner]) }
-        card.layer.maskedCorners = corners
+        highlight.layer.maskedCorners = corners
         let shown = env.calm ? min(max(row.comment.depth, 0), 8) : 0
         while guides.count < shown {
             let l = CALayer()
@@ -172,39 +146,107 @@ private final class CommentCell: UICollectionViewListCell {
         setNeedsLayout()
     }
 
+    /// The platter for a row [height] tall: stretched from a short render through its
+    /// one-point middle line, or drawn at the row's own height when it's shorter than the
+    /// stretchable piece (a collapsed or one-line thread). Returns the image and the
+    /// line to stretch (nil: none).
+    private static func piece(width: CGFloat, height: CGFloat, first: Bool, last: Bool, dark: Bool, scale: CGFloat) -> (CGImage, CGFloat?) {
+        let topCap = first ? sheenHeight : 0
+        let bottomCap = last ? radius : 0
+        let stretches = height >= topCap + 1 + bottomCap
+        let h = stretches ? topCap + 1 + bottomCap : height
+        let key = "\(width) \(h) \(first) \(last) \(dark) \(scale)"
+        let top = first ? pad : 0
+        let stretchLine: CGFloat? = stretches ? top + topCap : nil
+        if let hit = pieces[key] { return (hit, stretchLine) }
+        let size = CGSize(width: width + pad * 2, height: top + h + (last ? padBottom : 0))
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = scale
+        format.opaque = false
+        let image = UIGraphicsImageRenderer(size: size, format: format).image { context in
+            let ctx = context.cgContext
+            let cardRect = CGRect(x: pad, y: top, width: width, height: h)
+            // A row that isn't the thread's top or bottom runs past its edges, so they stay
+            // straight and the shadow keeps full strength right to the join.
+            let over: CGFloat = 200
+            let shape = CGRect(x: cardRect.minX, y: first ? cardRect.minY : cardRect.minY - over, width: width,
+                               height: h + (first ? 0 : over) + (last ? 0 : over))
+            func outline(_ inset: CGFloat) -> CGPath {
+                UIBezierPath(roundedRect: shape.insetBy(dx: inset, dy: inset), cornerRadius: radius - inset).cgPath
+            }
+            // Opaque, so the shadow under it never shows through.
+            let fill = dark ? UIColor(white: 0.16, alpha: 1) : .white
+            if !dark {
+                for (opacity, blur, y) in [(0.10, 44.0, 10.0), (0.05, 4, 1)] as [(CGFloat, CGFloat, CGFloat)] {
+                    ctx.saveGState()
+                    ctx.setShadow(offset: CGSize(width: 0, height: y), blur: blur, color: UIColor(white: 0, alpha: opacity).cgColor)
+                    ctx.addPath(outline(0))
+                    ctx.setFillColor(fill.cgColor)
+                    ctx.fillPath()
+                    ctx.restoreGState()
+                }
+            }
+            ctx.addPath(outline(0))
+            ctx.setFillColor(fill.cgColor)
+            ctx.fillPath()
+            if first {
+                ctx.saveGState()
+                ctx.addPath(outline(0))
+                ctx.clip()
+                let colors = [UIColor(white: 1, alpha: dark ? 0.08 : 0.9).cgColor, UIColor(white: 1, alpha: 0).cgColor] as CFArray
+                let gradient = CGGradient(colorsSpace: nil, colors: colors, locations: nil)!
+                ctx.drawLinearGradient(gradient, start: CGPoint(x: 0, y: cardRect.minY), end: CGPoint(x: 0, y: cardRect.minY + sheenHeight), options: [])
+                ctx.restoreGState()
+            }
+            ctx.addPath(outline(0.25))
+            ctx.setStrokeColor(UIColor(white: 0, alpha: dark ? 0.4 : 0.07).cgColor)
+            ctx.setLineWidth(0.5)
+            ctx.strokePath()
+            // The specular rim: bright at the thread's top-left and bottom-right, across the
+            // row's shape (with 60 past a joined edge, as the light falls on the whole card).
+            ctx.saveGState()
+            ctx.addPath(outline(1))
+            ctx.setLineWidth(1.5)
+            ctx.replacePathWithStrokedPath()
+            ctx.clip()
+            let bright = UIColor(white: 1, alpha: dark ? 0.55 : 1).cgColor
+            let dim = UIColor(white: 1, alpha: dark ? 0.08 : 0.2).cgColor
+            let colors = [first ? bright : dim, dim, last ? bright : dim] as CFArray
+            let gradient = CGGradient(colorsSpace: nil, colors: colors, locations: nil)!
+            let lit = CGRect(x: cardRect.minX, y: first ? cardRect.minY : cardRect.minY - 60, width: width,
+                             height: h + (first ? 0 : 60) + (last ? 0 : 60))
+            ctx.translateBy(x: lit.minX, y: lit.minY)
+            ctx.scaleBy(x: lit.width, y: lit.height)
+            ctx.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: 1, y: 1), options: [])
+            ctx.restoreGState()
+        }.cgImage!
+        // Exact-height renders vary with the row: keep the cache from growing without end.
+        if pieces.count > 64 { pieces.removeAll() }
+        pieces[key] = image
+        return (image, stretchLine)
+    }
+
     override func layoutSubviews() {
         super.layoutSubviews()
         let bounds = backdrop.bounds
         let rtl = effectiveUserInterfaceLayoutDirection == .rightToLeft
         let width: CGFloat = 2
         // 12 side margin, and the 10 gap to the next thread under its last row.
-        card.frame = CGRect(x: 12, y: 0, width: max(bounds.width - 24, 0), height: max(bounds.height - (last ? 10 : 0), 0))
+        let cardFrame = CGRect(x: 12, y: 0, width: max(bounds.width - 24, 0), height: max(bounds.height - (last ? 10 : 0), 0))
         let top = 8 + (first ? 5 : 0) as CGFloat
-        let bottom = card.frame.maxY - (last ? 5 : 0) - 2
+        let bottom = cardFrame.maxY - (last ? 5 : 0) - 2
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        highlight.frame = card.bounds
-        // A middle row's shape runs past its top and bottom (clipped by the card), so its
-        // edges are straight and its shadow keeps full strength right to the join; the
-        // shadow masks cut there.
-        let over: CGFloat = 60
-        let shape = CGRect(x: 0, y: first ? 0 : -over, width: card.bounds.width,
-                           height: card.bounds.height + (first ? 0 : over) + (last ? 0 : over))
-        func outline(_ inset: CGFloat) -> CGPath {
-            UIBezierPath(roundedRect: shape.insetBy(dx: inset, dy: inset), cornerRadius: Self.radius - inset).cgPath
-        }
-        rim.path = outline(0.25)
-        specular.frame = shape
-        // The mask lives in the gradient's own coordinates, which start at the shape's top.
-        var toSpecular = CGAffineTransform(translationX: 0, y: -shape.minY)
-        specularShape.frame = specular.bounds
-        specularShape.path = outline(1).copy(using: &toSpecular)
-        sheen.frame = CGRect(x: 0, y: 0, width: card.bounds.width, height: 80)
-        for layer in [shadow, contactShadow] {
-            layer.frame = card.frame
-            layer.shadowPath = outline(0)
-            layer.mask?.frame = CGRect(x: -over, y: first ? -over : 0, width: card.bounds.width + over * 2,
-                                       height: card.bounds.height + (first ? over : 0) + (last ? over : 0))
+        highlight.frame = cardFrame
+        if calm, cardFrame.width > 0, cardFrame.height > 0 {
+            let (image, stretchLine) = Self.piece(width: cardFrame.width, height: cardFrame.height, first: first, last: last,
+                                                  dark: dark, scale: max(traitCollection.displayScale, 1))
+            let imageHeight = CGFloat(image.height) / max(traitCollection.displayScale, 1)
+            card.contents = image
+            card.contentsScale = max(traitCollection.displayScale, 1)
+            card.contentsCenter = stretchLine.map { CGRect(x: 0, y: $0 / imageHeight, width: 1, height: 1 / imageHeight) } ?? CGRect(x: 0, y: 0, width: 1, height: 1)
+            card.frame = CGRect(x: cardFrame.minX - Self.pad, y: first ? -Self.pad : 0, width: cardFrame.width + Self.pad * 2,
+                                height: cardFrame.height + (first ? Self.pad : 0) + (last ? Self.padBottom : 0))
         }
         for i in 0..<min(depth, guides.count) {
             let x = 12 + 12 + CGFloat(i) * 10 + 4
@@ -260,6 +302,7 @@ final class CommentListController: UIViewController, UICollectionViewDelegate {
         collectionView.alwaysBounceVertical = true
         collectionView.keyboardDismissMode = .interactive
         collectionView.contentInsetAdjustmentBehavior = .always
+        LeadingSwipeGate.install(on: collectionView) { [unowned self] in swipeConfiguration($0, last?.settings.swipeCommentStart) != nil }
         // Room for the floating buttons, so the last comment clears them.
         collectionView.contentInset.bottom = 72
         collectionView.contentInset.top = extraTopInset
@@ -275,7 +318,7 @@ final class CommentListController: UIViewController, UICollectionViewDelegate {
             let edge: Color? = !env.voteEdge ? nil : row.comment.likes == true ? colors.up : row.comment.likes == false ? colors.down : nil
             cell.apply(row, env, voteColor: edge.map { UIColor($0) }, accent: UIColor(env.accent))
             cell.contentConfiguration = UIHostingConfiguration {
-                CommentRowView(row: row, env: env, actions: actions)
+                CommentRowView(row: row, env: env, actions: actions) { [weak cell] in cell?.headerBottom = $0 }
             }
             .margins(.all, 0)
             .minSize(height: 0)
@@ -556,7 +599,7 @@ final class CommentListController: UIViewController, UICollectionViewDelegate {
     func collectionView(_ collectionView: UICollectionView, contextMenuConfigurationForItemsAt indexPaths: [IndexPath], point: CGPoint) -> UIContextMenuConfiguration? {
         guard let path = indexPaths.first, let id = dataSource.itemIdentifier(for: path), let row = rows[id], !row.comment.isMore else { return nil }
         // A long press on the name line collapses (see `CommentRowView.header`).
-        if let cell = collectionView.cellForItem(at: path), collectionView.convert(point, to: cell).y < 34 { return nil }
+        if let cell = collectionView.cellForItem(at: path) as? CommentCell, collectionView.convert(point, to: cell).y < cell.headerBottom { return nil }
         let actions = actions
         return UIContextMenuConfiguration(identifier: id as NSString, previewProvider: nil) { _ in
             UIMenu(children: actions.menu(row.comment, isOwn: row.isOwn))

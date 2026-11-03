@@ -6,7 +6,7 @@ final class ForYouRankerTests: XCTestCase {
     private let now = 1_791_460_800_000 // 2026-10-08T12:00:00Z
     private var n = 0
 
-    private func p(_ sub: String, _ title: String, score: Int = 500, hoursOld: Double = 3.0, url: String? = nil, ratio: Double = 0.9) -> Post {
+    private func p(_ sub: String, _ title: String, score: Int = 500, hoursOld: Double = 3.0, url: String? = nil, ratio: Double? = 0.9) -> Post {
         let id = "p\(n)"
         n += 1
         // created_utc is whole seconds, as Reddit sends it.
@@ -155,6 +155,75 @@ final class ForYouRankerTests: XCTestCase {
         XCTAssertLessThan(homeCount(0), homeCount(2))
     }
 
+    func testAMissingUpvoteRatioIsNeutralNotZero() {
+        let missing = p("pics", title(8), ratio: nil)
+        let poor = p("pics", title(9), ratio: 0.5)
+        let r = rankForYou(c([poor, missing]), RankInputs(subscribed: ["pics"], now: now))
+        XCTAssertEqual(r.ranked.first?.id, missing.id, "a Home card without a ratio isn't scored as a 0 ratio")
+    }
+
+    func testEachImpressionCosts45Percent() {
+        let seen = p("pics", title(10))
+        let r = rankForYou(c([seen]), RankInputs(subscribed: ["pics"], impressions: { _ in 1.0 }, now: now))
+        XCTAssertTrue(r.meta[seen.id]!.why.contains("Seen 1× before (×0.55)"))
+    }
+
+    func testAFastRisingDiscoveryPostGetsAHigherBase() {
+        // Each alone in its community, so only the pool-wide speed tells them apart;
+        // the slow one is newer (recency alone used to put it first).
+        let fast = p("big", title(11), score: 20_000, hoursOld: 3.0)
+        let slow = p("small", title(12), score: 10, hoursOld: 1.0)
+        let r = rankForYou(c([slow, fast], "explore"), RankInputs(now: now))
+        XCTAssertEqual(r.ranked.first?.id, fast.id)
+    }
+
+    func testFamiliarStillPlacesSomeDiscovery() {
+        let pool = c((0..<60).map { p("mine\($0 % 12)", title($0)) }) + c((0..<60).map { p("new\($0 % 12)", title(100 + $0)) }, "explore")
+        let r = rankForYou(pool, RankInputs(subscribed: Set((0..<12).map { "mine\($0)" }), discoveryMix: -2, now: now), pageSize: 30)
+        XCTAssertGreaterThanOrEqual(r.ranked.filter { r.meta[$0.id]?.discovery == true }.count, 2, "one in 15 at most familiar (was one in 20)")
+    }
+
+    func testACommunityYouEngageWithButDontFollowStartsNearASubscription() {
+        let engaged = p("engaged", title(50))
+        let mine = p("mine", title(51))
+        let r = rankForYou(c([mine, engaged]), RankInputs(subscribed: ["mine"], interest: ["engaged": 6.0], now: now))
+        XCTAssertEqual(r.ranked.first?.id, engaged.id, "base 2.3 × its interest beats a plain subscription (base 0.4 lost)")
+        XCTAssertEqual(r.ranked.first?.feedReason, "Because you engage with r/engaged")
+        XCTAssertEqual(r.meta[engaged.id]?.why.first, "Because you engage with r/engaged (you don't follow it)")
+    }
+
+    func testBlendTheTopOfYourHomeCountsUpTo30Percent() {
+        let top = p("pics", title(60))
+        let r = rankForYou([Candidate(post: top, source: "home", homePos: 0.0)], RankInputs(subscribed: ["pics"], now: now))
+        XCTAssertTrue(r.meta[top.id]!.why.contains { $0.hasPrefix("In your Reddit Home") && $0.hasSuffix("(×1.6)") })
+    }
+
+    func testAnUnknownDateIsNeutralNotAncient() {
+        let undated = p("pics", title(40)).with { $0.createdUtc = 0 }
+        let old = p("pics", title(41), hoursOld: 72.0)
+        let r = rankForYou(c([old, undated]), RankInputs(subscribed: ["pics"], now: now))
+        XCTAssertEqual(r.ranked.first?.id, undated.id)
+    }
+
+    func testAStoryYouReadLatelyIsDemotedNotDropped() {
+        let again = p("space", "Starship launch succeeds orbital flight test")
+        let other = p("space", title(70))
+        let r = rankForYou(c([again, other]), RankInputs(subscribed: ["space"], readTitles: ["Starship launch succeeds orbital flight test today"], now: now))
+        XCTAssertEqual(r.ranked.map(\.id), [other.id, again.id])
+        XCTAssertEqual(r.ranked.last?.feedReason, "You read about this already")
+        XCTAssertTrue(r.meta[again.id]!.why.contains("You read about this already (×0.3)"))
+    }
+
+    func testADiscoverySlotGoesToTheTopicalPostBeforeTheBigOne() {
+        let filler = (0..<10).map { p("mine\($0)", title(80 + $0)) }
+        let niche = p("niche", "nichealpha nichebeta nichegamma nichedelta", score: 20)
+        let big = p("popularsub", title(99), score: 50_000)
+        let r = rankForYou(c(filler) + c([niche, big], "popular"), RankInputs(subscribed: Set((0..<10).map { "mine\($0)" }), keywordScore: { $0.hasPrefix("niche") ? 3.0 : 0.0 }, now: now))
+        let ids = r.ranked.map(\.id)
+        XCTAssertEqual(ids.firstIndex(of: niche.id), 5, "the first discovery slot (the 6th)")
+        XCTAssertLessThan(ids.firstIndex(of: niche.id)!, ids.firstIndex(of: big.id)!)
+    }
+
     func testNormalisedUrl() {
         func u(_ s: String, isSelf: Bool = false) -> String? { normalisedUrl(post().with { $0.url = s; $0.isSelf = isSelf }) }
         XCTAssertEqual(u("https://WWW.Example.com/a?b=1&utm_x=2&a=3#f"), "example.com/a?a=3&b=1")
@@ -196,6 +265,22 @@ final class ForYouReviewTests: XCTestCase {
         XCTAssertEqual(store.count("alice_post"), 0.0, accuracy: 0.001)
         store.load("alice")
         XCTAssertEqual(store.count("alice_post"), 1.0, accuracy: 0.01, "saved under the account that saw it")
+    }
+
+    func testAnImpressionCountsOncePerFeedBuildAndTheLastTopIsKept() {
+        let prefs = testPrefs()
+        let store = ImpressionStore(prefs: prefs, trackHistory: { true })
+        store.load("alice")
+        store.record("p")
+        store.record("p") // same build: once
+        store.newFeed()
+        store.record("p") // the next build: again
+        store.setLastTop((0..<12).map { "t\($0)" })
+        store.load("alice") // saves, then reads back as a new launch would
+        XCTAssertEqual(store.count("p"), 2.0, accuracy: 0.01)
+        XCTAssertEqual(store.lastTop, (0..<10).map { "t\($0)" })
+        store.load("bob")
+        XCTAssertTrue(store.lastTop.isEmpty, "per account")
     }
 
     func testThirdStoryMustStayExcludedAcrossPages() {

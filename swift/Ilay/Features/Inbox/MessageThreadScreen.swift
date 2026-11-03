@@ -49,6 +49,8 @@ private struct MessageThread: View {
     @State private var selection: TextSelection?
     @State private var media: MediaAttachment?
     @State private var sending = false
+    // A picked file still being read: sending now would go without it.
+    @State private var attaching = false
     @State private var pickingImage = false
     @State private var pickingVideo = false
     @State private var pickedImage: PhotosPickerItem?
@@ -93,22 +95,28 @@ private struct MessageThread: View {
 
     private var composer: some View {
         VStack(spacing: 6) {
-            if let m = media {
+            if attaching {
+                AttachmentLoading()
+            } else if let m = media {
                 AttachmentPreview(media: m) { media = nil }
             }
+            LengthCounter(text: reply, limit: TextLimit.comment)
             HStack(alignment: .bottom, spacing: 8) {
                 Menu {
                     Button("Attach image", systemImage: "photo") { pickingImage = true }
                     Button("Attach video", systemImage: "video") { pickingVideo = true }
-                    Button("Paste image", systemImage: "doc.on.clipboard") {
-                        if let pasted = pasteImageAttachment() { media = pasted } else { nav.showSnackbar("No image on the clipboard.") }
+                    // The system Paste button: no "Allow Paste?" prompt, and only
+                    // enabled when the clipboard holds an image.
+                    PasteButton(payloadType: PastedImage.self) { pasted in
+                        guard let first = pasted.first else { return }
+                        Task { @MainActor in media = first.media }
                     }
                 } label: {
                     Image(systemName: "plus").frame(width: 28, height: 28)
                 }
                 .buttonStyle(.glass)
                 .buttonBorderShape(.circle)
-                .disabled(sending)
+                .disabled(sending || attaching)
                 .accessibilityLabel("Attach")
 
                 MediaTextEditor(
@@ -128,7 +136,7 @@ private struct MessageThread: View {
                 }
                 .buttonStyle(.glassProminent)
                 .buttonBorderShape(.circle)
-                .disabled(sending)
+                .disabled(sending || attaching || redditLength(reply.trimmed) > TextLimit.comment)
                 .accessibilityLabel("Send")
             }
         }
@@ -148,12 +156,14 @@ private struct MessageThread: View {
 
     private func load(_ item: PhotosPickerItem?, isVideo: Bool) {
         guard let item else { return }
+        attaching = true
         Task {
             do {
                 media = try await readPicked(item, isVideo: isVideo)
             } catch {
                 nav.showSnackbar(errorText(error))
             }
+            attaching = false
             pickedImage = nil
             pickedVideo = nil
         }
@@ -175,6 +185,7 @@ private struct MessageThread: View {
                     text = text.isEmpty ? url : "\(text)\n\n\(url)"
                 }
                 try await app.repository.sendReply(target, text: text)
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
                 app.drafts.clear(draftKey)
                 messages.append(InboxItem(
                     fullname: "local_\(messages.count)",
@@ -187,6 +198,7 @@ private struct MessageThread: View {
                 reply = ""
                 media = nil
             } catch {
+                UINotificationFeedbackGenerator().notificationOccurred(.error)
                 nav.showSnackbar(errorText(error))
             }
             sending = false

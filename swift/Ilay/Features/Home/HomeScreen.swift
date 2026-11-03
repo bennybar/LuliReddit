@@ -30,19 +30,6 @@ private struct TabRoot: View {
     }
 }
 
-private struct PlaceholderTab: View {
-    let title: String
-
-    var body: some View {
-        ContentUnavailableView(title, systemImage: "hammer", description: Text("Not ported yet."))
-            .navigationTitle(title)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) { SideBarButton() }
-                ToolbarItem(placement: .topBarTrailing) { SettingsButton() }
-            }
-    }
-}
-
 /// The home shell: Posts / Explore / Inbox / Profile tabs, each with its own
 /// `NavigationStack`, and the side bar. SwiftUI keeps every opened tab alive (state,
 /// scroll position, running tasks) like Flutter's IndexedStack.

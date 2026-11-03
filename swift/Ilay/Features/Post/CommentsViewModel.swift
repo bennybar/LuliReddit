@@ -534,6 +534,8 @@ final class ThreadDwell {
             if awarded.isEmpty, awarded.insert("bounce").inserted { app.forYou.forYouLearner.bounce(p) }
             return
         }
+        // 3s+ is real engagement (opening alone isn't: it may be a bounce).
+        if awarded.insert("dwell").inserted { app.forYou.forYouLearner.dwell(p) }
         if seconds >= 30, awarded.insert("read").inserted { app.forYou.forYouLearner.read(p) }
         if seconds >= 120, awarded.insert("longRead").inserted { app.forYou.forYouLearner.read(p, long: true) }
     }

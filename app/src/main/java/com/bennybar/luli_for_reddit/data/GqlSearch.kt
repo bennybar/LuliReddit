@@ -2,6 +2,7 @@ package com.bennybar.luli_for_reddit.data
 
 import com.bennybar.luli_for_reddit.core.arr
 import com.bennybar.luli_for_reddit.core.bool
+import com.bennybar.luli_for_reddit.core.double
 import com.bennybar.luli_for_reddit.core.get
 import com.bennybar.luli_for_reddit.core.int
 import com.bennybar.luli_for_reddit.core.obj
@@ -223,6 +224,8 @@ internal fun gqlPostData(n: JsonObject): JsonObject {
         put("subreddit_name_prefixed", community["prefixedName"].str() ?: "r/$sub")
         put("score", n["score"].int() ?: 0)
         put("num_comments", n["commentCount"].int() ?: 0)
+        // Left out when the response doesn't carry it: For You reads a missing ratio as neutral, not 0.
+        n["upvoteRatio"].double()?.let { put("upvote_ratio", it) }
         put("created_utc", gqlSeconds(n["createdAt"].str()))
         put("permalink", n["permalink"].str() ?: "/r/$sub/comments/$id/")
         put("url", url)

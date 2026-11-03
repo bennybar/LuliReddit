@@ -505,6 +505,8 @@ class ThreadDwell(postId: String) : androidx.lifecycle.ViewModel() {
             if (awarded.isEmpty() && awarded.add("bounce")) learner.bounce(p)
             return
         }
+        // 3s+ is real engagement (opening alone isn't: it may be a bounce).
+        if (awarded.add("dwell")) learner.dwell(p)
         if (seconds >= 30 && awarded.add("read")) learner.read(p)
         if (seconds >= 120 && awarded.add("longRead")) learner.read(p, long = true)
     }

@@ -189,6 +189,7 @@ import SwiftUI
 
     /// A quick action (vote, save, subscribe…) didn't go through; its optimistic UI was rolled back.
     func showActionError(_ action: String, _ error: Error) {
+        UINotificationFeedbackGenerator().notificationOccurred(.error)
         let anonymous = app.session.session?.anonymous == true
         showSnackbar(anonymous
             ? "Sign in to \(action) — you're browsing without an account."

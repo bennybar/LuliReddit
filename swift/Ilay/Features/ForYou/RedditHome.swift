@@ -8,6 +8,11 @@ struct HomeSignedOutException: LocalizedError {
     var errorDescription: String? { "Your Reddit website sign-in has expired" }
 }
 
+/// The page didn't open (offline, refused) or opened without any posts.
+struct HomeUnavailableException: LocalizedError {
+    var errorDescription: String? { "Reddit Home didn't open" }
+}
+
 /// One post as reddit.com's Home page shows it — enough for a feed card
 /// straight away (the full post is fetched in the background).
 struct PagePost: Equatable, Sendable {
@@ -56,7 +61,7 @@ struct PagePost: Equatable, Sendable {
             author: author,
             score: score,
             numComments: comments,
-            upvoteRatio: 0,
+            upvoteRatio: nil,
             createdUtc: createdUtc,
             permalink: permalink,
             url: href.isEmpty ? "https://www.reddit.com\(permalink)" : href,
@@ -147,6 +152,9 @@ final class RedditHomeLoader: NSObject, WKNavigationDelegate {
     private var seen = Set<String>()
     private let busy = AsyncMutex()
     private var running = false // a page call holds `busy`
+    // The current page load: whether it failed, and when it finished.
+    private var loadFailed = false
+    private var loadFinishedAt: Int?
 
     /// Opens the page in the hidden browser (tests load a saved copy instead).
     var loadHome: (WKWebView) -> Void = { $0.load(URLRequest(url: RedditHomeLoader.home)) }
@@ -155,6 +163,13 @@ final class RedditHomeLoader: NSObject, WKNavigationDelegate {
     /// fewer" for. Only those can take it: a card from an earlier page (one
     /// saved before the app was closed) isn't on this one.
     private(set) var showFewerIds = Set<String>()
+
+    /// Whether reading Home gives up before any post appears, instead of waiting
+    /// out the 15s deadline (offline, a broken page): the page failed to load, or
+    /// finished loading 5s ago without a single post (posts come in its HTML).
+    nonisolated static func givesUp(loadFailed: Bool, finishedAt: Int?, now: Int) -> Bool {
+        loadFailed || finishedAt.map { now - $0 >= 5_000 } ?? false
+    }
 
     private func locked<T>(_ work: () async throws -> T) async rethrows -> T {
         await busy.lock()
@@ -189,7 +204,10 @@ final class RedditHomeLoader: NSObject, WKNavigationDelegate {
                 // its posts aren't read as the new page's.
                 seen.removeAll()
                 _ = await eval("document.documentElement.setAttribute('data-ilay-old','1')")
-                if let view { loadHome(view) }
+                if let view {
+                    (loadFailed, loadFinishedAt) = (false, nil)
+                    loadHome(view)
+                }
             }
             attachToWindow()
 
@@ -203,6 +221,9 @@ final class RedditHomeLoader: NSObject, WKNavigationDelegate {
             while nowMillis() < deadline {
                 let page = await read()
                 if page?.signedOut == true { throw HomeSignedOutException() }
+                if seen.isEmpty, (page?.posts ?? []).isEmpty, Self.givesUp(loadFailed: loadFailed, finishedAt: loadFinishedAt, now: nowMillis()) {
+                    throw HomeUnavailableException()
+                }
                 if let page { showFewerIds = Set(page.posts.filter(\.canShowFewer).map { $0.id.removePrefix("t3_") }) }
                 var grew = false
                 for p in page?.posts ?? [] where seen.insert(p.id).inserted {
@@ -329,6 +350,7 @@ final class RedditHomeLoader: NSObject, WKNavigationDelegate {
         attachToWindow()
         // Don't wait for the whole page to load: next() reads posts as soon as
         // they're in the page.
+        (loadFailed, loadFinishedAt) = (false, nil)
         loadHome(v)
     }
 
@@ -344,6 +366,23 @@ final class RedditHomeLoader: NSObject, WKNavigationDelegate {
         view.accessibilityElementsHidden = true
         view.frame = window.bounds
         window.insertSubview(view, at: 0)
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        if view === webView { loadFinishedAt = nowMillis() }
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        failed(webView, error)
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        failed(webView, error)
+    }
+
+    /// The page couldn't load (not a load that a newer one replaced).
+    private func failed(_ webView: WKWebView, _ error: Error) {
+        if view === webView, (error as NSError).code != NSURLErrorCancelled { loadFailed = true }
     }
 
     /// The page's process died (crashed, or killed for memory): drop this page, and the
@@ -504,6 +543,9 @@ final class RedditHomeEngine {
     // result from before that (`blendGen`) is thrown away.
     @ObservationIgnored private var blendGen = 0
     @ObservationIgnored private var blendPending: BlendBatch? // being read for the next page
+    // Home didn't open for Blend: not asked again until the next refresh (each
+    // retry used to wait out the whole read again).
+    @ObservationIgnored private var blendDown = false
     @ObservationIgnored private var blendActive: BlendBatch? // handed to the page being built
 
     init(_ c: AppContainer, _ m: ForYouModule) {
@@ -592,9 +634,10 @@ final class RedditHomeEngine {
     private func startBlend(first: Bool) -> BlendBatch {
         let gen = blendGen
         let batch = BlendBatch()
+        // Cancelled (refresh, feed closed, account change): no result; the page
+        // that waited for it is gone too.
         batch.task = Task { [weak batch] in
-            let result = await blendCandidates(first: first, gen: gen)
-            batch?.result = result
+            if let result = try? await blendCandidates(first: first, gen: gen) { batch?.result = result }
         }
         return batch
     }
@@ -602,7 +645,15 @@ final class RedditHomeEngine {
     /// The Home read for this page: a fresh one on the first page (older reads
     /// are cancelled), else the one already loading in the background.
     func blendBatch(first: Bool) -> BlendBatch {
-        if first { cancelBlend() }
+        if first {
+            cancelBlend()
+            blendDown = false
+        }
+        if blendDown {
+            let failed = BlendBatch()
+            failed.result = .failed
+            return failed
+        }
         let pending = blendPending
         blendPending = nil
         let batch = !first ? pending ?? startBlend(first: first) : startBlend(first: first)
@@ -622,7 +673,7 @@ final class RedditHomeEngine {
 
     /// One read of your Reddit Home as full posts (Reddit's "why" kept as
     /// their reason), for For You to rank with everything else.
-    private func blendCandidates(first: Bool, gen: Int) async -> BlendResult {
+    private func blendCandidates(first: Bool, gen: Int) async throws -> BlendResult {
         let user = c.session.username
         do {
             if await c.secureStore.authMode() != "web" { return .signedOut }
@@ -638,7 +689,12 @@ final class RedditHomeEngine {
             return .posts(withReasons(full, page))
         } catch is HomeSignedOutException {
             return .signedOut
+        } catch is HomeUnavailableException {
+            if gen == blendGen { blendDown = true }
+            return .failed
         } catch {
+            // A cancelled read isn't a failure (it was counted as a miss).
+            if error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled { throw error }
             return .failed
         }
     }

@@ -58,11 +58,12 @@ fun rememberMirroredState(value: TextFieldValue, onValueChange: (TextFieldValue)
 
 /**
  * Takes images, GIFs and stickers sent by the keyboard (Gboard, Samsung
- * Keyboard…) as an attachment, like one picked from the gallery.
+ * Keyboard…) as an attachment, like one picked from the gallery. [onLoading]
+ * is on while it's being read.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun Modifier.keyboardMediaReceiver(onMedia: (MediaAttachment) -> Unit, onError: (String) -> Unit): Modifier {
+fun Modifier.keyboardMediaReceiver(onMedia: (MediaAttachment) -> Unit, onError: (String) -> Unit, onLoading: (Boolean) -> Unit): Modifier {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     return contentReceiver { content ->
@@ -70,11 +71,14 @@ fun Modifier.keyboardMediaReceiver(onMedia: (MediaAttachment) -> Unit, onError: 
         var uri: android.net.Uri? = null
         val rest = content.consume { item -> if (uri == null && item.uri != null) { uri = item.uri; true } else false }
         uri?.let { u ->
+            onLoading(true)
             scope.launch {
                 try {
                     onMedia(readAttachment(context, u, isVideo = false))
                 } catch (e: Exception) {
                     onError((e.message ?: e.toString()).removePrefix("Exception: "))
+                } finally {
+                    onLoading(false)
                 }
             }
         }

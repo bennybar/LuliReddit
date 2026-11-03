@@ -244,6 +244,7 @@ private enum FeedItem: Hashable {
         collectionView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         container.addSubview(collectionView)
         collectionView.collectionViewLayout = makeLayout()
+        LeadingSwipeGate.install(on: collectionView) { [weak self] in self?.swipe(at: $0, leading: true) != nil }
         collectionView.delegate = self
         collectionView.prefetchDataSource = self
         collectionView.alwaysBounceVertical = true

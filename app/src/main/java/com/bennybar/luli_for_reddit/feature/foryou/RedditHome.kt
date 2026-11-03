@@ -21,6 +21,7 @@ import com.bennybar.luli_for_reddit.core.net.loadWebSessionCookies
 import com.bennybar.luli_for_reddit.model.Listing
 import com.bennybar.luli_for_reddit.model.Post
 import com.bennybar.luli_for_reddit.model.PostType
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -43,6 +44,9 @@ import kotlin.coroutines.resume
 
 /** The page shows the logged-out site: the website session has expired. */
 class HomeSignedOutException : Exception("Your Reddit website sign-in has expired")
+
+/** The page didn't open (offline, refused) or opened without any posts. */
+class HomeUnavailableException : Exception("Reddit Home didn't open")
 
 /**
  * One post as reddit.com's Home page shows it — enough for a feed card
@@ -94,7 +98,7 @@ data class PagePost(
             author = author,
             score = score,
             numComments = comments,
-            upvoteRatio = 0.0,
+            upvoteRatio = null,
             createdUtc = createdUtc,
             permalink = permalink,
             url = href.ifEmpty { "https://www.reddit.com$permalink" },
@@ -161,6 +165,9 @@ class RedditHomeLoader(private val context: Context) {
     private var cookies: String? = null // the session the hidden browser was opened with
     private val seen = HashSet<String>()
     private val busy = Mutex()
+    // The current page load: whether it failed, and when it finished.
+    @Volatile private var loadFailed = false
+    @Volatile private var loadFinishedAt: Long? = null
 
     /**
      * Ids (bare) of the posts on the hidden page now that Reddit offers "Show
@@ -194,6 +201,8 @@ class RedditHomeLoader(private val context: Context) {
                 // its posts aren't read as the new page's.
                 seen.clear()
                 eval("document.documentElement.setAttribute('data-ilay-old','1')")
+                loadFailed = false
+                loadFinishedAt = null
                 view?.loadUrl(HOME)
             }
 
@@ -207,6 +216,9 @@ class RedditHomeLoader(private val context: Context) {
             while (System.currentTimeMillis() < deadline) {
                 val page = read()
                 if (page?.signedOut == true) throw HomeSignedOutException()
+                if (seen.isEmpty() && page?.posts.isNullOrEmpty() && givesUp(loadFailed, loadFinishedAt, System.currentTimeMillis())) {
+                    throw HomeUnavailableException()
+                }
                 if (page != null) showFewerIds = page.posts.filter { it.canShowFewer }.mapTo(HashSet()) { it.id.removePrefix("t3_") }
                 var grew = false
                 for (p in page?.posts ?: emptyList()) {
@@ -322,6 +334,15 @@ class RedditHomeLoader(private val context: Context) {
                 return if (isSkippable(url)) EMPTY_RESPONSE() else null
             }
 
+            override fun onPageFinished(view: WebView, url: String?) {
+                if (this@RedditHomeLoader.view === view) loadFinishedAt = System.currentTimeMillis()
+            }
+
+            // The page couldn't load (offline, refused): next() stops waiting for it.
+            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: android.webkit.WebResourceError) {
+                if (this@RedditHomeLoader.view === view && request.isForMainFrame) loadFailed = true
+            }
+
             // The page's renderer died (crashed, or killed for memory). Unhandled,
             // Android kills Ilay with it; instead drop this page, and the next
             // Home load opens a new one.
@@ -339,6 +360,8 @@ class RedditHomeLoader(private val context: Context) {
         view = v
         // Don't wait for the whole page to load: next() reads posts as soon as
         // they're in the page.
+        loadFailed = false
+        loadFinishedAt = null
         v.loadUrl(HOME)
     }
 
@@ -387,6 +410,14 @@ class RedditHomeLoader(private val context: Context) {
 
     companion object {
         private const val HOME = "https://www.reddit.com/"
+
+        /**
+         * Whether reading Home gives up before any post appears, instead of waiting
+         * out the 15s deadline (offline, a broken page): the page failed to load, or
+         * finished loading 5s ago without a single post (posts come in its HTML).
+         */
+        internal fun givesUp(loadFailed: Boolean, finishedAt: Long?, now: Long): Boolean =
+            loadFailed || (finishedAt != null && now - finishedAt >= 5_000)
 
         // Only downloads that never change what the feed shows: autoplaying
         // video and fonts. Reddit's own events must go through — Home learns
@@ -596,6 +627,9 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
     @Volatile private var blendGen = 0
     private var blendPending: Deferred<BlendResult>? = null // being read for the next page
     private var blendActive: Deferred<BlendResult>? = null // handed to the page being built
+    // Home didn't open for Blend: not asked again until the next refresh (each
+    // retry used to wait out the whole read again).
+    @Volatile private var blendDown = false
 
     /** Stops every Blend read (refresh, feed closed, account change). */
     fun cancelBlend() {
@@ -611,7 +645,11 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
      * are cancelled), else the one already loading in the background.
      */
     fun blendBatch(first: Boolean): Deferred<BlendResult> {
-        if (first) cancelBlend()
+        if (first) {
+            cancelBlend()
+            blendDown = false
+        }
+        if (blendDown) return CompletableDeferred(BlendResult.Failed)
         val pending = blendPending
         blendPending = null
         val gen = blendGen
@@ -655,6 +693,9 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
             throw e
         } catch (_: HomeSignedOutException) {
             BlendResult.SignedOut
+        } catch (_: HomeUnavailableException) {
+            if (gen == blendGen) blendDown = true
+            BlendResult.Failed
         } catch (_: Exception) {
             BlendResult.Failed
         }

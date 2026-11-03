@@ -17,6 +17,8 @@ struct ComposeMessageScreen: View {
     @State private var busy = false
     @State private var error: String?
     @State private var media: MediaAttachment?
+    // A picked file still being read: sending now would go without it.
+    @State private var attaching = false
 
     init(to: String?, onCancel: (() -> Void)? = nil) {
         self.to = to
@@ -47,8 +49,12 @@ struct ComposeMessageScreen: View {
                     minLines: 6, maxLines: 14,
                     onMedia: { media = $0; error = nil }
                 )
+                LengthCounter(text: messageBody, limit: TextLimit.comment)
                 MarkdownToolbar(text: $messageBody, selection: $selection)
-                AttachmentControls(media: Binding(get: { media }, set: { media = $0; error = nil }), onError: { error = $0 }, catboxForImages: true) { EmptyView() }
+                AttachmentControls(
+                    media: Binding(get: { media }, set: { media = $0; error = nil }), loading: $attaching,
+                    onError: { error = $0 }, catboxForImages: true
+                ) { EmptyView() }
             }
             if let error {
                 Section { Text(error).foregroundStyle(.red) }
@@ -71,7 +77,7 @@ struct ComposeMessageScreen: View {
                     }
                 }
                 .buttonStyle(.glassProminent)
-                .disabled(busy)
+                .disabled(busy || attaching || redditLength(messageBody.trimmed) > TextLimit.comment)
             }
         }
         .onChange(of: toField) { saveDraft() }
@@ -105,10 +111,12 @@ struct ComposeMessageScreen: View {
                     text = text.isEmpty ? url : "\(text)\n\n\(url)"
                 }
                 try await app.repository.composeMessage(to: recipient, subject: subj, text: text)
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
                 app.drafts.clear(draftKey)
                 nav.showSnackbar("Message sent")
                 if let onCancel { onCancel() } else { dismiss() }
             } catch {
+                UINotificationFeedbackGenerator().notificationOccurred(.error)
                 busy = false
                 self.error = errorText(error)
             }

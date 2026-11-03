@@ -286,6 +286,10 @@ final class MediaViewerController: UIHostingController<AnyView> {
             app.media.inlinePlayer.setCovered(true)
             let controller = makeController(entry.viewer, stack: stack)
             guard let top = topViewController() else { continue }
+            // Zooms out of the tapped thumbnail when there is one, else the cross-dissolve.
+            if let source = ZoomSourceView.tapped(in: top.view) {
+                controller.preferredTransition = ZoomSourceView.transition(from: source)
+            }
             presented.append((entry.id, controller))
             top.present(controller, animated: true)
         }

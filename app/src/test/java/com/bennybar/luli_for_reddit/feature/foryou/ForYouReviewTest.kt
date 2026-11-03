@@ -69,6 +69,30 @@ class ForYouReviewTest {
         assertEquals(0.0, store.count("alice_post"), 0.001)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test fun anImpressionCountsOncePerFeedBuildAndTheLastTopIsKept() = runTest {
+        val store = ImpressionStore(prefs(), { true }, this)
+        store.load("alice")
+        store.record("p")
+        store.record("p") // same build: once
+        store.newFeed()
+        store.record("p") // the next build: again
+        store.setLastTop(List(12) { "t$it" })
+        store.load("alice") // saves, then reads back as a new launch would
+        assertEquals(2.0, store.count("p"), 0.01)
+        assertEquals(List(10) { "t$it" }, store.lastTop)
+        store.load("bob")
+        assertTrue("per account", store.lastTop.isEmpty())
+        advanceUntilIdle()
+    }
+
+    @Test fun homeGivesUpOnAFailedLoadOrAPageLoadedWithoutPosts() {
+        assertTrue(RedditHomeLoader.givesUp(loadFailed = true, finishedAt = null, now = 0))
+        assertFalse("still loading", RedditHomeLoader.givesUp(loadFailed = false, finishedAt = null, now = 60_000))
+        assertFalse(RedditHomeLoader.givesUp(loadFailed = false, finishedAt = 1_000, now = 5_000))
+        assertTrue(RedditHomeLoader.givesUp(loadFailed = false, finishedAt = 1_000, now = 6_000))
+    }
+
     @Test fun thirdStoryMustStayExcludedAcrossPages() {
         val title = "Starship launch succeeds orbital flight test"
         val p = Post(id="third", fullname="t3_third", title=title, subreddit="space", subredditPrefixed="r/space", author="a", score=500, numComments=0, upvoteRatio=0.9, createdUtc=1000, permalink="/x", url="/x", domain="", type=PostType.SELF, isSelf=true)

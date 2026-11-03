@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.bennybar.luli_for_reddit.feature.markdown.IconTooltip
+import com.bennybar.luli_for_reddit.ui.Loading
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -138,11 +139,15 @@ suspend fun pasteImageAttachment(context: Context): MediaAttachment? {
  * pick-image / pick-video / paste buttons. [leading] = extra buttons (e.g.
  * GIF). [catboxForImages]: messages host even images on Catbox.
  * Stateless — the parent owns [media] and is told via [onChanged] / [onError].
+ * [loading] is on while a picked file is being read (told via [onLoading]):
+ * the composer must not send without it.
  */
 @Composable
 fun AttachmentControls(
     media: MediaAttachment?,
+    loading: Boolean,
     onChanged: (MediaAttachment?) -> Unit,
+    onLoading: (Boolean) -> Unit,
     onError: (String) -> Unit,
     modifier: Modifier = Modifier,
     catboxForImages: Boolean = false,
@@ -152,11 +157,14 @@ fun AttachmentControls(
     val scope = rememberCoroutineScope()
     fun load(uri: Uri?, isVideo: Boolean) {
         uri ?: return
+        onLoading(true)
         scope.launch {
             try {
                 onChanged(readAttachment(context, uri, isVideo))
             } catch (e: Exception) {
                 onError((e.message ?: e.toString()).removePrefix("Exception: "))
+            } finally {
+                onLoading(false)
             }
         }
     }
@@ -165,7 +173,10 @@ fun AttachmentControls(
     val cs = MaterialTheme.colorScheme
 
     Column(modifier) {
-        if (media != null) {
+        if (loading) {
+            AttachmentLoading()
+            Spacer(Modifier.height(4.dp))
+        } else if (media != null) {
             AttachmentPreview(media, onRemove = { onChanged(null) })
             Spacer(Modifier.height(4.dp))
         }
@@ -204,6 +215,27 @@ fun AttachmentControls(
                 color = cs.onSurfaceVariant,
             )
         }
+    }
+}
+
+/** Holds a pending attachment's place while the picked file is read. */
+@Composable
+fun AttachmentLoading(modifier: Modifier = Modifier) {
+    val cs = MaterialTheme.colorScheme
+    Row(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(cs.surfaceContainerHighest)
+            .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)).background(cs.surfaceContainerHigh),
+            contentAlignment = Alignment.Center,
+        ) { Loading(Modifier.size(24.dp)) }
+        Spacer(Modifier.width(10.dp))
+        Text("Preparing attachment…", color = cs.onSurfaceVariant)
     }
 }
 

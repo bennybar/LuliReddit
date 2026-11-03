@@ -246,6 +246,8 @@ final class RedditRepository: Sendable {
 
     func getUserAbout(_ username: String) async throws -> RedditUser {
         guard let d = try await client.get("/user/\(username)/about")["data"] else { throw AppException("u/\(username) wasn't found") }
+        // A suspended account still answers, with only its name: say so, not "0 karma, joined 1970".
+        if d["is_suspended"].isTrue() { throw AppException("u/\(username) has been suspended.") }
         return RedditUser.fromData(d)
     }
 

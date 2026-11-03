@@ -153,6 +153,12 @@ private struct MdContext {
            only.style.isEmpty, only.link == nil, only.spoiler < 0 {
             return Text(verbatim: only.text)
         }
+        // The parse is cached, but building the runs (fonts, links, spoilers) again on
+        // every cell bind was most of a comment's configure cost while scrolling.
+        let key = MdTextKey(MdTextKey.Fields(
+            inlines: inlines, size: size, runSize: runSize, weight: weight, revealed: revealed
+        ))
+        if let hit = Self.built.object(forKey: key) { return Text(hit.text) }
         let base = runSize ?? size
         var out = AttributedString()
         for r in inlines {
@@ -181,14 +187,45 @@ private struct MdContext {
             }
             out.append(run)
         }
+        Self.built.setObject(MdTextKey.Built(out), forKey: key)
         return Text(out)
     }
+
+    /// Built paragraphs, by everything that goes into them. The colours are dynamic
+    /// (`UIColor`), so a theme change doesn't need its own key.
+    private static let built: NSCache<MdTextKey, MdTextKey.Built> = {
+        let c = NSCache<MdTextKey, MdTextKey.Built>()
+        c.countLimit = 2000
+        return c
+    }()
 
     /// A ref from `media_metadata`, or a picker GIF Reddit sent with no URL.
     func imageURL(_ ref: String) -> URL? {
         if ref.hasPrefix("http") { return URL(string: ref) }
         return (media[ref] ?? giphyUrl(ref)).flatMap(URL.init(string:))
     }
+}
+
+/// NSCache wants object keys: this one compares by its fields.
+private final class MdTextKey: NSObject {
+    struct Fields: Hashable {
+        let inlines: [MdInline]
+        let size: CGFloat
+        let runSize: CGFloat?
+        let weight: Font.Weight?
+        let revealed: Set<Int>
+    }
+
+    final class Built {
+        let text: AttributedString
+        init(_ text: AttributedString) { self.text = text }
+    }
+
+    let fields: Fields
+    init(_ fields: Fields) { self.fields = fields }
+
+    override var hash: Int { fields.hashValue }
+    override func isEqual(_ object: Any?) -> Bool { (object as? MdTextKey)?.fields == fields }
 }
 
 private struct MdBlocks: View {

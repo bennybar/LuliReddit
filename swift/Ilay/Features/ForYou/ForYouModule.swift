@@ -122,20 +122,35 @@ final class ForYouLearner: FeedLearner {
         if titleDelta != 0 { m.keywords.bumpTitle(p.title, titleDelta) }
     }
 
-    /// Opened, read 30s+, or upvoted: counts once per post toward the
-    /// subreddit's engagement rate — only for a post For You showed this
-    /// session, so the rate is "liked what For You showed" (engagement from
-    /// other feeds, with no matching impression, used to inflate it).
+    /// Counts `event` per source and per feed slot (0–9, 10–29, 30+) for a post
+    /// For You placed (local metrics only): which sources and depths work.
+    private func tally(_ p: Post, _ event: String) {
+        guard let meta = m.meta[p.id] else { return }
+        m.metrics.count("\(event).src.\(meta.source)")
+        m.metrics.count("\(event).slot.\(meta.position < 10 ? "0-9" : meta.position < 30 ? "10-29" : "30+")")
+    }
+
+    /// Real engagement — 3s+ in the thread, the media viewed, an upvote, a
+    /// comment upvote: counts once per post toward the subreddit's and the post
+    /// type's engagement rate — only for a post For You showed this session, so
+    /// the rate is "liked what For You showed" (engagement from other feeds,
+    /// with no matching impression, used to inflate it). Opening alone used to
+    /// count before a bounce was known, and viewing media never did, so image
+    /// and video posts looked "seen, not engaged".
     private func engage(_ p: Post, _ event: String) {
         m.metrics.count("\(event).\(group(p))")
         if seen.contains(p.id), engaged.insert(p.id).inserted {
             m.subStats.engaged(p.subreddit)
             m.typeStats.engaged(postTypeKey(p))
+            tally(p, "eng")
         }
     }
 
-    /// A For You card that stayed >=60% on screen for 1s.
+    /// A For You card that stayed >=60% on screen for 1s. Only posts For You
+    /// placed (they have `meta`): a Reddit Home card carries a reason too, and
+    /// used to count as a For You impression.
     func impression(_ p: Post) {
+        if m.meta[p.id] == nil { return }
         m.impressions.record(p.id)
         if !seen.insert(p.id).inserted { return }
         m.subStats.impression(p.subreddit)
@@ -146,6 +161,7 @@ final class ForYouLearner: FeedLearner {
             m.metrics.count("src.\(meta.source)")
             if meta.position < 10 { m.metrics.count("impr.top10") }
         }
+        tally(p, "imp")
     }
 
     /// A vote changed from `from` to `to` (-1, 0, +1). Learns only the change,
@@ -162,13 +178,20 @@ final class ForYouLearner: FeedLearner {
 
     func save(_ p: Post, saved: Bool) { learn(p, saved ? 3.0 : -3.0, saved ? 1.5 : -1.5) }
 
+    /// Opened: the open rate, not engagement yet (`dwell` decides that).
     func open(_ p: Post) {
-        if once(p, "open") { learn(p, 0.5, 0.0) }
-        engage(p, "open")
+        guard once(p, "open") else { return }
+        learn(p, 0.5, 0.0)
+        m.metrics.count("open.\(group(p))")
+        tally(p, "open")
     }
+
+    /// 3 seconds or more in the thread: the open wasn't a bounce.
+    func dwell(_ p: Post) { engage(p, "dwell") }
 
     func viewMedia(_ p: Post) {
         if once(p, "media") { learn(p, 1.0, 0.0) }
+        engage(p, "media")
     }
 
     /// Commenting is the strongest engagement signal there is.
@@ -178,20 +201,36 @@ final class ForYouLearner: FeedLearner {
 
     /// Time in the thread: 30s+ (`long` = 2min+, on top of it).
     func read(_ p: Post, long: Bool = false) {
-        if once(p, long ? "read2m" : "read30") { learn(p, long ? 1.5 : 1.0, long ? 1.0 : 0.5) }
+        if once(p, long ? "read2m" : "read30") {
+            learn(p, long ? 1.5 : 1.0, long ? 1.0 : 0.5)
+            if !long { tally(p, "read30") }
+        }
         if !long { engage(p, "read30") }
     }
 
     /// The "no" signals: hiding a post, the Dismiss swipe, hiding its subreddit
     /// for 7 days, filtering it out. They used to only remove things from view.
-    /// `undo` reverses one (its snackbar's Undo).
-    func hidePost(_ p: Post, undo: Bool = false) { learn(p, undo ? 2.0 : -2.0, undo ? 0.8 : -0.8) }
+    /// `undo` reverses one (its snackbar's Undo). Each counts as a hide in
+    /// the per-source metrics.
+    func hidePost(_ p: Post, undo: Bool = false) {
+        learn(p, undo ? 2.0 : -2.0, undo ? 0.8 : -0.8)
+        if !undo { tally(p, "hide") }
+    }
 
-    func dismiss(_ p: Post, undo: Bool) { learn(p, undo ? 1.0 : -1.0, undo ? 0.4 : -0.4) }
+    func dismiss(_ p: Post, undo: Bool) {
+        learn(p, undo ? 1.0 : -1.0, undo ? 0.4 : -0.4)
+        if !undo { tally(p, "hide") }
+    }
 
-    func hideSubreddit(_ p: Post, undo: Bool) { learn(p, undo ? 3.0 : -3.0, 0.0) }
+    func hideSubreddit(_ p: Post, undo: Bool) {
+        learn(p, undo ? 3.0 : -3.0, 0.0)
+        if !undo { tally(p, "hide") }
+    }
 
-    func filterOutSubreddit(_ p: Post, undo: Bool) { learn(p, undo ? 4.0 : -4.0, 0.0) }
+    func filterOutSubreddit(_ p: Post, undo: Bool) {
+        learn(p, undo ? 4.0 : -4.0, 0.0)
+        if !undo { tally(p, "hide") }
+    }
 
     /// Upvoted a comment in `p`'s thread: interest in the thread's subreddit (once per post per session).
     func commentUpvote(_ p: Post) {
@@ -199,7 +238,7 @@ final class ForYouLearner: FeedLearner {
         engage(p, "commentvote")
     }
 
-    /// Backed out within 3 seconds.
+    /// Backed out within 3 seconds (the open's +0.5 is taken back; it never counted as engaged).
     func bounce(_ p: Post) {
         if once(p, "bounce") { learn(p, -0.5, 0.0) }
     }
@@ -224,6 +263,7 @@ struct ForYouPage: Sendable {
     let leftovers: [Candidate]
     let meta: OrderedMap<ForYouMeta>
     let candidateTitles: [String] // for word rarity (IDF)
+    var sourceFailed = false // a source failed or timed out
 }
 
 /// Blend: what becomes of Home's cursor after a page. Its value counts misses in a
@@ -273,6 +313,11 @@ final class ForYouEngine {
     @ObservationIgnored private var leftovers: [Candidate] = []
     @ObservationIgnored private var communityTurn = 0
     @ObservationIgnored private var blendPlaced = 0 // Blend: Reddit Home posts placed in this feed
+    // Favourites and subscriptions as the first page knew them (later pages don't ask again).
+    @ObservationIgnored private var knownSubs: (fav: [String], sub: [String])?
+    // Community listings by request ("a+b+c", "all/top/day"), kept a few minutes.
+    @ObservationIgnored private var listingCache: [String: (at: Int, listing: Listing<Post>)] = [:]
+    @ObservationIgnored private var seedJob: Task<Void, Never>? // the cold-start seed, while it runs
 
     /// Candidate posts gathered so far while the first page loads (for the loading deck).
     private(set) var progress = 0
@@ -287,6 +332,10 @@ final class ForYouEngine {
         leftovers = []
         communityTurn = 0
         blendPlaced = 0
+        knownSubs = nil
+        listingCache = [:]
+        seedJob?.cancel()
+        seedJob = nil
     }
 
     /// First page when `after` is nil, else the page after that cursor.
@@ -294,20 +343,38 @@ final class ForYouEngine {
     /// demotes the old top 10). Posts carry feedReason.
     func page(after: String?, loaded: [Post]) async throws -> Listing<Post> {
         let firstPage = after == nil
-        if firstPage { progress = 0 }
-        if firstPage { await seedIfNeeded() }
+        if firstPage {
+            progress = 0
+            m.impressions.newFeed() // a post seen again in this build counts again
+        }
+        // Cold start's seed runs alongside the sources (it used to hold them up);
+        // the ranking waits for it. One at a time: a refresh meanwhile shares it.
+        var seeding: Task<Void, Never>?
+        let user = c.session.username
+        if firstPage, c.settings.value.trackHistory, c.session.session?.anonymous == false, !user.isEmpty {
+            if seedJob == nil {
+                seedJob = Task {
+                    await seedIfNeeded(user: user)
+                    seedJob = nil
+                }
+            }
+            seeding = seedJob
+        }
         let page = try await getForYouFeed(
             inputs: rankInputs(firstPage: firstPage, loaded: loaded),
-            communities: firstPage ? candidateCommunities() : [],
             cursors: after, // nil = first page; else the encoded cursor bundle
             excludeIds: firstPage ? [] : Set(loaded.map(\.id)),
-            carryOver: firstPage ? [] : leftovers
+            carryOver: firstPage ? [] : leftovers,
+            seeding: seeding
         )
+        if firstPage { m.impressions.setLastTop(page.listing.items.prefix(10).map(\.id)) }
         leftovers = page.leftovers
-        m.meta = firstPage ? page.meta.dictionary : m.meta.merging(page.meta.dictionary) { _, new in new }
+        // Slots count through the whole feed (each page's ranking starts at 0).
+        m.meta = firstPage ? page.meta.dictionary : m.meta.merging(page.meta.dictionary.mapValues {
+            ForYouMeta(source: $0.source, discovery: $0.discovery, position: $0.position + loaded.count, why: $0.why)
+        }) { _, new in new }
         m.docFreq.observe(page.candidateTitles)
         for p in page.listing.items { m.metrics.count("src.ranked.\(page.meta[p.id]?.source ?? "other")") }
-        let user = c.session.username
         if firstPage && !user.isEmpty {
             // In the background: the page is ready; saving it shouldn't hold it up.
             let (items, repo) = (page.listing.items, repo)
@@ -364,10 +431,13 @@ final class ForYouEngine {
             muted: Set(m.muted.value),
             openedAt: Dictionary(c.history.state.map { ($0.id, $0.viewedAt) }, uniquingKeysWith: { _, last in last }),
             impressions: m.impressions.counter(),
-            // A refresh makes room: the old top 10 is demoted a little.
-            previousTop: firstPage ? Set(loaded.prefix(10).map(\.id)) : [],
+            // A refresh makes room: the old top 10 is demoted a little — the one
+            // on screen, and the last one built (so a cold launch makes room too).
+            previousTop: firstPage ? Set(loaded.prefix(10).map(\.id)).union(m.impressions.lastTop) : [],
             // Stories already shown on earlier pages count toward repeats.
             previousTitles: firstPage ? [] : loaded.reversed().prefix(100).map(\.title),
+            // Stories you opened in the last 36h, demoted when told again elsewhere.
+            readTitles: c.history.state.filter { $0.viewedAt > 0 && nowMillis() - $0.viewedAt < 36 * 3_600_000 }.map(\.title),
             discoveryAppetite: m.metrics.discoveryAppetite(),
             discoveryMix: settings.forYouDiscovery,
             typeStats: m.typeStats.value.dictionary.mapValues { ($0.seen, $0.engaged) },
@@ -375,16 +445,18 @@ final class ForYouEngine {
         )
     }
 
-    /// Communities you've dipped into but don't follow (0.5 ≤ interest < 2),
-    /// plus ones you asked for more of: three per refresh, rotating, as
-    /// personalised discovery instead of r/popular alone.
-    private func candidateCommunities() -> [String] {
+    /// Communities you've dipped into or engage with but don't follow
+    /// (interest ≥ 0.5), plus ones you asked for more of, minus `skip` (the top
+    /// interests, fetched anyway): three per refresh, rotating, as personalised
+    /// discovery instead of r/popular alone. It used to stop at interest 2, so
+    /// an engaged community outside the top five was never fetched.
+    private func candidateCommunities(subscribed: Set<String>, skip: [String]) -> [String] {
         let explicitMore = m.explicit.value.subs.filter { $0.value > 0 }.map(\.key)
         let visited = m.interest.value
-            .filter { $0.value >= 0.5 && $0.value < kEngagedInterest }
+            .filter { $0.value >= 0.5 }
             .sorted { $0.value > $1.value }
             .map(\.key)
-        let all = (explicitMore + visited).uniqued()
+        let all = (explicitMore + visited).uniqued().filter { !subscribed.contains($0) && !skip.contains($0) }
         if all.isEmpty { return [] }
         let start = (communityTurn * 3) % all.count
         communityTurn += 1
@@ -394,20 +466,21 @@ final class ForYouEngine {
     /// Cold start: the first time For You runs for an account, seed its model
     /// from the user's own Reddit activity (their upvoted and saved posts — data
     /// Reddit already holds for them, nothing third-party) plus local history,
-    /// so day one already prefers what they actually like. Once per account,
-    /// and only while history tracking is on.
-    private func seedIfNeeded() async {
-        if !c.settings.value.trackHistory { return }
-        guard let session = c.session.session, !session.anonymous, !session.username.isEmpty else { return }
-        let key = userScopedKey(c.prefs, session.username, "fy_seeded")
+    /// so day one already prefers what they actually like. Once per account
+    /// (marked done only once both requests worked: a failure used to end it
+    /// for good; it's tried again on the next refresh), and only while history
+    /// tracking is on (the caller checks that and the signed-in `user`).
+    func seedIfNeeded(user: String) async {
+        let key = userScopedKey(c.prefs, user, "fy_seeded")
         if c.prefs.getBool(key) == true { return }
-        c.prefs.setBool(key, true) // don't retry every page on failure
 
-        let (repo, user) = (repo, session.username)
-        async let up = try? repo.getUserPosts(user, where: "upvoted", limit: 100).items
-        async let sv = try? repo.getUserSaved(user, limit: 100).items
-        let upvoted = await up ?? []
-        let saved = (await sv ?? []).compactMap { item -> Post? in
+        let repo = repo
+        async let up = repo.getUserPosts(user, where: "upvoted", limit: 100).items
+        async let sv = repo.getUserSaved(user, limit: 100).items
+        guard let upvoted = try? await up, let items = try? await sv,
+              c.session.username == user, !Task.isCancelled else { return }
+        c.prefs.setBool(key, true)
+        let saved = items.compactMap { item -> Post? in
             if case let .post(p) = item { p } else { nil }
         }
 
@@ -425,29 +498,32 @@ final class ForYouEngine {
 
     /// Candidates: /best (subscriptions; paginated), rising and r/popular
     /// (paginated), and on the first page hot posts from favourites, the most
-    /// engaged communities and a few `communities` the user has visited.
-    /// `carryOver` is the previous page's unplaced pool.
+    /// engaged communities and a few the user has visited, plus
+    /// today's top of r/all to explore. `carryOver` is the previous page's
+    /// unplaced pool; `seeding` the cold-start seed the ranking waits for.
     private func getForYouFeed(
         inputs: RankInputs,
-        communities: [String],
         cursors: String?, // JSON cursor bundle from a previous page's `after`
         excludeIds: Set<String>,
-        carryOver: [Candidate]
+        carryOver: [Candidate],
+        seeding: Task<Void, Never>?
     ) async throws -> ForYouPage {
         var prev: [String: String?] = [:]
         if let cursors, !cursors.isEmpty, let o = parseJsonOrNull(cursors).obj() {
             for (k, v) in o { prev[k] = .some(v.str()) }
         }
         var page: ForYouPage!
-        // An empty page (everything failed, or all muted/seen) retries the next
-        // cursors once before ending the feed — it used to stop dead.
+        // An empty page (all muted/seen) retries the next cursors once before
+        // ending the feed — it used to stop dead. Not when a source failed:
+        // asking everything again at once only repeated the failure (the failed
+        // source keeps its place for the next page).
         for attempt in 0..<2 {
             // First page only without a cursor at all: once every source has run
             // out the cursor is empty ({}), and the leftovers page on from there.
             let first = (cursors ?? "").isEmpty && attempt == 0
-            let pg = try await forYouPage(inputs, communities, prev, excludeIds, attempt == 0 ? carryOver : [], first)
+            let pg = try await forYouPage(inputs, prev, excludeIds, attempt == 0 ? carryOver : [], first, seeding)
             page = pg
-            if !pg.listing.items.isEmpty || pg.cursors.isEmpty { break }
+            if !pg.listing.items.isEmpty || pg.cursors.isEmpty || pg.sourceFailed { break }
             prev = pg.cursors.mapValues { .some($0) }
         }
         return page
@@ -462,50 +538,63 @@ final class ForYouEngine {
 
     private func forYouPage(
         _ inputs: RankInputs,
-        _ communities: [String],
         _ prev: [String: String?],
         _ excludeIds: Set<String>,
         _ carryOver: [Candidate],
-        _ firstPage: Bool
+        _ firstPage: Bool,
+        _ seeding: Task<Void, Never>?
     ) async throws -> ForYouPage {
         let repo = repo
         let muted = inputs.muted
-
-        // Subreddits you engage with most (learned on-device), even if not
-        // favourited. Local data, so known before any request goes out.
-        let topInterest = Array(inputs.interest
-            .filter { $0.value >= kEngagedInterest && !muted.contains($0.key) }
-            .sorted { $0.value > $1.value }
-            .prefix(5)
-            .map(\.key))
 
         // A cursor of "" means "start this source from the top" (its first
         // fetch failed); a missing key means the source is exhausted.
         func live(_ k: String) -> Bool { firstPage || prev.keys.contains(k) }
         func after(_ k: String) -> String? { (prev[k] ?? nil)?.nilIfEmpty }
 
-        // Favourites and subscriptions: from the last snapshot when there is one,
-        // so favourites go out with everything else instead of waiting ~2s for
-        // the subscription list; the live list refreshes the snapshot for next time.
+        // Favourites and subscriptions: as the first page knew them, else from the
+        // last snapshot, so favourites go out with everything else instead of
+        // waiting ~2s for the subscription list. The live list is asked for once
+        // per build, to refresh the snapshot for next time (it was every page),
+        // and never signed out (it can only fail there, and was asked again each page).
         let user = c.session.username
-        let snapshot = await Task.detached { await Self.loadSubsSnapshot(user) }.value
-        if snapshot != nil {
+        var known = firstPage ? nil : knownSubs
+        if known == nil { known = await Task.detached { await Self.loadSubsSnapshot(user) }.value }
+        // Subreddits you engage with most (learned on-device), even if not
+        // favourited. Local data, so known before any request goes out. Ones
+        // you don't follow first (3, then 2 you do): /best already brings your
+        // subscriptions, so five subscribed ones here added little.
+        let knownSubscribed = Set(known?.sub ?? [])
+        let engagedSubs = inputs.interest
+            .filter { $0.value >= kEngagedInterest && !muted.contains($0.key) }
+            .sorted { $0.value > $1.value }
+            .map(\.key)
+        let engagedSubd = engagedSubs.filter { knownSubscribed.contains($0) }
+        let engagedOther = engagedSubs.filter { !knownSubscribed.contains($0) }
+        let topInterest = Array((engagedOther.prefix(3) + engagedSubd.prefix(2) + engagedOther.dropFirst(3) + engagedSubd.dropFirst(2)).prefix(5))
+        let communities = firstPage ? candidateCommunities(subscribed: knownSubscribed, skip: topInterest) : []
+        if firstPage, known != nil, !user.isEmpty {
             Task.detached {
                 if let subs = try? await repo.getSubscribedSubreddits() { Self.saveSubsSnapshot(user, subs) }
             }
         }
 
         // Blend (Beta): your Reddit Home is one more source, ranked with the
-        // rest. It's slow to read (a hidden browser), so the first page waits
-        // only so long for it; later pages read the next batch.
+        // rest. It's slow to read (a hidden browser), so a page waits only so
+        // long for it; later pages read the next batch.
         let s = c.settings.value
         let blend = s.forYouFeed && s.blendHome && s.redditHomeAllowed
         let homeBatch = blend && (firstPage || prev.keys.contains("home")) ? m.redditHome.blendBatch(first: firstPage) : nil
 
-        var favourites: [String] = snapshot?.fav ?? []
-        var subscribed: [String] = snapshot?.sub ?? []
+        var favourites: [String] = known?.fav ?? []
+        var subscribed: [String] = known?.sub ?? []
         let favRotation = userScopedKey(c.prefs, user, "fy_fav_rotation")
         let prefs = c.prefs
+        let near = (topInterest + communities.filter { !muted.contains($0) }).uniqued()
+        let now = nowMillis()
+        listingCache = listingCache.filter { now - $0.value.at < 5 * 60_000 }
+        let cache = listingCache
+        var cacheable: [String: String] = [:] // source key → its listing's cache name
 
         // Inside a task group, so cancelling the page (a newer refresh) cancels every source.
         let results: [SourceResult] = await withTaskGroup(of: SourceResult.self) { group in
@@ -527,6 +616,35 @@ final class ForYouEngine {
                     }
                 }
             }
+            // The first page's community listings don't change much in a few
+            // minutes: a quick refresh reuses them instead of asking again.
+            func cached(_ key: String, _ name: String, _ f: @escaping @Sendable () async throws -> Listing<Post>) {
+                cacheable[key] = name
+                if let hit = cache[name] { source(key) { hit.listing } } else { source(key, f) }
+            }
+            // Hot posts from several communities in one request (/r/a+b+c/hot) —
+            // up to sixteen requests became two. Each group is at most eight names,
+            // far under any URL limit.
+            func hot(_ key: String, _ subs: [String], perSub: Int) {
+                if subs.isEmpty { return }
+                let name = subs.joined(separator: "+")
+                cached(key, name) {
+                    do {
+                        return try await repo.getPosts(subreddit: name, sort: .hot, limit: min(100, perSub * subs.count))
+                    } catch let e as RedditApiException where e.statusCode == 403 && subs.count > 1 {
+                        // Website sign-in where Reddit's edge refuses listings: its
+                        // GraphQL has no combined feed, so one community at a time.
+                        return await withTaskGroup(of: [Post].self) { g in
+                            for sub in subs {
+                                g.addTask { (try? await repo.getPosts(subreddit: sub, sort: .hot, limit: perSub).items) ?? [] }
+                            }
+                            var items: [Post] = []
+                            for await l in g { items += l }
+                            return Listing(items: items)
+                        }
+                    }
+                }
+            }
 
             if live("best") {
                 let (limit, cursor) = (firstPage ? 100 : 50, after("best"))
@@ -541,15 +659,14 @@ final class ForYouEngine {
                 source("popular") { try await repo.getPosts(subreddit: "popular", sort: .hot, after: cursor, limit: limit) }
             }
             if firstPage {
-                for (i, sub) in topInterest.enumerated() {
-                    source("interest.\(i)") { try await repo.getPosts(subreddit: sub, sort: .hot, limit: 8) }
-                }
-                for (i, sub) in communities.filter({ !muted.contains($0) }).enumerated() {
-                    source("community.\(i)") { try await repo.getPosts(subreddit: sub, sort: .hot, limit: 6) }
-                }
+                hot("near", near, perSub: 8)
+                // Exploration beyond the communities you already touch (they were
+                // its only other source): today's top posts across Reddit, ranked
+                // as discovery.
+                cached("explore", "all/top/day") { try await repo.getPosts(subreddit: "all", sort: .top, time: .day, limit: 25) }
             }
 
-            if snapshot == nil {
+            if known == nil && firstPage && !user.isEmpty {
                 let mySubs = (try? await repo.getSubscribedSubreddits()) ?? []
                 if !mySubs.isEmpty { Self.saveSubsSnapshot(user, mySubs) }
                 favourites = mySubs.filter(\.userHasFavorited).map { $0.name.lowercased() }.uniqued()
@@ -568,9 +685,7 @@ final class ForYouEngine {
                     prefs.setInt(favRotation, start + 8)
                     pick = (0..<8).map { favs[(start + $0) % favs.count] }
                 }
-                for (i, sub) in pick.enumerated() {
-                    source("favourite.\(i)") { try await repo.getPosts(subreddit: sub, sort: .hot, limit: 10) }
-                }
+                hot("favourites", pick, perSub: 10)
             }
 
             var out: [SourceResult] = []
@@ -578,9 +693,13 @@ final class ForYouEngine {
             return out
         }
         try Task.checkCancellation()
+        if !subscribed.isEmpty { knownSubs = (favourites, subscribed) }
 
         let byKey = Dictionary(results.map { ($0.key, $0) }, uniquingKeysWith: { a, _ in a })
         func listing(_ key: String) -> Listing<Post>? { byKey[key]?.listing }
+        for (key, name) in cacheable where cache[name] == nil {
+            if let l = listing(key) { listingCache[name] = (nowMillis(), l) }
+        }
 
         var ids = excludeIds
         var pool: [Candidate] = []
@@ -590,11 +709,12 @@ final class ForYouEngine {
 
         // Blend: Reddit's Home batch first, so a post it also recommends counts
         // as Reddit's pick whichever source found it too (de-duplication used
-        // to keep whichever came first and drop the Home signal). Wait only so
-        // long — the first page shows the loading deck meanwhile, as Home
-        // does; a batch still loading joins the next page instead.
+        // to keep whichever came first and drop the Home signal). Wait at most
+        // 2.5s once the other sources are in (it was 10–12s, on every page) —
+        // the first page shows the loading deck meanwhile, as Home does; a batch
+        // still loading joins the next page instead.
         if let homeBatch {
-            let deadline = nowMillis() + (firstPage ? 10_000 : 12_000)
+            let deadline = nowMillis() + 2_500
             while homeBatch.result == nil, nowMillis() < deadline {
                 try await Task.sleep(for: .milliseconds(100))
             }
@@ -614,16 +734,36 @@ final class ForYouEngine {
         add(listing("best"), "best")
         add(listing("rising"), "rising")
         add(listing("popular"), "popular")
-        for i in 0..<8 { add(listing("favourite.\(i)"), "favourite") }
-        for i in 0..<5 { add(listing("interest.\(i)"), "interest") }
-        for i in 0..<3 { add(listing("community.\(i)"), "community") }
+        // The combined listings, each post labelled by its community's group.
+        let (favSet, interestSet) = (Set(favourites), Set(topInterest))
+        for key in ["favourites", "near"] {
+            for p in listing(key)?.items ?? [] where ids.insert(p.id).inserted {
+                let sub = p.subreddit.lowercased()
+                let src = interestSet.contains(sub) ? "interest" : favSet.contains(sub) ? "favourite" : "community"
+                pool.append(Candidate(post: p, source: src))
+            }
+        }
+        add(listing("explore"), "explore")
 
         // Every source failed (offline, rate-limited…): say so, rather than
-        // showing an empty feed that just ends.
-        if pool.isEmpty, let firstError = results.lazy.compactMap(\.error).first { throw firstError }
-        let ranked = inputs.withSubscriptions(favourites: Set(favourites), subscribed: Set(subscribed))
+        // showing an empty feed that just ends. Not when one answered (with
+        // nothing new): that used to fail the build and retry it whole.
+        if pool.isEmpty, !results.contains(where: { $0.listing != nil }), let firstError = results.lazy.compactMap(\.error).first {
+            throw firstError
+        }
+        var ranked = inputs.withSubscriptions(favourites: Set(favourites), subscribed: Set(subscribed))
+        // Cold start: rank with what the seed learned (it ran alongside the
+        // sources), waiting only so long for it.
+        if let seeding {
+            _ = try? await withTimeoutOrNil(3_000) { await seeding.value }
+            let idf = m.docFreq.idfFunction()
+            ranked.interest = m.interest.value.dictionary
+            ranked.keywordScore = m.keywords.scorer(idf: idf)
+            ranked.topKeyword = m.keywords.topKeywordFinder(idf: idf)
+        }
         let finalPool = pool
-        let result = await Task.detached { rankForYou(finalPool, ranked) }.value
+        let finalInputs = ranked
+        let result = await Task.detached { rankForYou(finalPool, finalInputs) }.value
 
         // Next cursors. A source that failed keeps its place (it used to be
         // dropped for the rest of the session — one timeout on /best and the
@@ -654,7 +794,8 @@ final class ForYouEngine {
             cursors: next,
             leftovers: result.leftovers,
             meta: result.meta,
-            candidateTitles: pool.map(\.post.title)
+            candidateTitles: pool.map(\.post.title),
+            sourceFailed: results.contains { $0.listing == nil }
         )
     }
 }

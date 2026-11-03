@@ -29,10 +29,11 @@ handled it on iOS (website login, notifications, app icons, share extensions).
   (`UI/KeylineCarousel`, used by `GalleryM3Carousel`), as in Kitzi's iOS app.
 - Kept from Flutter's Calm design on purpose, because the user prefers it: a thread's
   comment structure (one rounded card per top-level thread, author dots, one-colour
-  rails, labelled Reply, round tinted Collapse/Expand) and the post header's connected button groups.
-  The thread cards are drawn as Liquid Glass platters (specular rim, floating shadow,
-  radius 32) per row in `CommentCell`, the one place glass is hand-drawn: the system
-  effect would put its own edge on every row and split a thread apart.
+  rails, labelled Reply, glass pill buttons) and the post header's connected button groups.
+  Glass on content is drawn, not live, because live glass in every scrolling row costs
+  frames: the thread cards are pre-rendered Liquid Glass platter images per row in
+  `CommentCell` (the system effect would also put its own edge on every row), and
+  comment and feed-card pills use `GlassPillStyle`, an imitation of the post's glass.
 - Dropped as Material or Android only: FeedChip morphs, bounce shapes, dynamic
   colour, app font picker, volume keys, notification listener, Reddit app
   notification capture. Sort becomes a toolbar `Menu` or a native scrolling chip row with

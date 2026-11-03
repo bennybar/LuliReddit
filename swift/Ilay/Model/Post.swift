@@ -20,7 +20,8 @@ struct Post: Identifiable, Equatable, Sendable, Copyable {
     var author: String
     var score: Int
     var numComments: Int
-    var upvoteRatio: Double
+    /// Nil when the source doesn't say (a card read from the Home page; GraphQL without the field).
+    var upvoteRatio: Double?
     var createdUtc: Int // millis since epoch
     var permalink: String
     var url: String
@@ -112,7 +113,7 @@ struct Post: Identifiable, Equatable, Sendable, Copyable {
             author: d["author"].str() ?? "[deleted]",
             score: d["score"].int() ?? 0,
             numComments: d["num_comments"].int() ?? 0,
-            upvoteRatio: d["upvote_ratio"].double() ?? 0.0,
+            upvoteRatio: d["upvote_ratio"].double(),
             createdUtc: (d["created_utc"].long() ?? 0) * 1000,
             permalink: d["permalink"].str() ?? "",
             url: url,

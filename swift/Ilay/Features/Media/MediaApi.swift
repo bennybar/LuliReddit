@@ -78,7 +78,7 @@ struct GalleryM3Carousel: View {
                     onTap: { app.navigator.openGallery(images, title: title, initialIndex: $0) },
                     label: { "Image \($0 + 1) of \(images.count)" }
                 ) { i in
-                    RemoteImage(url: URL(string: images[i].url))
+                    RemoteImage(url: URL(string: images[i].url)).zoomSource()
                 }
                 Label("\(images.count) images · tap one to view", systemImage: "photo.on.rectangle")
                     .font(.caption)
@@ -146,7 +146,7 @@ struct GalleryCarousel: View {
                     } label: {
                         // Gallery images are full size (often 12MP photos): RemoteImage
                         // decodes them to the slot.
-                        RemoteImage(url: URL(string: images[i].url))
+                        RemoteImage(url: URL(string: images[i].url)).zoomSource()
                     }
                     .buttonStyle(.plain)
                     .containerRelativeFrame(.horizontal)
@@ -165,32 +165,40 @@ struct GalleryCarousel: View {
 ///
 /// Given Reddit's pre-blurred copy (`blurredImageUrl`) it just draws that: a live blur
 /// re-renders the media on every frame, which is one of the most expensive things a
-/// scrolling list can do. While covered, inline videos inside don't autoplay
-/// (`mediaCovered`).
+/// scrolling list can do. Without one it covers the media with a solid fill, for the
+/// same reason. While covered, inline videos inside don't autoplay (`mediaCovered`).
+///
+/// `id` names the item shown (a post's id in a feed cell): a reveal belongs to that
+/// id only, so a reused cell showing another post starts covered in the very same
+/// frame, without `.id(...)` tearing down (and reloading) the media inside.
 struct NsfwBlur<Content: View>: View {
     let blur: Bool
     var blurredImageUrl: String? = nil
     var label = "NSFW"
+    var id = ""
     @ViewBuilder let content: () -> Content
 
     // Not persisted: like Flutter, an item scrolled away and back is blurred again.
-    // That reset also matters to cell reuse, which would otherwise carry a reveal over
-    // to the next post in the same cell.
-    @State private var revealed = false
+    // Keyed by `id` rather than a plain Bool: cell reuse would otherwise carry a
+    // reveal over to the next post in the same cell (and onChange would let it show
+    // uncovered for a frame).
+    @State private var revealedId: String?
 
     var body: some View {
         Group {
-            if !blur || revealed {
+            if !blur || revealedId == id {
                 content()
             } else {
                 ZStack {
-                    // Without a pre-blurred copy, blur the media itself.
+                    // Kept (hidden) for its size, and so the reveal paints at once.
                     content()
                         .environment(\.mediaCovered, true)
-                        .blur(radius: blurredImageUrl == nil ? 24 : 0)
+                        .hidden()
                     Group {
                         if let blurredImageUrl {
                             RemoteImage(url: URL(string: blurredImageUrl)) { Color.black }
+                        } else {
+                            Color(.darkGray)
                         }
                     }
                     Color.black.opacity(0.25)
@@ -202,9 +210,9 @@ struct NsfwBlur<Content: View>: View {
                 }
                 .clipShape(.rect(cornerRadius: 16))
                 .contentShape(Rectangle())
-                .onTapGesture { revealed = true }
+                .onTapGesture { revealedId = id }
             }
         }
-        .onDisappear { revealed = false }
+        .onDisappear { revealedId = nil }
     }
 }

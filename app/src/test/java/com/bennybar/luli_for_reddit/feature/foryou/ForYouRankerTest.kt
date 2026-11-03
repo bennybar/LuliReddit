@@ -14,7 +14,7 @@ class ForYouRankerTest {
     private val now = ZonedDateTime.of(2026, 10, 8, 12, 0, 0, 0, ZoneOffset.UTC).toInstant().toEpochMilli()
     private var n = 0
 
-    private fun p(sub: String, title: String, score: Int = 500, hoursOld: Double = 3.0, url: String? = null, ratio: Double = 0.9): Post {
+    private fun p(sub: String, title: String, score: Int = 500, hoursOld: Double = 3.0, url: String? = null, ratio: Double? = 0.9): Post {
         val id = "p${n++}"
         // created_utc is whole seconds, as Reddit sends it.
         val created = (now - Math.round(hoursOld * 60) * 60_000L) / 1000 * 1000
@@ -229,5 +229,86 @@ class ForYouRankerTest {
         val ilay = homeCount(0)
         val reddit = homeCount(2)
         assertTrue("Mostly Ilay $ilay < Mostly Reddit $reddit", ilay < reddit)
+    }
+
+    @Test
+    fun `a missing upvote ratio is neutral, not zero`() {
+        val missing = titled("pics", 8).copy(upvoteRatio = null)
+        val poor = titled("pics", 9).copy(upvoteRatio = 0.5)
+        val r = rankForYou(c(listOf(poor, missing)), RankInputs(subscribed = setOf("pics"), now = now))
+        assertEquals("a Home card without a ratio isn't scored as a 0 ratio", missing.id, r.ranked.first().id)
+    }
+
+    @Test
+    fun `each impression costs 45 percent`() {
+        val seen = titled("pics", 10)
+        val r = rankForYou(c(listOf(seen)), RankInputs(subscribed = setOf("pics"), impressions = { 1.0 }, now = now))
+        assertTrue(r.meta[seen.id]!!.why.contains("Seen 1× before (×0.55)"))
+    }
+
+    @Test
+    fun `a fast-rising discovery post gets a higher base`() {
+        // Each alone in its community, so only the pool-wide speed tells them apart;
+        // the slow one is newer (recency alone used to put it first).
+        val fast = p("big", "w11alpha w11beta w11gamma", score = 20_000, hoursOld = 3.0)
+        val slow = p("small", "w12alpha w12beta w12gamma", score = 10, hoursOld = 1.0)
+        val r = rankForYou(c(listOf(slow, fast), "explore"), RankInputs(now = now))
+        assertEquals(fast.id, r.ranked.first().id)
+    }
+
+    @Test
+    fun `Familiar still places some discovery`() {
+        val pool = c(List(60) { titled("mine${it % 12}", it) }) + c(List(60) { titled("new${it % 12}", 100 + it) }, "explore")
+        val r = rankForYou(pool, RankInputs(subscribed = List(12) { "mine$it" }.toSet(), discoveryMix = -2, now = now), pageSize = 30)
+        assertTrue("one in 15 at most familiar (was one in 20)", r.ranked.count { r.meta[it.id]?.discovery == true } >= 2)
+    }
+
+    @Test
+    fun `a community you engage with but don't follow starts near a subscription`() {
+        val engaged = titled("engaged", 50)
+        val mine = titled("mine", 51)
+        val r = rankForYou(c(listOf(mine, engaged)), RankInputs(subscribed = setOf("mine"), interest = mapOf("engaged" to 6.0), now = now))
+        assertEquals("base 2.3 × its interest beats a plain subscription (base 0.4 lost)", engaged.id, r.ranked.first().id)
+        assertEquals("Because you engage with r/engaged", r.ranked.first().feedReason)
+        assertEquals("Because you engage with r/engaged (you don't follow it)", r.meta[engaged.id]!!.why.first())
+    }
+
+    @Test
+    fun `Blend - the top of your Home counts up to 30 percent`() {
+        val top = titled("pics", 60)
+        val r = rankForYou(listOf(Candidate(top, "home", homePos = 0.0)), RankInputs(subscribed = setOf("pics"), now = now))
+        assertTrue(r.meta[top.id]!!.why.any { it.startsWith("In your Reddit Home") && it.endsWith("(×1.6)") })
+    }
+
+    @Test
+    fun `an unknown date is neutral, not ancient`() {
+        val undated = titled("pics", 40).copy(createdUtc = 0)
+        val old = p("pics", "w41alpha w41beta w41gamma w41delta", hoursOld = 72.0)
+        val r = rankForYou(c(listOf(old, undated)), RankInputs(subscribed = setOf("pics"), now = now))
+        assertEquals(undated.id, r.ranked.first().id)
+    }
+
+    @Test
+    fun `a story you read lately is demoted, not dropped`() {
+        val again = p("space", "Starship launch succeeds orbital flight test")
+        val other = titled("space", 70)
+        val r = rankForYou(c(listOf(again, other)), RankInputs(subscribed = setOf("space"), readTitles = listOf("Starship launch succeeds orbital flight test today"), now = now))
+        assertEquals(listOf(other.id, again.id), r.ranked.map { it.id })
+        assertEquals("You read about this already", r.ranked[1].feedReason)
+        assertTrue(r.meta[again.id]!!.why.contains("You read about this already (×0.3)"))
+    }
+
+    @Test
+    fun `a discovery slot goes to the topical post before the big one`() {
+        val filler = (0 until 10).map { titled("mine$it", 80 + it) }
+        val niche = p("niche", "nichealpha nichebeta nichegamma nichedelta", score = 20)
+        val big = p("popularsub", "w99alpha w99beta w99gamma w99delta", score = 50_000)
+        val r = rankForYou(
+            c(filler) + c(listOf(niche, big), "popular"),
+            RankInputs(subscribed = (0 until 10).map { "mine$it" }.toSet(), keywordScore = { t -> if (t.startsWith("niche")) 3.0 else 0.0 }, now = now),
+        )
+        val ids = r.ranked.map { it.id }
+        assertEquals("the first discovery slot (the 6th)", 5, ids.indexOf(niche.id))
+        assertTrue(ids.indexOf(niche.id) < ids.indexOf(big.id))
     }
 }

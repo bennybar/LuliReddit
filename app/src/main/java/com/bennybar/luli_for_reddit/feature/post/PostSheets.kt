@@ -97,7 +97,15 @@ import com.bennybar.luli_for_reddit.core.externalViewIntent
 import com.bennybar.luli_for_reddit.core.net.RedditApiException
 import com.bennybar.luli_for_reddit.core.net.uploadToCatbox
 import com.bennybar.luli_for_reddit.data.RedditRepository
+import androidx.activity.compose.BackHandler
+import androidx.compose.material3.ModalBottomSheetProperties
+import androidx.compose.material3.SheetValue
+import androidx.compose.runtime.rememberUpdatedState
 import com.bennybar.luli_for_reddit.feature.compose.AttachmentControls
+import com.bennybar.luli_for_reddit.feature.compose.COMMENT_LIMIT
+import com.bennybar.luli_for_reddit.feature.compose.LengthCounter
+import com.bennybar.luli_for_reddit.feature.compose.POST_BODY_LIMIT
+import com.bennybar.luli_for_reddit.feature.compose.redditLength
 import com.bennybar.luli_for_reddit.feature.compose.MediaAttachment
 import com.bennybar.luli_for_reddit.feature.compose.keyboardMediaReceiver
 import com.bennybar.luli_for_reddit.feature.compose.rememberMirroredState
@@ -167,6 +175,7 @@ suspend fun showReplySheet(parentFullname: String, parentDepth: Int, replyingTo:
             title = if (replyingTo == null) "Reply" else "Reply to u/$replyingTo",
             submitLabel = "Reply",
             allowAttachments = true,
+            limit = COMMENT_LIMIT,
             draftKey = "reply_$parentFullname",
             // For You → Drafts: the thread it belongs to.
             draftInfo = post?.let { p ->
@@ -199,6 +208,7 @@ suspend fun showEditSheet(thingFullname: String, initialText: String): String? =
             title = "Edit",
             submitLabel = "Save",
             allowAttachments = false,
+            limit = if (thingFullname.startsWith("t3_")) POST_BODY_LIMIT else COMMENT_LIMIT,
             draftKey = null,
             initialText = initialText,
             onSubmit = { text, _ -> app.repository.editText(thingFullname, text); text },
@@ -212,6 +222,8 @@ private fun <T> ComposeSheet(
     title: String,
     submitLabel: String,
     allowAttachments: Boolean,
+    /** Reddit's length limit for this text. */
+    limit: Int,
     /** When set, the in-progress text is autosaved/restored under this key. */
     draftKey: String?,
     draftInfo: JsonObject? = null,
@@ -219,7 +231,6 @@ private fun <T> ComposeSheet(
     onSubmit: suspend (String, MediaAttachment?) -> T,
     done: (T?) -> Unit,
 ) {
-    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     var value by remember {
         val t = initialText ?: draftKey?.let { app.drafts.get(it) } ?: ""
@@ -228,6 +239,26 @@ private fun <T> ComposeSheet(
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var media by remember { mutableStateOf<MediaAttachment?>(null) }
+    // A picked file still being read: sending now would go without it.
+    var attaching by remember { mutableStateOf(false) }
+    // Something would be lost by closing: an edit's changes, or a reply's text or
+    // attachment (the text is kept as a draft, but closing asks what to do with it).
+    // While sending, closing only hides the sheet: the send still completes.
+    val guarded by rememberUpdatedState(
+        !busy && if (draftKey == null) value.text != (initialText ?: "") else value.text.isNotBlank() || media != null,
+    )
+    var confirming by remember { mutableStateOf(false) }
+    // Set once the user chose to close: the sheet may then hide.
+    var leaving by remember { mutableStateOf(false) }
+    // A swipe down or a tap outside asks first instead of closing.
+    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true, confirmValueChange = { v ->
+        if (v == SheetValue.Hidden && guarded && !leaving) {
+            confirming = true
+            false
+        } else {
+            true
+        }
+    })
     // Preview: the text rendered as the comment will show.
     var previewing by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
@@ -274,8 +305,35 @@ private fun <T> ComposeSheet(
 
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
 
+    fun leave(discard: Boolean) {
+        confirming = false
+        leaving = true
+        if (discard) draftKey?.let { app.drafts.clear(it) }
+        scope.hideThen(sheet) { done(null) }
+    }
+
     if (dismissed) return
-    ModalBottomSheet(onDismissRequest = { if (busy) dismissed = true else done(null) }, sheetState = sheet) {
+    ModalBottomSheet(
+        onDismissRequest = { if (busy) dismissed = true else done(null) },
+        sheetState = sheet,
+        // Back asks first too (the handler below).
+        properties = ModalBottomSheetProperties(shouldDismissOnBackPress = !guarded),
+    ) {
+        BackHandler(enabled = guarded) { confirming = true }
+        if (confirming) {
+            AlertDialog(
+                onDismissRequest = { confirming = false },
+                title = { Text(if (draftKey == null) "Discard your changes?" else "Keep this reply as a draft?") },
+                confirmButton = { TextButton(onClick = { confirming = false }) { Text("Keep editing") } },
+                dismissButton = {
+                    Row {
+                        TextButton(onClick = { leave(discard = true) }) { Text("Discard", color = cs.error) }
+                        // The text is already saved as you type; an attachment isn't kept.
+                        if (draftKey != null) TextButton(onClick = { leave(discard = false) }) { Text("Save draft") }
+                    }
+                },
+            )
+        }
         Column(
             Modifier
                 .fillMaxWidth()
@@ -300,7 +358,11 @@ private fun <T> ComposeSheet(
                 TextField(
                     state = rememberMirroredState(value, ::setText),
                     modifier = Modifier.fillMaxWidth().focusRequester(focus).then(
-                        if (allowAttachments) Modifier.keyboardMediaReceiver(onMedia = { media = it; error = null }, onError = { error = it }) else Modifier,
+                        if (allowAttachments) {
+                            Modifier.keyboardMediaReceiver(onMedia = { media = it; error = null }, onError = { error = it }, onLoading = { attaching = it })
+                        } else {
+                            Modifier
+                        },
                     ),
                     lineLimits = TextFieldLineLimits.MultiLine(3, 8),
                     placeholder = { Text("Markdown supported") },
@@ -310,11 +372,14 @@ private fun <T> ComposeSheet(
                 )
                 MarkdownToolbar(value, ::setText)
             }
+            LengthCounter(value.text, limit)
             Spacer(Modifier.height(6.dp))
             if (allowAttachments) {
                 AttachmentControls(
                     media = media,
+                    loading = attaching,
                     onChanged = { media = it; error = null },
+                    onLoading = { attaching = it },
                     onError = { error = it },
                     leading = {
                         TextButton(onClick = { insertGif() }) {
@@ -336,7 +401,11 @@ private fun <T> ComposeSheet(
                 Text(it, color = cs.error)
             }
             Spacer(Modifier.height(12.dp))
-            Button(onClick = ::submit, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+            Button(
+                onClick = ::submit,
+                enabled = !busy && !attaching && redditLength(value.text.trim()) <= limit,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
                 if (busy) {
                     Loading(Modifier.size(24.dp), color = LocalContentColor.current)
                 } else {

@@ -6,7 +6,7 @@ import SwiftUI
     /// Optimistic subscribe state.
     private(set) var subOverride: Bool?
 
-    @ObservationIgnored private let name: String
+    @ObservationIgnored let name: String
     @ObservationIgnored private var started = false
 
     init(name: String) { self.name = name }
@@ -21,16 +21,30 @@ import SwiftUI
                 self.about = .data(about)
             } catch {
                 self.about = .error(error)
+                // A quarantined or gated community refuses its about but can still be
+                // joined (or left): whether you're in it comes from your subscriptions.
+                let reason = (error as? RedditApiException)?.reason
+                if app.session.session?.anonymous == false, reason == "quarantined" || reason == "gated",
+                   let subs = try? await app.repository.getSubscribedSubreddits() {
+                    subOverride = subs.contains { $0.name.lowercased() == name.lowercased() }
+                }
             }
         }
     }
 
-    func toggleSub(_ s: Subreddit, currentlySubscribed: Bool) {
+    /// A failed about (or a dropped connection): load it again.
+    func retry() {
+        about = .loading
+        started = false
+        load()
+    }
+
+    func toggleSub(_ name: String, currentlySubscribed: Bool) {
         let next = !currentlySubscribed
         subOverride = next
         Task {
             do {
-                try await app.repository.setSubscribed(s.name, subscribe: next)
+                try await app.repository.setSubscribed(name, subscribe: next)
             } catch {
                 subOverride = currentlySubscribed
                 app.navigator.showActionError(next ? "join" : "leave", error)
@@ -89,8 +103,28 @@ private struct SubredditHeader: View {
         switch vm.about {
         case .loading:
             ProgressView().progressViewStyle(.linear).padding(.horizontal, 16).padding(.vertical, 8)
-        case .error:
-            EmptyView()
+        case let .error(error):
+            // Private (403), banned (404) or quarantined (403): Reddit's reason, so the
+            // header says why instead of vanishing. Join where you still can; Retry otherwise.
+            let reason = (error as? RedditApiException)?.reason
+            HStack(spacing: 14) {
+                LetterAvatar(name: vm.name, size: 52)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("r/\(vm.name)").font(.title3.bold()).lineLimit(1)
+                    Text(friendlyError(error)).font(.subheadline).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+                if let subscribed = vm.subOverride {
+                    Button(subscribed ? "Joined" : "Join") { vm.toggleSub(vm.name, currentlySubscribed: subscribed) }
+                        .buttonStyle(JoinStyle(on: subscribed))
+                        .accessibilityAddTraits(subscribed ? .isSelected : [])
+                } else if reason == nil {
+                    Button("Retry", action: vm.retry).buttonStyle(.glass)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
         case let .data(s):
             let subscribed = vm.subOverride ?? s.userIsSubscriber ?? false
             VStack(alignment: .leading, spacing: 12) {
@@ -107,7 +141,7 @@ private struct SubredditHeader: View {
                     }
                     Spacer(minLength: 0)
                     // One toggle: its fill changes with the state, and it reads as on/off.
-                    Button(subscribed ? "Joined" : "Join") { vm.toggleSub(s, currentlySubscribed: subscribed) }
+                    Button(subscribed ? "Joined" : "Join") { vm.toggleSub(s.name, currentlySubscribed: subscribed) }
                         .buttonStyle(JoinStyle(on: subscribed))
                         .accessibilityAddTraits(subscribed ? .isSelected : [])
                 }

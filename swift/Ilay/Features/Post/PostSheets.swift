@@ -87,6 +87,7 @@ private struct SelectableText: UIViewRepresentable {
         title: replyingTo.map { "Reply to u/\($0)" } ?? "Reply",
         submitLabel: "Reply",
         allowAttachments: true,
+        limit: TextLimit.comment,
         draftKey: "reply_\(parentFullname)",
         draftInfo: info,
         initialText: nil
@@ -103,7 +104,11 @@ private struct SelectableText: UIViewRepresentable {
 
 /// Editor for your own post/comment body. Returns the new text, or nil.
 @MainActor func showEditSheet(_ thingFullname: String, initialText: String) async -> String? {
-    await presentComposer(title: "Edit", submitLabel: "Save", allowAttachments: false, draftKey: nil, draftInfo: nil, initialText: initialText) { text, _ in
+    await presentComposer(
+        title: "Edit", submitLabel: "Save", allowAttachments: false,
+        limit: thingFullname.hasPrefix("t3_") ? TextLimit.postBody : TextLimit.comment,
+        draftKey: nil, draftInfo: nil, initialText: initialText
+    ) { text, _ in
         _ = try await app.repository.editText(thingFullname, text: text)
         return text
     }
@@ -130,6 +135,7 @@ private struct SelectableText: UIViewRepresentable {
     title: String,
     submitLabel: String,
     allowAttachments: Bool,
+    limit: Int,
     draftKey: String?,
     draftInfo: JsonObject?,
     initialText: String?,
@@ -139,7 +145,7 @@ private struct SelectableText: UIViewRepresentable {
         let result = ComposerResult<T>(continuation)
         Overlays.launch(detents: [.large]) { done in
             ComposeSheet(
-                title: title, submitLabel: submitLabel, allowAttachments: allowAttachments,
+                title: title, submitLabel: submitLabel, allowAttachments: allowAttachments, limit: limit,
                 draftKey: draftKey, draftInfo: draftInfo, initialText: initialText,
                 onSubmit: onSubmit, result: result, close: done
             )
@@ -151,6 +157,8 @@ private struct ComposeSheet<T>: View {
     let title: String
     let submitLabel: String
     let allowAttachments: Bool
+    /// Reddit's length limit for this text.
+    let limit: Int
     /// When set, the in-progress text is autosaved/restored under this key.
     let draftKey: String?
     let draftInfo: JsonObject?
@@ -164,10 +172,18 @@ private struct ComposeSheet<T>: View {
     @State private var busy = false
     @State private var error: String?
     @State private var media: MediaAttachment?
+    // A picked file still being read: sending now would go without it.
+    @State private var attaching = false
     // Preview: the text rendered as the comment will show.
     @State private var previewing = false
     @State private var loaded = false
-    @FocusState private var focused: Bool
+    @State private var confirmingCancel = false
+
+    /// Something would be lost by closing: an edit's changes, or a reply's text or
+    /// attachment (the text is kept as a draft, but closing asks what to do with it).
+    private var dirty: Bool {
+        draftKey == nil ? text != (initialText ?? "") : !text.isBlank || media != nil
+    }
 
     var body: some View {
         NavigationStack {
@@ -179,25 +195,27 @@ private struct ComposeSheet<T>: View {
                             .padding(16)
                     }
                 } else {
-                    TextEditor(text: $text, selection: $selection)
-                        .focused($focused)
-                        .scrollContentBackground(.hidden)
-                        .padding(.horizontal, 12)
-                        .overlay(alignment: .topLeading) {
-                            if text.isEmpty {
-                                Text("Markdown supported")
-                                    .foregroundStyle(.tertiary)
-                                    .padding(.horizontal, 17)
-                                    .padding(.vertical, 8)
-                                    .allowsHitTesting(false)
-                            }
-                        }
+                    // Takes pasted images and keyboard GIFs as the attachment, where attachments are allowed.
+                    MediaTextEditor(
+                        text: $text, selection: $selection, placeholder: "Markdown supported",
+                        minLines: 3, maxLines: 10,
+                        onMedia: allowAttachments ? { media = $0; error = nil } : nil,
+                        focusOnAppear: true
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    Spacer(minLength: 0)
                 }
+                LengthCounter(text: text, limit: limit).padding(.horizontal, 16)
                 if let error {
                     Text(error).font(.footnote).foregroundStyle(.red).padding(.horizontal, 16).padding(.vertical, 6)
                 }
                 if allowAttachments {
-                    AttachmentControls(media: $media, onError: { error = $0 }) { gifButton }
+                    AttachmentControls(
+                        media: Binding(get: { media }, set: { media = $0; error = nil }),
+                        loading: $attaching,
+                        onError: { error = $0 }
+                    ) { gifButton }
                         .padding(.horizontal, 12)
                 } else {
                     gifButton.padding(.horizontal, 12)
@@ -211,7 +229,19 @@ private struct ComposeSheet<T>: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", systemImage: "xmark", role: .cancel) { close() }
+                    Button("Cancel", systemImage: "xmark", role: .cancel) {
+                        // While sending, closing only hides the sheet: the send still completes.
+                        if dirty, !busy { confirmingCancel = true } else { close() }
+                    }
+                    .confirmationDialog(draftKey == nil ? "Discard your changes?" : "Keep this reply as a draft?", isPresented: $confirmingCancel, titleVisibility: .visible) {
+                        Button("Discard", role: .destructive) {
+                            if let draftKey { app.drafts.clear(draftKey) }
+                            close()
+                        }
+                        // The text is already saved as you type; an attachment isn't kept.
+                        if draftKey != nil { Button("Save Draft") { close() } }
+                        Button("Keep Editing", role: .cancel) {}
+                    }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(previewing ? "Edit" : "Preview") { previewing.toggle() }
@@ -226,11 +256,14 @@ private struct ComposeSheet<T>: View {
                             Label(submitLabel, systemImage: "arrow.up")
                         }
                     }
-                    .disabled(busy || (text.isBlank && media == nil))
+                    .disabled(busy || attaching || (text.isBlank && media == nil) || redditLength(text) > limit)
                     .buttonStyle(.glassProminent)
                 }
             }
         }
+        // Swiping down would lose it silently: Cancel asks first. Still allowed while
+        // sending (the send completes and its result is delivered).
+        .interactiveDismissDisabled(dirty && !busy)
         .onChange(of: text) { old, new in
             if loaded, old != new, let draftKey { app.drafts.save(draftKey, new, info: draftInfo) }
         }
@@ -238,7 +271,6 @@ private struct ComposeSheet<T>: View {
             if !loaded {
                 text = initialText ?? draftKey.flatMap { app.drafts.get($0) } ?? ""
                 loaded = true
-                focused = true
             }
         }
         .onDisappear {
@@ -274,10 +306,12 @@ private struct ComposeSheet<T>: View {
         Task { @MainActor in
             do {
                 let value = try await onSubmit(trimmed, media)
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
                 if let draftKey { app.drafts.clear(draftKey) }
                 result.finish(value)
                 close()
             } catch {
+                UINotificationFeedbackGenerator().notificationOccurred(.error)
                 if result.dismissed {
                     // Nowhere left to show it in the sheet.
                     snack(errorText(error))

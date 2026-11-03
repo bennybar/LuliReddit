@@ -53,6 +53,8 @@ final class AppContainer {
     var loadedIdentity: String?
 
     @ObservationIgnored private var previousIdentity: String?
+    /// Whether the logged-out identity's stores were loaded before the session settled.
+    @ObservationIgnored private var loadedLoggedOutEarly = false
 
     private var userScoped: [UserScoped] {
         [postOverrides, commentVotes, hiddenPosts, dismissedPosts, hiddenHomeSubs, summaries, history, recentSubreddits, threadVisits, contentFilters, offline, feed, forYou, inbox, redditNotifications]
@@ -97,8 +99,14 @@ final class AppContainer {
     func start() {
         feed.engines = forYou
         // Load per-account stores for the logged-out identity right away, so
-        // they're usable before the session finishes loading.
-        userScoped.forEach { $0.onUserChanged("") }
+        // they're usable before the session finishes loading. Not with an account
+        // on the device: the session settles on it moments later and loads its own,
+        // and parsing the logged-out history, visits and filters first, here before
+        // the first frame, was wasted launch time.
+        if !session.hasAccount {
+            userScoped.forEach { $0.onUserChanged("") }
+            loadedLoggedOutEarly = true
+        }
         apply(settings.value)
         settings.onChange = { [unowned self] old, new in
             if old.subsCacheEnabled != new.subsCacheEnabled || old.subsCacheMinutes != new.subsCacheMinutes || old.offlineCache != new.offlineCache {
@@ -127,7 +135,15 @@ final class AppContainer {
         // Only a real logout (has_account cleared) — not a transient
         // keychain read failure, which must keep everything loaded.
         case .loggedOut:
-            if session.hasAccount { return }
+            if session.hasAccount {
+                // start() skipped the logged-out load, expecting the account: give
+                // the stores the logged-out identity, as they had before that skip.
+                if previousIdentity == nil, !loadedLoggedOutEarly {
+                    userScoped.forEach { $0.onUserChanged("") }
+                    loadedLoggedOutEarly = true
+                }
+                return
+            }
             identity = ""
         case .loading: return
         }
@@ -135,8 +151,8 @@ final class AppContainer {
             if previousIdentity != nil { repository.clearSubsCache() }
             let first = previousIdentity == nil
             previousIdentity = identity
-            // start() already loaded the logged-out identity.
-            if !(first && identity.isEmpty) {
+            // start() (or a transient logout above) already loaded the logged-out identity.
+            if !(first && identity.isEmpty && loadedLoggedOutEarly) {
                 var username = ""
                 if case .loggedIn(let session) = s { username = session.username }
                 userScoped.forEach { $0.onUserChanged(username) }

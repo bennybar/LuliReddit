@@ -2,6 +2,7 @@ package com.bennybar.luli_for_reddit.feature.foryou
 
 import com.bennybar.luli_for_reddit.AppContainer
 import com.bennybar.luli_for_reddit.data.PostSort
+import com.bennybar.luli_for_reddit.data.TopTime
 import com.bennybar.luli_for_reddit.model.Listing
 import com.bennybar.luli_for_reddit.model.Post
 import com.bennybar.luli_for_reddit.model.Subreddit
@@ -110,21 +111,40 @@ class ForYouLearner internal constructor(private val m: ForYouModule) {
     }
 
     /**
-     * Opened, read 30s+, or upvoted: counts once per post toward the
-     * subreddit's engagement rate — only for a post For You showed this
-     * session, so the rate is "liked what For You showed" (engagement from
-     * other feeds, with no matching impression, used to inflate it).
+     * Counts [event] per source and per feed slot (0–9, 10–29, 30+) for a post
+     * For You placed (local metrics only): which sources and depths work.
+     */
+    private fun tally(p: Post, event: String) {
+        val meta = m.meta.value[p.id] ?: return
+        m.metrics.count("$event.src.${meta.source}")
+        m.metrics.count("$event.slot.${if (meta.position < 10) "0-9" else if (meta.position < 30) "10-29" else "30+"}")
+    }
+
+    /**
+     * Real engagement — 3s+ in the thread, the media viewed, an upvote, a
+     * comment upvote: counts once per post toward the subreddit's and the post
+     * type's engagement rate — only for a post For You showed this session, so
+     * the rate is "liked what For You showed" (engagement from other feeds,
+     * with no matching impression, used to inflate it). Opening alone used to
+     * count before a bounce was known, and viewing media never did, so image
+     * and video posts looked "seen, not engaged".
      */
     private fun engage(p: Post, event: String) {
         m.metrics.count("$event.${group(p)}")
         if (synchronized(this) { p.id in seen && engaged.add(p.id) }) {
             m.subStats.engaged(p.subreddit)
             m.typeStats.engaged(postTypeKey(p))
+            tally(p, "eng")
         }
     }
 
-    /** A For You card that stayed >=60% on screen for 1s. */
+    /**
+     * A For You card that stayed >=60% on screen for 1s. Only posts For You
+     * placed (they have meta): a Reddit Home card carries a reason too, and
+     * used to count as a For You impression.
+     */
     fun impression(p: Post) {
+        if (m.meta.value[p.id] == null) return
         m.impressions.record(p.id)
         if (!synchronized(this) { seen.add(p.id) }) return
         m.subStats.impression(p.subreddit)
@@ -135,6 +155,7 @@ class ForYouLearner internal constructor(private val m: ForYouModule) {
             m.metrics.count("src.${meta.source}")
             if (meta.position < 10) m.metrics.count("impr.top10")
         }
+        tally(p, "imp")
     }
 
     /**
@@ -153,13 +174,20 @@ class ForYouLearner internal constructor(private val m: ForYouModule) {
 
     fun save(p: Post, saved: Boolean) = learn(p, if (saved) 3.0 else -3.0, if (saved) 1.5 else -1.5)
 
+    /** Opened: the open rate, not engagement yet ([dwell] decides that). */
     fun open(p: Post) {
-        if (once(p, "open")) learn(p, 0.5, 0.0)
-        engage(p, "open")
+        if (!once(p, "open")) return
+        learn(p, 0.5, 0.0)
+        m.metrics.count("open.${group(p)}")
+        tally(p, "open")
     }
+
+    /** 3 seconds or more in the thread: the open wasn't a bounce. */
+    fun dwell(p: Post) = engage(p, "dwell")
 
     fun viewMedia(p: Post) {
         if (once(p, "media")) learn(p, 1.0, 0.0)
+        engage(p, "media")
     }
 
     /** Commenting is the strongest engagement signal there is. */
@@ -169,22 +197,38 @@ class ForYouLearner internal constructor(private val m: ForYouModule) {
 
     /** Time in the thread: 30s+ ([long] = 2min+, on top of it). */
     fun read(p: Post, long: Boolean = false) {
-        if (once(p, if (long) "read2m" else "read30")) learn(p, if (long) 1.5 else 1.0, if (long) 1.0 else 0.5)
+        if (once(p, if (long) "read2m" else "read30")) {
+            learn(p, if (long) 1.5 else 1.0, if (long) 1.0 else 0.5)
+            if (!long) tally(p, "read30")
+        }
         if (!long) engage(p, "read30")
     }
 
     /**
      * The "no" signals: hiding a post, the Dismiss swipe, hiding its subreddit
      * for 7 days, filtering it out. They used to only remove things from view.
-     * [undo] reverses one (its snackbar's Undo).
+     * [undo] reverses one (its snackbar's Undo). Each counts as a hide in
+     * the per-source metrics.
      */
-    fun hidePost(p: Post, undo: Boolean = false) = learn(p, if (undo) 2.0 else -2.0, if (undo) 0.8 else -0.8)
+    fun hidePost(p: Post, undo: Boolean = false) {
+        learn(p, if (undo) 2.0 else -2.0, if (undo) 0.8 else -0.8)
+        if (!undo) tally(p, "hide")
+    }
 
-    fun dismiss(p: Post, undo: Boolean = false) = learn(p, if (undo) 1.0 else -1.0, if (undo) 0.4 else -0.4)
+    fun dismiss(p: Post, undo: Boolean = false) {
+        learn(p, if (undo) 1.0 else -1.0, if (undo) 0.4 else -0.4)
+        if (!undo) tally(p, "hide")
+    }
 
-    fun hideSubreddit(p: Post, undo: Boolean = false) = learn(p, if (undo) 3.0 else -3.0, 0.0)
+    fun hideSubreddit(p: Post, undo: Boolean = false) {
+        learn(p, if (undo) 3.0 else -3.0, 0.0)
+        if (!undo) tally(p, "hide")
+    }
 
-    fun filterOutSubreddit(p: Post, undo: Boolean = false) = learn(p, if (undo) 4.0 else -4.0, 0.0)
+    fun filterOutSubreddit(p: Post, undo: Boolean = false) {
+        learn(p, if (undo) 4.0 else -4.0, 0.0)
+        if (!undo) tally(p, "hide")
+    }
 
     /** Upvoted a comment in [p]'s thread: interest in the thread's subreddit (once per post per session). */
     fun commentUpvote(p: Post) {
@@ -192,7 +236,7 @@ class ForYouLearner internal constructor(private val m: ForYouModule) {
         engage(p, "commentvote")
     }
 
-    /** Backed out within 3 seconds. */
+    /** Backed out within 3 seconds (the open's +0.5 is taken back; it never counted as engaged). */
     fun bounce(p: Post) {
         if (once(p, "bounce")) learn(p, -0.5, 0.0)
     }
@@ -217,6 +261,7 @@ class ForYouPage(
     val leftovers: List<Candidate>,
     val meta: Map<String, ForYouMeta>,
     val candidateTitles: List<String>, // for word rarity (IDF)
+    val sourceFailed: Boolean = false, // a source failed or timed out
 )
 
 /**
@@ -241,9 +286,18 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
         leftovers = emptyList()
         communityTurn = 0
         blendPlaced = 0
+        knownSubs = null
+        synchronized(listingCache) { listingCache.clear() }
+        seedJob?.cancel()
+        seedJob = null
     }
 
     @Volatile private var blendPlaced = 0 // Blend: Reddit Home posts placed in this feed
+    // Favourites and subscriptions as the first page knew them (later pages don't ask again).
+    @Volatile private var knownSubs: Pair<Set<String>, Set<String>>? = null
+    // Community listings by request ("a+b+c", "all/top/day"), kept a few minutes.
+    private val listingCache = HashMap<String, Pair<Long, Listing<Post>>>()
+    @Volatile private var seedJob: Deferred<Unit>? = null // the cold-start seed, while it runs
 
     /**
      * First page when [after] is null, else the page after that cursor.
@@ -252,20 +306,32 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
      */
     suspend fun page(after: String?, loaded: List<Post>): Listing<Post> {
         val firstPage = after == null
-        if (firstPage) _progress.value = 0
-        if (firstPage) seedIfNeeded()
+        if (firstPage) {
+            _progress.value = 0
+            m.impressions.newFeed() // a post seen again in this build counts again
+        }
+        // Cold start's seed runs alongside the sources (it used to hold them up);
+        // the ranking waits for it. One at a time: a refresh meanwhile shares it.
+        val user = c.session.username
+        val session = c.session.session
+        val seeding = if (firstPage && c.settings.value.trackHistory && session != null && !session.anonymous && user.isNotEmpty()) {
+            synchronized(this) {
+                seedJob?.takeIf { it.isActive } ?: c.scope.async { seedIfNeeded(user) }.also { seedJob = it }
+            }
+        } else null
         val page = getForYouFeed(
             inputs = rankInputs(firstPage, loaded),
-            communities = if (firstPage) candidateCommunities() else emptyList(),
             cursors = after, // null = first page; else the encoded cursor bundle
             excludeIds = if (firstPage) emptySet() else loaded.mapTo(HashSet()) { it.id },
             carryOver = if (firstPage) emptyList() else leftovers,
+            seeding = seeding,
         )
+        if (firstPage) m.impressions.setLastTop(page.listing.items.take(10).map { it.id })
         leftovers = page.leftovers
-        m.meta.value = if (firstPage) page.meta else m.meta.value + page.meta
+        // Slots count through the whole feed (each page's ranking starts at 0).
+        m.meta.value = if (firstPage) page.meta else m.meta.value + page.meta.mapValues { (_, v) -> v.copy(position = v.position + loaded.size) }
         withContext(Dispatchers.Default) { m.docFreq.observe(page.candidateTitles) }
         for (p in page.listing.items) m.metrics.count("src.ranked.${page.meta[p.id]?.source ?: "other"}")
-        val user = c.session.username
         if (firstPage && user.isNotEmpty()) {
             // In the background: the page is ready; saving it shouldn't hold it up.
             val items = page.listing.items
@@ -324,27 +390,35 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
             muted = m.muted.value,
             openedAt = c.history.state.value.associate { it.id to it.viewedAt },
             impressions = m.impressions::count,
-            // A refresh makes room: the old top 10 is demoted a little.
-            previousTop = if (firstPage) loaded.take(10).mapTo(HashSet()) { it.id } else emptySet(),
+            // A refresh makes room: the old top 10 is demoted a little — the one
+            // on screen, and the last one built (so a cold launch makes room too).
+            previousTop = if (firstPage) loaded.take(10).mapTo(HashSet()) { it.id } + m.impressions.lastTop else emptySet(),
             // Stories already shown on earlier pages count toward repeats.
             previousTitles = if (firstPage) emptyList() else loaded.asReversed().take(100).map { it.title },
+            // Stories you opened in the last 36h, demoted when told again elsewhere.
+            readTitles = System.currentTimeMillis().let { now ->
+                c.history.state.value.filter { it.viewedAt > 0 && now - it.viewedAt < 36 * 3600_000L }.map { it.title }
+            },
             discoveryAppetite = m.metrics.discoveryAppetite(),
             discoveryMix = c.settings.value.forYouDiscovery,
         )
     }
 
     /**
-     * Communities you've dipped into but don't follow (0.5 ≤ interest < 2),
-     * plus ones you asked for more of: three per refresh, rotating, as
-     * personalised discovery instead of r/popular alone.
+     * Communities you've dipped into or engage with but don't follow
+     * (interest ≥ 0.5), plus ones you asked for more of, minus [skip] (the top
+     * interests, fetched anyway): three per refresh, rotating, as personalised
+     * discovery instead of r/popular alone. It used to stop at interest 2, so
+     * an engaged community outside the top five was never fetched.
      */
-    private fun candidateCommunities(): List<String> {
+    private fun candidateCommunities(subscribed: Set<String>, skip: List<String>): List<String> {
         val explicitMore = m.explicit.value.subs.filter { it.value > 0 }.keys
         val visited = m.interest.value.entries
-            .filter { it.value >= 0.5 && it.value < K_ENGAGED_INTEREST }
+            .filter { it.value >= 0.5 }
             .sortedByDescending { it.value }
             .map { it.key }
-        val all = LinkedHashSet<String>().apply { addAll(explicitMore); addAll(visited) }.toList()
+        val all = LinkedHashSet<String>().apply { addAll(explicitMore); addAll(visited) }
+            .filter { it !in subscribed && it !in skip }
         if (all.isEmpty()) return emptyList()
         val start = (communityTurn++ * 3) % all.size
         return (0 until minOf(3, all.size)).map { all[(start + it) % all.size] }
@@ -354,24 +428,25 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
      * Cold start: the first time For You runs for an account, seed its model
      * from the user's own Reddit activity (their upvoted and saved posts — data
      * Reddit already holds for them, nothing third-party) plus local history,
-     * so day one already prefers what they actually like. Once per account,
-     * and only while history tracking is on.
+     * so day one already prefers what they actually like. Once per account
+     * (marked done only once both requests worked: a failure used to end it
+     * for good; it's tried again on the next refresh), and only while history
+     * tracking is on (the caller checks that and the signed-in [user]).
      */
-    private suspend fun seedIfNeeded() {
-        if (!c.settings.value.trackHistory) return
-        val session = c.session.session ?: return
-        if (session.anonymous || session.username.isEmpty()) return
-        val key = userScopedKey(c.prefs, session.username, "fy_seeded")
+    internal suspend fun seedIfNeeded(user: String) {
+        val key = userScopedKey(c.prefs, user, "fy_seeded")
         if (c.prefs.getBool(key) == true) return
-        c.prefs.setBool(key, true) // don't retry every page on failure
 
         val repo = c.repository
-        val user = session.username
-        val (upvoted, saved) = coroutineScope {
-            val up = async { orNull { repo.getUserPosts(user, where = "upvoted", limit = 100).items } ?: emptyList() }
-            val sv = async { orNull { repo.getUserSaved(user, limit = 100).items.filterIsInstance<Post>() } ?: emptyList() }
+        val (up, sv) = coroutineScope {
+            val up = async { orNull { repo.getUserPosts(user, where = "upvoted", limit = 100).items } }
+            val sv = async { orNull { repo.getUserSaved(user, limit = 100).items.filterIsInstance<Post>() } }
             up.await() to sv.await()
         }
+        if (up == null || sv == null || c.session.username != user) return
+        c.prefs.setBool(key, true)
+        val upvoted: List<Post> = up
+        val saved: List<Post> = sv
 
         val deltas = LinkedHashMap<String, Double>()
         fun add(sub: String, d: Double) {
@@ -388,15 +463,16 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
     /**
      * Candidates: /best (subscriptions; paginated), rising and r/popular
      * (paginated), and on the first page hot posts from favourites, the most
-     * engaged communities and a few [communities] the user has visited.
-     * [carryOver] is the previous page's unplaced pool.
+     * engaged communities and a few the user has visited, plus
+     * today's top of r/all to explore. [carryOver] is the previous page's
+     * unplaced pool; [seeding] the cold-start seed the ranking waits for.
      */
     private suspend fun getForYouFeed(
         inputs: RankInputs,
-        communities: List<String>,
         cursors: String?, // JSON cursor bundle from a previous page's `after`
         excludeIds: Set<String>,
         carryOver: List<Candidate>,
+        seeding: Deferred<Unit>?,
     ): ForYouPage {
         var prev: Map<String, String?> = emptyMap()
         if (!cursors.isNullOrEmpty()) {
@@ -407,15 +483,17 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
             }
         }
         var page: ForYouPage? = null
-        // An empty page (everything failed, or all muted/seen) retries the next
-        // cursors once before ending the feed — it used to stop dead.
+        // An empty page (all muted/seen) retries the next cursors once before
+        // ending the feed — it used to stop dead. Not when a source failed:
+        // asking everything again at once only repeated the failure (the failed
+        // source keeps its place for the next page).
         for (attempt in 0 until 2) {
             // First page only without a cursor at all: once every source has run
             // out the cursor is empty ({}), and the leftovers page on from there.
             val first = cursors.isNullOrEmpty() && attempt == 0
-            val pg = forYouPage(inputs, communities, prev, excludeIds, if (attempt == 0) carryOver else emptyList(), first)
+            val pg = forYouPage(inputs, prev, excludeIds, if (attempt == 0) carryOver else emptyList(), first, seeding)
             page = pg
-            if (pg.listing.items.isNotEmpty() || pg.cursors.isEmpty()) break
+            if (pg.listing.items.isNotEmpty() || pg.cursors.isEmpty() || pg.sourceFailed) break
             prev = pg.cursors
         }
         return page!!
@@ -423,39 +501,38 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
 
     private suspend fun forYouPage(
         inputs: RankInputs,
-        communities: List<String>,
         prev: Map<String, String?>,
         excludeIds: Set<String>,
         carryOver: List<Candidate>,
         firstPage: Boolean,
+        seeding: Deferred<Unit>?,
     ): ForYouPage = coroutineScope {
         val repo = c.repository
         val muted = inputs.muted
-
-        // Subreddits you engage with most (learned on-device), even if not
-        // favourited. Local data, so known before any request goes out.
-        val topInterest = inputs.interest.entries
-            .filter { it.value >= K_ENGAGED_INTEREST && it.key !in muted }
-            .sortedByDescending { it.value }
-            .take(5)
-            .map { it.key }
 
         // Each source: its listing, or null if it failed / timed out. Secondary
         // sources get a short timeout so the slowest community doesn't decide how
         // long the page takes.
         // The first real failure (not a timeout), to report if nothing at all loads.
         var firstError: Exception? = null
+        var answered = false // a source answered (even with nothing new)
+        var failed = false // a source failed or timed out
         fun source(secondary: Boolean = true, f: suspend () -> Listing<Post>): Deferred<Listing<Post>?> = async {
             try {
                 if (secondary) withTimeout(2500) { f() } else f()
             } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+                failed = true
                 null
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 if (firstError == null) firstError = e
+                failed = true
                 null
-            }?.also { l -> if (firstPage) _progress.update { it + l.items.size } }
+            }?.also { l ->
+                answered = true
+                if (firstPage) _progress.update { it + l.items.size }
+            }
         }
 
         // A cursor of "" means "start this source from the top" (its first
@@ -464,15 +541,64 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
         fun after(k: String): String? = prev[k]?.ifEmpty { null }
         val none = async<Listing<Post>?> { null }
 
-        // Favourites and subscriptions: from the last snapshot when there is one,
-        // so favourites go out with everything else instead of waiting ~2s for
-        // the subscription list; the live list refreshes the snapshot for next time.
+        // The first page's community listings don't change much in a few
+        // minutes: a quick refresh reuses them instead of asking again.
+        val now = System.currentTimeMillis()
+        val cache = synchronized(listingCache) {
+            listingCache.entries.removeAll { now - it.value.first >= 5 * 60_000L }
+            HashMap(listingCache)
+        }
+        val fetched = ArrayList<Pair<String, Deferred<Listing<Post>?>>>() // cache name → request
+        fun cached(name: String, f: suspend () -> Listing<Post>): Deferred<Listing<Post>?> {
+            cache[name]?.let { hit -> return source { hit.second } }
+            return source(f = f).also { fetched.add(name to it) }
+        }
+        // Hot posts from several communities in one request (/r/a+b+c/hot) —
+        // up to sixteen requests became two. Each group is at most eight names,
+        // far under any URL limit.
+        fun hot(subs: List<String>, perSub: Int): Deferred<Listing<Post>?> {
+            if (subs.isEmpty()) return none
+            val name = subs.joinToString("+")
+            return cached(name) {
+                try {
+                    repo.getPosts(subreddit = name, sort = PostSort.HOT, limit = minOf(100, perSub * subs.size))
+                } catch (e: com.bennybar.luli_for_reddit.core.net.RedditApiException) {
+                    if (e.statusCode != 403 || subs.size < 2) throw e
+                    // Website sign-in where Reddit's edge refuses listings: its
+                    // GraphQL has no combined feed, so one community at a time.
+                    val lists = coroutineScope {
+                        subs.map { s -> async { orNull { repo.getPosts(subreddit = s, sort = PostSort.HOT, limit = perSub) }?.items ?: emptyList() } }
+                            .awaitAll()
+                    }
+                    Listing(lists.flatten())
+                }
+            }
+        }
+
+        // Favourites and subscriptions: as the first page knew them, else from the
+        // last snapshot, so favourites go out with everything else instead of
+        // waiting ~2s for the subscription list. The live list is asked for once
+        // per build, to refresh the snapshot for next time (it was every page),
+        // and never signed out (it can only fail there, and was asked again each page).
         val user = c.session.username
-        val snapshot = loadSubsSnapshot(user)
-        val subsF = if (snapshot == null) {
+        val known = (if (firstPage) null else knownSubs) ?: loadSubsSnapshot(user)
+        // Subreddits you engage with most (learned on-device), even if not
+        // favourited. Local data, so known before any request goes out. Ones
+        // you don't follow first (3, then 2 you do): /best already brings your
+        // subscriptions, so five subscribed ones here added little.
+        val (engagedSubd, engagedOther) = inputs.interest.entries
+            .filter { it.value >= K_ENGAGED_INTEREST && it.key !in muted }
+            .sortedByDescending { it.value }
+            .map { it.key }
+            .partition { it in (known?.second ?: emptySet()) }
+        val topInterest = (engagedOther.take(3) + engagedSubd.take(2) + engagedOther.drop(3) + engagedSubd.drop(2)).take(5)
+        val communities = if (firstPage) candidateCommunities(known?.second ?: emptySet(), topInterest) else emptyList()
+        val subsF = if (known == null && firstPage && user.isNotEmpty()) {
             async { orNull { repo.getSubscribedSubreddits() } ?: emptyList<Subreddit>() }
         } else {
-            c.scope.launch(Dispatchers.IO) { orNull { repo.getSubscribedSubreddits() }?.let { saveSubsSnapshot(user, it) } }
+            if (known != null && firstPage && user.isNotEmpty()) {
+                c.scope.launch(Dispatchers.IO) { orNull { repo.getSubscribedSubreddits() }?.let { saveSubsSnapshot(user, it) } }
+            }
             null
         }
         val bestF = if (live("best")) {
@@ -488,19 +614,20 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
                 repo.getPosts(subreddit = "popular", sort = PostSort.HOT, limit = if (firstPage) 20 else 15, after = after("popular"))
             }
         } else none
-        val interestF = if (firstPage) topInterest.map { s ->
-            source { repo.getPosts(subreddit = s, sort = PostSort.HOT, limit = 8) }
-        } else emptyList()
-        val communityF = if (firstPage) communities.filter { it !in muted }.map { s ->
-            source { repo.getPosts(subreddit = s, sort = PostSort.HOT, limit = 6) }
-        } else emptyList()
+        val nearF = if (firstPage) hot((topInterest + communities.filter { it !in muted }).distinct(), perSub = 8) else none
+        // Exploration beyond the communities you already touch (they were its
+        // only other source): today's top posts across Reddit, ranked as discovery.
+        val exploreF = if (firstPage) {
+            cached("all/top/day") { repo.getPosts(subreddit = "all", sort = PostSort.TOP, time = TopTime.DAY, limit = 25) }
+        } else none
 
-        val (favourites, subscribed) = snapshot ?: run {
-            val mySubs = subsF!!.await()
+        val (favourites, subscribed) = known ?: run {
+            val mySubs = subsF?.await() ?: emptyList()
             if (mySubs.isNotEmpty()) saveSubsSnapshot(user, mySubs)
             mySubs.filter { it.userHasFavorited }.mapTo(LinkedHashSet()) { it.name.lowercase() } to
                 mySubs.mapTo(HashSet()) { it.name.lowercase() }
         }
+        if (subscribed.isNotEmpty()) knownSubs = favourites to subscribed
         // Favourites go out the moment the list is known, while the rest is still
         // in flight. One already fetched as a top interest isn't fetched twice.
         // Eight per load; with more favourites than that, each load takes the
@@ -513,12 +640,12 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
                 c.prefs.setInt(k, start + 8)
                 List(8) { favs[(start + it) % favs.size] }
             }
-            pick.map { f -> source { repo.getPosts(subreddit = f, sort = PostSort.HOT, limit = 10) } }
-        } else emptyList()
+            hot(pick, perSub = 10)
+        } else none
 
         // Blend (Beta): your Reddit Home is one more source, ranked with the
-        // rest. It's slow to read (a hidden browser), so the first page waits
-        // only so long for it; later pages read the next batch.
+        // rest. It's slow to read (a hidden browser), so a page waits only so
+        // long for it; later pages read the next batch.
         val s = c.settings.value
         val blend = s.forYouFeed && s.blendHome && s.redditHomeAllowed
         val homeBatch = if (blend && (firstPage || prev.containsKey("home"))) m.redditHome.blendBatch(firstPage) else null
@@ -534,10 +661,14 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
 
         // Blend: Reddit's Home batch first, so a post it also recommends counts
         // as Reddit's pick whichever source found it too (de-duplication used
-        // to keep whichever came first and drop the Home signal). Wait only so
-        // long — the first page shows the loading deck meanwhile, as Home
-        // does; a batch still loading joins the next page instead.
-        val homeResult = homeBatch?.let { b -> withTimeoutOrNull(if (firstPage) 10_000L else 12_000L) { b.await() } }
+        // to keep whichever came first and drop the Home signal). Wait at most
+        // 2.5s once the other sources are in (it was 10–12s, on every page) —
+        // the first page shows the loading deck meanwhile, as Home does; a batch
+        // still loading joins the next page instead.
+        val near = nearF.await()
+        val favourite = favouriteF.await()
+        val explore = exploreF.await()
+        val homeResult = homeBatch?.let { b -> withTimeoutOrNull(2_500L) { b.await() } }
         val homeLoading = homeBatch != null && !homeBatch.isCompleted
         if (homeLoading) m.redditHome.blendKeep(homeBatch!!)
         val home = (homeResult as? RedditHomeEngine.BlendResult.Posts)?.posts
@@ -550,16 +681,32 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
         add(best, "best")
         add(rising, "rising")
         add(popular, "popular")
-        for (l in favouriteF.awaitAll()) add(l, "favourite")
-        for (l in interestF.awaitAll()) add(l, "interest")
-        for (l in communityF.awaitAll()) add(l, "community")
+        // The combined listings, each post labelled by its community's group.
+        for (l in listOf(favourite, near)) {
+            for (p in l?.items ?: emptyList()) {
+                if (!ids.add(p.id)) continue
+                val sub = p.subreddit.lowercase()
+                pool.add(Candidate(p, if (sub in topInterest) "interest" else if (sub in favourites) "favourite" else "community"))
+            }
+        }
+        add(explore, "explore")
+        for ((name, request) in fetched) {
+            val l = request.await() ?: continue
+            synchronized(listingCache) { listingCache[name] = System.currentTimeMillis() to l }
+        }
 
         // Every source failed (offline, rate-limited…): say so, rather than
-        // showing an empty feed that just ends.
-        if (pool.isEmpty()) firstError?.let { throw it }
-        val result = withContext(Dispatchers.Default) {
-            rankForYou(pool, inputs.withSubscriptions(favourites, subscribed))
+        // showing an empty feed that just ends. Not when one answered (with
+        // nothing new): that used to fail the build and retry it whole.
+        if (pool.isEmpty() && !answered) firstError?.let { throw it }
+        // Cold start: rank with what the seed learned (it ran alongside the
+        // sources), waiting only so long for it.
+        var ranked = inputs.withSubscriptions(favourites, subscribed)
+        if (seeding != null) {
+            withTimeoutOrNull(3_000) { seeding.await() }
+            ranked = ranked.copy(interest = m.interest.value)
         }
+        val result = withContext(Dispatchers.Default) { rankForYou(pool, ranked) }
 
         // Next cursors. A source that failed keeps its place (it used to be
         // dropped for the rest of the session — one timeout on /best and the
@@ -614,6 +761,7 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
             leftovers = result.leftovers,
             meta = result.meta,
             candidateTitles = pool.map { it.post.title },
+            sourceFailed = failed,
         )
     }
 }

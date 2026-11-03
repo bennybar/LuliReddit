@@ -166,8 +166,8 @@ private struct InboxList: View {
                 Loading().frame(maxWidth: .infinity).listRowSeparator(.hidden)
             } else if let error = state.error {
                 // A failed (re)load shows the error even over loaded items, as in
-                // Flutter (its AsyncError replaced the list); pull to retry.
-                ContentUnavailableView("Could not load inbox.", systemImage: "icloud.slash", description: Text(friendlyError(error)))
+                // Flutter (its AsyncError replaced the list); pull or Retry.
+                ErrorView(message: "Could not load inbox.\n\(friendlyError(error))", onRetry: { app.inbox.refresh(place) })
                     .listRowSeparator(.hidden)
             } else if items.isEmpty {
                 ContentUnavailableView("Nothing here", systemImage: "tray")

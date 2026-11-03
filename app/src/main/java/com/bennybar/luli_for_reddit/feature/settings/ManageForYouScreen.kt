@@ -274,6 +274,13 @@ private suspend fun showMetrics() {
         for (e in t.entries.filter { it.key.startsWith("src.ranked.") }.sortedByDescending { it.value }) {
             add("Placed from ${e.key.substring(11)}" to "${e.value}")
         }
+        // Per source and per feed slot, as rates per impression.
+        fun rates(k: String) = listOf("open", "eng", "read30", "hide").joinToString(" · ") { rate("$it.$k", "imp.$k") }
+        add("Per source and slot" to "open · engaged · 30s+ · hidden")
+        for (e in t.entries.filter { it.key.startsWith("imp.src.") }.sortedByDescending { it.value }) {
+            add("${e.key.substring(8)} (${e.value} seen)" to rates("src.${e.key.substring(8)}"))
+        }
+        for (b in listOf("0-9", "10-29", "30+")) add("Slots $b (${n("imp.slot.$b")} seen)" to rates("slot.$b"))
     }
     Overlays.show<Unit> { done ->
         AlertDialog(

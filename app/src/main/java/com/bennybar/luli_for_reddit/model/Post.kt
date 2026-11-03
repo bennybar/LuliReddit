@@ -33,7 +33,8 @@ data class Post(
     val author: String,
     val score: Int,
     val numComments: Int,
-    val upvoteRatio: Double,
+    /** Null when the source doesn't say (a card read from the Home page; GraphQL without the field). */
+    val upvoteRatio: Double?,
     val createdUtc: Long, // millis since epoch
     val permalink: String,
     val url: String,
@@ -119,7 +120,7 @@ data class Post(
                 authorFlair = flairOf(d, "author"),
                 score = d["score"].int() ?: 0,
                 numComments = d["num_comments"].int() ?: 0,
-                upvoteRatio = d["upvote_ratio"].double() ?: 0.0,
+                upvoteRatio = d["upvote_ratio"].double(),
                 createdUtc = (d["created_utc"].long() ?: 0L) * 1000,
                 permalink = d["permalink"].str() ?: "",
                 url = url,

@@ -272,7 +272,8 @@ struct SearchScreen: View {
                     PagedList(
                         source: source,
                         itemKey: { AnyHashable($0.id) },
-                        emptyLabel: "No posts found",
+                        emptyLabel: "No Results for “\(vm.query)”",
+                        emptySymbol: "magnifyingglass",
                         contentType: pagedPostKind,
                         staleAfterMillis: .max, // Only a pull reloads a search.
                         posts: PagedPostRows(post: { $0 })
@@ -280,13 +281,13 @@ struct SearchScreen: View {
                     .background(PagedListHook(generation: source.state.items.count))
                 }
             case "Subreddits":
-                tabResults(error: vm.subsError, empty: vm.subs.isEmpty, emptyLabel: "No subreddits found") {
+                tabResults(error: vm.subsError, empty: vm.subs.isEmpty) {
                     ForEach(vm.subs, id: \.name) { s in
                         ResultRow(name: s.name, title: s.namePrefixed, subtitle: "\(compactNumber(s.subscribers)) members", route: .subreddit(name: s.name))
                     }
                 }
             default:
-                tabResults(error: vm.usersError, empty: vm.users.isEmpty, emptyLabel: "No users found") {
+                tabResults(error: vm.usersError, empty: vm.users.isEmpty) {
                     ForEach(vm.users, id: \.name) { u in
                         ResultRow(name: u.name, title: "u/\(u.name)", subtitle: "\(compactNumber(u.linkKarma + u.commentKarma)) karma", route: .user(username: u.name))
                     }
@@ -295,7 +296,7 @@ struct SearchScreen: View {
         }
     }
 
-    @ViewBuilder private func tabResults(error: Error?, empty: Bool, emptyLabel: String, @ViewBuilder rows: () -> some View) -> some View {
+    @ViewBuilder private func tabResults(error: Error?, empty: Bool, @ViewBuilder rows: () -> some View) -> some View {
         if vm.loading {
             Loading().frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let error {
@@ -305,28 +306,58 @@ struct SearchScreen: View {
                 .listStyle(.plain)
                 .refreshable { await vm.refresh() }
                 .overlay {
-                    if empty { Text(emptyLabel).foregroundStyle(.secondary) }
+                    if empty { ContentUnavailableView.search(text: vm.query) }
                 }
         }
     }
 
-    /// The sort as one connected control (#35); the time range sits beside it.
+    /// The sort as one button that opens the list, Top with its time range, like the feed's.
     private var filterBar: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: 8) {
-                ConnectedChoice(options: SEARCH_SORTS, selected: vm.sort, onSelect: vm.setSort, fill: false)
-                if vm.sort == "top" {
-                    PickOneMenu(options: SEARCH_TIMES, selected: vm.time, onPick: vm.setTime) {
-                        Label(SEARCH_TIMES.first { $0.key == vm.time }?.label ?? "All time", systemImage: "clock").font(.subheadline)
+        let label = SEARCH_SORTS.first { $0.key == vm.sort }?.label ?? vm.sort
+        let name = vm.sort == "top" ? "\(label) · \(SEARCH_TIMES.first { $0.key == vm.time }?.label ?? "All time")" : label
+        return Menu {
+            ForEach(SEARCH_SORTS, id: \.key) { sort in
+                let on = sort.key == vm.sort
+                if sort.key == "top" {
+                    Menu {
+                        ForEach(SEARCH_TIMES, id: \.key) { t in
+                            Button {
+                                // One search for the pair, not one per setter.
+                                vm.setFilters(sort: "top", time: t.key)
+                                vm.search(vm.query, saveRecent: false)
+                            } label: {
+                                if on && t.key == vm.time { Label(t.label, systemImage: "checkmark") } else { Text(t.label) }
+                            }
+                        }
+                    } label: {
+                        if on { Label(sort.label, systemImage: "checkmark") } else { Text(sort.label) }
                     }
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.capsule)
+                } else {
+                    Button {
+                        if !on { vm.setSort(sort.key) }
+                    } label: {
+                        if on { Label(sort.label, systemImage: "checkmark") } else { Text(sort.label) }
+                    }
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 4)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.up.arrow.down")
+                Text(name).lineLimit(1).fixedSize()
+            }
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 14)
+            .frame(minHeight: 36)
+            .glassEffect(.regular.interactive(), in: .capsule)
         }
-        .scrollIndicators(.hidden)
+        // A menu's label takes the app tint; the sort stays in the label colour.
+        .tint(.primary)
+        .accessibilityLabel("Sort")
+        .accessibilityValue(name)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 4)
     }
 }
 

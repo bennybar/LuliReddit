@@ -322,20 +322,24 @@ final class KeywordStore {
 
 /// Counts how many times each post was *seen* in the For You feed (≥60% on
 /// screen for a second). The count fades — halving every 24h — so a post you
-/// skimmed once isn't buried for good, and is counted at most once per app
-/// session. Bounded (~600 ids), per-account, and only kept while history
+/// skimmed once isn't buried for good, and is counted at most once per feed
+/// build (once per app session let the same posts lead every refresh). Also
+/// keeps the last first page's top 10, so a cold launch makes room for new
+/// posts too. Bounded (~600 ids), per-account, and only kept while history
 /// tracking is on.
 @MainActor @Observable
 final class ImpressionStore {
     typealias Entry = (count: Double, at: Int)
 
     private static let base = "fy_impressions"
+    private static let topBase = "fy_last_top"
     private static let cap = 600
 
     @ObservationIgnored private let prefs: Prefs
     @ObservationIgnored private let trackHistory: () -> Bool
     @ObservationIgnored private var key = ImpressionStore.base
-    @ObservationIgnored private var session = Set<String>() // ids already counted this app session
+    @ObservationIgnored private var topKey = ImpressionStore.topBase
+    @ObservationIgnored private var session = Set<String>() // ids already counted in this feed build
     @ObservationIgnored private var pending: [String] = []
     @ObservationIgnored private var flushScheduled = false
     private(set) var state = OrderedMap<Entry>()
@@ -351,6 +355,7 @@ final class ImpressionStore {
         flush()
         session = []
         key = userScopedKey(prefs, username, ImpressionStore.base)
+        topKey = userScopedKey(prefs, username, ImpressionStore.topBase)
         state = OrderedMap()
         guard let raw = prefs.getString(key), let o = parseJsonOrNull(raw).obj() else { return }
         let now = nowMillis()
@@ -382,7 +387,17 @@ final class ImpressionStore {
         return { ImpressionStore.count(snapshot, $0) }
     }
 
-    /// Records one impression (cheap: batched, once per session per post).
+    /// A new feed build (first page / refresh): a post seen again counts again.
+    func newFeed() { session = [] }
+
+    /// The top 10 of the last first page built (across launches), for refresh churn.
+    var lastTop: [String] { prefs.getStringList(topKey) ?? [] }
+
+    func setLastTop(_ ids: [String]) {
+        if trackHistory() { prefs.setStringList(topKey, Array(ids.prefix(10))) }
+    }
+
+    /// Records one impression (cheap: batched, once per feed build per post).
     func record(_ postId: String) {
         if postId.isEmpty || !session.insert(postId).inserted { return }
         if !trackHistory() { return }
@@ -401,7 +416,8 @@ final class ImpressionStore {
         let now = nowMillis()
         var next = state
         for id in pending {
-            let c = count(id)
+            // From `next`: a post seen in two builds within one batch counts twice.
+            let c = ImpressionStore.count(next, id)
             next.removeValue(forKey: id) // re-insert last: insertion order = recency
             next[id] = (c + 1, now)
         }
@@ -416,6 +432,7 @@ final class ImpressionStore {
     func clear() {
         state = OrderedMap()
         prefs.remove(key)
+        prefs.remove(topKey)
     }
 }
 
@@ -725,8 +742,8 @@ final class ForYouMetrics {
 /// it was a discovery pick, and the factors behind its score (for "Why am I
 /// seeing this?" and the metrics).
 struct ForYouMeta: Equatable, Sendable {
-    let source: String // best / rising / popular / favourite / interest / community
+    let source: String // best / rising / popular / favourite / interest / community / explore / home / carry
     let discovery: Bool
-    let position: Int // 0-based slot on its page
+    let position: Int // 0-based slot in the feed
     let why: [String]
 }

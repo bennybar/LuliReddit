@@ -53,7 +53,10 @@ import com.bennybar.luli_for_reddit.core.str
 import com.bennybar.luli_for_reddit.feature.auth.BloomTextField
 import com.bennybar.luli_for_reddit.feature.compose.AttachmentControls
 import com.bennybar.luli_for_reddit.feature.compose.MediaAttachment
+import com.bennybar.luli_for_reddit.feature.compose.COMMENT_LIMIT
+import com.bennybar.luli_for_reddit.feature.compose.LengthCounter
 import com.bennybar.luli_for_reddit.feature.compose.keyboardMediaReceiver
+import com.bennybar.luli_for_reddit.feature.compose.redditLength
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.buildJsonObject
@@ -80,6 +83,8 @@ fun ComposeMessageScreen(to: String?) {
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var media by remember { mutableStateOf<MediaAttachment?>(null) }
+    // A picked file still being read: sending now would go without it.
+    var attaching by remember { mutableStateOf(false) }
 
     fun saveDraft() = app.drafts.save(
         DRAFT_KEY,
@@ -128,7 +133,7 @@ fun ComposeMessageScreen(to: String?) {
                     IconButton(onClick = { nav.pop() }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
                 },
                 actions = {
-                    Button(onClick = ::send, enabled = !busy, modifier = Modifier.padding(end = 8.dp)) {
+                    Button(onClick = ::send, enabled = !busy && !attaching && redditLength(body.text.trim()) <= COMMENT_LIMIT, modifier = Modifier.padding(end = 8.dp)) {
                         if (busy) Loading(Modifier.size(24.dp), color = LocalContentColor.current) else Text("Send")
                     }
                 },
@@ -167,16 +172,19 @@ fun ComposeMessageScreen(to: String?) {
                     singleLine = false,
                     minLines = 6,
                     maxLines = 14,
-                    mediaReceiver = Modifier.keyboardMediaReceiver(onMedia = { media = it; error = null }, onError = { error = it }),
+                    mediaReceiver = Modifier.keyboardMediaReceiver(onMedia = { media = it; error = null }, onError = { error = it }, onLoading = { attaching = it }),
                 )
+                LengthCounter(body.text, COMMENT_LIMIT)
                 MarkdownToolbar(body) { body = it; saveDraft() }
                 Spacer(Modifier.height(4.dp))
                 AttachmentControls(
                     media = media,
+                    loading = attaching,
                     onChanged = {
                         media = it
                         error = null
                     },
+                    onLoading = { attaching = it },
                     onError = { error = it },
                     catboxForImages = true,
                 )

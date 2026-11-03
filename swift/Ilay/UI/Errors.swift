@@ -63,13 +63,3 @@ struct ErrorView: View {
         }
     }
 }
-
-/// The screen for a destination that isn't ported yet (see `RouteView`).
-struct PlaceholderScreen: View {
-    let title: String
-
-    var body: some View {
-        ContentUnavailableView(title, systemImage: "hammer", description: Text("Not ported yet."))
-            .navigationTitle(title)
-    }
-}

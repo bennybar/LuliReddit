@@ -94,6 +94,24 @@ import XCTest
         await l.dispose()
     }
 
+    func testAPageWithoutPostsGivesUpEarly() async throws {
+        let l = loader(html: #"<html><body><shreddit-app user-logged-in="true"></shreddit-app></body></html>"#)
+        let started = nowMillis()
+        do {
+            _ = try await l.next(restart: true, cookieHeader: "")
+            XCTFail("expected HomeUnavailableException")
+        } catch is HomeUnavailableException {}
+        await l.dispose()
+        XCTAssertLessThan(nowMillis() - started, 10_000, "not the whole 15s deadline")
+    }
+
+    func testGivesUpOnAFailedLoadOrAPageLoadedWithoutPosts() {
+        XCTAssertTrue(RedditHomeLoader.givesUp(loadFailed: true, finishedAt: nil, now: 0))
+        XCTAssertFalse(RedditHomeLoader.givesUp(loadFailed: false, finishedAt: nil, now: 60_000), "still loading")
+        XCTAssertFalse(RedditHomeLoader.givesUp(loadFailed: false, finishedAt: 1_000, now: 5_000))
+        XCTAssertTrue(RedditHomeLoader.givesUp(loadFailed: false, finishedAt: 1_000, now: 6_000))
+    }
+
     func testAnOldDocumentReadsAsNil() {
         XCTAssertNil(HomePageRead.parse(nil))
         XCTAssertNil(HomePageRead.parse("null"))
@@ -222,12 +240,108 @@ import XCTest
         XCTAssertEqual(cursors?["best"].str(), "", "a source that failed starts from the top next time")
     }
 
+    func testOneSourceAnsweringIsNotAFailure() async throws {
+        let e = engine { [self] in
+            $0.url!.path.hasSuffix("/best") ? StubProtocol.Reply(body: listing("best", count: 0)) : StubProtocol.Reply(status: 500, body: "{}")
+        }
+        let page = try await e.page(after: nil, loaded: [])
+        XCTAssertTrue(page.items.isEmpty, "nothing new: an empty page, not an error that retries the whole build")
+    }
+
+    func testARefreshReusesTheExploreListingAndSignedOutNeverAsksForSubscriptions() async throws {
+        let e = engine { [self] in reply($0, best: listing("best"), rising: listing("rising"), popular: listing("popular")) }
+        _ = try await e.page(after: nil, loaded: [])
+        XCTAssertEqual(StubProtocol.paths.filter { $0.hasSuffix("/r/all/top") }.count, 1, "today's top across Reddit, to explore")
+        XCTAssertFalse(StubProtocol.paths.contains { $0.contains("/subreddits/mine") })
+        StubProtocol.start { [self] in reply($0, best: listing("best"), rising: listing("rising"), popular: listing("popular")) }
+        _ = try await e.page(after: nil, loaded: [])
+        XCTAssertFalse(StubProtocol.paths.contains { $0.hasSuffix("/r/all/top") }, "kept a few minutes")
+        XCTAssertTrue(StubProtocol.paths.contains { $0.hasSuffix("/best") })
+    }
+
+    func testTheSeedIsMarkedDoneOnlyWhenItWorked() async throws {
+        let user = app.session.username
+        let key = userScopedKey(app.prefs, user, "fy_seeded")
+        app.prefs.remove(key)
+        defer { app.prefs.remove(key) }
+        var e = engine { _ in StubProtocol.Reply(status: 500, body: "{}") }
+        await e.seedIfNeeded(user: user)
+        XCTAssertNil(app.prefs.getBool(key), "a failure is tried again next time")
+        e = engine { [self] _ in StubProtocol.Reply(body: listing("liked")) }
+        await e.seedIfNeeded(user: user)
+        XCTAssertEqual(app.prefs.getBool(key), true)
+    }
+
     func testEverySourceFailingIsAnErrorNotAnEmptyFeed() async {
         let e = engine { _ in StubProtocol.Reply(status: 500, body: "{}") }
         do {
             _ = try await e.page(after: nil, loaded: [])
             XCTFail("expected a failure")
         } catch {}
+    }
+
+    func testOnlyPostsForYouPlacedCountAsImpressions() {
+        let module = ForYouModule(app)
+        let user = "fytest_\(UUID().uuidString)"
+        module.onUserChanged(user)
+        defer { module.impressions.clear() }
+        guard app.settings.value.trackHistory else { return }
+        let home = Post.fromData(["id": "h", "subreddit": "pics", "title": "From Home"]).with { $0.feedReason = "Popular near you" }
+        let mine = Post.fromData(["id": "f", "subreddit": "pics", "title": "From For You"]).with { $0.feedReason = "From r/pics" }
+        module.meta = ["f": ForYouMeta(source: "best", discovery: false, position: 0, why: [])]
+        module.forYouLearner.impression(home)
+        module.forYouLearner.impression(mine)
+        module.impressions.load(user) // saves the batch
+        XCTAssertEqual(module.impressions.count("h"), 0, "a Reddit Home card isn't a For You impression")
+        XCTAssertEqual(module.impressions.count("f"), 1, accuracy: 0.01)
+    }
+
+    func testEngagedCommunitiesOutsideTheTopFiveAreFetchedToo() async throws {
+        let e = engine { [self] in reply($0, best: listing("best"), rising: listing("rising"), popular: listing("popular")) }
+        module.interest.clear() // the seed test leaves its own communities here
+        defer { module.interest.clear() }
+        let subs = (0..<8).map { "eng\($0)" }
+        module.interest.seed(Dictionary(uniqueKeysWithValues: subs.enumerated().map { ($1, 10.0 - Double($0)) }))
+        _ = try await e.page(after: nil, loaded: [])
+        let near = StubProtocol.paths.first { $0.contains("eng0") }
+        for s in subs { XCTAssertTrue(near?.contains(s) == true, "\(s) in the one combined request") }
+    }
+
+    func testEngagementIsDwellOrMediaNotAnOpenAndCountsPerSourceAndSlot() {
+        let module = ForYouModule(app)
+        module.onUserChanged("fytest_\(UUID().uuidString)")
+        defer {
+            module.subStats.clear()
+            module.typeStats.clear()
+            module.metrics.clear()
+            module.interest.clear()
+        }
+        guard app.settings.value.trackHistory else { return }
+        let text = Post.fromData(["id": "t", "subreddit": "askx", "title": "A question"])
+        let pic = Post.fromData(["id": "i", "subreddit": "picsx", "title": "A photo"])
+        module.meta = [
+            "t": ForYouMeta(source: "best", discovery: false, position: 2, why: []),
+            "i": ForYouMeta(source: "explore", discovery: true, position: 31, why: []),
+        ]
+        let l = module.forYouLearner
+        l.impression(text)
+        l.impression(pic)
+        l.open(text)
+        XCTAssertEqual(module.subStats.value["askx"]?.engaged ?? 0, 0, "an open alone may be a bounce")
+        l.dwell(text)
+        XCTAssertEqual(module.subStats.value["askx"]?.engaged ?? 0, 1, accuracy: 0.01)
+        l.viewMedia(pic)
+        XCTAssertEqual(module.subStats.value["picsx"]?.engaged ?? 0, 1, accuracy: 0.01, "viewing the media is engagement")
+        l.hidePost(pic)
+        let t = module.metrics.totals()
+        XCTAssertEqual(t["imp.src.best"], 1)
+        XCTAssertEqual(t["open.src.best"], 1)
+        XCTAssertEqual(t["open.primary"], 1)
+        XCTAssertEqual(t["eng.src.best"], 1)
+        XCTAssertEqual(t["eng.src.explore"], 1)
+        XCTAssertEqual(t["hide.src.explore"], 1)
+        XCTAssertEqual(t["imp.slot.0-9"], 1)
+        XCTAssertEqual(t["imp.slot.30+"], 1)
     }
 
     func testLearnerCountsTheChangeOfAVoteNotEachVote() {

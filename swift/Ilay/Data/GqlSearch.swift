@@ -242,6 +242,8 @@ func gqlPostData(_ n: JsonObject) -> JsonObject {
         "locked": .bool(n["isLocked"].bool() == true),
         "saved": .bool(n["isSaved"].bool() == true),
     ]
+    // Left out when the response doesn't carry it: For You reads a missing ratio as neutral, not 0.
+    if let ratio = n["upvoteRatio"].double() { o["upvote_ratio"] = .double(ratio) }
     switch n["voteState"].str() {
     case "UP": o["likes"] = true
     case "DOWN": o["likes"] = false

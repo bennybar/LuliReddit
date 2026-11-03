@@ -30,18 +30,23 @@ final class ImageLoader: @unchecked Sendable {
     private let directory: URL
     private let diskLimit: Int64
     private let session: URLSession
+    private let animationBudget: Int
     private let lock = NSLock()
     private var decodes: [String: Flight<UIImage>] = [:]
     private var downloads: [String: Flight<URL>] = [:]
     private var diskBytes: Int64 = 0
 
-    init(directory: URL, diskLimit: Int64, session: URLSession) {
+    /// `animationBudget`: the most bytes one animation's decoded frames may take
+    /// (see `decodeFrames`).
+    init(directory: URL, diskLimit: Int64, session: URLSession, animationBudget: Int = 40 << 20) {
         self.directory = directory
         self.diskLimit = diskLimit
         self.session = session
+        self.animationBudget = animationBudget
         // A share of the device, capped: decoded feed images are what's kept here,
-        // and NSCache also lets go by itself under memory pressure.
-        memory.totalCostLimit = Int(min(ProcessInfo.processInfo.physicalMemory / 6, 512 << 20))
+        // and NSCache also lets go by itself under memory pressure. 512 MB let a feed
+        // of GIFs push the app towards a jetsam kill before NSCache reacted.
+        memory.totalCostLimit = Int(min(ProcessInfo.processInfo.physicalMemory / 8, 192 << 20))
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         Task.detached(priority: .utility) { self.trimDisk() }
     }
@@ -59,7 +64,7 @@ final class ImageLoader: @unchecked Sendable {
         if let hit = memory.object(forKey: key as NSString) { return hit }
         return await join(key, \.decodes) { [self] in
             guard let file = await fileForImage(url), !Task.isCancelled else { return nil }
-            let image = Self.decode(file, maxPixelSize: maxPixelSize, animated: animated)
+            let image = Self.decode(file, maxPixelSize: maxPixelSize, animated: animated, budget: animationBudget)
             guard !Task.isCancelled else { return nil }
             guard let image else {
                 // Not an image after all (an error page served as 200): don't keep it.
@@ -196,7 +201,7 @@ final class ImageLoader: @unchecked Sendable {
         Set(image.images ?? [image]).reduce(0) { $0 + ($1.cgImage.map { $0.bytesPerRow * $0.height } ?? 0) }
     }
 
-    private static func decode(_ file: URL, maxPixelSize: Int, animated: Bool) -> UIImage? {
+    private static func decode(_ file: URL, maxPixelSize: Int, animated: Bool, budget: Int) -> UIImage? {
         // ShouldCache false: the source itself keeps nothing; only the thumbnail lives on.
         guard let source = CGImageSourceCreateWithURL(file as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary)
         else { return nil }
@@ -208,20 +213,25 @@ final class ImageLoader: @unchecked Sendable {
         ]
         if maxPixelSize > 0 { options[kCGImageSourceThumbnailMaxPixelSize] = maxPixelSize }
         let count = CGImageSourceGetCount(source)
-        if animated && count > 1 { return decodeFrames(source, count: count, options: options) }
-        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary).map { UIImage(cgImage: $0) }
+        guard let first = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+        if animated && count > 1 { return decodeFrames(source, count: count, first: first, options: options, budget: budget) }
+        return UIImage(cgImage: first)
     }
 
     /// A long clip keeps its running time but drops frames beyond this: every frame
     /// stays decoded in memory while it plays.
     private static let maxFrames = 120
 
-    private static func decodeFrames(_ source: CGImageSource, count: Int, options: [CFString: Any]) -> UIImage? {
-        let step = max(1, Int((Double(count) / Double(maxFrames)).rounded(.up)))
+    /// Frames are also capped by `budget` bytes (frame 0's size times the count), so
+    /// a big slot gets fewer frames; when not even two fit, it stays still on frame 0.
+    private static func decodeFrames(_ source: CGImageSource, count: Int, first: CGImage, options: [CFString: Any], budget: Int) -> UIImage? {
+        let allowed = min(maxFrames, budget / max(1, first.bytesPerRow * first.height))
+        if allowed < 2 { return UIImage(cgImage: first) }
+        let step = max(1, Int((Double(count) / Double(allowed)).rounded(.up)))
         var frames: [(image: UIImage, centis: Int)] = []
         for start in stride(from: 0, to: count, by: step) {
             if Task.isCancelled { return nil }
-            guard let cg = CGImageSourceCreateThumbnailAtIndex(source, start, options as CFDictionary) else { continue }
+            guard let cg = start == 0 ? first : CGImageSourceCreateThumbnailAtIndex(source, start, options as CFDictionary) else { continue }
             var delay = 0.0
             for index in start..<min(start + step, count) { delay += frameDelay(source, index) }
             frames.append((UIImage(cgImage: cg), max(1, Int((delay * 100).rounded()))))

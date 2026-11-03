@@ -128,6 +128,8 @@ private struct CalmCard: View {
             CalmActions(row: row, a: a)
                 .padding(.top, 8)
                 .padding(.bottom, 6)
+                // With the card's 5, as far from the right edge as the votes are from the left.
+                .padding(.trailing, 6)
         }
         .padding(.leading, row.config.contentInset)
         .padding(.trailing, 5)
@@ -499,7 +501,9 @@ private struct CardMedia: View {
         case .none, .thumbnail:
             EmptyView()
         case let .image(url, height, pixels, play, pill):
-            NsfwBlur(blur: row.blur, blurredImageUrl: row.post.blurredPreviewUrl, label: row.blurLabel) {
+            // No `.id(row.id)`: it rebuilt the image view on every cell reuse. NsfwBlur
+            // keys its reveal by `id` instead.
+            NsfwBlur(blur: row.blur, blurredImageUrl: row.post.blurredPreviewUrl, label: row.blurLabel, id: row.id) {
                 Button(action: a.openMedia) {
                     SlotImage(url: url, pixels: pixels, brokenSymbol: "photo.badge.exclamationmark")
                         .frame(height: height)
@@ -509,16 +513,17 @@ private struct CardMedia: View {
                             if let pill { MediaPill(info: pill).padding(8) }
                         }
                         .clipShape(.rect(cornerRadius: radius))
+                        .zoomSource()
                 }
                 .buttonStyle(.plain)
             }
-            .id(row.id)
         case let .video(url, poster, height):
             InlineVideo(url: url, height: height, poster: poster, onTap: a.openMedia)
                 .clipShape(.rect(cornerRadius: radius))
+                .zoomSource()
         case let .gallery(carouselHeight, height):
             // Its own view per post: a reused cell mustn't keep the last post's page.
-            NsfwBlur(blur: row.blur, blurredImageUrl: row.post.blurredPreviewUrl, label: row.blurLabel) {
+            NsfwBlur(blur: row.blur, blurredImageUrl: row.post.blurredPreviewUrl, label: row.blurLabel, id: row.id) {
                 if let carouselHeight {
                     GalleryM3Carousel(images: row.post.gallery, title: row.post.title, height: carouselHeight)
                 } else {
@@ -570,10 +575,9 @@ private struct CalmLink: View {
     var body: some View {
         VStack(spacing: 0) {
             if let hero {
-                NsfwBlur(blur: row.blur, blurredImageUrl: row.post.blurredPreviewUrl, label: row.blurLabel) {
+                NsfwBlur(blur: row.blur, blurredImageUrl: row.post.blurredPreviewUrl, label: row.blurLabel, id: row.id) {
                     SlotImage(url: hero, pixels: pixels).frame(height: height).frame(maxWidth: .infinity)
                 }
-                .id(row.id)
             }
             HStack(spacing: 6) {
                 Image(systemName: "link")
@@ -699,6 +703,7 @@ private struct SymbolButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .sensoryFeedback(.impact(weight: .light), trigger: taps)
         .accessibilityLabel(label)
         .accessibilityAddTraits(on ? .isSelected : [])
     }
@@ -775,38 +780,70 @@ private struct SaveButton: View {
 }
 
 /// Calm's actions, the same glass pills as inside the post: ↑ score ↓ joined, comments,
-/// then share as media (when it can), share and save. One container renders a card's
-/// glass together; spacing 0 keeps the pills from melting into each other.
+/// then share as media (when it can), share and save. The pills that show a vote, count or
+/// save read the shared overrides themselves (as `VoteCluster` does): a vote or save
+/// anywhere re-runs those small views, not every card's whole row.
 private struct CalmActions: View {
     let row: PostRow
     let a: PostActions
 
+    var body: some View {
+        let font = Font.subheadline.weight(.medium)
+        HStack(spacing: 8) {
+            CalmVotePills(post: row.post, a: a, font: font)
+            CalmCommentsPill(post: row.post, a: a, font: font)
+            Spacer(minLength: 0)
+            if row.canShareMedia {
+                GlassPill(symbol: row.post.type == .video || row.post.type == .gif ? "film" : "photo", label: "Share as media",
+                          leading: 18, trailing: 18, height: 36, font: font, action: a.shareMedia)
+            }
+            GlassPill(symbol: "square.and.arrow.up", label: "Share", leading: 18, trailing: 18, height: 36, font: font, action: a.share)
+            CalmSavePill(post: row.post, a: a, font: font)
+        }
+        // Like Apple's bar controls: past this the row no longer fits a phone's width.
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+    }
+}
+
+private struct CalmVotePills: View {
+    let post: Post
+    let a: PostActions
+    let font: Font
+
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        let o = app.postOverrides.effective(row.post)
+        let o = app.postOverrides.effective(post)
         let votes = IlayTheme.voteColors(dark: scheme == .dark)
         let up = o.likes == true, down = o.likes == false
-        let font = Font.subheadline.weight(.medium)
-        GlassEffectContainer(spacing: 0) {
-            HStack(spacing: 8) {
-                HStack(spacing: 3) {
-                    GlassPill(symbol: "arrow.up", value: compactNumber(o.score), valueTint: down ? votes.down : nil,
-                              label: "Upvote", on: up, tint: votes.up, leading: 18, trailing: 5, height: 36, font: font) { a.vote(1) }
-                    GlassPill(symbol: "arrow.down", label: "Downvote", on: down, tint: votes.down,
-                              leading: 5, trailing: 18, height: 36, font: font) { a.vote(-1) }
-                }
-                GlassPill(symbol: "bubble.left", value: compactNumber(o.numComments), label: "Comments",
-                          leading: 18, trailing: 18, height: 36, font: font, action: a.openDetail)
-                Spacer(minLength: 0)
-                if row.canShareMedia {
-                    GlassPill(symbol: row.post.type == .video || row.post.type == .gif ? "film" : "photo", label: "Share as media",
-                              leading: 18, trailing: 18, height: 36, font: font, action: a.shareMedia)
-                }
-                GlassPill(symbol: "square.and.arrow.up", label: "Share", leading: 18, trailing: 18, height: 36, font: font, action: a.share)
-                GlassPill(symbol: o.saved ? "bookmark.fill" : "bookmark", label: o.saved ? "Unsave" : "Save", on: o.saved,
-                          tint: IlayTheme.accent, leading: 18, trailing: 18, height: 36, font: font, action: a.toggleSave)
-            }
+        HStack(spacing: 3) {
+            GlassPill(symbol: "arrow.up", value: compactNumber(o.score), valueTint: down ? votes.down : nil,
+                      label: "Upvote", on: up, tint: votes.up, leading: 18, trailing: 5, height: 36, font: font, haptic: true) { a.vote(1) }
+            GlassPill(symbol: "arrow.down", label: "Downvote", on: down, tint: votes.down,
+                      leading: 5, trailing: 18, height: 36, font: font, haptic: true) { a.vote(-1) }
         }
+    }
+}
+
+private struct CalmCommentsPill: View {
+    let post: Post
+    let a: PostActions
+    let font: Font
+
+    var body: some View {
+        GlassPill(symbol: "bubble.left", value: compactNumber(app.postOverrides.effective(post).numComments), label: "Comments",
+                  leading: 18, trailing: 18, height: 36, font: font, action: a.openDetail)
+    }
+}
+
+private struct CalmSavePill: View {
+    let post: Post
+    let a: PostActions
+    let font: Font
+
+    var body: some View {
+        let saved = app.postOverrides.effective(post).saved
+        GlassPill(symbol: saved ? "bookmark.fill" : "bookmark", label: saved ? "Unsave" : "Save", on: saved,
+                  tint: IlayTheme.accent, leading: 18, trailing: 18, height: 36, font: font, haptic: true, action: a.toggleSave)
     }
 }

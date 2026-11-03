@@ -79,6 +79,12 @@ private struct LoadedImage<Placeholder: View>: View {
         }
         .task(id: key) {
             guard let url, current == nil else { return }
+            // Frame 0 first: decoding every frame of a GIF takes a while, and the
+            // still is quick (and often already cached by a feed thumbnail).
+            if animated, let still = await ImageLoader.shared.image(url: url, maxPixelSize: maxPixelSize),
+               !Task.isCancelled {
+                loaded = (key, still)
+            }
             guard let image = await ImageLoader.shared.image(url: url, maxPixelSize: maxPixelSize, animated: animated),
                   !Task.isCancelled else { return }
             withAnimation(.easeOut(duration: 0.15)) { loaded = (key, image) }

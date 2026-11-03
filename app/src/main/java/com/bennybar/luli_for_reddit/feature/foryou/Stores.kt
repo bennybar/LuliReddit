@@ -330,8 +330,10 @@ class KeywordStore(private val prefs: Prefs, private val trackHistory: () -> Boo
 /**
  * Counts how many times each post was *seen* in the For You feed (≥60% on
  * screen for a second). The count fades — halving every 24h — so a post you
- * skimmed once isn't buried for good, and is counted at most once per app
- * session. Bounded (~600 ids), per-account, and only kept while history
+ * skimmed once isn't buried for good, and is counted at most once per feed
+ * build (once per app session let the same posts lead every refresh). Also
+ * keeps the last first page's top 10, so a cold launch makes room for new
+ * posts too. Bounded (~600 ids), per-account, and only kept while history
  * tracking is on.
  */
 class ImpressionStore(
@@ -340,8 +342,9 @@ class ImpressionStore(
     private val scope: CoroutineScope,
 ) {
     private var key = BASE
-    private val session = HashSet<String>() // ids already counted this app session
-    private val pending = LinkedHashSet<String>()
+    private var topKey = TOP_BASE
+    private val session = HashSet<String>() // ids already counted in this feed build
+    private val pending = ArrayList<String>()
     private var flushScheduled = false
     private val _state = MutableStateFlow<Map<String, Pair<Double, Long>>>(emptyMap())
     val state: StateFlow<Map<String, Pair<Double, Long>>> = _state
@@ -353,6 +356,7 @@ class ImpressionStore(
         flush()
         session.clear()
         key = userScopedKey(prefs, username, BASE)
+        topKey = userScopedKey(prefs, username, TOP_BASE)
         val raw = prefs.getString(key)
         _state.value = if (raw == null) emptyMap() else try {
             val now = System.currentTimeMillis()
@@ -373,7 +377,18 @@ class ImpressionStore(
         return v.first * decayFactor(v.second, 0.5)
     }
 
-    /** Records one impression (cheap: batched, once per session per post). */
+    /** A new feed build (first page / refresh): a post seen again counts again. */
+    @Synchronized
+    fun newFeed() = session.clear()
+
+    /** The top 10 of the last first page built (across launches), for refresh churn. */
+    val lastTop: List<String> get() = prefs.getStringList(topKey) ?: emptyList()
+
+    fun setLastTop(ids: List<String>) {
+        if (trackHistory()) prefs.setStringList(topKey, ids.take(10))
+    }
+
+    /** Records one impression (cheap: batched, once per feed build per post). */
     @Synchronized
     fun record(postId: String) {
         if (postId.isEmpty() || !session.add(postId)) return
@@ -394,7 +409,8 @@ class ImpressionStore(
         val now = System.currentTimeMillis()
         val next = LinkedHashMap(_state.value)
         for (id in pending) {
-            val c = count(id)
+            // From `next`: a post seen in two builds within one batch counts twice.
+            val c = next[id]?.let { it.first * decayFactor(it.second, 0.5) } ?: 0.0
             next.remove(id) // re-insert last: insertion order = recency
             next[id] = (c + 1) to now
         }
@@ -413,10 +429,12 @@ class ImpressionStore(
     fun clear() {
         _state.value = emptyMap()
         prefs.remove(key)
+        prefs.remove(topKey)
     }
 
     companion object {
         private const val BASE = "fy_impressions"
+        private const val TOP_BASE = "fy_last_top"
         private const val CAP = 600
     }
 }
@@ -730,8 +748,8 @@ class ForYouMetrics(private val prefs: Prefs, private val trackHistory: () -> Bo
  */
 @Immutable
 data class ForYouMeta(
-    val source: String, // best / rising / popular / favourite / interest / community
+    val source: String, // best / rising / popular / favourite / interest / community / explore / home / carry
     val discovery: Boolean,
-    val position: Int, // 0-based slot on its page
+    val position: Int, // 0-based slot in the feed
     val why: List<String>,
 )

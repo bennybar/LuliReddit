@@ -67,7 +67,11 @@ import com.bennybar.luli_for_reddit.core.timeAgo
 import com.bennybar.luli_for_reddit.feature.auth.BloomTextField
 import com.bennybar.luli_for_reddit.feature.compose.AttachmentPreview
 import com.bennybar.luli_for_reddit.feature.compose.MediaAttachment
+import com.bennybar.luli_for_reddit.feature.compose.AttachmentLoading
+import com.bennybar.luli_for_reddit.feature.compose.COMMENT_LIMIT
+import com.bennybar.luli_for_reddit.feature.compose.LengthCounter
 import com.bennybar.luli_for_reddit.feature.compose.keyboardMediaReceiver
+import com.bennybar.luli_for_reddit.feature.compose.redditLength
 import com.bennybar.luli_for_reddit.feature.compose.pasteImageAttachment
 import com.bennybar.luli_for_reddit.feature.compose.readAttachment
 import com.bennybar.luli_for_reddit.feature.media.launchForResult
@@ -146,6 +150,8 @@ private fun Thread(root: InboxItem) {
     var reply by remember { mutableStateOf(TextFieldValue(app.drafts.get(draftKey) ?: "")) }
     var media by remember { mutableStateOf<MediaAttachment?>(null) }
     var sending by remember { mutableStateOf(false) }
+    // A picked file still being read: sending now would go without it.
+    var attaching by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val me = app.session.username
     val cs = MaterialTheme.colorScheme
@@ -222,7 +228,12 @@ private fun Thread(root: InboxItem) {
     suspend fun pick(isVideo: Boolean): MediaAttachment? {
         val type = if (isVideo) ActivityResultContracts.PickVisualMedia.VideoOnly else ActivityResultContracts.PickVisualMedia.ImageOnly
         val uri = launchForResult(ActivityResultContracts.PickVisualMedia(), PickVisualMediaRequest(type)) ?: return null
-        return readAttachment(context, uri, isVideo)
+        attaching = true
+        try {
+            return readAttachment(context, uri, isVideo)
+        } finally {
+            attaching = false
+        }
     }
 
     // The attach menu, as a bottom sheet (image / video / paste).
@@ -271,12 +282,18 @@ private fun Thread(root: InboxItem) {
             }
         }
         Column(Modifier.navigationBarsPadding().padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 12.dp)) {
-            media?.let { m ->
-                AttachmentPreview(m, onRemove = { media = null })
+            if (attaching) {
+                AttachmentLoading()
                 Spacer(Modifier.height(6.dp))
+            } else {
+                media?.let { m ->
+                    AttachmentPreview(m, onRemove = { media = null })
+                    Spacer(Modifier.height(6.dp))
+                }
             }
+            LengthCounter(reply.text, COMMENT_LIMIT)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = ::showAttachMenu, enabled = !sending) {
+                IconButton(onClick = ::showAttachMenu, enabled = !sending && !attaching) {
                     Icon(Icons.Outlined.AddPhotoAlternate, "Attach")
                 }
                 BloomTextField(
@@ -287,10 +304,10 @@ private fun Thread(root: InboxItem) {
                     singleLine = false,
                     minLines = 1,
                     maxLines = 5,
-                    mediaReceiver = Modifier.keyboardMediaReceiver(onMedia = { media = it }, onError = nav::showSnackbar),
+                    mediaReceiver = Modifier.keyboardMediaReceiver(onMedia = { media = it }, onError = nav::showSnackbar, onLoading = { attaching = it }),
                 )
                 Spacer(Modifier.size(8.dp))
-                FilledIconButton(onClick = ::send, enabled = !sending) {
+                FilledIconButton(onClick = ::send, enabled = !sending && !attaching && redditLength(reply.text.trim()) <= COMMENT_LIMIT) {
                     if (sending) Loading(Modifier.size(24.dp), color = LocalContentColor.current)
                     else Icon(Icons.AutoMirrored.Rounded.Send, "Send")
                 }

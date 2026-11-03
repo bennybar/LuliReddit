@@ -85,6 +85,9 @@ struct CommentRowView: View {
     let row: CommentRowModel
     let env: ThreadRowEnv
     let actions: ThreadActions
+    /// Where the name line ends, in the row: a long press above it collapses rather than
+    /// opening the menu (`CommentListController`'s context menu).
+    var onHeaderBottom: (CGFloat) -> Void = { _ in }
 
     private var c: Comment { row.comment }
 
@@ -104,8 +107,11 @@ struct CommentRowView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .coordinateSpace(.named(CommentRowView.space))
         .threadCellTheme(env)
     }
+
+    private static let space = "commentRow"
 
     /// The cards setting: each comment on its own rounded card, its depth colour on the edge.
     private var card: some View {
@@ -183,7 +189,7 @@ struct CommentRowView: View {
             Spacer(minLength: 0)
             if row.collapsed {
                 if env.calm {
-                    GlassPill(symbol: "arrow.up.and.line.horizontal.and.arrow.down", label: "Expand") { actions.toggle(c) }
+                    GlassPill(symbol: "arrow.up.and.line.horizontal.and.arrow.down", label: "Expand", haptic: true) { actions.toggle(c) }
                 } else {
                     Image(systemName: "chevron.down")
                         .font(.caption.weight(.semibold))
@@ -193,6 +199,7 @@ struct CommentRowView: View {
             }
         }
         .frame(minHeight: 24)
+        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(CommentRowView.space)).maxY } action: { onHeaderBottom($0) }
         .contentShape(.rect)
         .onTapGesture {
             if row.collapsed || env.tapToCollapse { actions.toggle(c) }
@@ -236,17 +243,14 @@ private struct CommentActionsRow: View {
         let up = c.likes == true
         let down = c.likes == false
         if calm {
-            // Glass pills, the same design as the post's buttons. One container renders
-            // a row's glass together (cheaper while scrolling); spacing 0 keeps the
-            // pills from melting into each other.
-            GlassEffectContainer(spacing: 0) {
+            // Glass pills, the same design as the post's buttons (drawn: see GlassPillStyle).
             HStack(spacing: 6) {
                 HStack(spacing: 3) {
                     GlassPill(symbol: "arrow.up", value: c.scoreHidden ? "–" : compactNumber(c.score),
                               valueTint: down ? votes.down : nil, label: "Upvote", on: up, tint: votes.up,
-                              leading: 16, trailing: 5) { actions.vote(c, 1) }
+                              leading: 16, trailing: 5, haptic: true) { actions.vote(c, 1) }
                     GlassPill(symbol: "arrow.down", label: "Downvote", on: down, tint: votes.down,
-                              leading: 5, trailing: 16) { actions.vote(c, -1) }
+                              leading: 5, trailing: 16, haptic: true) { actions.vote(c, -1) }
                 }
                 // Deep rows have no width for the word: it broke into "Re-ply".
                 GlassPill(symbol: "arrowshape.turn.up.left", value: c.depth < 3 ? "Reply" : nil, label: "Reply") { actions.reply(c) }
@@ -258,11 +262,12 @@ private struct CommentActionsRow: View {
                         .accessibilityLabel("Saved")
                         .padding(.trailing, 2)
                 }
-                GlassPill(symbol: "arrow.down.and.line.horizontal.and.arrow.up", label: "Collapse thread") { actions.toggle(c) }
+                GlassPill(symbol: "arrow.down.and.line.horizontal.and.arrow.up", label: "Collapse thread", haptic: true) { actions.toggle(c) }
                 CommentMenuButton { actions.menu(c, isOwn: row.isOwn) }
                     .frame(width: 32, height: 32)
             }
-            }
+            // Like Apple's bar controls: past this the row no longer fits a phone's width.
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             .padding(.top, 4)
         } else {
             HStack(spacing: 0) {
@@ -323,6 +328,8 @@ struct GlassPill: View {
     var trailing: CGFloat = 16
     var height: CGFloat = 32
     var font: Font = .footnote.weight(.medium)
+    /// A light tap felt on press: for votes, save and collapse, not for buttons that open something.
+    var haptic = false
     let action: () -> Void
     @State private var taps = 0
 
@@ -344,13 +351,41 @@ struct GlassPill: View {
             .foregroundStyle(on ? tint : .primary)
             .padding(.horizontal, 11)
             .frame(minWidth: 40, minHeight: height)
-            .glassEffect(on ? .regular.tint(tint.opacity(0.35)).interactive() : .regular.interactive(), in: shape)
             .contentShape(shape)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(GlassPillStyle(shape: shape, on: on, tint: tint))
+        .sensoryFeedback(trigger: taps) { _, _ in haptic ? .impact(weight: .light) : nil }
         .accessibilityLabel(label)
         .accessibilityValue(value ?? "")
         .accessibilityAddTraits(on ? .isSelected : [])
+    }
+}
+
+/// The glass pill drawn rather than live: `.glassEffect(.regular.interactive())` on four
+/// pills a comment (and five a feed card) made scrolling costly. On the flat cards the
+/// system glass is a plain platter, so this paints what it showed there (measured off
+/// screenshots): white with a soft shadow in light, a darker platter with a hairline rim in
+/// dark, the vote's colour at 35% over it, and a grow under the finger like interactive glass.
+private struct GlassPillStyle: ButtonStyle {
+    let shape: UnevenRoundedRectangle
+    let on: Bool
+    let tint: Color
+    @Environment(\.colorScheme) private var scheme
+
+    func makeBody(configuration: Configuration) -> some View {
+        let dark = scheme == .dark
+        configuration.label
+            .background {
+                shape.fill(dark ? Color.black.opacity(0.24) : .white)
+                    .shadow(color: .black.opacity(dark ? 0 : 0.1), radius: 14, y: 4)
+                    .overlay { if on { shape.fill(tint.opacity(0.35)) } }
+                    .overlay {
+                        shape.strokeBorder(on ? (dark ? tint.opacity(0.7) : .white.opacity(0.6)) : .white.opacity(dark ? 0.14 : 0.9), lineWidth: 1)
+                    }
+            }
+            .scaleEffect(configuration.isPressed ? 1.06 : 1)
+            .opacity(configuration.isPressed ? 0.85 : 1)
+            .animation(.spring(duration: 0.25, bounce: 0.4), value: configuration.isPressed)
     }
 }
 
@@ -508,6 +543,7 @@ struct CommentMediaView: View {
         }
         .buttonStyle(.plain)
         .clipShape(.rect(cornerRadius: 12))
+        .zoomSource()
     }
 
     /// Reddit's preview links carry their size; other images get a fixed slot.

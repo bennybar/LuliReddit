@@ -20,18 +20,40 @@ import UniformTypeIdentifiers
 /// is refused with a clear message.
 private let maxUploadBytes = 150 * 1024 * 1024
 
+/// A picked video as a file (a copy in tmp, deleted by the reader), so a long one
+/// isn't read into memory before its size is known.
+private struct PickedMovie: Transferable {
+    let url: URL
+
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(importedContentType: .movie) { received in
+            // The received file goes away when this returns.
+            let copy = FileManager.default.temporaryDirectory
+                .appendingPathComponent("\(UUID().uuidString).\(received.file.pathExtension.nilIfEmpty ?? "mov")")
+            try FileManager.default.copyItem(at: received.file, to: copy)
+            return PickedMovie(url: copy)
+        }
+    }
+}
+
 /// A picked image/video, read into memory. Reddit takes neither HEIC nor QuickTime's
 /// container well, and those are what a phone's library holds: they go as JPEG and MP4.
 func readPicked(_ item: PhotosPickerItem, isVideo: Bool) async throws -> MediaAttachment {
-    guard var data = try await item.loadTransferable(type: Data.self) else { throw AppException("Couldn't read the file.") }
-    if data.count > maxUploadBytes {
-        throw AppException("This file is \(data.count / (1024 * 1024)) MB; the most Ilay can upload is \(maxUploadBytes / (1024 * 1024)) MB.")
+    let tooBig = { (bytes: Int) in
+        AppException("This file is \(bytes / (1024 * 1024)) MB; the most Ilay can upload is \(maxUploadBytes / (1024 * 1024)) MB.")
     }
     let type = item.supportedContentTypes.first
     if isVideo {
-        if type?.conforms(to: .mpeg4Movie) != true, let mp4 = await remuxToMp4(data) { data = mp4 }
-        return MediaAttachment(bytes: data, filename: "video.mp4", mimeType: "video/mp4", isVideo: true)
+        guard let movie = try await item.loadTransferable(type: PickedMovie.self) else { throw AppException("Couldn't read the file.") }
+        defer { try? FileManager.default.removeItem(at: movie.url) }
+        let size = (try? movie.url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        if size > maxUploadBytes { throw tooBig(size) }
+        let mp4 = type?.conforms(to: .mpeg4Movie) == true ? nil : await remuxToMp4(movie.url)
+        defer { if let mp4 { try? FileManager.default.removeItem(at: mp4) } }
+        return MediaAttachment(bytes: try Data(contentsOf: mp4 ?? movie.url), filename: "video.mp4", mimeType: "video/mp4", isVideo: true)
     }
+    guard let data = try await item.loadTransferable(type: Data.self) else { throw AppException("Couldn't read the file.") }
+    if data.count > maxUploadBytes { throw tooBig(data.count) }
     if type?.conforms(to: .heic) == true || type?.conforms(to: .heif) == true, let jpeg = UIImage(data: data)?.jpegData(compressionQuality: 0.9) {
         return MediaAttachment(bytes: jpeg, filename: "image.jpg", mimeType: "image/jpeg", isVideo: false)
     }
@@ -39,30 +61,59 @@ func readPicked(_ item: PhotosPickerItem, isVideo: Bool) async throws -> MediaAt
     return MediaAttachment(bytes: data, filename: "image.\(ext)", mimeType: type?.preferredMIMEType ?? "image/jpeg", isVideo: false)
 }
 
-/// The same samples in an MP4 (no re-encode), or nil if it can't be done.
-private func remuxToMp4(_ data: Data) async -> Data? {
-    let dir = FileManager.default.temporaryDirectory
-    let input = dir.appendingPathComponent("\(UUID().uuidString).mov")
-    let output = dir.appendingPathComponent("\(UUID().uuidString).mp4")
-    defer {
-        try? FileManager.default.removeItem(at: input)
+/// The same samples in an MP4 file in tmp (no re-encode; the caller deletes it), or
+/// nil if it can't be done.
+private func remuxToMp4(_ input: URL) async -> URL? {
+    let output = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).mp4")
+    guard let session = AVAssetExportSession(asset: AVURLAsset(url: input), presetName: AVAssetExportPresetPassthrough),
+          (try? await session.export(to: output, as: .mp4)) != nil else {
         try? FileManager.default.removeItem(at: output)
+        return nil
     }
-    guard (try? data.write(to: input)) != nil,
-          let session = AVAssetExportSession(asset: AVURLAsset(url: input), presetName: AVAssetExportPresetPassthrough),
-          (try? await session.export(to: output, as: .mp4)) != nil else { return nil }
-    return try? Data(contentsOf: output)
+    return output
 }
 
-/// A JPEG poster frame for a video (Reddit needs one for video posts).
-func posterFrame(_ video: Data) async -> Data? {
+/// A JPEG poster frame for a video (Reddit needs one for video posts). A video the
+/// frame can't be read from gets a black one: never the video itself as "poster.jpg".
+func posterFrame(_ video: Data) async -> Data {
     let file = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).mp4")
     defer { try? FileManager.default.removeItem(at: file) }
-    guard (try? video.write(to: file)) != nil else { return nil }
-    let generator = AVAssetImageGenerator(asset: AVURLAsset(url: file))
-    generator.appliesPreferredTrackTransform = true
-    guard let frame = try? await generator.image(at: .zero).image else { return nil }
-    return UIImage(cgImage: frame).jpegData(compressionQuality: 0.75)
+    if (try? video.write(to: file)) != nil {
+        let generator = AVAssetImageGenerator(asset: AVURLAsset(url: file))
+        generator.appliesPreferredTrackTransform = true
+        if let frame = try? await generator.image(at: .zero).image,
+           let jpeg = UIImage(cgImage: frame).jpegData(compressionQuality: 0.75) { return jpeg }
+    }
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = 1
+    return UIGraphicsImageRenderer(size: CGSize(width: 640, height: 360), format: format).jpegData(withCompressionQuality: 0.75) { context in
+        UIColor.black.setFill()
+        context.fill(context.format.bounds)
+    }
+}
+
+/// An image pasted with `PasteButton`, as its file so a GIF keeps moving. Unlike
+/// reading `UIPasteboard`, the system Paste button doesn't make iOS ask "Allow Paste?".
+struct PastedImage: Transferable {
+    let media: MediaAttachment
+
+    static var transferRepresentation: some TransferRepresentation {
+        file(.gif, "gif")
+        file(.webP, "webp")
+        file(.jpeg, "jpg")
+        file(.png, "png")
+        // Anything else (HEIC, TIFF…) as PNG, as `pasteImageAttachment` does.
+        DataRepresentation(importedContentType: .image) { data in
+            guard let png = UIImage(data: data)?.pngData() else { throw AppException("No image on the clipboard.") }
+            return PastedImage(media: MediaAttachment(bytes: png, filename: "pasted.png", mimeType: "image/png", isVideo: false))
+        }
+    }
+
+    private static func file(_ type: UTType, _ ext: String) -> DataRepresentation<PastedImage> {
+        DataRepresentation(importedContentType: type) { data in
+            PastedImage(media: MediaAttachment(bytes: data, filename: "pasted.\(ext)", mimeType: type.preferredMIMEType ?? "image/\(ext)", isVideo: false))
+        }
+    }
 }
 
 /// A Markdown field that also takes images and GIFs through the system's Paste, as an
@@ -76,12 +127,15 @@ struct MediaTextEditor: UIViewRepresentable {
     var maxLines = 12
     /// Where a pasted image or GIF goes; nil: this field takes text only.
     var onMedia: ((MediaAttachment) -> Void)? = nil
+    /// Opens the keyboard on it when shown (`.focused` doesn't reach a UIKit view).
+    var focusOnAppear = false
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     func makeUIView(context: Context) -> PastingTextView {
         let view = PastingTextView()
         view.delegate = context.coordinator
+        view.focusOnAppear = focusOnAppear
         view.font = .preferredFont(forTextStyle: .body)
         view.adjustsFontForContentSizeCategory = true
         view.backgroundColor = .clear
@@ -148,7 +202,16 @@ struct MediaTextEditor: UIViewRepresentable {
 
 final class PastingTextView: UITextView {
     var onMedia: ((MediaAttachment) -> Void)?
+    var focusOnAppear = false
     let placeholderLabel = UILabel()
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if focusOnAppear, window != nil {
+            focusOnAppear = false
+            becomeFirstResponder()
+        }
+    }
 
     override init(frame: CGRect, textContainer: NSTextContainer?) {
         super.init(frame: frame, textContainer: textContainer)

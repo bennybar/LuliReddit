@@ -75,6 +75,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -132,21 +133,25 @@ private fun picked(context: Context, uri: Uri, fallbackName: String): Picked =
 
 private suspend fun readBytes(context: Context, uri: Uri): ByteArray = readUriBytes(context, uri)
 
-/** A JPEG poster frame for a video (Reddit needs one for video posts). */
-private suspend fun posterFrame(context: Context, uri: Uri): ByteArray? = withContext(Dispatchers.IO) {
-    runCatching {
+/**
+ * A JPEG poster frame for a video (Reddit needs one for video posts). A video
+ * the frame can't be read from gets a black one: never the video itself as
+ * "poster.jpg".
+ */
+private suspend fun posterFrame(context: Context, uri: Uri): ByteArray = withContext(Dispatchers.IO) {
+    val frame = runCatching {
         val r = MediaMetadataRetriever()
         try {
             r.setDataSource(context, uri)
-            val frame = r.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC) ?: return@runCatching null
-            ByteArrayOutputStream().use { out ->
-                frame.compress(Bitmap.CompressFormat.JPEG, 75, out)
-                out.toByteArray()
-            }
+            r.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
         } finally {
             r.release()
         }
-    }.getOrNull()
+    }.getOrNull() ?: Bitmap.createBitmap(640, 360, Bitmap.Config.ARGB_8888).apply { eraseColor(android.graphics.Color.BLACK) }
+    ByteArrayOutputStream().use { out ->
+        frame.compress(Bitmap.CompressFormat.JPEG, 75, out)
+        out.toByteArray()
+    }
 }
 
 /**
@@ -215,6 +220,9 @@ fun SubmitScreen(subreddit: String?) {
     var hasDraft by remember { mutableStateOf(draft.hasContent) }
 
     val hasMedia = image != null || gallery.isNotEmpty() || video != null
+    val scroll = rememberScrollState()
+    // The error shows at the top of the form, scrolled to: at the end it was often under the keyboard.
+    LaunchedEffect(error) { if (error != null) scroll.animateScrollTo(0) }
 
     fun loadFlairs() {
         val name = sr.trim().removePrefix("r/")
@@ -271,6 +279,9 @@ fun SubmitScreen(subreddit: String?) {
         val t = title.trim()
         error = when {
             name.isEmpty() || t.isEmpty() -> "Subreddit and title are required."
+            redditLength(t) > TITLE_LIMIT -> "The title is too long: the most Reddit takes is $TITLE_LIMIT characters."
+            kind == Kind.TEXT && redditLength(body.text.trim()) > POST_BODY_LIMIT ->
+                "The text is too long: the most Reddit takes is $POST_BODY_LIMIT characters."
             kind == Kind.LINK && url.isBlank() -> "Enter a URL for a link post."
             kind == Kind.IMAGE && image == null -> "Pick an image to upload."
             kind == Kind.GALLERY && gallery.isEmpty() -> "Pick at least one image."
@@ -311,7 +322,7 @@ fun SubmitScreen(subreddit: String?) {
                         val videoBytes = readBytes(context, v.uri)
                         val posterBytes = posterFrame(context, v.uri)
                         val uploaded = repo.uploadMediaAsset(videoBytes, v.name, "video/mp4")
-                        val poster = repo.uploadMediaAsset(posterBytes ?: videoBytes, "poster.jpg", "image/jpeg")
+                        val poster = repo.uploadMediaAsset(posterBytes, "poster.jpg", "image/jpeg")
                         val id = repo.submitVideoPost(
                             name, t, uploaded.url, poster.url,
                             nsfw = nsfw, spoiler = spoiler, sendReplies = sendReplies, flair = flair,
@@ -379,9 +390,15 @@ fun SubmitScreen(subreddit: String?) {
                 .fillMaxSize()
                 .padding(padding)
                 .imePadding()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scroll)
                 .padding(16.dp),
         ) {
+            error?.let {
+                Surface(color = cs.errorContainer, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+                    Text(it, Modifier.padding(16.dp), color = cs.onErrorContainer)
+                }
+                Spacer(Modifier.height(12.dp))
+            }
             TextField(
                 value = sr,
                 onValueChange = { sr = it; saveDraft() },
@@ -418,6 +435,7 @@ fun SubmitScreen(subreddit: String?) {
                 shape = fieldShape,
                 colors = fieldColors,
             )
+            LengthCounter(title, TITLE_LIMIT)
             if (flairs.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -441,6 +459,7 @@ fun SubmitScreen(subreddit: String?) {
                         shape = fieldShape,
                         colors = fieldColors,
                     )
+                    LengthCounter(body.text, POST_BODY_LIMIT)
                     MarkdownToolbar(body, { body = it; saveDraft() })
                     TextButton(onClick = {
                         scope.launch {
@@ -487,10 +506,6 @@ fun SubmitScreen(subreddit: String?) {
             SwitchRow("NSFW", nsfw) { nsfw = it }
             SwitchRow("Spoiler", spoiler) { spoiler = it }
             SwitchRow("Send me reply notifications", sendReplies) { sendReplies = it }
-            error?.let {
-                Spacer(Modifier.height(8.dp))
-                Text(it, color = cs.error)
-            }
         }
     }
 }
