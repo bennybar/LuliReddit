@@ -264,7 +264,6 @@ fun PillTextField(
     modifier: Modifier = Modifier,
     leading: ImageVector = Icons.Rounded.Search,
     trailing: (@Composable () -> Unit)? = null,
-    radius: Dp = 28.dp,
     onSearch: ((String) -> Unit)? = null,
     singleLine: Boolean = true,
 ) {
@@ -277,7 +276,9 @@ fun PillTextField(
         leadingIcon = { Icon(leading, null) },
         trailingIcon = trailing,
         singleLine = singleLine,
-        shape = RoundedCornerShape(radius),
+        // A capsule at any height: a 28dp radius on the search screen's taller
+        // field (its top bar's bigger text) left a squircle (#85).
+        shape = CircleShape,
         keyboardOptions = KeyboardOptions(imeAction = if (onSearch != null) ImeAction.Search else ImeAction.Done),
         keyboardActions = KeyboardActions(onSearch = { onSearch?.invoke(value) }),
         colors = TextFieldDefaults.colors(

@@ -1,6 +1,8 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** Port of test/swipe_actions_test.dart, against the gesture's state machine. */
@@ -47,5 +49,15 @@ class SwipeActionsTest {
         val ticks = (1..20).count { t.update(10f, rtl = false, hasStart = true, hasEnd = true) }
         assertEquals(1, ticks)
         assertEquals(110f, t.dx) // clamped to the max drag
+    }
+
+    @Test
+    fun onlyAClearlySidewaysDragIsASwipe() { // #82
+        assertTrue(isSwipeDrag(8f, 0f))
+        assertTrue(isSwipeDrag(-8f, 3f)) // ~21°, either way
+        assertFalse(isSwipeDrag(6f, 6f)) // a thumb's diagonal scroll
+        assertFalse(isSwipeDrag(7f, 4f)) // ~30°: still the list's
+        assertFalse(isSwipeDrag(1f, -8f))
+        assertFalse(isSwipeDrag(0f, 0f))
     }
 }

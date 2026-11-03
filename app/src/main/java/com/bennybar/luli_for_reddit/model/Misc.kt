@@ -3,6 +3,7 @@ package com.bennybar.luli_for_reddit.model
 import androidx.compose.runtime.Immutable
 import com.bennybar.luli_for_reddit.core.arr
 import com.bennybar.luli_for_reddit.core.get
+import com.bennybar.luli_for_reddit.core.isTrue
 import com.bennybar.luli_for_reddit.core.str
 import kotlinx.serialization.json.JsonElement
 
@@ -46,8 +47,10 @@ data class UserFlair(val parts: List<FlairPart>) {
  * text and emoji parts; else the plain text without its :emoji: codes (no
  * image links there). Null when there's none.
  */
-fun flairOf(d: JsonElement?, kind: String): UserFlair? {
-    val rich = d["${kind}_flair_richtext"].arr()
+fun flairOf(d: JsonElement?, kind: String): UserFlair? = flairOf(d["${kind}_flair_richtext"].arr(), d["${kind}_flair_text"].str())
+
+/** A flair from its richtext parts, else its plain text (a post's, a comment's or a flair template's). */
+fun flairOf(rich: List<JsonElement>?, plain: String?): UserFlair? {
     val parts = if (!rich.isNullOrEmpty()) {
         rich.mapNotNull { p ->
             when (p["e"].str()) {
@@ -58,7 +61,7 @@ fun flairOf(d: JsonElement?, kind: String): UserFlair? {
         }
     } else {
         listOfNotNull(
-            d["${kind}_flair_text"].str()?.replace(Regex(":[\\w+-]+:"), " ")?.replace(Regex("\\s+"), " ")?.trim()
+            plain?.replace(Regex(":[\\w+-]+:"), " ")?.replace(Regex("\\s+"), " ")?.trim()
                 ?.takeIf { it.isNotEmpty() }?.let { FlairPart(text = it) },
         )
     }
@@ -78,11 +81,31 @@ data class UserFlairChoice(val id: String, val text: String, val editable: Boole
 @Immutable
 data class UserFlairSelector(val currentText: String?, val currentId: String?, val choices: List<UserFlairChoice>)
 
-/** A subreddit link flair template. */
+/**
+ * A subreddit link flair template (link_flair_v2): its text, whether you may
+ * write your own text in it, and its look (Reddit's colours, emoji).
+ */
 @Immutable
-data class Flair(val id: String, val text: String) {
+data class Flair(
+    val id: String,
+    val text: String,
+    val editable: Boolean = false,
+    /** 0xRRGGBB; null for the plain chip (none, or "transparent"). */
+    val backgroundColor: Int? = null,
+    /** White text on [backgroundColor] (Reddit's text_color "light"), else dark. */
+    val lightText: Boolean = false,
+    /** Its text and emoji for the chip; null when the text is only emoji codes Reddit sent no image for. */
+    val label: UserFlair? = null,
+) {
     companion object {
-        fun fromJson(j: JsonElement) = Flair(id = j["id"].str() ?: "", text = (j["text"].str() ?: "").trim())
+        fun fromJson(j: JsonElement) = Flair(
+            id = j["id"].str() ?: "",
+            text = (j["text"].str() ?: "").trim(),
+            editable = j["text_editable"].isTrue(),
+            backgroundColor = j["background_color"].str()?.removePrefix("#")?.takeIf { it.length == 6 }?.toIntOrNull(16),
+            lightText = j["text_color"].str() == "light",
+            label = flairOf(j["richtext"].arr(), j["text"].str()),
+        )
     }
 }
 

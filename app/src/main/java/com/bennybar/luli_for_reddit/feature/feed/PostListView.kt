@@ -183,18 +183,28 @@ fun PostListView(
     // Floating: from the moment the list's row leaves its place until it's back
     // in it, the row on show is the floating one, so it looks like one row (#80).
     val floating = floatingChipsY != null
-    val past by remember(listState) {
+    val chipsY by rememberUpdatedState(floatingChipsY)
+    // How far the list's row is past the floating one's spot, measured from where
+    // that spot is now: the top bar moves, and a fixed line (the list's top
+    // padding) swapped them with the row still below the bar, in Full mode
+    // under its title, so the chips jumped up over it (#89). Null: not in view.
+    val rowPast by remember(listState) {
         derivedStateOf {
             val info = listState.layoutInfo
-            val row = info.visibleItemsInfo.firstOrNull { it.key == "sortbar" }
-            if (row != null) row.offset < 0 else info.totalItemsCount > 0
+            val row = info.visibleItemsInfo.firstOrNull { it.key == "sortbar" } ?: return@derivedStateOf null
+            val rowY = row.offset - info.viewportStartOffset
+            (chipsY?.invoke(row.size) ?: info.beforeContentPadding) - rowY
         }
+    }
+    val past by remember(listState) {
+        derivedStateOf { rowPast?.let { it > 0 } ?: (listState.layoutInfo.totalItemsCount > 0) }
     }
     // Fades in as it leaves the list's row, so it isn't there the moment they swap.
     val floatingOutline by remember(listState) {
         derivedStateOf {
             val row = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == "sortbar" }
-            if (row == null || row.size == 0) 1f else (-row.offset.toFloat() / row.size).coerceIn(0f, 1f)
+            val by = rowPast
+            if (row == null || row.size == 0 || by == null) 1f else (by.toFloat() / row.size).coerceIn(0f, 1f)
         }
     }
     val isData = ui is FeedUi.Data
@@ -343,7 +353,9 @@ fun PostListView(
             Box(
                 Modifier
                     .onSizeChanged { height = it.height }
-                    .offset { IntOffset(0, floatingChipsY(height)) },
+                    .offset { IntOffset(0, floatingChipsY(height)) }
+                    // The list's own side padding, so it's right over the list's row (#83).
+                    .padding(horizontal = 7.dp),
             ) { chipsIn(floatingChipsState, floatingOutline) }
         }
         val pending = (ui as? FeedUi.Data)?.state?.hasPending == true

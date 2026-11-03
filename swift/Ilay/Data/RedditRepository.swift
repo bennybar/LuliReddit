@@ -707,10 +707,26 @@ final class RedditRepository: Sendable {
         try throwIfErrors(try await client.post("/r/\(subreddit)/api/selectflair", data))
     }
 
+    /// The post flairs you can pick in [subreddit] (v2: with colours, emoji and editable text; ".json" as for user flair).
     func getLinkFlairs(_ subreddit: String) async -> [Flair] {
         // Failure: the subreddit may have no flairs / no permission.
-        let json = try? await client.get("/r/\(subreddit)/api/link_flair")
+        let json = try? await client.get("/r/\(subreddit)/api/link_flair_v2.json")
         return (json.arr() ?? []).map(Flair.fromJson).filter { !$0.text.isEmpty }
+    }
+
+    /// Sets the flair of your post [postFullname] in [subreddit] ([flair] nil: no flair; its text is yours for an editable one).
+    func setPostFlair(_ subreddit: String, postFullname: String, flair: Flair?) async throws {
+        try throwIfErrors(try await client.post("/r/\(subreddit)/api/selectflair", Self.postFlairForm(postFullname, flair)))
+    }
+
+    /// /api/selectflair's form for a post's flair; the text only for an editable template, as for user flair.
+    static func postFlairForm(_ postFullname: String, _ flair: Flair?) -> Fields {
+        var data: Fields = [("api_type", "json"), ("link", postFullname)]
+        if let flair {
+            data.append(("flair_template_id", flair.id))
+            if flair.editable { data.append(("text", flair.text)) }
+        }
+        return data
     }
 
     // --- Gallery & video submission ---

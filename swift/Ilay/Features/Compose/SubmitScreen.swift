@@ -50,7 +50,7 @@ struct SubmitScreen: View {
     @State private var busy = false
     @State private var error: String?
     @State private var flairs: [Flair] = []
-    @State private var flairId: String?
+    @State private var flair: Flair?
     @State private var flairsFor = ""
     @State private var hasDraft: Bool
     @FocusState private var subredditFocused: Bool
@@ -70,7 +70,6 @@ struct SubmitScreen: View {
     }
 
     private var hasMedia: Bool { imageItem != nil || !galleryItems.isEmpty || videoItem != nil }
-    private var flair: Flair? { flairs.first { $0.id == flairId } }
 
     var body: some View {
         Form {
@@ -93,10 +92,21 @@ struct SubmitScreen: View {
                     LengthCounter(text: title, limit: TextLimit.title)
                 }
                 if !flairs.isEmpty {
-                    Picker("Flair", selection: $flairId) {
-                        Text("None").tag(String?.none)
-                        ForEach(flairs, id: \.id) { Text($0.text).tag(String?.some($0.id)) }
+                    // One row that opens a searchable picker (#87): a menu of every flair was too crowded in big subs.
+                    Button {
+                        Task {
+                            if let pick = await pickLinkFlair(sr.trimmed.removePrefix("r/"), flairs: flairs, current: flair) { flair = pick.flair }
+                        }
+                    } label: {
+                        HStack {
+                            Text("Flair").foregroundStyle(.primary)
+                            Spacer()
+                            if let flair { FlairTemplateLabel(flair: flair) } else { Text("None (\(flairs.count))").foregroundStyle(.secondary) }
+                            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                        }
+                        .contentShape(.rect)
                     }
+                    .buttonStyle(.plain)
                 }
             }
             Section {
@@ -216,7 +226,7 @@ struct SubmitScreen: View {
         flairsFor = name
         Task {
             flairs = await app.repository.getLinkFlairs(name)
-            flairId = nil
+            flair = nil
         }
     }
 

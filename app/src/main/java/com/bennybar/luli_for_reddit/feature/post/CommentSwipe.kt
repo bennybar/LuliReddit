@@ -4,7 +4,6 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.absoluteOffset
@@ -30,6 +29,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.bennybar.luli_for_reddit.feature.feed.SwipeBackground
+import com.bennybar.luli_for_reddit.feature.feed.detectSwipeDrags
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -87,7 +87,7 @@ fun SwipeActions(
     Box(
         modifier.pointerInput(rtl, maxDrag) {
             var fired = false
-            detectHorizontalDragGestures(
+            detectSwipeDrags(
                 onDragStart = { settling?.cancel() },
                 onDragEnd = {
                     if (abs(dx) >= threshold) specFor(dx)?.onTrigger?.invoke()
@@ -101,7 +101,7 @@ fun SwipeActions(
             ) { change, amount ->
                 val next = (dx + amount).coerceIn(-maxDrag, maxDrag)
                 // A side with no action doesn't move.
-                if (specFor(next) == null && next != 0f) return@detectHorizontalDragGestures
+                if (specFor(next) == null && next != 0f) return@detectSwipeDrags
                 change.consume()
                 dx = next
                 if (!fired && abs(dx) >= threshold) {

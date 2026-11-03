@@ -168,6 +168,10 @@ import com.bennybar.luli_for_reddit.feature.media.GalleryCarousel
 import com.bennybar.luli_for_reddit.feature.media.NsfwBlur
 import com.bennybar.luli_for_reddit.model.Comment
 import com.bennybar.luli_for_reddit.model.Post
+import com.bennybar.luli_for_reddit.model.Flair
+import com.bennybar.luli_for_reddit.feature.compose.pickLinkFlair
+import androidx.compose.runtime.produceState
+import androidx.compose.material.icons.rounded.LocalOffer
 import com.bennybar.luli_for_reddit.model.PostType
 import com.bennybar.luli_for_reddit.nav.AppNavigator
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
@@ -767,11 +771,13 @@ private fun SortMenu(current: String, onPick: (String) -> Unit) {
     }
 }
 
-/** Edit (self posts) / delete for your own post. */
+/** Edit (self posts), edit flair (where the sub has post flair) / delete for your own post. */
 @Composable
 private fun OwnPostMenu(post: Post, vm: CommentsViewModel, nav: AppNavigator) {
     var open by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    // Loaded up front so "Edit flair" only shows where the sub has post flair (#88).
+    val flairs by produceState(emptyList<Flair>(), post.subreddit) { value = app.repository.getLinkFlairs(post.subreddit) }
     Box {
         IconButton(onClick = { open = true }) { Icon(Icons.Rounded.Edit, "Edit or delete") }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
@@ -779,6 +785,23 @@ private fun OwnPostMenu(post: Post, vm: CommentsViewModel, nav: AppNavigator) {
                 DropdownMenuItem(text = { Text("Edit") }, leadingIcon = { Icon(Icons.Rounded.Edit, null) }, onClick = {
                     open = false
                     scope.launch { showEditSheet(post.fullname, post.selftext)?.let { vm.applyEdit(post.fullname, it) } }
+                })
+            }
+            if (flairs.isNotEmpty()) {
+                DropdownMenuItem(text = { Text("Edit flair") }, leadingIcon = { Icon(Icons.Rounded.LocalOffer, null) }, onClick = {
+                    open = false
+                    scope.launch {
+                        // Its template by text; one with your own words, or set by a mod, matches none (no check, not "No flair").
+                        val current = post.linkFlairText?.let { t -> flairs.find { it.text == t } ?: Flair("", t) }
+                        val pick = pickLinkFlair(post.subreddit, flairs, current) ?: return@launch
+                        try {
+                            app.repository.setPostFlair(post.subreddit, post.fullname, pick.flair)
+                            vm.applyFlair(pick.flair)
+                            nav.showSnackbar(if (pick.flair == null) "Flair removed" else "Flair set")
+                        } catch (e: Exception) {
+                            nav.showActionError("change the flair", e)
+                        }
+                    }
                 })
             }
             DropdownMenuItem(text = { Text("Delete") }, leadingIcon = { Icon(Icons.Rounded.Delete, null) }, onClick = {

@@ -9,6 +9,7 @@ import com.bennybar.luli_for_reddit.core.Translate
 import com.bennybar.luli_for_reddit.data.COMMENT_SORTS
 import com.bennybar.luli_for_reddit.model.Comment
 import com.bennybar.luli_for_reddit.model.Post
+import com.bennybar.luli_for_reddit.model.Flair
 import com.bennybar.luli_for_reddit.nav.NavCache
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -389,6 +390,11 @@ class CommentsViewModel(
     fun applyEdit(fullname: String, newBody: String) = edit { t ->
         if (fullname == t.post.fullname) t.copy(post = t.post.copy(selftext = newBody)).also { touched = true }
         else t.withTree(CommentTree.update(t.comments, fullname) { it.copy(body = newBody) })
+    }
+
+    /** The post's new flair ([flair] null: none), in the header without a refresh. */
+    fun applyFlair(flair: Flair?) = edit { t ->
+        t.copy(post = t.post.copy(linkFlairText = flair?.text, linkFlair = flair?.label)).also { touched = true }
     }
 
     fun updateComment(fullname: String, change: (Comment) -> Comment) = edit { t ->

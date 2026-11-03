@@ -457,7 +457,7 @@ final class RedditRepositoryTests: XCTestCase {
         StubProtocol.start { r in
             switch r.url!.path {
             case "/r/x/about/rules": return .init(body: #"{"rules":[{"short_name":" A ","description":" b "},"junk"]}"#)
-            case "/r/x/api/link_flair": return .init(body: #"[{"id":"1","text":" F "},{"id":"2","text":""}]"#)
+            case "/r/x/api/link_flair_v2.json": return .init(body: #"[{"id":"1","text":" F "},{"id":"2","text":""}]"#)
             case "/api/multi/mine": return .init(body: #"[{"data":{"name":"b","display_name":"Beta"}},{"data":{"name":"a","display_name":"alpha"}}]"#)
             default: return .init(status: 404)
             }
@@ -467,7 +467,7 @@ final class RedditRepositoryTests: XCTestCase {
         XCTAssertEqual(rules.count, 1)
         XCTAssertEqual(rules[0].title, "A")
         let flairs = await r.getLinkFlairs("x")
-        XCTAssertEqual(flairs, [Flair(id: "1", text: "F")])
+        XCTAssertEqual(flairs.map { [$0.id, $0.text] }, [["1", "F"]])
         let multis = try await r.getMyMultireddits()
         XCTAssertEqual(multis.map(\.name), ["a", "b"])
     }

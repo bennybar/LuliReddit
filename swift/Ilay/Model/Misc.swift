@@ -44,8 +44,13 @@ struct UserFlair: Equatable, Sendable {
 /// text and emoji parts; else the plain text without its :emoji: codes (no
 /// image links there). Nil when there's none.
 func flairOf(_ d: JsonElement?, _ kind: String) -> UserFlair? {
+    flairOf(rich: d["\(kind)_flair_richtext"].arr(), plain: d["\(kind)_flair_text"].str())
+}
+
+/// A flair from its richtext parts, else its plain text (a post's, a comment's or a flair template's).
+func flairOf(rich: [JsonElement]?, plain: String?) -> UserFlair? {
     let parts: [FlairPart]
-    if let rich = d["\(kind)_flair_richtext"].arr(), !rich.isEmpty {
+    if let rich, !rich.isEmpty {
         parts = rich.compactMap { p in
             switch p["e"].str() {
             case "text": return p["t"].str()?.nilIfEmpty.map { FlairPart(text: $0) }
@@ -56,7 +61,7 @@ func flairOf(_ d: JsonElement?, _ kind: String) -> UserFlair? {
             }
         }
     } else {
-        let plain = d["\(kind)_flair_text"].str().map { spaces.replace(emojiCode.replace($0, with: " "), with: " ").trimmed }
+        let plain = plain.map { spaces.replace(emojiCode.replace($0, with: " "), with: " ").trimmed }
         parts = plain?.nilIfEmpty.map { [FlairPart(text: $0)] } ?? []
     }
     // Tidy the ends: no leading / trailing spaces around the emoji.
@@ -83,13 +88,29 @@ struct UserFlairSelector: Equatable, Sendable {
     let choices: [UserFlairChoice]
 }
 
-/// A subreddit link flair template.
-struct Flair: Equatable, Sendable {
-    let id: String
-    let text: String
+/// A subreddit link flair template (link_flair_v2): its text, whether you may
+/// write your own text in it, and its look (Reddit's colours, emoji).
+struct Flair: Equatable, Sendable, Copyable {
+    var id: String
+    var text: String
+    var editable = false
+    /// 0xRRGGBB; nil for the plain chip (none, or "transparent").
+    var backgroundColor: Int? = nil
+    /// White text on `backgroundColor` (Reddit's text_color "light"), else dark.
+    var lightText = false
+    /// Its text and emoji for the chip; nil when the text is only emoji codes Reddit sent no image for.
+    var label: UserFlair? = nil
 
     static func fromJson(_ j: JsonElement) -> Flair {
-        Flair(id: j["id"].str() ?? "", text: (j["text"].str() ?? "").trimmed)
+        let bg = j["background_color"].str().map { $0.hasPrefix("#") ? String($0.dropFirst()) : $0 }
+        return Flair(
+            id: j["id"].str() ?? "",
+            text: (j["text"].str() ?? "").trimmed,
+            editable: j["text_editable"].isTrue(),
+            backgroundColor: bg.flatMap { $0.count == 6 ? Int($0, radix: 16) : nil },
+            lightText: j["text_color"].str() == "light",
+            label: flairOf(rich: j["richtext"].arr(), plain: j["text"].str())
+        )
     }
 }
 

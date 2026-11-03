@@ -5,7 +5,9 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.horizontalDrag
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -30,10 +32,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -96,6 +102,45 @@ class SwipeTracker(
 }
 
 /**
+ * Whether a drag of ([dx], [dy]) px, as it leaves the touch slop, is a swipe
+ * (#82): only a clearly sideways one, within ~27° of horizontal (ViewPager's
+ * 2:1 rule). A thumb's scroll arcs diagonally; claiming the row at the first
+ * sideways slop (anything up to 45°) turned those scrolls into swipes, and
+ * the list never got them back.
+ */
+fun isSwipeDrag(dx: Float, dy: Float): Boolean = abs(dx) > 2 * abs(dy)
+
+/**
+ * A swipe row's horizontal drag (posts, comments, inbox): like
+ * detectHorizontalDragGestures, but past the slop it takes the gesture only
+ * when [isSwipeDrag]; otherwise it lets go, unconsumed, and the list scrolls.
+ * [onDrag] gets x deltas, the first one what's past the slop.
+ */
+internal suspend fun PointerInputScope.detectSwipeDrags(
+    onDragStart: () -> Unit = {},
+    onDragEnd: () -> Unit,
+    onDragCancel: () -> Unit,
+    onDrag: (PointerInputChange, Float) -> Unit,
+) = awaitEachGesture {
+    val down = awaitFirstDown(requireUnconsumed = false)
+    val slop = viewConfiguration.touchSlop
+    var total = Offset.Zero
+    var change: PointerInputChange
+    do {
+        change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: return@awaitEachGesture
+        // Lifted (a tap), or taken by something inside the row.
+        if (!change.pressed || change.isConsumed) return@awaitEachGesture
+        total += change.positionChange()
+    } while (total.getDistance() < slop)
+    if (!isSwipeDrag(total.x, total.y)) return@awaitEachGesture
+    change.consume()
+    onDragStart()
+    onDrag(change, total.x * (1 - slop / total.getDistance()))
+    val ended = horizontalDrag(change.id) { onDrag(it, it.positionChange().x) }
+    if (ended) onDragEnd() else onDragCancel()
+}
+
+/**
  * Wraps [content] with horizontal swipe actions. [start] fires when swiping
  * from the start edge toward the end (rightward in left-to-right languages,
  * leftward in Hebrew/Arabic), [end] the other way. A null side does nothing.
@@ -130,7 +175,7 @@ fun SwipeActions(
 
     Box(
         modifier.pointerInput(rtl, tracker) {
-            detectHorizontalDragGestures(
+            detectSwipeDrags(
                 onDragEnd = {
                     val side = tracker.release(rtl)
                     armed = 0f
@@ -146,7 +191,7 @@ fun SwipeActions(
                     armed = 0f
                     scope.launch { offset.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow)) }
                 },
-                onHorizontalDrag = { change, amount ->
+                onDrag = { change, amount ->
                     if (tracker.update(amount, rtl, startSpec != null, endSpec != null)) Haptics.selection(view)
                     armed = if (tracker.armed) 1f else 0f
                     change.consume()

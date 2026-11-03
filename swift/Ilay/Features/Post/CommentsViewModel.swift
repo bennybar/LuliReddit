@@ -457,6 +457,14 @@ final class CommentsViewModel {
         }
     }
 
+    /// The post's new flair (`flair` nil: none), in the header without a refresh.
+    func applyFlair(_ flair: Flair?) {
+        edit { t in
+            touched = true
+            return t.with { $0.post = t.post.with { $0.linkFlairText = flair?.text; $0.linkFlair = flair?.label } }
+        }
+    }
+
     func updateComment(_ fullname: String, _ change: (Comment) -> Comment) {
         edit { t in withTree(t, CommentTree.update(t.comments, fullname, change)) }
     }

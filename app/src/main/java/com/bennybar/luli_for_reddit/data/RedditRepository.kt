@@ -765,10 +765,16 @@ class RedditRepository(val client: RedditClient) {
         throwIfErrors(client.post("/r/$subreddit/api/selectflair", data))
     }
 
+    /** The post flairs you can pick in [subreddit] (v2: with colours, emoji and editable text; ".json" as for user flair). */
     suspend fun getLinkFlairs(subreddit: String): List<Flair> = try {
-        (client.get("/r/$subreddit/api/link_flair").arr() ?: emptyList()).map(Flair::fromJson).filter { it.text.isNotEmpty() }
+        (client.get("/r/$subreddit/api/link_flair_v2.json").arr() ?: emptyList()).map(Flair::fromJson).filter { it.text.isNotEmpty() }
     } catch (_: Exception) {
         emptyList() // subreddit may have no flairs / no permission
+    }
+
+    /** Sets the flair of your post [postFullname] in [subreddit] ([flair] null: no flair; its text is yours for an editable one). */
+    suspend fun setPostFlair(subreddit: String, postFullname: String, flair: Flair?) {
+        throwIfErrors(client.post("/r/$subreddit/api/selectflair", postFlairForm(postFullname, flair)))
     }
 
     // --- Gallery & video submission ---
@@ -917,5 +923,17 @@ class RedditRepository(val client: RedditClient) {
     suspend fun getMessageThread(id: String): InboxItem? {
         val json = client.get("/message/messages/${id.removePrefix("t4_")}")
         return parse { json["data"]["children"].arr()?.firstOrNull()?.let { InboxItem.fromChild(it) } }
+    }
+
+    companion object {
+        /** /api/selectflair's form for a post's flair; the text only for an editable template, as for user flair. */
+        fun postFlairForm(postFullname: String, flair: Flair?): Map<String, Any?> {
+            val data = linkedMapOf<String, Any?>("api_type" to "json", "link" to postFullname)
+            if (flair != null) {
+                data["flair_template_id"] = flair.id
+                if (flair.editable) data["text"] = flair.text
+            }
+            return data
+        }
     }
 }

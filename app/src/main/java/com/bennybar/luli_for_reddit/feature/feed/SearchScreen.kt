@@ -308,7 +308,6 @@ fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time:
                             value = text,
                             onValueChange = { text = it },
                             placeholder = if (restricted) "Search in r/$subreddit" else "Search Reddit",
-                            radius = 28.dp,
                             modifier = Modifier.fillMaxWidth().padding(end = 16.dp).focusRequester(focus),
                             onSearch = { doSearch(it) },
                             trailing = if (text.isEmpty()) null else ({

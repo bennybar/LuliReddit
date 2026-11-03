@@ -24,6 +24,8 @@ struct PostDetailScreen: View {
     @FocusState private var searchFocused: Bool
     // A reply just posted: once it's in the list, scroll to it and highlight it for a moment.
     @State private var revealId: String?
+    // Your own post's sub's post flairs: "Edit flair" only shows where there are some (#88).
+    @State private var ownPostFlairs: [Flair] = []
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -76,6 +78,11 @@ struct PostDetailScreen: View {
             }
             .onChange(of: vm.revision) { _, _ in syncActions() }
             .onChange(of: revealId) { _, id in if let id { reveal(id) } }
+            .task(id: thread.flatMap { !username.isEmpty && $0.post.author == username ? $0.post.subreddit : nil }) {
+                if let post = thread?.post, !username.isEmpty, post.author == username {
+                    ownPostFlairs = await app.repository.getLinkFlairs(post.subreddit)
+                }
+            }
     }
 
     private func syncActions() {
@@ -195,7 +202,7 @@ struct PostDetailScreen: View {
         }
     }
 
-    /// Edit (self posts) / delete for your own post.
+    /// Edit (self posts), edit flair (where the sub has post flair) / delete for your own post.
     @ViewBuilder private func ownPostItems(_ post: Post) -> some View {
         if post.isSelf {
             Button {
@@ -204,6 +211,25 @@ struct PostDetailScreen: View {
                 }
             } label: {
                 Label("Edit", systemImage: "pencil")
+            }
+        }
+        if !ownPostFlairs.isEmpty {
+            Button {
+                Task {
+                    let flairs = ownPostFlairs
+                    // Its template by text; one with your own words, or set by a mod, matches none (no check, not "No flair").
+                    let current = post.linkFlairText.map { t in flairs.first { $0.text == t } ?? Flair(id: "", text: t) }
+                    guard let pick = await pickLinkFlair(post.subreddit, flairs: flairs, current: current) else { return }
+                    do {
+                        try await app.repository.setPostFlair(post.subreddit, postFullname: post.fullname, flair: pick.flair)
+                        vm.applyFlair(pick.flair)
+                        app.navigator.showSnackbar(pick.flair == nil ? "Flair removed" : "Flair set")
+                    } catch {
+                        app.navigator.showActionError("change the flair", error)
+                    }
+                }
+            } label: {
+                Label("Edit flair", systemImage: "tag")
             }
         }
         Button(role: .destructive) {

@@ -1,6 +1,5 @@
 package com.bennybar.luli_for_reddit.feature.compose
 
-import com.bennybar.luli_for_reddit.feature.feed.FeedChip
 import com.bennybar.luli_for_reddit.ui.switchThumb
 import com.bennybar.luli_for_reddit.ui.ConnectedChoice
 import androidx.compose.material3.LocalContentColor
@@ -18,9 +17,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -49,6 +47,7 @@ import androidx.compose.material.icons.rounded.Collections
 import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.LocalOffer
 import androidx.compose.material.icons.rounded.Title
 import androidx.compose.material.icons.rounded.VideoCall
 import androidx.compose.material.icons.rounded.Videocam
@@ -191,7 +190,7 @@ private fun loadDraft(initialSubreddit: String?): Draft {
 }
 
 /** New post: text / link / image / gallery / video, flair, NSFW/spoiler, drafts. */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SubmitScreen(subreddit: String?) {
     val nav = LocalNavigator.current
@@ -438,9 +437,25 @@ fun SubmitScreen(subreddit: String?) {
             LengthCounter(title, TITLE_LIMIT)
             if (flairs.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for (f in flairs) {
-                        FeedChip(f.text, flair?.id == f.id) { flair = if (flair?.id == f.id) null else f }
+                // One row that opens a searchable picker (#87): a wall of chips was too crowded in big subs.
+                Surface(
+                    onClick = {
+                        scope.launch {
+                            pickLinkFlair(sr.trim().removePrefix("r/"), flairs, flair)?.let { flair = it.flair }
+                        }
+                    },
+                    shape = fieldShape,
+                    color = cs.surfaceContainerHighest,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(Modifier.heightIn(min = 56.dp).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.LocalOffer, null, tint = cs.onSurfaceVariant)
+                        Spacer(Modifier.width(12.dp))
+                        Box(Modifier.weight(1f)) {
+                            val f = flair
+                            if (f == null) Text("Add flair (${flairs.size})", color = cs.onSurfaceVariant) else FlairTemplateChip(f)
+                        }
+                        Icon(Icons.Rounded.ArrowDropDown, null, tint = cs.onSurfaceVariant)
                     }
                 }
             }
