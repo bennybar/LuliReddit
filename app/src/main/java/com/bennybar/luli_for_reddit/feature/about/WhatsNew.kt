@@ -45,6 +45,16 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.57", "Nov 3, 2026",
+        listOf(
+            "For You and Blend: Blend shows more of your Reddit Home, fewer repeats on top, stories you've read step aside, and communities you enjoy but haven't joined show up",
+            "Swiping a post or comment only starts on a clearly sideways swipe, so diagonal scrolls stay scrolls",
+            "A new flair picker you can search, and Edit flair on your own posts",
+            "Replies wait for an attachment to finish preparing, ask before discarding, and show a counter near the length limit",
+            "Floating filter chips line up and no longer jump with the Full top bar; the search box is fully round",
+        ),
+    ),
+    Release(
         "2.0.56", "Nov 2, 2026",
         listOf(
             "Full top bar: a wider search bar, and your profile picture opens the menu. New post beside it is optional (Settings → Appearance)",
