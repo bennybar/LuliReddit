@@ -59,6 +59,7 @@ final class SettingsStore {
         s.floatingChips = b("floatingChips", s.floatingChips)
         s.fullBarNewPost = b("fullBarNewPost", s.fullBarNewPost)
         s.trackHistory = b("trackHistory", s.trackHistory)
+        s.showRecentlyVisited = b("showRecentlyVisited", s.showRecentlyVisited)
         s.offlineCache = b("offlineCache", s.offlineCache)
         s.checkUpdates = b("checkUpdates", s.checkUpdates)
         s.analytics = b("analytics", s.analytics)
@@ -139,6 +140,7 @@ final class SettingsStore {
     func setFloatingChips(_ v: Bool) { p.setBool("floatingChips", v); set { $0.floatingChips = v } }
     func setFullBarNewPost(_ v: Bool) { p.setBool("fullBarNewPost", v); set { $0.fullBarNewPost = v } }
     func setTrackHistory(_ v: Bool) { p.setBool("trackHistory", v); set { $0.trackHistory = v } }
+    func setShowRecentlyVisited(_ v: Bool) { p.setBool("showRecentlyVisited", v); set { $0.showRecentlyVisited = v } }
     func setOfflineCache(_ v: Bool) { p.setBool("offlineCache", v); set { $0.offlineCache = v } }
     func setCheckUpdates(_ v: Bool) { p.setBool("checkUpdates", v); set { $0.checkUpdates = v } }
     func setAnalytics(_ v: Bool) { p.setBool("analytics", v); set { $0.analytics = v } }

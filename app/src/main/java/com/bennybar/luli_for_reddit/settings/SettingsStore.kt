@@ -64,6 +64,7 @@ class SettingsStore(private val p: Prefs) {
             floatingChips = b("floatingChips", d.floatingChips),
             fullBarNewPost = b("fullBarNewPost", d.fullBarNewPost),
             trackHistory = b("trackHistory", d.trackHistory),
+            showRecentlyVisited = b("showRecentlyVisited", d.showRecentlyVisited),
             offlineCache = b("offlineCache", d.offlineCache),
             checkUpdates = b("checkUpdates", d.checkUpdates),
             analytics = b("analytics", d.analytics),
@@ -143,6 +144,7 @@ class SettingsStore(private val p: Prefs) {
     fun setFloatingChips(v: Boolean) { p.setBool("floatingChips", v); set { it.copy(floatingChips = v) } }
     fun setFullBarNewPost(v: Boolean) { p.setBool("fullBarNewPost", v); set { it.copy(fullBarNewPost = v) } }
     fun setTrackHistory(v: Boolean) { p.setBool("trackHistory", v); set { it.copy(trackHistory = v) } }
+    fun setShowRecentlyVisited(v: Boolean) { p.setBool("showRecentlyVisited", v); set { it.copy(showRecentlyVisited = v) } }
     fun setOfflineCache(v: Boolean) { p.setBool("offlineCache", v); set { it.copy(offlineCache = v) } }
     fun setCheckUpdates(v: Boolean) { p.setBool("checkUpdates", v); set { it.copy(checkUpdates = v) } }
     fun setAnalytics(v: Boolean) { p.setBool("analytics", v); set { it.copy(analytics = v) } }

@@ -429,6 +429,10 @@ struct SettingsCatalog {
                 set: ctrl.setDimReadTextOnly
             )
         }
+        b.toggle(
+            "Recently visited", "List the subreddits you opened last on Explore and in the side bar",
+            s.showRecentlyVisited, set: ctrl.setShowRecentlyVisited
+        )
         b.toggle("Offline cache", "Show the last loaded content when offline", s.offlineCache, set: ctrl.setOfflineCache)
         b.toggle("Cache subscriptions", "Keep your subreddit list in memory to speed up \"For You\"", s.subsCacheEnabled, set: ctrl.setSubsCacheEnabled)
         b.picker(

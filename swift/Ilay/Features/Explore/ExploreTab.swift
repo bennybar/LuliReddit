@@ -123,7 +123,7 @@ struct ExploreTab: View {
                     }
                 case let .data(list):
                     let joined = Set(list.map { $0.name.lowercased() })
-                    ForEach(subscriptionSections(list: list, query: query, favOnly: favOnly, sort: sort, visited: app.recentSubreddits.state), id: \.key) { section in
+                    ForEach(subscriptionSections(list: list, query: query, favOnly: favOnly, sort: sort, visited: app.settings.value.showRecentlyVisited ? app.recentSubreddits.state : []), id: \.key) { section in
                         Section {
                             if section.subs.isEmpty {
                                 Text(section.empty ?? "").foregroundStyle(.secondary)

@@ -254,10 +254,12 @@ private struct SideBar: View {
                 moreRow("square.and.pencil", "Drafts", .drafts)
                 moreRow("gearshape", "Settings", .settings)
             }
-            SideBarSubs(
-                title: "Recently visited", subs: recent, onPick: onPick,
-                empty: app.settings.value.trackHistory ? "Subreddits you open will show here" : nil
-            )
+            if app.settings.value.showRecentlyVisited {
+                SideBarSubs(
+                    title: "Recently visited", subs: recent, onPick: onPick,
+                    empty: app.settings.value.trackHistory ? "Subreddits you open will show here" : nil
+                )
+            }
             SideBarSubs(title: "Favorites", subs: favorites, onPick: onPick)
         }
         .listStyle(.insetGrouped)

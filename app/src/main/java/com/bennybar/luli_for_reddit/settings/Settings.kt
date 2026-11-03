@@ -142,6 +142,7 @@ data class Settings(
     val floatingChips: Boolean = true, // feeds: filter chips float under the top bar past the list's own
     val fullBarNewPost: Boolean = true, // Full top bar: a New post button beside your avatar
     val trackHistory: Boolean = true,
+    val showRecentlyVisited: Boolean = true, // Explore and the side bar list the subreddits you opened last
     val offlineCache: Boolean = true,
     val checkUpdates: Boolean = true,
     val analytics: Boolean = true, // anonymous usage stats (Aptabase)

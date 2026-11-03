@@ -120,6 +120,7 @@ internal fun ExploreTab() {
     val vm = viewModel { SubscriptionsViewModel() }
     val subs by vm.subs.collectAsStateWithLifecycle()
     val visited by app.recentSubreddits.state.collectAsStateWithLifecycle()
+    val settings by app.settings.state.collectAsStateWithLifecycle()
     val session by app.session.state.collectAsStateWithLifecycle()
     val anonymous = (session as? SessionState.LoggedIn)?.session?.anonymous == true
     val listState = rememberLazyListState()
@@ -308,7 +309,8 @@ internal fun ExploreTab() {
                     query = query,
                     favOnly = favOnly,
                     sort = sort,
-                    visited = visited,
+                    // Settings can hide the section (and the side bar's).
+                    visited = if (settings.showRecentlyVisited) visited else emptyList(),
                     // A followed user is a subscription to their profile, u_<name>.
                     onOpen = { if (it.name.startsWith("u_")) nav.openUser(it.name.removePrefix("u_")) else nav.openSubreddit(it.name) },
                     onStar = ::toggleFavorite,

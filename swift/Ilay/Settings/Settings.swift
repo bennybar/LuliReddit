@@ -162,6 +162,7 @@ struct Settings: Equatable, Sendable {
     var floatingChips = true // Home: filter chips float under the top bar past the list's own
     var fullBarNewPost = true // Full top bar: a New post button beside your avatar
     var trackHistory = true
+    var showRecentlyVisited = true // Explore and the side bar list the subreddits you opened last
     var offlineCache = true
     var checkUpdates = true
     var analytics = true // anonymous usage stats (Aptabase)
