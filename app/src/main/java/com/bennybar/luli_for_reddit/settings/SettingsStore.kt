@@ -48,6 +48,7 @@ class SettingsStore(private val p: Prefs) {
             swipeCommentStart = SwipeAction.parse(p.getString("swipeCommentStart"), SwipeAction.UPVOTE),
             swipeCommentEnd = SwipeAction.parse(p.getString("swipeCommentEnd"), SwipeAction.DOWNVOTE),
             seedColor = p.getLong("seedColor")?.and(0xFFFFFFFFL) ?: d.seedColor,
+            customSeedColor = p.getLong("customSeedColor")?.and(0xFFFFFFFFL),
             blurNsfw = b("blurNsfw", d.blurNsfw),
             defaultSort = idx(PostSort.entries.toTypedArray(), "defaultSort", d.defaultSort),
             subredditSorts = p.getStringList("subredditSorts").orEmpty().mapNotNull { row ->
@@ -91,6 +92,7 @@ class SettingsStore(private val p: Prefs) {
             // Old installs may have stored the removed "compact" (1) or the old
             // expandable index (2); clamping maps both safely.
             homeFab = idx(HomeFab.entries.toTypedArray(), "homeFab", d.homeFab),
+            threadFab = idx(ThreadFab.entries.toTypedArray(), "threadFab", d.threadFab),
             topBarMode = p.getInt("topBarMode")?.let {
                 TopBarMode.entries[it.coerceIn(0, TopBarMode.entries.size - 1)]
             } ?: d.topBarMode,
@@ -119,6 +121,12 @@ class SettingsStore(private val p: Prefs) {
     fun setAmoled(v: Boolean) { p.setBool("amoled", v); set { it.copy(amoled = v) } }
     fun setUseDynamicColor(v: Boolean) { p.setBool("useDynamicColor", v); set { it.copy(useDynamicColor = v) } }
     fun setSeedColor(argb: Long) { p.setLong("seedColor", argb); set { it.copy(seedColor = argb) } }
+    /** A colour from the Custom picker (#84): the accent now, and kept on its swatch. */
+    fun setCustomSeedColor(argb: Long) {
+        p.setLong("customSeedColor", argb)
+        set { it.copy(customSeedColor = argb) }
+        setSeedColor(argb)
+    }
     fun setBlurNsfw(v: Boolean) { p.setBool("blurNsfw", v); set { it.copy(blurNsfw = v) } }
     fun setDefaultSort(v: PostSort) { p.setInt("defaultSort", v.ordinal); set { it.copy(defaultSort = v) } }
     /** [v] null: [name] goes back to following the default sort. */
@@ -222,6 +230,7 @@ class SettingsStore(private val p: Prefs) {
     fun setNotifyInbox(v: Boolean) { p.setBool("notifyInbox", v); set { it.copy(notifyInbox = v) } }
     fun setRedditAppNotifications(v: Boolean) { p.setBool("redditAppNotifications", v); set { it.copy(redditAppNotifications = v) } }
     fun setHomeFab(v: HomeFab) { p.setInt("homeFab", v.ordinal); set { it.copy(homeFab = v) } }
+    fun setThreadFab(v: ThreadFab) { p.setInt("threadFab", v.ordinal); set { it.copy(threadFab = v) } }
     fun setTopBarMode(v: TopBarMode) { p.setInt("topBarMode", v.ordinal); set { it.copy(topBarMode = v) } }
     fun setNavLabels(v: Boolean) { p.setBool("navLabels", v); set { it.copy(navLabels = v) } }
     fun setNavStyle(v: Int) { p.setInt("navStyle", v); set { it.copy(navStyle = v) } }

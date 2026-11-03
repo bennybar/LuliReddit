@@ -110,6 +110,17 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlin.math.roundToInt
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.Velocity
 
 /** The [FeedController] for [feedKey], re-fetched after an account switch. */
 @Composable
@@ -147,6 +158,8 @@ fun PostListView(
      * it goes, given its height, so it moves with the top bar and leaves with it.
      */
     floatingChipsY: ((Int) -> Int)? = null,
+    /** Bumped to go to the top and refresh, with the spinner (the Refresh floating button, #90). */
+    refreshRequests: Int = 0,
 ) {
     val controller = rememberFeedController(feedKey)
     val ui by controller.ui.collectAsStateWithLifecycle()
@@ -180,10 +193,43 @@ fun PostListView(
             onBlend = if (settings.redditHomeAllowed) controller::selectBlend else null,
         )
     }
+    // Under a fixed top bar (subreddits, custom feeds, #86) the floating row
+    // follows the finger on its own, as Home's does with its bar: out as you
+    // scroll down, back in as you scroll up. Home passes its own place for it.
+    val ownFloat = floatingChipsY == null && !isFrontpage && settings.floatingChips
+    var rowHeight by remember { mutableIntStateOf(0) }
+    var chipsShift by remember { mutableFloatStateOf(0f) } // 0 = shown, -rowHeight = hidden
+    var chipsSettling by remember { mutableStateOf<Job?>(null) }
+    var chipsUp by remember { mutableStateOf(false) }
+    val chipsScroll = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.UserInput) chipsSettling?.cancel()
+                return Offset.Zero
+            }
+
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                chipsShift = (chipsShift + consumed.y).coerceIn(-rowHeight.toFloat(), 0f)
+                if (consumed.y != 0f) chipsUp = consumed.y > 0f
+                return Offset.Zero
+            }
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                // Don't rest half way: it finishes the way you were going.
+                val to = if (chipsUp) 0f else -rowHeight.toFloat()
+                if (chipsShift != to) {
+                    chipsSettling?.cancel()
+                    chipsSettling = scope.launch { animate(chipsShift, to, animationSpec = tween(200)) { v, _ -> chipsShift = v } }
+                }
+                return Velocity.Zero
+            }
+        }
+    }
+    val chipsAt: ((Int) -> Int)? = floatingChipsY ?: if (ownFloat) ({ _: Int -> chipsShift.roundToInt() }) else null
     // Floating: from the moment the list's row leaves its place until it's back
     // in it, the row on show is the floating one, so it looks like one row (#80).
-    val floating = floatingChipsY != null
-    val chipsY by rememberUpdatedState(floatingChipsY)
+    val floating = chipsAt != null
+    val chipsY by rememberUpdatedState(chipsAt)
     // How far the list's row is past the floating one's spot, measured from where
     // that spot is now: the top bar moves, and a fixed line (the list's top
     // padding) swapped them with the row still below the bar, in Full mode
@@ -214,7 +260,11 @@ fun PostListView(
         to.scrollToItem(from.firstVisibleItemIndex, from.firstVisibleItemScrollOffset)
     }
     val chips: @Composable () -> Unit = {
-        Box(Modifier.graphicsLayer { alpha = if (floating && isData && past) 0f else 1f }) { chipsIn(chipsState, 0f) }
+        Box(
+            Modifier
+                .onSizeChanged { rowHeight = it.height }
+                .graphicsLayer { alpha = if (floating && isData && past) 0f else 1f },
+        ) { chipsIn(chipsState, 0f) }
     }
 
     fun refresh(haptic: Boolean = true) {
@@ -228,6 +278,12 @@ fun PostListView(
                 refreshing = false
             }
         }
+    }
+
+    LaunchedEffect(refreshRequests) {
+        if (refreshRequests == 0 || controller.ui.value !is FeedUi.Data) return@LaunchedEffect
+        listState.scrollToItem(0)
+        refresh()
     }
 
     // Returning to the feed after a pushed route (e.g. a post) is popped, or
@@ -281,7 +337,7 @@ fun PostListView(
         }
     }
 
-    Box(modifier.fillMaxSize()) {
+    Box(modifier.fillMaxSize().then(if (ownFloat) Modifier.nestedScroll(chipsScroll) else Modifier)) {
         RefreshBox(
             isRefreshing = refreshing,
             onRefresh = { refresh() },
@@ -348,12 +404,17 @@ fun PostListView(
                 )
             }
         }
-        if (floatingChipsY != null && isData && past) {
+        if (chipsAt != null && isData && past) {
             var height by remember { mutableIntStateOf(0) }
+            val barColor = MaterialTheme.colorScheme.surface
             Box(
                 Modifier
+                    .fillMaxWidth()
                     .onSizeChanged { height = it.height }
-                    .offset { IntOffset(0, floatingChipsY(height)) }
+                    .offset { IntOffset(0, chipsAt(height)) }
+                    // The top bar's own surface, so posts don't show between the chips;
+                    // it fades in with the outline, so the swap with the list's row doesn't show.
+                    .drawBehind { drawRect(barColor, alpha = floatingOutline) }
                     // The list's own side padding, so it's right over the list's row (#83).
                     .padding(horizontal = 7.dp),
             ) { chipsIn(floatingChipsState, floatingOutline) }

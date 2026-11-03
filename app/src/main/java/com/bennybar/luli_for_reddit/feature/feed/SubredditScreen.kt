@@ -4,6 +4,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material3.FilledTonalToggleButton
 import com.bennybar.luli_for_reddit.ui.Loading
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.rounded.CheckCircle
 import com.bennybar.luli_for_reddit.feature.settings.TextResult
@@ -28,7 +29,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Share
-import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Search
@@ -122,6 +122,9 @@ fun SubredditScreen(name: String) {
     val session by app.session.state.collectAsStateWithLifecycle()
     val anonymous = (session as? SessionState.LoggedIn)?.session?.anonymous != false
     val fab = remember { FabScroll() }
+    val settings by app.settings.state.collectAsStateWithLifecycle()
+    val listState = rememberFeedListState()
+    var refreshRequests by remember { mutableIntStateOf(0) } // the Refresh floating button
     Scaffold(
         topBar = {
             BloomTopBar(
@@ -141,13 +144,22 @@ fun SubredditScreen(name: String) {
             )
         },
         floatingActionButton = {
-            CollapsingFab(Icons.Rounded.Edit, "New post", fab.expanded, onClick = { nav.push(Route.Submit(name)) })
+            FeedFab(
+                settings.homeFab,
+                fab.expanded,
+                onNewPost = { nav.push(Route.Submit(name)) },
+                onSearch = { nav.push(Route.Search(subreddit = name)) },
+                onTop = { scope.launch { listState.animateScrollToItem(0) } },
+                onRefresh = { refreshRequests++ },
+            )
         },
         containerColor = MaterialTheme.colorScheme.surface,
     ) { padding ->
         PostListView(
             feedKey = name,
             modifier = Modifier.padding(top = padding.calculateTopPadding()).nestedScroll(fab),
+            listState = listState,
+            refreshRequests = refreshRequests,
             header = {
                 when (val a = about) {
                     Async.Loading -> LinearProgressIndicator(Modifier.fillMaxWidth().height(4.dp))

@@ -45,6 +45,15 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.58", "Nov 3, 2026",
+        listOf(
+            "Choose the floating button on Home and in subreddits: New post, Search, Scroll to top, Refresh or none. Threads have their own choice (Settings → Appearance)",
+            "Filter chips float back under the top bar in subreddits and custom feeds too, on a solid background",
+            "Pick any accent colour with the new Custom colour option",
+            "Edit the text of your image and gallery posts, not only text posts",
+        ),
+    ),
+    Release(
         "2.0.57", "Nov 3, 2026",
         listOf(
             "For You and Blend: Blend shows more of your Reddit Home, fewer repeats on top, stories you've read step aside, and communities you enjoy but haven't joined show up",

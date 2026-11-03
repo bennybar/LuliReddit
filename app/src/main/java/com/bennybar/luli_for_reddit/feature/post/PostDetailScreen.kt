@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.bennybar.luli_for_reddit.feature.feed.FabScroll
 import com.bennybar.luli_for_reddit.feature.feed.CollapsingFab
+import com.bennybar.luli_for_reddit.settings.ThreadFab
+import androidx.compose.material.icons.rounded.VerticalAlignTop
 import com.bennybar.luli_for_reddit.settings.calmComments
 import com.bennybar.luli_for_reddit.ui.ToggleIcon
 import com.bennybar.luli_for_reddit.ui.popOn
@@ -384,7 +386,9 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
                     onPrevNew = { jumpNext(backwards = true, match = ::isNew) },
                     onNextNew = { jumpNext(match = ::isNew) },
                     onMine = { jumpNext { it.author == username } },
+                    button = settings.threadFab,
                     onComment = { actions.replyToPost() },
+                    onTop = { scope.launch { listState.animateScrollToItem(0) } },
                     onSummarize = if (!aiKey.isNullOrEmpty()) ({ showSummarySheet(thread.post, flat) }) else null,
                     onAsk = if (!aiKey.isNullOrEmpty()) ({ showAskSheet(thread.post, flat) { id -> revealId = id } }) else null,
                     onNext = { jumpNext { it.depth == 0 } },
@@ -919,7 +923,9 @@ private fun ThreadToolbar(
     onPrevNew: () -> Unit,
     onNextNew: () -> Unit,
     onMine: () -> Unit,
+    button: ThreadFab, // the big button under the row (#90)
     onComment: () -> Unit,
+    onTop: () -> Unit,
     onSummarize: (() -> Unit)?,
     onAsk: (() -> Unit)?,
     onNext: () -> Unit,
@@ -969,7 +975,11 @@ private fun ThreadToolbar(
             }
         }
     }
-    CollapsingFab(Icons.Rounded.AddComment, "New comment", expanded, onClick = onComment)
+    when (button) {
+        ThreadFab.NEW_COMMENT -> CollapsingFab(Icons.Rounded.AddComment, button.label, expanded, onClick = onComment)
+        ThreadFab.SCROLL_TOP -> CollapsingFab(Icons.Rounded.VerticalAlignTop, button.label, expanded, onClick = onTop)
+        ThreadFab.OFF -> {}
+    }
     }
 }
 

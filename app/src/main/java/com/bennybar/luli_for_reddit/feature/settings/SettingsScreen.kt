@@ -8,6 +8,7 @@ import androidx.compose.material.icons.rounded.PermMedia
 import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material.icons.rounded.DynamicFeed
 import com.bennybar.luli_for_reddit.settings.HomeFab
+import com.bennybar.luli_for_reddit.settings.ThreadFab
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.outlined.ModeComment
 import androidx.compose.material.icons.rounded.ViewCarousel
@@ -149,6 +150,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.material.icons.rounded.Colorize
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -417,7 +421,7 @@ fun SettingsList(
             }
         }
         switch(
-            "Floating filter chips", "On Home, show the chips under the top bar when you scroll back up",
+            "Floating filter chips", "On Home, subreddits and custom feeds, show the chips under the top bar when you scroll back up",
             Icons.Rounded.FilterList, s.floatingChips, ctrl::setFloatingChips,
         )
         divider("feed-lists")
@@ -523,8 +527,11 @@ fun SettingsList(
                 Icons.Outlined.PostAdd, s.fullBarNewPost, ctrl::setFullBarNewPost,
             )
         }
-        tile("Floating button on Home", s.homeFab.label, Icons.Rounded.Edit, onClick = launch {
+        tile("Floating button", s.homeFab.label, Icons.Rounded.Edit, onClick = launch {
             pickOption(HomeFab.entries.map { PickOption(it, it.label) }, s.homeFab)?.let(ctrl::setHomeFab)
+        })
+        tile("Floating button in threads", s.threadFab.label, Icons.Outlined.ModeComment, onClick = launch {
+            pickOption(ThreadFab.entries.map { PickOption(it, it.label) }, s.threadFab)?.let(ctrl::setThreadFab)
         })
         tile("Navigation", NAV_STYLES[s.navStyle.coerceIn(0, 2)].first, Icons.Rounded.Menu, onClick = launch {
             pickOption(NAV_STYLES.mapIndexed { i, (l, d) -> PickOption(i, l, d) }, s.navStyle)?.let(ctrl::setNavStyle)
@@ -1070,6 +1077,7 @@ private suspend fun pickAppIcon(current: AppIcon): AppIcon? = Overlays.show { do
 @Composable
 private fun AccentPicker(s: Settings) {
     val cs = MaterialTheme.colorScheme
+    val scope = rememberCoroutineScope()
     Column(
         Modifier
             .alpha(if (s.useDynamicColor) 0.4f else 1f)
@@ -1090,6 +1098,25 @@ private fun AccentPicker(s: Settings) {
                 ) {
                     if (selected) Icon(Icons.Rounded.Check, null, tint = Color.White)
                 }
+            }
+            // Any colour (#84): the last one picked, or a colour wheel until there is one.
+            val custom = s.customSeedColor ?: s.seedColor.takeIf { it !in ACCENT_SWATCHES }
+            val selected = s.seedColor !in ACCENT_SWATCHES
+            Box(
+                Modifier
+                    .size(40.dp)
+                    .background(
+                        if (custom != null) SolidColor(Color(custom)) else Brush.sweepGradient((0..6).map { Color.hsv(it * 60f % 360f, 0.8f, 0.95f) }),
+                        CircleShape,
+                    )
+                    .border(BorderStroke(3.dp, if (selected) cs.onSurface else Color.Transparent), CircleShape)
+                    .clickable(enabled = !s.useDynamicColor) {
+                        scope.launch { pickCustomColor(custom ?: s.seedColor)?.let(app.settings::setCustomSeedColor) }
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                val tint = if (custom != null && Color(custom).luminance() > 0.5f) Color.Black else Color.White
+                Icon(if (selected) Icons.Rounded.Check else Icons.Rounded.Colorize, "Custom color", tint = tint)
             }
         }
     }

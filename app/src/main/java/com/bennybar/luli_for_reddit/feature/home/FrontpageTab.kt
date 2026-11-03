@@ -7,10 +7,9 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import com.bennybar.luli_for_reddit.ui.switchThumb
-import com.bennybar.luli_for_reddit.settings.HomeFab
 import com.bennybar.luli_for_reddit.feature.feed.FabScroll
-import com.bennybar.luli_for_reddit.feature.feed.CollapsingFab
-import androidx.compose.material.icons.rounded.Edit
+import com.bennybar.luli_for_reddit.feature.feed.FeedFab
+import com.bennybar.luli_for_reddit.settings.HomeFab
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.animation.core.animate
 import androidx.compose.runtime.mutableFloatStateOf
@@ -145,6 +144,7 @@ internal fun FrontpageTab(selected: Boolean) {
     }
 
     val fab = remember { FabScroll() }
+    var refreshRequests by remember { mutableIntStateOf(0) } // the Refresh floating button
     val barScroll = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
@@ -255,6 +255,7 @@ internal fun FrontpageTab(selected: Boolean) {
             header = if (expandable) null else titleRow,
             topPadding = with(LocalDensity.current) { barHeight.toDp() },
             listState = listState,
+            refreshRequests = refreshRequests,
             // Right under the bar when it's fully out, off the top when it's gone.
             floatingChipsY = if (!settings.floatingChips) null else ({ height ->
                 if (barHeight == 0) -height
@@ -279,20 +280,20 @@ internal fun FrontpageTab(selected: Boolean) {
                 .statusBarsPadding()
                 .padding(horizontal = if (expandable) 7.dp else 0.dp),
         ) { if (expandable) titleRow() else actionRow() }
-        if (settings.homeFab != HomeFab.OFF) {
-            val newPost = settings.homeFab == HomeFab.NEW_POST
-            CollapsingFab(
-                if (newPost) Icons.Rounded.Edit else Icons.Rounded.Search,
-                settings.homeFab.label,
-                fab.expanded,
-                onClick = { nav.push(if (newPost) Route.Submit() else Route.Search()) },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .navigationBarsPadding()
-                    // Above the bottom bar, when there is one.
-                    .padding(end = 16.dp, bottom = if (settings.navStyle != 1) 86.dp else 16.dp),
-            )
-        }
+        FeedFab(
+            // The Full bar's own New post button already does it: not two of them.
+            if (!expandable && settings.fullBarNewPost && settings.homeFab == HomeFab.NEW_POST) HomeFab.OFF else settings.homeFab,
+            fab.expanded,
+            onNewPost = { nav.push(Route.Submit()) },
+            onSearch = { nav.push(Route.Search()) },
+            onTop = { scope.launch { listState.animateScrollToItem(0) } },
+            onRefresh = { refreshRequests++ },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
+                // Above the bottom bar, when there is one.
+                .padding(end = 16.dp, bottom = if (settings.navStyle != 1) 86.dp else 16.dp),
+        )
     }
 }
 

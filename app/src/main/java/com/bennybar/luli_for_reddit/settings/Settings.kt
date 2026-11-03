@@ -40,11 +40,23 @@ enum class TopBarMode(val label: String, val description: String) {
     EXPANDABLE("Expandable", "Just a title with one button that floats the full top bar in on demand"),
 }
 
-/** The floating button on Home (#62). Persisted by index (`homeFab`). */
+/**
+ * The feeds' floating button, on Home (#62) and in subreddits (#90). Persisted
+ * by index (`homeFab`, its key from when it was Home's only), so new ones go at the end.
+ */
 enum class HomeFab(val label: String) {
     OFF("Off"),
     NEW_POST("New post"),
     SEARCH("Search"),
+    SCROLL_TOP("Scroll to top"),
+    REFRESH("Refresh"),
+}
+
+/** The floating button in a thread (#90). Persisted by index (`threadFab`), so new ones go at the end. */
+enum class ThreadFab(val label: String) {
+    NEW_COMMENT("New comment"),
+    SCROLL_TOP("Scroll to top"),
+    OFF("Off"),
 }
 
 /** How posts are laid out in feeds. Persisted by index (`postDisplay`). */
@@ -119,6 +131,7 @@ data class Settings(
     val swipeCommentStart: SwipeAction = SwipeAction.UPVOTE,
     val swipeCommentEnd: SwipeAction = SwipeAction.DOWNVOTE,
     val seedColor: Long = DEFAULT_SEED, // ARGB
+    val customSeedColor: Long? = null, // ARGB: the last colour picked with "Custom" (#84), kept for its swatch
     val blurNsfw: Boolean = true,
     val defaultSort: PostSort = PostSort.BEST,
     val subredditSorts: Map<String, SubredditSort> = emptyMap(), // by lowercase name; overrides defaultSort there
@@ -126,7 +139,7 @@ data class Settings(
     val postDisplay: PostDisplay = PostDisplay.CALM,
     val commentStyle: CommentStyle = CommentStyle.SAME,
     val swipeActions: Boolean = true,
-    val floatingChips: Boolean = true, // Home: filter chips float under the top bar past the list's own
+    val floatingChips: Boolean = true, // feeds: filter chips float under the top bar past the list's own
     val fullBarNewPost: Boolean = true, // Full top bar: a New post button beside your avatar
     val trackHistory: Boolean = true,
     val offlineCache: Boolean = true,
@@ -156,7 +169,8 @@ data class Settings(
     val showApiUsage: Boolean = false, // show API usage instead of search on Posts screen
     val notifyInbox: Boolean = false, // background-poll the inbox + local notifications
     val redditAppNotifications: Boolean = false, // take over the Reddit app's notifications (needs notification access)
-    val homeFab: HomeFab = HomeFab.OFF, // floating button on Home
+    val homeFab: HomeFab = HomeFab.NEW_POST, // floating button on Home and in subreddits (#90)
+    val threadFab: ThreadFab = ThreadFab.NEW_COMMENT, // floating button in a thread (#90)
     val topBarMode: TopBarMode = TopBarMode.EXPANDABLE, // Posts-screen action layout
     val navLabels: Boolean = true, // show text labels on the bottom nav bar
     val navStyle: Int = 0, // 0 bottom bar, 1 side bar, 2 both (#25)

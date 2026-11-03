@@ -28,6 +28,12 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.VerticalAlignTop
+import com.bennybar.luli_for_reddit.settings.HomeFab
 
 /** Whether a [CollapsingFab] shows its label: it folds as the finger scrolls down and opens on the way up (#62). */
 class FabScroll : NestedScrollConnection {
@@ -73,4 +79,25 @@ fun CollapsingFab(icon: ImageVector, label: String, expanded: Boolean, onClick: 
             }
         }
     }
+}
+
+/** A feed's floating button, as Settings has it for Home and subreddits (#90); nothing when it's Off. */
+@Composable
+fun FeedFab(
+    kind: HomeFab,
+    expanded: Boolean,
+    onNewPost: () -> Unit,
+    onSearch: () -> Unit,
+    onTop: () -> Unit,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val (icon, onClick) = when (kind) {
+        HomeFab.OFF -> return
+        HomeFab.NEW_POST -> Icons.Rounded.Edit to onNewPost
+        HomeFab.SEARCH -> Icons.Rounded.Search to onSearch
+        HomeFab.SCROLL_TOP -> Icons.Rounded.VerticalAlignTop to onTop
+        HomeFab.REFRESH -> Icons.Rounded.Refresh to onRefresh
+    }
+    CollapsingFab(icon, kind.label, expanded, onClick, modifier)
 }
