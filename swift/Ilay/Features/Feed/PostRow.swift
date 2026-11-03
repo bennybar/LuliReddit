@@ -22,7 +22,7 @@ struct FeedRowConfig: Equatable {
     /// The page margin around a card.
     var cardInset: CGFloat { isCarded ? 12 : 0 }
     /// A card's content margin (a plain row's, from the screen edge).
-    var contentInset: CGFloat { isCarded ? 14 : 16 }
+    var contentInset: CGFloat { display.isCalm ? 11 : isCarded ? 14 : 16 }
 
     /// How wide media is: Calm cards' runs from one edge of the card to the other.
     var mediaWidth: CGFloat {

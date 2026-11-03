@@ -32,7 +32,7 @@ struct ThreadRowEnv: Equatable {
 
     /// The flat list's (and the guides') indentation.
     func indent(_ depth: Int) -> CGFloat {
-        calm ? 16 + CGFloat(min(max(depth, 0), 8)) * 10 : 10 + CGFloat(min(max(depth, 0), 6)) * 8
+        calm ? 12 + CGFloat(min(max(depth, 0), 8)) * 10 : 10 + CGFloat(min(max(depth, 0), 6)) * 8
     }
 }
 
@@ -93,11 +93,11 @@ struct CommentRowView: View {
             if env.calm {
                 content
                     .padding(.leading, env.indent(c.depth))
-                    .padding(.trailing, 16)
-                    .padding(.top, 10)
-                    .padding(.bottom, row.collapsed ? 10 : 2)
-                    .padding(.top, row.first ? 6 : 0)
-                    .padding(.bottom, row.last ? 16 : 0)
+                    .padding(.trailing, 12)
+                    .padding(.top, 8)
+                    .padding(.bottom, row.collapsed ? 8 : 2)
+                    .padding(.top, row.first ? 5 : 0)
+                    .padding(.bottom, row.last ? 15 : 0)
                     .padding(.horizontal, 12)
             } else {
                 card
@@ -309,10 +309,10 @@ private struct CommentActionsRow: View {
     }
 }
 
-/// A Calm comment button: a glass pill like the post's (outer corners round, inner
-/// ones tighter where two join). A vote tints it with its colour; the symbol pops on
-/// your tap only, never when a reused cell changes comment.
-private struct GlassPill: View {
+/// A Calm button (comments, and the feed's cards): a glass pill like the post's (outer
+/// corners round, inner ones tighter where two join). A vote tints it with its colour;
+/// the symbol pops on your tap only, never when a reused cell changes post or comment.
+struct GlassPill: View {
     let symbol: String
     var value: String? = nil
     var valueTint: Color? = nil
@@ -321,6 +321,8 @@ private struct GlassPill: View {
     var tint: Color = .primary
     var leading: CGFloat = 16
     var trailing: CGFloat = 16
+    var height: CGFloat = 32
+    var font: Font = .footnote.weight(.medium)
     let action: () -> Void
     @State private var taps = 0
 
@@ -338,10 +340,10 @@ private struct GlassPill: View {
                         .foregroundStyle(valueTint ?? (on ? tint : .primary))
                 }
             }
-            .font(.footnote.weight(.medium))
+            .font(font)
             .foregroundStyle(on ? tint : .primary)
             .padding(.horizontal, 11)
-            .frame(minWidth: 40, minHeight: 32)
+            .frame(minWidth: 40, minHeight: height)
             .glassEffect(on ? .regular.tint(tint.opacity(0.35)).interactive() : .regular.interactive(), in: shape)
             .contentShape(shape)
         }
@@ -547,14 +549,14 @@ struct MoreRowView: View {
             .foregroundStyle(.tint)
             .padding(.vertical, 12)
             .padding(.leading, env.indent(c.depth))
-            .padding(.trailing, 16)
+            .padding(.trailing, env.calm ? 12 : 16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .disabled(row.loading)
-        .padding(.top, env.calm && row.first ? 6 : 0)
-        .padding(.bottom, env.calm && row.last ? 16 : 0)
+        .padding(.top, env.calm && row.first ? 5 : 0)
+        .padding(.bottom, env.calm && row.last ? 15 : 0)
         .padding(.horizontal, env.calm ? 12 : 0)
         .threadCellTheme(env)
     }

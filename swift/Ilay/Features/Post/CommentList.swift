@@ -179,8 +179,8 @@ private final class CommentCell: UICollectionViewListCell {
         let width: CGFloat = 2
         // 12 side margin, and the 10 gap to the next thread under its last row.
         card.frame = CGRect(x: 12, y: 0, width: max(bounds.width - 24, 0), height: max(bounds.height - (last ? 10 : 0), 0))
-        let top = 10 + (first ? 6 : 0) as CGFloat
-        let bottom = card.frame.maxY - (last ? 6 : 0) - 2
+        let top = 8 + (first ? 5 : 0) as CGFloat
+        let bottom = card.frame.maxY - (last ? 5 : 0) - 2
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         highlight.frame = card.bounds
@@ -207,7 +207,7 @@ private final class CommentCell: UICollectionViewListCell {
                                        height: card.bounds.height + (first ? over : 0) + (last ? over : 0))
         }
         for i in 0..<min(depth, guides.count) {
-            let x = 12 + 16 + CGFloat(i) * 10 + 4
+            let x = 12 + 12 + CGFloat(i) * 10 + 4
             guides[i].frame = CGRect(x: rtl ? bounds.width - x - width : x, y: top, width: width, height: max(bottom - top, 0))
         }
         if calm {

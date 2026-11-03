@@ -203,7 +203,7 @@ final class FeedVisibilityTests: XCTestCase {
 
     func testCalmCardsMediaRunsEdgeToEdgeOfTheCard() {
         XCTAssertEqual(config(.calmCards, width: 400).mediaWidth, 376)
-        XCTAssertEqual(config(.calm, width: 400).mediaWidth, 348)
+        XCTAssertEqual(config(.calm, width: 400).mediaWidth, 354)
         XCTAssertEqual(config(.large, width: 400).mediaWidth, 368)
     }
 

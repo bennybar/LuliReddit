@@ -124,20 +124,15 @@ private struct CalmCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             CalmBody(row: row, a: a, media: true)
-                .padding(.trailing, 4)
-            HStack(spacing: 2) {
-                VoteCluster(post: row.post, a: a)
-                CommentsButton(post: row.post, a: a)
-                Spacer(minLength: 0)
-                ShareSave(row: row, a: a)
-            }
-            .padding(.top, 6)
-            .padding(.leading, -8)
+                .padding(.trailing, 3)
+            CalmActions(row: row, a: a)
+                .padding(.top, 8)
+                .padding(.bottom, 6)
         }
         .padding(.leading, row.config.contentInset)
-        .padding(.trailing, 6)
-        .padding(.top, 12)
-        .padding(.bottom, 6)
+        .padding(.trailing, 5)
+        .padding(.top, 10)
+        .padding(.bottom, 5)
         .modifier(CardSurface(row: row))
     }
 }
@@ -155,22 +150,15 @@ private struct CalmCardsCard: View {
         VStack(spacing: 3) {
             CalmBody(row: row, a: a, media: false)
                 .padding(.leading, row.config.contentInset)
-                .padding(.trailing, 10)
-                .padding(.vertical, 12)
+                .padding(.trailing, 8)
+                .padding(.vertical, 10)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color(.secondarySystemGroupedBackground), in: .rect(topLeadingRadius: outer, bottomLeadingRadius: inner, bottomTrailingRadius: inner, topTrailingRadius: outer))
             if row.kind != .text {
                 CardMedia(row: row, a: a, radius: inner)
             }
-            HStack(spacing: 2) {
-                VoteCluster(post: row.post, a: a)
-                CommentsButton(post: row.post, a: a)
-                Spacer(minLength: 0)
-                ShareSave(row: row, a: a)
-            }
-            .padding(.leading, 6)
-            .padding(.trailing, 6)
-            .padding(.vertical, 4)
+            CalmActions(row: row, a: a)
+                .padding(6)
             .background(Color(.secondarySystemGroupedBackground), in: .rect(topLeadingRadius: inner, bottomLeadingRadius: outer, bottomTrailingRadius: outer, topTrailingRadius: inner))
         }
         .overlay { ReadVeil(row: row) }
@@ -786,16 +774,39 @@ private struct SaveButton: View {
     }
 }
 
-/// Calm's trailing symbols: share as media (when it can), share, save.
-private struct ShareSave: View {
+/// Calm's actions, the same glass pills as inside the post: ↑ score ↓ joined, comments,
+/// then share as media (when it can), share and save. One container renders a card's
+/// glass together; spacing 0 keeps the pills from melting into each other.
+private struct CalmActions: View {
     let row: PostRow
     let a: PostActions
 
+    @Environment(\.colorScheme) private var scheme
+
     var body: some View {
-        if row.canShareMedia {
-            SymbolButton(on: false, onSymbol: "", offSymbol: row.post.type == .video || row.post.type == .gif ? "film" : "photo", label: "Share as media", action: a.shareMedia)
+        let o = app.postOverrides.effective(row.post)
+        let votes = IlayTheme.voteColors(dark: scheme == .dark)
+        let up = o.likes == true, down = o.likes == false
+        let font = Font.subheadline.weight(.medium)
+        GlassEffectContainer(spacing: 0) {
+            HStack(spacing: 8) {
+                HStack(spacing: 3) {
+                    GlassPill(symbol: "arrow.up", value: compactNumber(o.score), valueTint: down ? votes.down : nil,
+                              label: "Upvote", on: up, tint: votes.up, leading: 18, trailing: 5, height: 36, font: font) { a.vote(1) }
+                    GlassPill(symbol: "arrow.down", label: "Downvote", on: down, tint: votes.down,
+                              leading: 5, trailing: 18, height: 36, font: font) { a.vote(-1) }
+                }
+                GlassPill(symbol: "bubble.left", value: compactNumber(o.numComments), label: "Comments",
+                          leading: 18, trailing: 18, height: 36, font: font, action: a.openDetail)
+                Spacer(minLength: 0)
+                if row.canShareMedia {
+                    GlassPill(symbol: row.post.type == .video || row.post.type == .gif ? "film" : "photo", label: "Share as media",
+                              leading: 18, trailing: 18, height: 36, font: font, action: a.shareMedia)
+                }
+                GlassPill(symbol: "square.and.arrow.up", label: "Share", leading: 18, trailing: 18, height: 36, font: font, action: a.share)
+                GlassPill(symbol: o.saved ? "bookmark.fill" : "bookmark", label: o.saved ? "Unsave" : "Save", on: o.saved,
+                          tint: IlayTheme.accent, leading: 18, trailing: 18, height: 36, font: font, action: a.toggleSave)
+            }
         }
-        SymbolButton(on: false, onSymbol: "", offSymbol: "square.and.arrow.up", label: "Share", action: a.share)
-        SaveButton(post: row.post, a: a)
     }
 }
