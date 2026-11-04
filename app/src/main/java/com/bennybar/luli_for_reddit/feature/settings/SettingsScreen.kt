@@ -368,6 +368,10 @@ fun SettingsList(
             pickOption(PostSort.entries.map { PickOption(it, it.label) }, s.defaultSort)?.let(ctrl::setDefaultSort)
         })
         switch(
+            "Posts tab shows r/all", "Instead of your frontpage, which Explore's All button opens then. For You, Blend and Reddit Home don't apply.",
+            Icons.Rounded.Public, s.postsTabAll, ctrl::setPostsTabAll,
+        )
+        switch(
             "\"For You\" feed",
             "A personalized frontpage, built on your phone from what you read and like",
             Icons.Rounded.AutoAwesome, s.forYouFeed, ctrl::setForYouFeed,

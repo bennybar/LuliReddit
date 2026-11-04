@@ -69,6 +69,7 @@ class SettingsStore(private val p: Prefs) {
             checkUpdates = b("checkUpdates", d.checkUpdates),
             analytics = b("analytics", d.analytics),
             forYouFeed = b("forYouFeed", d.forYouFeed),
+            postsTabAll = b("postsTabAll", d.postsTabAll),
             redditHomeAllowed = b("redditHomeAllowed", d.redditHomeAllowed),
             redditHomeFeed = b("redditHomeFeed", d.redditHomeFeed),
             autoHideReadForYou = b("autoHideReadForYou", d.autoHideReadForYou),
@@ -148,6 +149,7 @@ class SettingsStore(private val p: Prefs) {
     fun setOfflineCache(v: Boolean) { p.setBool("offlineCache", v); set { it.copy(offlineCache = v) } }
     fun setCheckUpdates(v: Boolean) { p.setBool("checkUpdates", v); set { it.copy(checkUpdates = v) } }
     fun setAnalytics(v: Boolean) { p.setBool("analytics", v); set { it.copy(analytics = v) } }
+    fun setPostsTabAll(v: Boolean) { p.setBool("postsTabAll", v); set { it.copy(postsTabAll = v) } }
 
     /** Turning Reddit Home off in Settings also takes the frontpage off it. */
     fun setRedditHomeAllowed(v: Boolean) {

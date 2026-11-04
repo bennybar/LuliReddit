@@ -10,6 +10,7 @@ import com.bennybar.luli_for_reddit.ui.switchThumb
 import com.bennybar.luli_for_reddit.feature.feed.FabScroll
 import com.bennybar.luli_for_reddit.feature.feed.FeedFab
 import com.bennybar.luli_for_reddit.settings.HomeFab
+import com.bennybar.luli_for_reddit.settings.postsTabKey
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.animation.core.animate
 import androidx.compose.runtime.mutableFloatStateOf
@@ -122,8 +123,11 @@ internal fun FrontpageTab(selected: Boolean) {
     val nav = LocalNavigator.current
     val username = currentUsername()
     val settings by app.settings.state.collectAsStateWithLifecycle()
-    val forYou = settings.forYouFeed
-    val homeOn = settings.redditHomeAllowed && settings.redditHomeFeed
+    // Settings → "Posts tab shows r/all": plain r/all here, and Explore's All button opens the frontpage.
+    val postsAll = settings.postsTabAll
+    val feedKey = settings.postsTabKey
+    val forYou = !postsAll && settings.forYouFeed
+    val homeOn = !postsAll && settings.redditHomeAllowed && settings.redditHomeFeed
     val blend = forYou && settings.blendHome && settings.redditHomeAllowed
     val blendState by app.forYou.redditHome.blendState.collectAsStateWithLifecycle()
     val expandable = settings.topBarMode == TopBarMode.EXPANDABLE
@@ -177,7 +181,7 @@ internal fun FrontpageTab(selected: Boolean) {
             .collect { top -> if (top != null) barShift = maxOf(barShift, -top.toFloat()) }
     }
     // Reloading starts a new list from the top; returning to the tab shows the bar too.
-    val loaded = rememberFeedController("").ui.collectAsStateWithLifecycle().value is FeedUi.Data
+    val loaded = rememberFeedController(feedKey).ui.collectAsStateWithLifecycle().value is FeedUi.Data
     LaunchedEffect(loaded, selected) { if (!loaded || selected) slideBar(0f) }
 
     // Full mode: Google-app style search bar with avatar.
@@ -223,7 +227,7 @@ internal fun FrontpageTab(selected: Boolean) {
             // Full mode has it in the action row above.
             if (expandable) SideBarButton(Modifier.offset(x = (-3).dp))
             Text(
-                if (homeOn) "Home" else if (blend) "Blend" else if (forYou) "For You" else "Frontpage",
+                if (postsAll) "r/all" else if (homeOn) "Home" else if (blend) "Blend" else if (forYou) "For You" else "Frontpage",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.ExtraBold,
             )
@@ -251,7 +255,8 @@ internal fun FrontpageTab(selected: Boolean) {
     }
     Box(Modifier.fillMaxSize().clipToBounds().nestedScroll(barScroll).nestedScroll(fab)) {
         PostListView(
-            feedKey = "",
+            feedKey = feedKey,
+            postsTab = true,
             header = if (expandable) null else titleRow,
             topPadding = with(LocalDensity.current) { barHeight.toDp() },
             listState = listState,

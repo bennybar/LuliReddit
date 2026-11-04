@@ -29,6 +29,8 @@ enum Route: Hashable, Codable, Sendable {
     case messageThread(fullname: String)
     case composeMessage(to: String? = nil)
     case subreddit(name: String)
+    /// The frontpage as a pushed page (Explore's All button, with the Posts tab on r/all).
+    case frontpage
     case user(username: String)
     case multireddit(username: String, name: String)
     case manageMultireddit(username: String, name: String)

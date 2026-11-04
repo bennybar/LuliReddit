@@ -147,6 +147,7 @@ data class Settings(
     val checkUpdates: Boolean = true,
     val analytics: Boolean = true, // anonymous usage stats (Aptabase)
     val forYouFeed: Boolean = false, // frontpage uses the "For You" feed
+    val postsTabAll: Boolean = false, // the Posts tab shows r/all instead of the frontpage, which Explore's All button opens then
     val blendHome: Boolean = false, // with forYouFeed + Reddit Home allowed: "Blend (Beta)", For You ranking over your Reddit Home too
     val blendReddit: Int = 1, // Blend: Reddit ↔ Ilay — 0 mostly Ilay, 1 balanced, 2 mostly Reddit
     // Experimental Reddit Home: the user accepted its risk warning (allowed),
@@ -198,3 +199,6 @@ val Settings.calmComments: Boolean
         CommentStyle.CARDS -> false
         CommentStyle.CALM -> true
     }
+
+/** The Posts tab's feed key: the frontpage, or r/all with [Settings.postsTabAll]. */
+val Settings.postsTabKey: String get() = if (postsTabAll) "all" else ""

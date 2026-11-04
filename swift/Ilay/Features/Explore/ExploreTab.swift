@@ -64,8 +64,13 @@ struct ExploreTab: View {
             List {
                 Section {
                     HStack(spacing: 10) {
-                        destinationButton("Popular", "flame", "popular")
-                        destinationButton("All", "globe", "all")
+                        destinationButton("Popular", "flame") { nav.openSubreddit("popular") }
+                        // With the Posts tab on r/all (Settings), this one opens the frontpage instead.
+                        if app.settings.value.postsTabAll {
+                            destinationButton("Frontpage", "house") { nav.push(.frontpage) }
+                        } else {
+                            destinationButton("All", "globe") { nav.openSubreddit("all") }
+                        }
                     }
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets())
@@ -178,8 +183,8 @@ struct ExploreTab: View {
         }
     }
 
-    private func destinationButton(_ title: String, _ systemImage: String, _ subreddit: String) -> some View {
-        Button { app.navigator.openSubreddit(subreddit) } label: {
+    private func destinationButton(_ title: String, _ systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
             Label(title, systemImage: systemImage).frame(maxWidth: .infinity, minHeight: 36)
         }
         .buttonStyle(.bordered)

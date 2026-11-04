@@ -70,7 +70,8 @@ struct AppRoot: View {
             // Which frontpage feed this install uses (and whether Reddit Home is
             // allowed at all), to see how many actually use Home.
             let s = app.settings.value
-            let feed = s.redditHomeAllowed && s.redditHomeFeed ? "home"
+            let feed = s.postsTabAll ? "all"
+                : s.redditHomeAllowed && s.redditHomeFeed ? "home"
                 : s.forYouFeed && s.blendHome && s.redditHomeAllowed ? "blend"
                 : s.forYouFeed ? "for_you" : "frontpage"
             Analytics.track("app_started", ["login_method": .string(method), "feed": .string(feed), "home_allowed": .bool(s.redditHomeAllowed)])
@@ -88,7 +89,7 @@ struct AppRoot: View {
                 if app.session.state == .loggedOut { return }
                 continue
             }
-            app.feed.controller("").start()
+            app.feed.controller(app.settings.value.postsTabKey).start()
             return
         }
     }

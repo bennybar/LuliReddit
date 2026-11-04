@@ -9,18 +9,22 @@ struct PostListView<Header: View>: View {
     let feedKey: String
     let header: (() -> Header)?
     var fabScroll: FabScroll? = nil
+    /// Hosted by the Posts tab: its re-tap signal and Home's hidden subreddits apply.
+    var postsTab = false
 
     @Environment(\.scenePhase) private var scenePhase
     @State private var resumedOnce = false
 
-    init(feedKey: String, fabScroll: FabScroll? = nil, @ViewBuilder header: @escaping () -> Header) {
+    init(feedKey: String, postsTab: Bool = false, fabScroll: FabScroll? = nil, @ViewBuilder header: @escaping () -> Header) {
         self.feedKey = feedKey
+        self.postsTab = postsTab
         self.fabScroll = fabScroll
         self.header = header
     }
 
-    init(feedKey: String, fabScroll: FabScroll? = nil, optionalHeader: (() -> Header)?) {
+    init(feedKey: String, postsTab: Bool = false, fabScroll: FabScroll? = nil, optionalHeader: (() -> Header)?) {
         self.feedKey = feedKey
+        self.postsTab = postsTab
         self.fabScroll = fabScroll
         header = optionalHeader
     }
@@ -33,7 +37,8 @@ struct PostListView<Header: View>: View {
         let _ = controller.start()
         let s = app.settings.value
         let isFrontpage = feedKey.isEmpty
-        let engines = app.feed.engines
+        // With the Posts tab on r/all (Settings) the frontpage is a pushed page: plain, no For You / Blend / Home.
+        let engines = s.postsTabAll ? nil : app.feed.engines
         let homeMode = isFrontpage && engines != nil && s.redditHomeAllowed && s.redditHomeFeed
         // Home and For You load behind the shuffling deck.
         let deckMode = isFrontpage && engines != nil && (homeMode || s.forYouFeed)
@@ -44,7 +49,7 @@ struct PostListView<Header: View>: View {
             seen: s.autoHideReadForYou && !homeMode ? app.history.ids : nil,
             hiddenIds: app.hiddenPosts.ids,
             dismissedIds: dismissible ? app.dismissedPosts.ids : [],
-            hiddenSubs: isFrontpage ? app.hiddenHomeSubs.ids : [],
+            hiddenSubs: isFrontpage || postsTab ? app.hiddenHomeSubs.ids : [],
             filters: app.contentFilters.value,
             viewing: feedKey.isEmpty || feedKey.hasPrefix("m::") ? nil : feedKey
         )
@@ -54,7 +59,7 @@ struct PostListView<Header: View>: View {
             visibility: visibility,
             config: .current(),
             swipes: s.swipeActions ? (s.swipePostStart, s.swipePostEnd) : (.none, .none),
-            frontpage: isFrontpage,
+            frontpage: isFrontpage || postsTab,
             dismissible: dismissible,
             deckMode: deckMode,
             homeMode: homeMode,
@@ -62,7 +67,7 @@ struct PostListView<Header: View>: View {
             homeStatus: homeMode ? engines?.homeStatus : nil,
             floatingChips: s.floatingChips,
             markReadOnScroll: s.markReadOnScroll && s.trackHistory,
-            scrollSignal: isFrontpage ? app.navigator.frontpageScrollSignal : 0,
+            scrollSignal: postsTab ? app.navigator.frontpageScrollSignal : 0,
             header: header.map { make in AnyView(make()) },
             fabScroll: fabScroll
         ))
@@ -94,8 +99,8 @@ struct PostListView<Header: View>: View {
 }
 
 extension PostListView where Header == EmptyView {
-    init(feedKey: String, fabScroll: FabScroll? = nil) {
-        self.init(feedKey: feedKey, fabScroll: fabScroll, optionalHeader: nil)
+    init(feedKey: String, postsTab: Bool = false, fabScroll: FabScroll? = nil) {
+        self.init(feedKey: feedKey, postsTab: postsTab, fabScroll: fabScroll, optionalHeader: nil)
     }
 }
 

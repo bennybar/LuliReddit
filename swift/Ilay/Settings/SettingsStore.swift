@@ -64,6 +64,7 @@ final class SettingsStore {
         s.checkUpdates = b("checkUpdates", s.checkUpdates)
         s.analytics = b("analytics", s.analytics)
         s.forYouFeed = b("forYouFeed", s.forYouFeed)
+        s.postsTabAll = b("postsTabAll", s.postsTabAll)
         s.redditHomeAllowed = b("redditHomeAllowed", s.redditHomeAllowed)
         s.redditHomeFeed = b("redditHomeFeed", s.redditHomeFeed)
         s.autoHideReadForYou = b("autoHideReadForYou", s.autoHideReadForYou)
@@ -144,6 +145,7 @@ final class SettingsStore {
     func setOfflineCache(_ v: Bool) { p.setBool("offlineCache", v); set { $0.offlineCache = v } }
     func setCheckUpdates(_ v: Bool) { p.setBool("checkUpdates", v); set { $0.checkUpdates = v } }
     func setAnalytics(_ v: Bool) { p.setBool("analytics", v); set { $0.analytics = v } }
+    func setPostsTabAll(_ v: Bool) { p.setBool("postsTabAll", v); set { $0.postsTabAll = v } }
 
     /// Turning Reddit Home off in Settings also takes the frontpage off it.
     func setRedditHomeAllowed(_ v: Bool) {

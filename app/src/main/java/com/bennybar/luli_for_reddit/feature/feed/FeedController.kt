@@ -80,13 +80,14 @@ class FeedController(val key: String) {
 
     /** How long a loaded frontpage is kept before returning to it loads a new one (Settings → Keep feed for). */
     private val keepMillis get() = app.settings.value.feedKeepMinutes * 60_000L
-    private val forYou get() = isFrontpage && app.settings.value.forYouFeed
+    // With the Posts tab on r/all (Settings) the frontpage is a plain pushed page.
+    private val forYou get() = isFrontpage && !app.settings.value.postsTabAll && app.settings.value.forYouFeed
 
     /** Experimental Reddit Home (opt-in after a risk warning in Settings). */
     private val redditHome: Boolean
         get() {
             val s = app.settings.value
-            return isFrontpage && s.redditHomeAllowed && s.redditHomeFeed
+            return isFrontpage && !s.postsTabAll && s.redditHomeAllowed && s.redditHomeFeed
         }
 
     private val current: FeedState? get() = (_ui.value as? FeedUi.Data)?.state

@@ -8,18 +8,20 @@ struct FrontpageTab: View {
 
     var body: some View {
         let settings = app.settings.value
+        // Settings → "Posts tab shows r/all": plain r/all here, and Explore's All button opens the frontpage.
+        let postsAll = settings.postsTabAll
         let engines = app.feed.engines
-        let hasEngines = engines != nil
+        let hasEngines = !postsAll && engines != nil
         let forYou = hasEngines && settings.forYouFeed
         let homeOn = hasEngines && settings.redditHomeAllowed && settings.redditHomeFeed
         let blend = forYou && settings.blendHome && settings.redditHomeAllowed
         let expandable = settings.topBarMode == .expandable
-        let title = homeOn ? "Home" : blend ? "Blend" : forYou ? "For You" : "Frontpage"
+        let title = postsAll ? "r/all" : homeOn ? "Home" : blend ? "Blend" : forYou ? "For You" : "Frontpage"
         let subtitle = !homeOn && forYou ? (blend ? blendSubtitle(engines?.blendState) : "Personalized on your phone") : ""
         let nav = app.navigator
 
         let header: (() -> FrontpageTitle)? = expandable ? nil : { FrontpageTitle(title: title, subtitle: subtitle) }
-        PostListView(feedKey: "", fabScroll: fab, optionalHeader: header)
+        PostListView(feedKey: settings.postsTabKey, postsTab: true, fabScroll: fab, optionalHeader: header)
             .navigationTitle(expandable ? title : "")
             .navigationSubtitle(expandable ? subtitle : "")
             .navigationBarTitleDisplayMode(expandable ? .large : .inline)
@@ -144,5 +146,30 @@ private func blendSubtitle(_ state: BlendState?) -> String {
     case let .unavailable(signedOut):
         signedOut ? "Beta · Reddit Home signed out: showing For You" : "Beta · Reddit Home unavailable: showing For You"
     case nil: "Your Reddit Home + For You · Beta"
+    }
+}
+
+/// The frontpage as a pushed page: Explore's All button opens it when the Posts tab
+/// shows r/all (Settings). Plain, like r/all itself: no For You / Blend / Home.
+struct FrontpageScreen: View {
+    @State private var fab = FabScroll()
+
+    var body: some View {
+        let nav = app.navigator
+        PostListView(feedKey: "", fabScroll: fab)
+            .navigationTitle("Frontpage")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Search", systemImage: "magnifyingglass") { nav.push(.search()) }
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                CollapsingFab(systemImage: "square.and.pencil", label: "New post", expanded: fab.expanded) {
+                    nav.push(.submit())
+                }
+                .padding(.trailing, 16)
+                .padding(.bottom, 8)
+            }
     }
 }

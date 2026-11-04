@@ -167,6 +167,7 @@ struct Settings: Equatable, Sendable {
     var checkUpdates = true
     var analytics = true // anonymous usage stats (Aptabase)
     var forYouFeed = false // frontpage uses the "For You" feed
+    var postsTabAll = false // the Posts tab shows r/all instead of the frontpage, which Explore's All button opens then
     var blendHome = false // with forYouFeed + Reddit Home allowed: "Blend (Beta)", For You ranking over your Reddit Home too
     var blendReddit = 1 // Blend: Reddit ↔ Ilay — 0 mostly Ilay, 1 balanced, 2 mostly Reddit
     // Experimental Reddit Home: the user accepted its risk warning (allowed),
@@ -211,4 +212,9 @@ struct Settings: Equatable, Sendable {
         case .calm: return true
         }
     }
+}
+
+extension Settings {
+    /// The Posts tab's feed key: the frontpage, or r/all with `postsTabAll`.
+    var postsTabKey: String { postsTabAll ? "all" : "" }
 }

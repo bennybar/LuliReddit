@@ -34,6 +34,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.DynamicFeed
 import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material.icons.rounded.LocalFireDepartment
+import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
@@ -205,14 +206,16 @@ internal fun ExploreTab() {
                         Text("Popular")
                     }
                     Spacer(Modifier.width(ConnectedGap))
+                    // With the Posts tab on r/all (Settings), this one opens the frontpage instead.
+                    val postsAll = settings.postsTabAll
                     OutlinedButton(
-                        onClick = { nav.openSubreddit("all") },
+                        onClick = { if (postsAll) nav.push(Route.Frontpage) else nav.openSubreddit("all") },
                         modifier = Modifier.weight(1f).defaultMinSize(minHeight = 52.dp),
                         shape = connectedShapes(1, 2).shape,
                     ) {
-                        Icon(Icons.Rounded.Public, null, Modifier.size(18.dp))
+                        Icon(if (postsAll) Icons.Rounded.Home else Icons.Rounded.Public, null, Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("All")
+                        Text(if (postsAll) "Frontpage" else "All")
                     }
                 }
             }
