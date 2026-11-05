@@ -109,6 +109,8 @@ import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Straighten
 import androidx.compose.material.icons.rounded.Swipe
 import androidx.compose.material.icons.rounded.SystemUpdate
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Update
 import androidx.compose.material.icons.rounded.ViewHeadline
@@ -133,6 +135,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.SliderState
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Label
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -179,6 +182,9 @@ import com.bennybar.luli_for_reddit.data.COMMENT_SORTS
 import com.bennybar.luli_for_reddit.data.PostSort
 import com.bennybar.luli_for_reddit.feature.media.MediaFolderSettingRow
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
+import com.bennybar.luli_for_reddit.feature.home.LocalSideBar
+import com.bennybar.luli_for_reddit.feature.home.SideBarButton
+import androidx.compose.material.icons.rounded.Reorder
 import com.bennybar.luli_for_reddit.nav.Route
 import com.bennybar.luli_for_reddit.settings.CommentStyle
 import com.bennybar.luli_for_reddit.settings.PostDisplay
@@ -187,6 +193,11 @@ import com.bennybar.luli_for_reddit.settings.Settings
 import com.bennybar.luli_for_reddit.settings.SwipeAction
 import com.bennybar.luli_for_reddit.settings.ThemeMode
 import com.bennybar.luli_for_reddit.settings.TopBarMode
+import com.bennybar.luli_for_reddit.settings.TopBarMenuItem
+import com.bennybar.luli_for_reddit.settings.ReadDim
+import com.bennybar.luli_for_reddit.settings.readDim
+import com.bennybar.luli_for_reddit.settings.topBarMenu
+import com.bennybar.luli_for_reddit.ui.switchThumb
 import com.bennybar.luli_for_reddit.ui.Overlays
 import kotlinx.coroutines.CoroutineScope
 import coil3.SingletonImageLoader
@@ -279,7 +290,9 @@ fun SettingsScreen(section: String? = null) {
             TopAppBar(
                 title = { Text(section ?: "Settings") },
                 navigationIcon = {
-                    IconButton(onClick = { nav.pop() }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
+                    // Opened from the side bar (#111): ☰ instead of ←.
+                    if (LocalSideBar.current != null) SideBarButton()
+                    else IconButton(onClick = { nav.pop() }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
                 },
             )
         },
@@ -550,6 +563,10 @@ fun SettingsList(
                 Icons.Outlined.PostAdd, s.fullBarNewPost, ctrl::setFullBarNewPost,
             )
         }
+        tile(
+            "Top bar menu", "Choose and order the buttons in the menu " + if (s.topBarMode == TopBarMode.EXPANDABLE) "⋯ opens" else "your profile picture opens",
+            Icons.Rounded.Tune,
+        ) { showTopBarMenuSettings(s.topBarMode) }
         tile("Floating button", s.homeFab.label, Icons.Rounded.Edit, onClick = launch {
             pickOption(HomeFab.entries.map { PickOption(it, it.label) }, s.homeFab)?.let(ctrl::setHomeFab)
         })
@@ -559,6 +576,14 @@ fun SettingsList(
         tile("Navigation", NAV_STYLES[s.navStyle.coerceIn(0, 2)].first, Icons.Rounded.Menu, onClick = launch {
             pickOption(NAV_STYLES.mapIndexed { i, (l, d) -> PickOption(i, l, d) }, s.navStyle)?.let(ctrl::setNavStyle)
         })
+        if (s.navStyle != 0) {
+            tile(
+                "Side bar entries",
+                s.sideBarItems.filter { it.shown }.joinToString { it.item.label },
+                Icons.Rounded.Reorder,
+                onClick = ::showSideBarItems,
+            )
+        }
         if (s.navStyle != 1) {
             switch(
                 "Bottom bar labels", "Show text labels under the navigation icons",
@@ -838,7 +863,10 @@ fun SettingsList(
 
         // ---------------------------------------------------------------- Data & storage
         section("Data & storage")
-        switch("Track history", "Remember and dim viewed posts (local only)", Icons.Outlined.Visibility, s.trackHistory, ctrl::setTrackHistory)
+        switch(
+            "Track history", if (s.dimRead) "Remember and dim viewed posts (local only)" else "Remember viewed posts (local only)",
+            Icons.Outlined.Visibility, s.trackHistory, ctrl::setTrackHistory,
+        )
         if (s.trackHistory) {
             // Like Sync for Reddit's: the subreddits you open most stay on top (#92).
             tile(
@@ -852,13 +880,17 @@ fun SettingsList(
             )
             tile(
                 "Dim read posts",
-                if (s.dimReadTextOnly) "Text only: titles and text fade, images stay bright" else "Whole card",
+                when (s.readDim) {
+                    ReadDim.OFF -> "Off: read posts look like new ones"
+                    ReadDim.CARD -> "Whole card"
+                    ReadDim.TEXT -> "Text only: titles and text fade, images stay bright"
+                },
                 Icons.Outlined.Visibility,
                 onClick = launch {
                     pickOption(
-                        listOf(PickOption(false, "Whole card"), PickOption(true, "Text only", "Images and videos stay bright")),
-                        s.dimReadTextOnly,
-                    )?.let(ctrl::setDimReadTextOnly)
+                        listOf(PickOption(ReadDim.CARD, "Whole card"), PickOption(ReadDim.TEXT, "Text only", "Images and videos stay bright"), PickOption(ReadDim.OFF, "Off", "History is still kept")),
+                        s.readDim,
+                    )?.let(ctrl::setReadDim)
                 },
             )
         }
@@ -1176,6 +1208,63 @@ private fun RateLimitTile() {
 }
 
 /** "Save media to" sheet: true = gallery, false = choose a folder, null = dismissed. */
+
+/**
+ * Settings → Top bar menu (#108): which buttons [mode]'s menu panel shows, and their
+ * order. Every change applies at once; Settings can't be hidden, so it's never a dead end.
+ */
+private fun showTopBarMenuSettings(mode: TopBarMode) {
+    Overlays.launch { dismiss ->
+        OverlaySheet<Unit>(done = { dismiss() }) { _ ->
+            val s by app.settings.state.collectAsStateWithLifecycle()
+            val entries = s.topBarMenu(mode)
+            Text(
+                "Top bar menu",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 4.dp),
+            )
+            Text(
+                if (mode == TopBarMode.EXPANDABLE) "The panel the ⋯ button opens" else "The panel your profile picture opens",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
+            )
+            fun move(from: Int, to: Int) {
+                app.settings.setTopBarMenu(mode, entries.toMutableList().apply { add(to, removeAt(from)) })
+            }
+            entries.forEachIndexed { i, e ->
+                val always = e.item == TopBarMenuItem.SETTINGS
+                SettingTile(
+                    e.item.label,
+                    when {
+                        always -> "Always shown"
+                        e.item == TopBarMenuItem.PROFILE -> "When signed in"
+                        else -> null
+                    },
+                    e.item.icon,
+                    trailing = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { move(i, i - 1) }, enabled = i > 0) { Icon(Icons.Rounded.KeyboardArrowUp, "Move up") }
+                            IconButton(onClick = { move(i, i + 1) }, enabled = i < entries.lastIndex) { Icon(Icons.Rounded.KeyboardArrowDown, "Move down") }
+                            Switch(
+                                thumbContent = switchThumb(e.shown),
+                                checked = e.shown,
+                                enabled = !always,
+                                onCheckedChange = { on ->
+                                    app.settings.setTopBarMenu(mode, entries.map { if (it.item == e.item) it.copy(shown = on) else it })
+                                },
+                            )
+                        }
+                    },
+                )
+            }
+            TextButton(
+                onClick = { app.settings.setTopBarMenu(mode, null) },
+                modifier = Modifier.padding(start = 12.dp, top = 4.dp, bottom = 12.dp),
+            ) { Text("Reset to default") }
+        }
+    }
+}
 
 /** Picks what each swipe direction does, for posts and for comments. */
 private fun showSwipeSettings() {

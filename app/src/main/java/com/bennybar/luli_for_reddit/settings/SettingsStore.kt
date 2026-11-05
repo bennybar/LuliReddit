@@ -42,6 +42,7 @@ class SettingsStore(private val p: Prefs) {
             hideReadInSubreddits = b("hideReadInSubreddits", d.hideReadInSubreddits),
             recentSubsByVisits = b("recentSubredditsByVisits", d.recentSubsByVisits),
             dimReadTextOnly = b("dimReadTextOnly", d.dimReadTextOnly),
+            dimRead = b("dimRead", d.dimRead),
             subredditIcons = b("subredditIcons", d.subredditIcons),
             subredditPrefix = b("subredditPrefix", d.subredditPrefix),
             markReadOnScroll = b("markReadOnScroll", d.markReadOnScroll),
@@ -101,8 +102,11 @@ class SettingsStore(private val p: Prefs) {
             topBarMode = p.getInt("topBarMode")?.let {
                 TopBarMode.entries[it.coerceIn(0, TopBarMode.entries.size - 1)]
             } ?: d.topBarMode,
+            topBarMenuExpandable = TopBarMenuItem.parse(p.getStringList(TopBarMenuItem.prefsKey(TopBarMode.EXPANDABLE)), TopBarMode.EXPANDABLE),
+            topBarMenuFull = TopBarMenuItem.parse(p.getStringList(TopBarMenuItem.prefsKey(TopBarMode.FULL)), TopBarMode.FULL),
             navLabels = b("navLabels", d.navLabels),
             navStyle = (p.getInt("navStyle") ?: d.navStyle).coerceIn(0, 2),
+            sideBarItems = SideBarItem.parse(p.getStringList(SideBarItem.PREFS_KEY)),
             navOutline = b("navOutline", d.navOutline),
             backScrollsToTop = b("backScrollsToTop", d.backScrollsToTop),
             aiModel = p.getString("aiModel") ?: d.aiModel,
@@ -192,7 +196,12 @@ class SettingsStore(private val p: Prefs) {
     fun setHideReadPosts(v: Boolean) { p.setBool("hideReadPosts", v); set { it.copy(hideReadPosts = v) } }
     fun setHideReadInSubreddits(v: Boolean) { p.setBool("hideReadInSubreddits", v); set { it.copy(hideReadInSubreddits = v) } }
     fun setRecentSubsByVisits(v: Boolean) { p.setBool("recentSubredditsByVisits", v); set { it.copy(recentSubsByVisits = v) } }
-    fun setDimReadTextOnly(v: Boolean) { p.setBool("dimReadTextOnly", v); set { it.copy(dimReadTextOnly = v) } }
+    /** Off leaves `dimReadTextOnly` as it was, so turning dimming back on restores the old choice. */
+    fun setReadDim(v: ReadDim) {
+        p.setBool("dimRead", v != ReadDim.OFF)
+        if (v != ReadDim.OFF) p.setBool("dimReadTextOnly", v == ReadDim.TEXT)
+        set { it.copy(dimRead = v != ReadDim.OFF, dimReadTextOnly = if (v == ReadDim.OFF) it.dimReadTextOnly else v == ReadDim.TEXT) }
+    }
     fun setSubredditIcons(v: Boolean) { p.setBool("subredditIcons", v); set { it.copy(subredditIcons = v) } }
     fun setSubredditPrefix(v: Boolean) { p.setBool("subredditPrefix", v); set { it.copy(subredditPrefix = v) } }
     fun setMarkReadOnScroll(v: Boolean) { p.setBool("markReadOnScroll", v); set { it.copy(markReadOnScroll = v) } }
@@ -242,8 +251,20 @@ class SettingsStore(private val p: Prefs) {
     fun setHomeFab(v: HomeFab) { p.setInt("homeFab", v.ordinal); set { it.copy(homeFab = v) } }
     fun setThreadFab(v: ThreadFab) { p.setInt("threadFab", v.ordinal); set { it.copy(threadFab = v) } }
     fun setTopBarMode(v: TopBarMode) { p.setInt("topBarMode", v.ordinal); set { it.copy(topBarMode = v) } }
+    /** [entries] null: back to the default panel (and whatever buttons later versions add to it). */
+    fun setTopBarMenu(mode: TopBarMode, entries: List<TopBarMenuEntry>?) {
+        val key = TopBarMenuItem.prefsKey(mode)
+        if (entries == null) p.remove(key) else p.setStringList(key, TopBarMenuItem.toPrefs(entries))
+        val next = TopBarMenuItem.parse(entries?.let(TopBarMenuItem::toPrefs), mode)
+        set { if (mode == TopBarMode.EXPANDABLE) it.copy(topBarMenuExpandable = next) else it.copy(topBarMenuFull = next) }
+    }
     fun setNavLabels(v: Boolean) { p.setBool("navLabels", v); set { it.copy(navLabels = v) } }
     fun setNavStyle(v: Int) { p.setInt("navStyle", v); set { it.copy(navStyle = v) } }
+    /** [entries] null: back to the default side bar (and whatever entries later versions add to it). */
+    fun setSideBarItems(entries: List<SideBarEntry>?) {
+        if (entries == null) p.remove(SideBarItem.PREFS_KEY) else p.setStringList(SideBarItem.PREFS_KEY, SideBarItem.toPrefs(entries))
+        set { it.copy(sideBarItems = SideBarItem.parse(entries?.let(SideBarItem::toPrefs))) }
+    }
     fun setNavOutline(v: Boolean) { p.setBool("navOutline", v); set { it.copy(navOutline = v) } }
     fun setBackScrollsToTop(v: Boolean) { p.setBool("backScrollsToTop", v); set { it.copy(backScrollsToTop = v) } }
     fun setAiModel(v: String) { p.setString("aiModel", v); set { it.copy(aiModel = v) } }

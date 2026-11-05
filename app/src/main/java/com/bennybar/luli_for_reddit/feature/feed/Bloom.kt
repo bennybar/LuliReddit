@@ -28,6 +28,8 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import com.bennybar.luli_for_reddit.feature.home.LocalSideBar
+import com.bennybar.luli_for_reddit.feature.home.SideBarButton
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -267,7 +269,9 @@ fun BloomTopBar(
             )
         },
         navigationIcon = {
-            if (showBack) IconButton(onClick = { nav.pop() }, shapes = IconButtonDefaults.shapes()) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
+            // A page the side bar opened (#111): ☰ instead of ←.
+            if (showBack && LocalSideBar.current != null) SideBarButton()
+            else if (showBack) IconButton(onClick = { nav.pop() }, shapes = IconButtonDefaults.shapes()) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
         },
         actions = actions,
         colors = TopAppBarDefaults.topAppBarColors(

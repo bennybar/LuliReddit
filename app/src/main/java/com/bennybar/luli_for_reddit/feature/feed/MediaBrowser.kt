@@ -301,7 +301,13 @@ internal fun FeedMediaBrowser(route: MediaViewer.Feed) {
         lastViewed.value = p.id
         app.forYou.learner.viewMedia(p)
     }
-    DisposableEffect(controller) { onDispose { lastViewed.value?.let { controller.browsedTo.value = it } } }
+    // Closed on the post it opened on, the list is already there: scrolling
+    // it to the top would jump it, after the browser has gone, by the gap
+    // above the card, and under the floating chips (#107).
+    val startPost = remember { media.getOrNull(start)?.id }
+    DisposableEffect(controller) {
+        onDispose { lastViewed.value?.takeIf { it != startPost }?.let { controller.browsedTo.value = it } }
+    }
 
     val paging = remember { MediaPaging() }
     LaunchedEffect(pager.currentPage, media.size, state?.hasMore, state?.loadingMore) {

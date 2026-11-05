@@ -3,8 +3,14 @@ package com.bennybar.luli_for_reddit.settings
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Reply
 import androidx.compose.material.icons.automirrored.rounded.ViewList
+import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.PlayCircleOutline
+import androidx.compose.material.icons.outlined.PostAdd
+import androidx.compose.material.icons.outlined.Settings as SettingsIcon // not to shadow [Settings]
 import androidx.compose.material.icons.outlined.Spa
+import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.outlined.ViewAgenda
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DoNotDisturbOn
 import androidx.compose.material.icons.rounded.ArrowDownward
@@ -39,6 +45,59 @@ enum class TopBarMode(val label: String, val description: String) {
     FULL("Full top bar", "Search, new post and profile across the top (current)"),
     EXPANDABLE("Expandable", "Just a title with one button that floats the full top bar in on demand"),
 }
+
+/**
+ * A button in the top bar's menu panel (#108). Persisted by [id] (never change one) in
+ * `topBarMenuExpandable` / `topBarMenuFull`: the panel's order, a hidden one as "-id".
+ * [half]: two in a row share it, like New post / Settings always did.
+ */
+enum class TopBarMenuItem(val id: String, val label: String, val icon: ImageVector, val half: Boolean = false) {
+    SEARCH("search", "Search Reddit", Icons.Rounded.Search),
+    PROFILE("profile", "Your profile", Icons.Outlined.AccountCircle, half = true),
+    NEW_POST("newPost", "New post", Icons.Outlined.PostAdd, half = true),
+    SETTINGS("settings", "Settings", Icons.Outlined.SettingsIcon, half = true),
+    BROWSE_MEDIA("browseMedia", "Browse media", Icons.Outlined.VideoLibrary),
+    LAYOUT("layout", "Layout", Icons.Outlined.ViewAgenda),
+    AUTOPLAY("autoplay", "Autoplay media", Icons.Outlined.PlayCircleOutline),
+    ;
+
+    companion object {
+        /** Each mode's panel as it was before #108. The Full bar has search in the bar itself (#78). */
+        fun defaults(mode: TopBarMode): List<TopBarMenuItem> = when (mode) {
+            TopBarMode.EXPANDABLE -> listOf(SEARCH, NEW_POST, SETTINGS, BROWSE_MEDIA, LAYOUT, AUTOPLAY)
+            TopBarMode.FULL -> listOf(PROFILE, SETTINGS, BROWSE_MEDIA, LAYOUT, AUTOPLAY)
+        }
+
+        fun prefsKey(mode: TopBarMode) = if (mode == TopBarMode.EXPANDABLE) "topBarMenuExpandable" else "topBarMenuFull"
+
+        /**
+         * The stored order for [mode]: ids it doesn't know (or this mode doesn't offer) are
+         * dropped, and items missing from it are added, shown, in their default order, so
+         * buttons added later still appear. Settings is always shown: the way back in.
+         */
+        fun parse(stored: List<String>?, mode: TopBarMode): List<TopBarMenuEntry> {
+            val offered = defaults(mode)
+            val entries = mutableListOf<TopBarMenuEntry>()
+            for (raw in stored.orEmpty()) {
+                val item = offered.firstOrNull { it.id == raw.removePrefix("-") } ?: continue
+                if (entries.none { it.item == item }) entries += TopBarMenuEntry(item, !raw.startsWith("-") || item == SETTINGS)
+            }
+            for (item in offered) if (entries.none { it.item == item }) entries += TopBarMenuEntry(item, true)
+            return entries
+        }
+
+        fun toPrefs(entries: List<TopBarMenuEntry>): List<String> = entries.map { if (it.shown) it.item.id else "-${it.item.id}" }
+    }
+}
+
+@Immutable
+data class TopBarMenuEntry(val item: TopBarMenuItem, val shown: Boolean)
+
+/**
+ * Settings → Dim read posts (#106). Stored as `dimRead` (off: nothing fades, history
+ * is still kept) plus `dimReadTextOnly`, which keeps its meaning from before Off existed.
+ */
+enum class ReadDim { OFF, CARD, TEXT }
 
 /**
  * The feeds' floating button, on Home (#62) and in subreddits (#90). Persisted
@@ -125,6 +184,7 @@ data class Settings(
     val hideReadInSubreddits: Boolean = false, // …in single subreddits too (else front page / custom feeds only)
     val recentSubsByVisits: Boolean = false, // "Recently visited" lists the most visited first (#92), else the newest
     val dimReadTextOnly: Boolean = false, // read posts: dim only title / text (images stay bright), else the whole card
+    val dimRead: Boolean = true, // read posts dim at all (#106); off: history is still kept, nothing fades
     val subredditIcons: Boolean = true, // cards show the subreddit's icon (else its first letter)
     val subredditPrefix: Boolean = true, // subreddit names show as "r/name" (else just "name", #97); display only
     val markReadOnScroll: Boolean = false, // a post scrolled past counts as read
@@ -178,8 +238,12 @@ data class Settings(
     val homeFab: HomeFab = HomeFab.NEW_POST, // floating button on Home and in subreddits (#90)
     val threadFab: ThreadFab = ThreadFab.NEW_COMMENT, // floating button in a thread (#90)
     val topBarMode: TopBarMode = TopBarMode.EXPANDABLE, // Posts-screen action layout
+    // The top bar menu panel's buttons and order, per mode (#108).
+    val topBarMenuExpandable: List<TopBarMenuEntry> = TopBarMenuItem.parse(null, TopBarMode.EXPANDABLE),
+    val topBarMenuFull: List<TopBarMenuEntry> = TopBarMenuItem.parse(null, TopBarMode.FULL),
     val navLabels: Boolean = true, // show text labels on the bottom nav bar
     val navStyle: Int = 0, // 0 bottom bar, 1 side bar, 2 both (#25)
+    val sideBarItems: List<SideBarEntry> = SideBarItem.parse(null), // the side bar's entries under its tabs, and their order (#109)
     val navOutline: Boolean = true, // thin outline around the floating bottom bar (#29)
     val backScrollsToTop: Boolean = true, // back on the Posts tab scrolls the feed to top
     val aiModel: String = "gpt-5.4-mini", // OpenAI(-compatible) model id for summaries
@@ -203,6 +267,12 @@ val Settings.calmComments: Boolean
         CommentStyle.CARDS -> false
         CommentStyle.CALM -> true
     }
+
+val Settings.readDim: ReadDim
+    get() = if (!dimRead) ReadDim.OFF else if (dimReadTextOnly) ReadDim.TEXT else ReadDim.CARD
+
+fun Settings.topBarMenu(mode: TopBarMode): List<TopBarMenuEntry> =
+    if (mode == TopBarMode.EXPANDABLE) topBarMenuExpandable else topBarMenuFull
 
 /** The Posts tab's feed key: the frontpage, or r/all with [Settings.postsTabAll]. */
 val Settings.postsTabKey: String get() = if (postsTabAll) "all" else ""

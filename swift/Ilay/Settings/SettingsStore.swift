@@ -37,6 +37,7 @@ final class SettingsStore {
         s.hideReadInSubreddits = b("hideReadInSubreddits", s.hideReadInSubreddits)
         s.recentSubsByVisits = b("recentSubredditsByVisits", s.recentSubsByVisits)
         s.dimReadTextOnly = b("dimReadTextOnly", s.dimReadTextOnly)
+        s.dimRead = b("dimRead", s.dimRead)
         s.subredditIcons = b("subredditIcons", s.subredditIcons)
         s.markReadOnScroll = b("markReadOnScroll", s.markReadOnScroll)
         s.swipePostStart = SwipeAction.parse(p.getString("swipePostStart"), .upvote)
@@ -180,7 +181,15 @@ final class SettingsStore {
     func setHideReadPosts(_ v: Bool) { p.setBool("hideReadPosts", v); set { $0.hideReadPosts = v } }
     func setHideReadInSubreddits(_ v: Bool) { p.setBool("hideReadInSubreddits", v); set { $0.hideReadInSubreddits = v } }
     func setRecentSubsByVisits(_ v: Bool) { p.setBool("recentSubredditsByVisits", v); set { $0.recentSubsByVisits = v } }
-    func setDimReadTextOnly(_ v: Bool) { p.setBool("dimReadTextOnly", v); set { $0.dimReadTextOnly = v } }
+    /// Off leaves `dimReadTextOnly` as it was, so turning dimming back on restores the old choice.
+    func setReadDim(_ v: ReadDim) {
+        p.setBool("dimRead", v != .off)
+        if v != .off { p.setBool("dimReadTextOnly", v == .text) }
+        set {
+            $0.dimRead = v != .off
+            if v != .off { $0.dimReadTextOnly = v == .text }
+        }
+    }
     func setSubredditIcons(_ v: Bool) { p.setBool("subredditIcons", v); set { $0.subredditIcons = v } }
     func setMarkReadOnScroll(_ v: Bool) { p.setBool("markReadOnScroll", v); set { $0.markReadOnScroll = v } }
 

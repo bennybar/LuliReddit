@@ -67,6 +67,8 @@ import com.bennybar.luli_for_reddit.feature.feed.SubredditScreen
 import com.bennybar.luli_for_reddit.settings.postsTabKey
 import com.bennybar.luli_for_reddit.feature.feed.UserScreen
 import com.bennybar.luli_for_reddit.feature.home.HomeScreen
+import com.bennybar.luli_for_reddit.feature.home.SideBarPage
+import com.bennybar.luli_for_reddit.nav.SIDE_BAR_PAGE
 import com.bennybar.luli_for_reddit.feature.compose.DraftsScreen
 import com.bennybar.luli_for_reddit.feature.inbox.NotificationActivityScreen
 import com.bennybar.luli_for_reddit.feature.inbox.ComposeMessageScreen
@@ -392,10 +394,12 @@ private fun searchIn(easing: Easing) =
 private fun searchOut(easing: Easing) =
     fadeOut(tween(200)) + shrinkVertically(tween(300, easing = easing), Alignment.Top) { it / 6 }
 
-private inline fun <reified T : Any> NavGraphBuilder.screen(
+private inline fun <reified T : Route> NavGraphBuilder.screen(
     noinline content: @Composable AnimatedContentScope.(NavBackStackEntry) -> Unit,
 ) = composable<T> { entry ->
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
-        content(entry)
+        // Opened from the side bar (#111): one of its destinations, with the side bar over it.
+        val sideBarRoute = remember(entry) { if (entry.savedStateHandle.get<Boolean>(SIDE_BAR_PAGE) == true) entry.toRoute<T>() else null }
+        if (sideBarRoute != null) SideBarPage(sideBarRoute) { content(entry) } else content(entry)
     }
 }

@@ -11,6 +11,7 @@ struct FeedRowConfig: Equatable {
     var subredditIcons: Bool
     var trackHistory: Bool
     var dimReadTextOnly: Bool
+    var dimRead: Bool
     var seedColor: Int
     var textScale: Double
     /// The whole list's width.
@@ -42,6 +43,7 @@ struct FeedRowConfig: Equatable {
             subredditIcons: s.subredditIcons,
             trackHistory: s.trackHistory,
             dimReadTextOnly: s.dimReadTextOnly,
+            dimRead: s.dimRead,
             seedColor: s.seedColor,
             textScale: s.textScale,
             width: width ?? screen?.bounds.width ?? 402,

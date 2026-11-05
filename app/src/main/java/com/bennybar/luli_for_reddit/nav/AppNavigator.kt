@@ -32,6 +32,9 @@ import kotlinx.coroutines.launch
 
 val LocalNavigator = staticCompositionLocalOf<AppNavigator> { error("No navigator") }
 
+/** Back stack entry flag (its saved state, so it survives process death): the side bar opened this page (#111). */
+const val SIDE_BAR_PAGE = "sideBarPage"
+
 /**
  * App-wide navigation + feedback: routes, links (media in the viewer,
  * reddit.com in the app, everything else in the browser), sharing and
@@ -57,6 +60,25 @@ class AppNavigator(
     }
 
     fun pop(): Boolean = controller.popBackStack()
+
+    /**
+     * Opens [route] as one of the side bar's destinations (#111): in place of
+     * the page it opened before (the stack stays Home → it), and marked so the
+     * page shows ☰ instead of ← and the side bar swipes out over it (see
+     * IlayActivity's screen()). Like the side bar's tabs, Back from it is Posts.
+     */
+    fun openFromSideBar(route: Route) {
+        viewers.clear()
+        app.feed.openTab.value = 0
+        controller.navigate(route) { popUpTo<Route.Home>() }
+        controller.currentBackStackEntry?.savedStateHandle?.set(SIDE_BAR_PAGE, true)
+    }
+
+    /** A tab picked in the side bar of a page it opened: back to the home shell, on that tab. */
+    fun openTabFromSideBar(index: Int) {
+        app.feed.openTab.value = index
+        controller.popBackStack<Route.Home>(inclusive = false)
+    }
 
     /** Clears the back stack and shows [route] (login ↔ home). */
     fun resetTo(route: Route) {

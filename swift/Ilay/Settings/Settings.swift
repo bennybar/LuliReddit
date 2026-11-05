@@ -145,6 +145,7 @@ struct Settings: Equatable, Sendable {
     var hideReadInSubreddits = false // …in single subreddits too (else front page / custom feeds only)
     var recentSubsByVisits = false // "Recently visited" lists the most visited first (#92), else the newest
     var dimReadTextOnly = false // read posts: dim only title / text (images stay bright), else the whole card
+    var dimRead = true // read posts dim at all (#106); off: history is still kept, nothing fades
     var subredditIcons = true // cards show the subreddit's icon (else its first letter)
     var markReadOnScroll = false // a post scrolled past counts as read
     // What swiping does: "start" = from the start edge (rightward in LTR).
@@ -215,7 +216,13 @@ struct Settings: Equatable, Sendable {
     }
 }
 
+/// Settings → Dim read posts (#106). Stored as `dimRead` (off: nothing fades, history
+/// is still kept) plus `dimReadTextOnly`, which keeps its meaning from before Off existed.
+enum ReadDim: Hashable, Sendable { case off, card, text }
+
 extension Settings {
+    var readDim: ReadDim { !dimRead ? .off : dimReadTextOnly ? .text : .card }
+
     /// The Posts tab's feed key: the frontpage, or r/all with `postsTabAll`.
     var postsTabKey: String { postsTabAll ? "all" : "" }
 }

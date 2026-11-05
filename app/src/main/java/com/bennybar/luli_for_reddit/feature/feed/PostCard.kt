@@ -381,8 +381,8 @@ fun PostCard(post: Post, modifier: Modifier = Modifier, swipeOverride: Pair<Swip
             // the page surface — without re-rendering the whole card, images
             // and all, into an offscreen layer every frame it scrolls.
             // Settings → Dim read posts: the whole card (veil), or only its
-            // title and text so images and videos stay bright.
-            val dimRead = seen && settings.trackHistory
+            // title and text so images and videos stay bright, or Off (#106).
+            val dimRead = seen && settings.trackHistory && settings.dimRead
             val veil = if (dimRead && !settings.dimReadTextOnly) cs.surface.copy(alpha = 0.45f) else Color.Transparent
             val dim = Modifier.drawWithContent {
                 drawContent()

@@ -788,6 +788,10 @@ extension PostListCoordinator {
         let browser = MediaBrowserModel(visible: visiblePosts, loaded: model.ui.state?.posts.count ?? 0, startId: topId, controller: model.controller) { [weak self] lastId in
             guard let self, let lastId, let indexPath = dataSource.indexPath(for: .post(lastId)) else { return }
             collectionView.scrollToItem(at: indexPath, at: .top, animated: false)
+            // The top sits under the floating chips: bring the card down by however much
+            // of the row is showing, so its header stays visible.
+            let chipsShowing = model.floatingChips ? chipsTracker.height + chipsTracker.shift : 0
+            if chipsShowing > 0 { collectionView.contentOffset.y -= chipsShowing }
         }
         self.browser = browser
         browser.present()

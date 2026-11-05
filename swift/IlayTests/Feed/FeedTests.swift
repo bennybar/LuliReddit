@@ -20,7 +20,7 @@ private func post(_ id: String, type: PostType = .selfPost, sub: String = "pics"
 private func config(_ display: PostDisplay, width: CGFloat = 402, carousel: Bool = true, autoplay: Bool = true) -> FeedRowConfig {
     FeedRowConfig(
         display: display, midResThumbnails: true, blurNsfw: true, autoplayMedia: autoplay, feedGalleryCarousel: carousel,
-        subredditIcons: true, trackHistory: true, dimReadTextOnly: false, seedColor: 0, textScale: 1, width: width, scale: 3
+        subredditIcons: true, trackHistory: true, dimReadTextOnly: false, dimRead: true, seedColor: 0, textScale: 1, width: width, scale: 3
     )
 }
 

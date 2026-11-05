@@ -181,6 +181,24 @@ final class FlutterPrefsCompatTests: XCTestCase {
         XCTAssertEqual(SettingsStore(prefs: p).value, store.value)
     }
 
+    /// Dim read posts → Off (#106) is its own key: `dimReadTextOnly` keeps its meaning.
+    @MainActor
+    func testDimReadOffKeepsTheTextOnlyChoice() {
+        XCTAssertEqual(Settings().readDim, .card)
+        let p = Prefs(defaults: defaults)
+        let store = SettingsStore(prefs: p)
+        store.setReadDim(.text)
+        XCTAssertEqual(store.value.readDim, .text)
+        store.setReadDim(.off)
+        XCTAssertEqual(store.value.readDim, .off)
+        XCTAssertEqual(p.getBool("dimRead"), false)
+        XCTAssertEqual(p.getBool("dimReadTextOnly"), true)
+        XCTAssertEqual(SettingsStore(prefs: p).value.readDim, .off)
+        store.setReadDim(.card)
+        XCTAssertEqual(SettingsStore(prefs: p).value.readDim, .card)
+        XCTAssertEqual(p.getBool("dimReadTextOnly"), false)
+    }
+
     @MainActor
     func testFrontpageModesExcludeEachOther() {
         let store = SettingsStore(prefs: Prefs(defaults: defaults))

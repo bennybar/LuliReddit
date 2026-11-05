@@ -1,6 +1,5 @@
 package com.bennybar.luli_for_reddit.feature.home
 
-import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.VideoLibrary
 import com.bennybar.luli_for_reddit.feature.feed.openMediaBrowser
 import androidx.compose.ui.graphics.Shape
@@ -37,7 +36,6 @@ import kotlinx.coroutines.launch
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.offset
 import androidx.compose.material.icons.outlined.PostAdd
-import androidx.compose.material.icons.outlined.Settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.Switch
@@ -110,6 +108,8 @@ import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.Route
 import com.bennybar.luli_for_reddit.settings.PostDisplay
 import com.bennybar.luli_for_reddit.settings.TopBarMode
+import com.bennybar.luli_for_reddit.settings.TopBarMenuItem
+import com.bennybar.luli_for_reddit.settings.topBarMenu
 import com.bennybar.luli_for_reddit.ui.Overlays
 
 @Composable
@@ -408,9 +408,10 @@ private val PanelOuter = 26.dp
 private val PanelInner = 6.dp
 
 /**
- * The expandable top bar's panel: connected segments 3dp apart — search
- * (with the profile avatar), New post / Settings, the feed layout as one
- * connected button group, and the autoplay switch. Layout and autoplay
+ * The top bar's panel: connected segments 3dp apart — search (with the
+ * profile avatar), New post / Settings, Browse media, the feed layout as one
+ * connected button group, and the autoplay switch, in the order and with the
+ * buttons picked in Settings → Top bar menu (#108). Layout and autoplay
  * apply at once and leave the panel open, so the change is visible behind it.
  */
 @Composable
@@ -426,97 +427,113 @@ private fun ToolbarPanel(
     val cs = MaterialTheme.colorScheme
     val settings by app.settings.state.collectAsStateWithLifecycle()
     val seg = cs.surfaceContainerHigh
+    // The panel's rows: Your profile needs an account, and two half-width buttons
+    // next to each other share a row (New post / Settings, Your profile / Settings).
+    val signedIn = app.session.session?.anonymous == false
+    val rows = mutableListOf<MutableList<TopBarMenuItem>>()
+    for (e in settings.topBarMenu(if (compact) TopBarMode.FULL else TopBarMode.EXPANDABLE)) {
+        if (!e.shown || (e.item == TopBarMenuItem.PROFILE && !signedIn)) continue
+        val last = rows.lastOrNull()
+        if (e.item.half && last != null && last.size == 1 && last[0].half) last += e.item else rows += mutableListOf(e.item)
+    }
     Surface(shape = RoundedCornerShape(32.dp), color = cs.surfaceContainer, shadowElevation = 8.dp) {
         Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            if (!compact) Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(topStart = PanelOuter, topEnd = PanelOuter, bottomStart = PanelInner, bottomEnd = PanelInner))
-                    .background(seg)
-                    .clickable(onClick = onSearch)
-                    .padding(start = 16.dp, end = 8.dp)
-                    .height(60.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.Rounded.Search, null, tint = cs.onSurfaceVariant)
-                Spacer(Modifier.width(12.dp))
-                Text("Search Reddit", Modifier.weight(1f), color = cs.onSurfaceVariant, maxLines = 1, fontSize = 16.sp)
-                ProfileAvatar(username, 44.dp, onProfile)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                if (compact) {
-                    // The panel's top row now: Your profile (with an account) and Settings.
-                    val signedIn = app.session.session?.anonymous == false
-                    if (signedIn) {
-                        PanelButton(
-                            Icons.Outlined.AccountCircle, "Your profile", Modifier.weight(1f), onProfile,
-                            RoundedCornerShape(topStart = PanelOuter, topEnd = PanelInner, bottomStart = PanelInner, bottomEnd = PanelInner),
-                        )
-                    }
-                    PanelButton(
-                        Icons.Outlined.Settings, "Settings", Modifier.weight(1f), onSettings,
-                        RoundedCornerShape(topStart = if (signedIn) PanelInner else PanelOuter, topEnd = PanelOuter, bottomStart = PanelInner, bottomEnd = PanelInner),
-                    )
-                } else {
-                    PanelButton(Icons.Outlined.PostAdd, "New post", Modifier.weight(1f), onNewPost)
-                    PanelButton(Icons.Outlined.Settings, "Settings", Modifier.weight(1f), onSettings)
-                }
-            }
-            // The feed's images and videos, full screen, one after another (#103).
-            PanelButton(Icons.Outlined.VideoLibrary, "Browse media", Modifier.fillMaxWidth(), onBrowseMedia)
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .background(seg, RoundedCornerShape(PanelInner))
-                    .padding(start = 8.dp, end = 8.dp, bottom = 8.dp),
-            ) {
-                Text(
-                    "Layout",
-                    Modifier.padding(start = 6.dp, top = 12.dp, bottom = 8.dp),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = cs.primary,
+            rows.forEachIndexed { r, row ->
+                // The first and last rows round off the panel's outer corners.
+                val top = if (r == 0) PanelOuter else PanelInner
+                val bottom = if (r == rows.lastIndex) PanelOuter else PanelInner
+                fun shape(j: Int) = RoundedCornerShape(
+                    topStart = if (j == 0) top else PanelInner,
+                    topEnd = if (j == row.lastIndex) top else PanelInner,
+                    bottomStart = if (j == 0) bottom else PanelInner,
+                    bottomEnd = if (j == row.lastIndex) bottom else PanelInner,
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                    val all = PostDisplay.entries
-                    all.forEachIndexed { i, d ->
-                        val start = if (i == 0) 20.dp else PanelInner
-                        val end = if (i == all.lastIndex) 20.dp else PanelInner
-                        val on = d == settings.postDisplay
-                        Column(
-                            Modifier
-                                .weight(1f)
-                                .height(76.dp)
-                                .clip(RoundedCornerShape(topStart = start, bottomStart = start, topEnd = end, bottomEnd = end))
-                                .background(if (on) cs.primary else cs.surfaceContainerHighest)
-                                // Pick-one for screen readers: "Calm, selected".
-                                .selectable(selected = on, role = Role.RadioButton) { app.settings.setPostDisplay(d) }
-                                .padding(horizontal = 2.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center,
-                        ) {
-                            val fg = if (on) cs.onPrimary else cs.onSurface
-                            Icon(d.icon, null, Modifier.size(22.dp), tint = fg)
-                            Spacer(Modifier.height(6.dp))
-                            Text(d.label, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = fg, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (row[0].half) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                        row.forEachIndexed { j, item ->
+                            val onClick = when (item) {
+                                TopBarMenuItem.PROFILE -> onProfile
+                                TopBarMenuItem.NEW_POST -> onNewPost
+                                else -> onSettings
+                            }
+                            PanelButton(item.icon, item.label, Modifier.weight(1f), onClick, shape(j))
                         }
                     }
+                } else when (row[0]) {
+                    TopBarMenuItem.SEARCH -> Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(shape(0))
+                            .background(seg)
+                            .clickable(onClick = onSearch)
+                            .padding(start = 16.dp, end = 8.dp)
+                            .height(60.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Rounded.Search, null, tint = cs.onSurfaceVariant)
+                        Spacer(Modifier.width(12.dp))
+                        Text("Search Reddit", Modifier.weight(1f), color = cs.onSurfaceVariant, maxLines = 1, fontSize = 16.sp)
+                        ProfileAvatar(username, 44.dp, onProfile)
+                    }
+                    // The feed's images and videos, full screen, one after another (#103).
+                    TopBarMenuItem.BROWSE_MEDIA ->
+                        PanelButton(Icons.Outlined.VideoLibrary, "Browse media", Modifier.fillMaxWidth(), onBrowseMedia, shape(0))
+                    TopBarMenuItem.LAYOUT -> Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .background(seg, shape(0))
+                            .padding(start = 8.dp, end = 8.dp, bottom = 8.dp),
+                    ) {
+                        Text(
+                            "Layout",
+                            Modifier.padding(start = 6.dp, top = 12.dp, bottom = 8.dp),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = cs.primary,
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                            val all = PostDisplay.entries
+                            all.forEachIndexed { i, d ->
+                                val start = if (i == 0) 20.dp else PanelInner
+                                val end = if (i == all.lastIndex) 20.dp else PanelInner
+                                val on = d == settings.postDisplay
+                                Column(
+                                    Modifier
+                                        .weight(1f)
+                                        .height(76.dp)
+                                        .clip(RoundedCornerShape(topStart = start, bottomStart = start, topEnd = end, bottomEnd = end))
+                                        .background(if (on) cs.primary else cs.surfaceContainerHighest)
+                                        // Pick-one for screen readers: "Calm, selected".
+                                        .selectable(selected = on, role = Role.RadioButton) { app.settings.setPostDisplay(d) }
+                                        .padding(horizontal = 2.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center,
+                                ) {
+                                    val fg = if (on) cs.onPrimary else cs.onSurface
+                                    Icon(d.icon, null, Modifier.size(22.dp), tint = fg)
+                                    Spacer(Modifier.height(6.dp))
+                                    Text(d.label, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = fg, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                        }
+                    }
+                    TopBarMenuItem.AUTOPLAY -> Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(shape(0))
+                            .background(seg)
+                            .toggleable(value = settings.autoplayMedia, role = Role.Switch) { app.settings.setAutoplayMedia(it) }
+                            .padding(horizontal = 16.dp)
+                            .height(60.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Outlined.PlayCircleOutline, null, tint = cs.onSurfaceVariant)
+                        Spacer(Modifier.width(14.dp))
+                        Text("Autoplay media", Modifier.weight(1f), fontSize = 16.sp)
+                        Switch(thumbContent = switchThumb(settings.autoplayMedia), checked = settings.autoplayMedia, onCheckedChange = null)
+                    }
+                    else -> {}
                 }
-            }
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(topStart = PanelInner, topEnd = PanelInner, bottomStart = PanelOuter, bottomEnd = PanelOuter))
-                    .background(seg)
-                    .toggleable(value = settings.autoplayMedia, role = Role.Switch) { app.settings.setAutoplayMedia(it) }
-                    .padding(horizontal = 16.dp)
-                    .height(60.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.Outlined.PlayCircleOutline, null, tint = cs.onSurfaceVariant)
-                Spacer(Modifier.width(14.dp))
-                Text("Autoplay media", Modifier.weight(1f), fontSize = 16.sp)
-                Switch(thumbContent = switchThumb(settings.autoplayMedia), checked = settings.autoplayMedia, onCheckedChange = null)
             }
         }
     }

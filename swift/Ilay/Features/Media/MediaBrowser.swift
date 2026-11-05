@@ -88,6 +88,8 @@ struct MediaBrowseFeed: Equatable {
     @ObservationIgnored var scrollTo: (Int) -> Void = { _ in }
     @ObservationIgnored private let controller: FeedController
     @ObservationIgnored private let onClosed: (String?) -> Void
+    /// The post it opened on: closed there, the list is already in place.
+    @ObservationIgnored private let startPostId: String?
     @ObservationIgnored private weak var host: UIViewController?
     /// A clip is playing, or meant to be: what returning from the background restores.
     @ObservationIgnored private var wanted = false
@@ -104,9 +106,12 @@ struct MediaBrowseFeed: Equatable {
     /// Still looking for media further down the feed.
     var searching: Bool { feed.wantsMore(at: index) && controller.ui.state?.hasMore == true }
 
-    /// `onClosed` gets the post on screen at the end, for the list to scroll to.
+    /// `onClosed` gets the post on screen at the end, for the list to scroll to; nil when
+    /// that's still the one it opened on.
     init(visible: [Post], loaded: Int, startId: String?, controller: FeedController, onClosed: @escaping (String?) -> Void) {
-        feed = MediaBrowseFeed(visible: visible, loaded: loaded, startId: startId)
+        let feed = MediaBrowseFeed(visible: visible, loaded: loaded, startId: startId)
+        self.feed = feed
+        startPostId = feed.posts.first?.id
         self.controller = controller
         self.onClosed = onClosed
         var closer: (() -> Void)?
@@ -161,7 +166,9 @@ struct MediaBrowseFeed: Equatable {
         observers.removeAll()
         observation = nil
         app.media.inlinePlayer.setCovered(false)
-        onClosed(post?.id)
+        // Scrolling the list to the post it opened on would only jump it, by the
+        // gap above the card, after the browser has gone (#107).
+        onClosed(post?.id == startPostId ? nil : post?.id)
     }
 
     /// The list changed under the browser (a new page, mostly).

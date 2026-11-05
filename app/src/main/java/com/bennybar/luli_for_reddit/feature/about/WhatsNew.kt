@@ -45,6 +45,15 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.62", "Nov 5, 2026",
+        listOf(
+            "Pages you open from the side bar act like side-bar tabs: ☰ instead of the back arrow, and the side bar shows where you are",
+            "Choose and order the side bar's entries, and the buttons in the top bar's menu (Settings → Appearance)",
+            "Dim read posts can be turned off while keeping your history",
+            "Browse media: closing it no longer makes the feed jump",
+        ),
+    ),
+    Release(
         "2.0.61", "Nov 5, 2026",
         listOf(
             "Search shows community and user icons, and letter avatars get their own colour",

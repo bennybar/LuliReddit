@@ -197,7 +197,7 @@ private struct CardSurface: ViewModifier {
 
 // MARK: - Read state
 
-/// Dims an already-viewed post when history tracking is on (Settings → Dim read posts).
+/// Dims an already-viewed post when history tracking is on (Settings → Dim read posts; not when it's Off, #106).
 /// A page-colour veil looks the same as 55% opacity without re-rendering the whole card,
 /// images and all, into an offscreen layer every frame it scrolls. Reads the history
 /// itself, so marking a post read costs this view rather than the card.
@@ -206,7 +206,7 @@ private struct ReadVeil: View {
     var radius: CGFloat = 0
 
     var body: some View {
-        if row.config.trackHistory, !row.config.dimReadTextOnly, app.history.contains(row.id) {
+        if row.config.trackHistory, row.config.dimRead, !row.config.dimReadTextOnly, app.history.contains(row.id) {
             RoundedRectangle(cornerRadius: radius)
                 .fill(Color(row.config.isCarded ? .systemGroupedBackground : .systemBackground).opacity(0.45))
                 .allowsHitTesting(false)
@@ -220,7 +220,7 @@ private struct ReadDimmed<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
-        if row.config.trackHistory, row.config.dimReadTextOnly {
+        if row.config.trackHistory, row.config.dimRead, row.config.dimReadTextOnly {
             content.opacity(app.history.contains(row.id) ? 0.5 : 1)
         } else {
             content

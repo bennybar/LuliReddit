@@ -28,6 +28,10 @@ import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.DrawerState
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.outlined.StarBorder
+import com.bennybar.luli_for_reddit.settings.SideBarItem
 import androidx.compose.material3.MotionScheme
 import com.bennybar.luli_for_reddit.feature.about.maybeShowWhatsNew
 import androidx.activity.compose.BackHandler
@@ -302,27 +306,7 @@ fun HomeScreen() {
         }
     }
 
-    // The drawer opens with the theme's spatial spring: Expressive's bounce
-    // carries it past the screen's edge and shows the page behind it (#41).
-    // Standard (no bounce) for the drawer, Expressive again inside it.
-    val motion = MaterialTheme.motionScheme
-    MaterialTheme(motionScheme = MotionScheme.standard()) {
-    ModalNavigationDrawer(
-        drawerState = drawer,
-        gesturesEnabled = sideBar,
-        drawerContent = {
-            if (sideBar) {
-                MaterialTheme(motionScheme = motion) {
-                    SideBar(index, unread, open = drawer.targetValue == DrawerValue.Open, onTab = ::selectTab) { pick ->
-                        shellScope.launch { drawer.close() }
-                        pick()
-                    }
-                }
-            }
-        },
-    ) {
-    MaterialTheme(motionScheme = motion) {
-    CompositionLocalProvider(LocalSideBar provides if (sideBar) ({ shellScope.launch { drawer.open() } }) else null) {
+    SideBarDrawer(drawer, sideBar, selected = index, current = null, unread = unread, onTab = ::selectTab) {
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
         KeepAliveTabs(
             selected = index,
@@ -374,17 +358,89 @@ fun HomeScreen() {
         }
     }
     }
-    }
-    }
-    }
 }
 
 /**
- * The side bar (Settings › Navigation): the four tabs, then your stuff and
- * Settings. [onPick] closes it, then runs the choice.
+ * A page the side bar opened (#111), e.g. Settings or a subreddit: one of its
+ * destinations rather than a page pushed on top. Its top bar shows ☰ (via
+ * [LocalSideBar]), the side bar swipes out over it and marks it, and Back
+ * returns to Posts. With the side bar turned off (say, in the Settings it
+ * opened) it's a plain page again.
  */
 @Composable
-private fun SideBar(selected: Int, unread: Int, open: Boolean, onTab: (Int) -> Unit, onPick: (() -> Unit) -> Unit) {
+fun SideBarPage(route: Route, content: @Composable () -> Unit) {
+    val nav = LocalNavigator.current
+    val settings by app.settings.state.collectAsStateWithLifecycle()
+    val unread by app.inbox.unreadCount.collectAsStateWithLifecycle()
+    val drawer = rememberDrawerState(DrawerValue.Closed)
+    SideBarDrawer(drawer, settings.navStyle != 0, selected = -1, current = route, unread = unread, onTab = nav::openTabFromSideBar, content = content)
+}
+
+/**
+ * The side bar over [content] when [enabled], for the home shell and for the
+ * pages it opens: [selected] is the current tab (-1: none), [current] the
+ * current page it opened (null: the home shell).
+ */
+@Composable
+private fun SideBarDrawer(
+    drawer: DrawerState,
+    enabled: Boolean,
+    selected: Int,
+    current: Route?,
+    unread: Int,
+    onTab: (Int) -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    // The drawer opens with the theme's spatial spring: Expressive's bounce
+    // carries it past the screen's edge and shows the page behind it (#41).
+    // Standard (no bounce) for the drawer, Expressive again inside it.
+    val motion = MaterialTheme.motionScheme
+    MaterialTheme(motionScheme = MotionScheme.standard()) {
+        ModalNavigationDrawer(
+            drawerState = drawer,
+            gesturesEnabled = enabled,
+            drawerContent = {
+                if (enabled) {
+                    // Composed after the page, so Back closes the side bar before
+                    // the page's own Back handlers run.
+                    BackHandler(drawer.isOpen) { scope.launch { drawer.close() } }
+                    MaterialTheme(motionScheme = motion) {
+                        SideBar(selected, current, unread, open = drawer.targetValue == DrawerValue.Open, onTab = onTab) { pick ->
+                            scope.launch { drawer.close() }
+                            pick()
+                        }
+                    }
+                }
+            },
+        ) {
+            MaterialTheme(motionScheme = motion) {
+                CompositionLocalProvider(LocalSideBar provides if (enabled) ({ scope.launch { drawer.open() } }) else null, content = content)
+            }
+        }
+    }
+}
+
+/** An entry's icon, in the side bar and in Settings › Side bar entries. */
+internal val SideBarItem.icon: ImageVector
+    get() = when (this) {
+        SideBarItem.SAVED -> Icons.Outlined.BookmarkBorder
+        SideBarItem.CUSTOM_FEEDS -> Icons.Rounded.DynamicFeed
+        SideBarItem.HISTORY -> Icons.Rounded.History
+        SideBarItem.OFFLINE -> Icons.Rounded.OfflinePin
+        SideBarItem.DRAFTS -> Icons.Rounded.EditNote
+        SideBarItem.SETTINGS -> Icons.Outlined.Settings
+        SideBarItem.RECENTLY_VISITED -> Icons.Rounded.Schedule
+        SideBarItem.FAVORITES -> Icons.Outlined.StarBorder
+    }
+
+/**
+ * The side bar (Settings › Navigation): the four tabs, then your stuff,
+ * Settings and subreddits, as Settings › Side bar entries orders them (#109).
+ * [onPick] closes it, then runs the choice.
+ */
+@Composable
+private fun SideBar(selected: Int, current: Route?, unread: Int, open: Boolean, onTab: (Int) -> Unit, onPick: (() -> Unit) -> Unit) {
     val nav = LocalNavigator.current
     val cs = MaterialTheme.colorScheme
     val session by app.session.state.collectAsStateWithLifecycle()
@@ -444,26 +500,40 @@ private fun SideBar(selected: Int, unread: Int, open: Boolean, onTab: (Int) -> U
                 )
             }
             HorizontalDivider(Modifier.padding(vertical = 12.dp, horizontal = 16.dp))
-            val more = buildList {
-                if (!anonymous) add(Triple(Icons.Outlined.BookmarkBorder, "Saved", Route.Saved))
-                if (!anonymous) add(Triple(Icons.Rounded.DynamicFeed, "Custom feeds", Route.CustomFeeds))
-                add(Triple(Icons.Rounded.History, "History", Route.History))
-                add(Triple(Icons.Rounded.OfflinePin, "Read later", Route.Offline))
-                add(Triple(Icons.Rounded.EditNote, "Drafts", Route.Drafts))
-                add(Triple(Icons.Outlined.Settings, "Settings", Route.Settings))
+            var afterList = false // the last thing shown was a subreddit list
+            for ((item, shown) in settings.sideBarItems) {
+                if (!shown) continue
+                when (item) {
+                    // Its switch in Data & storage hides it on Explore too.
+                    SideBarItem.RECENTLY_VISITED -> if (settings.showRecentlyVisited) {
+                        SideBarSubs("Recently visited", recent, current, onPick, empty = "Subreddits you open will show here".takeIf { settings.trackHistory }, visits = visited.map { it.visits })
+                        afterList = recent.isNotEmpty() || settings.trackHistory
+                    }
+                    SideBarItem.FAVORITES -> {
+                        SideBarSubs("Favorites", favorites, current, onPick)
+                        afterList = favorites.isNotEmpty()
+                    }
+                    else -> {
+                        val route = when (item) {
+                            SideBarItem.SAVED -> if (anonymous) continue else Route.Saved
+                            SideBarItem.CUSTOM_FEEDS -> if (anonymous) continue else Route.CustomFeeds
+                            SideBarItem.HISTORY -> Route.History
+                            SideBarItem.OFFLINE -> Route.Offline
+                            SideBarItem.DRAFTS -> Route.Drafts
+                            else -> Route.Settings
+                        }
+                        // Moved below a subreddit list: set apart from it.
+                        if (afterList) HorizontalDivider(Modifier.padding(vertical = 12.dp, horizontal = 16.dp))
+                        afterList = false
+                        NavigationDrawerItem(
+                            label = { Text(item.label) },
+                            icon = { Icon(item.icon, null) },
+                            selected = route == current,
+                            onClick = { onPick { if (route != current) nav.openFromSideBar(route) } },
+                        )
+                    }
+                }
             }
-            for ((icon, label, route) in more) {
-                NavigationDrawerItem(
-                    label = { Text(label) },
-                    icon = { Icon(icon, null) },
-                    selected = false,
-                    onClick = { onPick { nav.push(route) } },
-                )
-            }
-            if (settings.showRecentlyVisited) {
-                SideBarSubs("Recently visited", recent, onPick, empty = "Subreddits you open will show here".takeIf { settings.trackHistory }, visits = visited.map { it.visits })
-            }
-            SideBarSubs("Favorites", favorites, onPick)
             Spacer(Modifier.height(16.dp))
         }
     }
@@ -471,7 +541,7 @@ private fun SideBar(selected: Int, unread: Int, open: Boolean, onTab: (Int) -> U
 
 /** A titled list of subreddits in the side bar (#63); when it has none, [empty], or nothing. */
 @Composable
-private fun SideBarSubs(title: String, subs: List<Subreddit>, onPick: (() -> Unit) -> Unit, empty: String? = null, visits: List<Int>? = null) {
+private fun SideBarSubs(title: String, subs: List<Subreddit>, current: Route?, onPick: (() -> Unit) -> Unit, empty: String? = null, visits: List<Int>? = null) {
     if (subs.isEmpty() && empty == null) return
     val nav = LocalNavigator.current
     val cs = MaterialTheme.colorScheme
@@ -480,14 +550,15 @@ private fun SideBarSubs(title: String, subs: List<Subreddit>, onPick: (() -> Uni
         Text(empty.orEmpty(), Modifier.padding(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 8.dp), color = cs.onSurfaceVariant)
     }
     for ((i, sub) in subs.withIndex()) {
+        // A followed user is a subscription to their profile, u_<name>.
+        val route = if (sub.name.startsWith("u_")) Route.User(sub.name.removePrefix("u_")) else Route.Subreddit(sub.name)
         NavigationDrawerItem(
             label = { Text(subredditName(sub.namePrefixed), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             icon = { LetterAvatar(sub.name, 28.dp, cs.secondaryContainer, cs.onSecondaryContainer, imageUrl = sub.iconUrl, fontSize = 13.sp) },
             // Recently visited: how often you opened it (#92).
             badge = visits?.getOrNull(i)?.let { { Text("$it", color = cs.onSurfaceVariant, style = MaterialTheme.typography.labelMedium) } },
-            selected = false,
-            // A followed user is a subscription to their profile, u_<name>.
-            onClick = { onPick { if (sub.name.startsWith("u_")) nav.openUser(sub.name.removePrefix("u_")) else nav.openSubreddit(sub.name) } },
+            selected = route == current,
+            onClick = { onPick { if (route != current) nav.openFromSideBar(route) } },
         )
     }
 }

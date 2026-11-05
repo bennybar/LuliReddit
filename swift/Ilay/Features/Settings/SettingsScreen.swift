@@ -427,7 +427,7 @@ struct SettingsCatalog {
 
     private func dataAndStorage(_ b: RowBuilder) {
         b.section("Data & storage")
-        b.toggle("Track history", "Remember and dim viewed posts (local only)", s.trackHistory, set: ctrl.setTrackHistory)
+        b.toggle("Track history", s.dimRead ? "Remember and dim viewed posts (local only)" : "Remember viewed posts (local only)", s.trackHistory, set: ctrl.setTrackHistory)
         if s.trackHistory {
             // Like Sync for Reddit's: the subreddits you open most stay on top (#92).
             b.picker(
@@ -436,9 +436,12 @@ struct SettingsCatalog {
                 set: ctrl.setRecentSubsByVisits
             )
             b.picker(
-                "Dim read posts", s.dimReadTextOnly ? "Titles and text fade, images stay bright" : nil, value: s.dimReadTextOnly,
-                options: [PickOption(value: false, label: "Whole card"), PickOption(value: true, label: "Text only", subtitle: "Images and videos stay bright")],
-                set: ctrl.setDimReadTextOnly
+                "Dim read posts", s.readDim == .text ? "Titles and text fade, images stay bright" : s.readDim == .off ? "Read posts look like new ones" : nil, value: s.readDim,
+                options: [
+                    PickOption(value: ReadDim.card, label: "Whole card"), PickOption(value: ReadDim.text, label: "Text only", subtitle: "Images and videos stay bright"),
+                    PickOption(value: ReadDim.off, label: "Off", subtitle: "History is still kept"),
+                ],
+                set: ctrl.setReadDim
             )
         }
         b.toggle(

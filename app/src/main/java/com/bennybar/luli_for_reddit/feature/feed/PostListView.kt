@@ -1,6 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.layout.onSizeChanged
@@ -420,6 +421,7 @@ fun PostListView(
                     dealHome = dealHome,
                     onDealt = { dealHome = false },
                     chips = chips,
+                    chipsHeight = { if (settings.floatingChips) rowHeight else 0 },
                     listPadding = listPadding,
                     onRetry = { refresh() },
                 )
@@ -468,6 +470,8 @@ private fun FeedList(
     dealHome: Boolean,
     onDealt: () -> Unit,
     chips: @Composable () -> Unit,
+    /** The floating chips' height when they can float over the list (0 otherwise), in px. */
+    chipsHeight: () -> Int,
     listPadding: PaddingValues,
     onRetry: () -> Unit,
 ) {
@@ -500,7 +504,13 @@ private fun FeedList(
         controller.browsedTo.filterNotNull().collect { id ->
             controller.browsedTo.value = null
             val i = latestPosts.indexOfFirst { it.id == id }
-            if (i >= 0) listState.scrollToItem(firstPostRow + i)
+            if (i >= 0) {
+                listState.scrollToItem(firstPostRow + i)
+                // The top of the list sits under the floating chips: bring the card down
+                // by the row's height, so its header stays visible (#107).
+                val below = chipsHeight()
+                if (below > 0) listState.scrollBy(-below.toFloat())
+            }
         }
     }
     // 10 posts from the end = 11 rows counting the footer.
