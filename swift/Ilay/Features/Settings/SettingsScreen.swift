@@ -125,6 +125,10 @@ struct SettingsCatalog {
         b.picker("Post display", value: s.postDisplay, options: PostDisplay.allCases.map { PickOption(value: $0, label: $0.label, icon: $0.icon) }, set: ctrl.setPostDisplay)
         b.toggle("Subreddit icons", "Show each community's icon on posts instead of its first letter", s.subredditIcons, set: ctrl.setSubredditIcons)
         b.picker("Default sort", value: s.defaultSort, options: PostSort.allCases.map { PickOption(value: $0, label: $0.label) }, set: ctrl.setDefaultSort)
+        b.toggle(
+            "Posts tab shows r/all", "Instead of your frontpage, which Explore's All button opens then. For You, Blend and Reddit Home don't apply.",
+            s.postsTabAll, set: ctrl.setPostsTabAll
+        )
         b.toggle("\"For You\" feed", "A personalized frontpage, built on your phone from what you read and like", s.forYouFeed, set: ctrl.setForYouFeed)
         b.toggle("Auto-hide read items in \"For You\"", "Hide posts you've marked/opened as read", s.autoHideReadForYou, set: ctrl.setAutoHideReadForYou)
         b.custom("forYouDiscovery", title: "For You mix", search: "For You mix familiar discover new communities") {
@@ -437,6 +441,10 @@ struct SettingsCatalog {
                 set: ctrl.setDimReadTextOnly
             )
         }
+        b.toggle(
+            "Recently visited", "List the subreddits you opened last on Explore and in the side bar",
+            s.showRecentlyVisited, set: ctrl.setShowRecentlyVisited
+        )
         b.toggle("Offline cache", "Show the last loaded content when offline", s.offlineCache, set: ctrl.setOfflineCache)
         b.toggle("Cache subscriptions", "Keep your subreddit list in memory to speed up \"For You\"", s.subsCacheEnabled, set: ctrl.setSubsCacheEnabled)
         b.picker(

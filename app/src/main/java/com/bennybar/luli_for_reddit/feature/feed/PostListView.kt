@@ -104,6 +104,7 @@ import com.bennybar.luli_for_reddit.feature.foryou.HomeStatus
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.Route
 import com.bennybar.luli_for_reddit.settings.PostDisplay
+import com.bennybar.luli_for_reddit.settings.postsTabKey
 import com.bennybar.luli_for_reddit.ui.ErrorView
 import com.bennybar.luli_for_reddit.ui.Overlays
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -162,6 +163,8 @@ fun PostListView(
     floatingChipsY: ((Int) -> Int)? = null,
     /** Bumped to go to the top and refresh, with the spinner (the Refresh floating button, #90). */
     refreshRequests: Int = 0,
+    /** Hosted by the Posts tab: its re-tap and Back signals, and Home's hidden subreddits, apply. */
+    postsTab: Boolean = false,
     /** Bumped to take the posts you've read off the list, with Undo (the Hide read posts floating button, #99). */
     hideReadRequests: Int = 0,
 ) {
@@ -174,9 +177,11 @@ fun PostListView(
     val listPadding = remember(topPadding) { PaddingValues(start = 7.dp, top = topPadding, end = 7.dp, bottom = 130.dp) }
     var refreshing by remember { mutableStateOf(false) }
     val isFrontpage = feedKey.isEmpty()
-    val homeMode = isFrontpage && settings.redditHomeAllowed && settings.redditHomeFeed
+    // With the Posts tab on r/all (Settings) the frontpage is a pushed page: plain, no For You / Blend / Home.
+    val engines = isFrontpage && !settings.postsTabAll
+    val homeMode = engines && settings.redditHomeAllowed && settings.redditHomeFeed
     // Home and For You load behind the shuffling deck.
-    val deckMode = isFrontpage && (homeMode || settings.forYouFeed)
+    val deckMode = engines && (homeMode || settings.forYouFeed)
     // The loading deck was just showing: deal the first cards in.
     var dealHome by remember { mutableStateOf(false) }
     val chipsState = rememberLazyListState()
@@ -188,19 +193,19 @@ fun PostListView(
             time = controller.time,
             state = state,
             onPick = { s, t -> controller.changeSort(s, t) },
-            isFrontpage = isFrontpage,
-            forYou = settings.forYouFeed && isFrontpage,
+            isFrontpage = engines,
+            forYou = settings.forYouFeed && engines,
             onForYou = controller::selectForYou,
             redditHome = homeMode,
             onRedditHome = if (settings.redditHomeAllowed) controller::selectRedditHome else null,
-            blend = settings.forYouFeed && settings.blendHome && settings.redditHomeAllowed && isFrontpage,
+            blend = settings.forYouFeed && settings.blendHome && settings.redditHomeAllowed && engines,
             onBlend = if (settings.redditHomeAllowed) controller::selectBlend else null,
         )
     }
     // Under a fixed top bar (subreddits, custom feeds, #86) the floating row
     // follows the finger on its own, as Home's does with its bar: out as you
     // scroll down, back in as you scroll up. Home passes its own place for it.
-    val ownFloat = floatingChipsY == null && !isFrontpage && settings.floatingChips
+    val ownFloat = floatingChipsY == null && !postsTab && settings.floatingChips
     var rowHeight by remember { mutableIntStateOf(0) }
     var chipsShift by remember { mutableFloatStateOf(0f) } // 0 = shown, -rowHeight = hidden
     var chipsSettling by remember { mutableStateOf<Job?>(null) }
@@ -318,8 +323,8 @@ fun PostListView(
     val isLoading = ui is FeedUi.Loading
     LaunchedEffect(isLoading) { if (isLoading) listState.scrollToItem(0) }
 
-    if (isFrontpage) {
-        // Frontpage only: respond to the "tap active tab" signal — scroll to
+    if (postsTab) {
+        // Posts tab only: respond to the "tap active tab" signal — scroll to
         // top, or refresh (with a visible spinner) when already there.
         // Keyed on the controller too: an account switch swaps it, and the
         // re-tap refresh must hit the current one.
@@ -340,16 +345,16 @@ fun PostListView(
         LaunchedEffect(listState) {
             app.feed.frontpageBackSignal.drop(1).collect { listState.animateScrollToItem(0) }
         }
-        // Home (and Blend's Home posts): follow the card on screen in the hidden
-        // reddit.com page, so Reddit's own "seen" tracking matches what was
-        // actually read and the next load brings new posts. (Cards not on its
-        // page are ignored there.)
-        val blendMode = isFrontpage && settings.forYouFeed && settings.blendHome && settings.redditHomeAllowed
-        if (homeMode || blendMode) LaunchedEffect(listState) {
-            snapshotFlow {
-                listState.layoutInfo.visibleItemsInfo.firstOrNull { (it.contentType as? String)?.startsWith("post_") == true }?.key as? String
-            }.distinctUntilChanged().collect { id -> if (id != null) app.forYou.redditHome.viewing(id) }
-        }
+    }
+    // Home (and Blend's Home posts): follow the card on screen in the hidden
+    // reddit.com page, so Reddit's own "seen" tracking matches what was
+    // actually read and the next load brings new posts. (Cards not on its
+    // page are ignored there.)
+    val blendMode = engines && settings.forYouFeed && settings.blendHome && settings.redditHomeAllowed
+    if (homeMode || blendMode) LaunchedEffect(listState) {
+        snapshotFlow {
+            listState.layoutInfo.visibleItemsInfo.firstOrNull { (it.contentType as? String)?.startsWith("post_") == true }?.key as? String
+        }.distinctUntilChanged().collect { id -> if (id != null) app.forYou.redditHome.viewing(id) }
     }
 
     Box(modifier.fillMaxSize().then(if (ownFloat) Modifier.nestedScroll(chipsScroll) else Modifier)) {
@@ -404,6 +409,7 @@ fun PostListView(
                     }
                 }
                 is FeedUi.Data -> FeedList(
+                    postsTab = postsTab,
                     feedKey = feedKey,
                     state = u.state,
                     controller = controller,
@@ -452,6 +458,7 @@ fun PostListView(
 @Composable
 private fun FeedList(
     feedKey: String,
+    postsTab: Boolean,
     state: FeedState,
     controller: FeedController,
     listState: LazyListState,
@@ -466,7 +473,8 @@ private fun FeedList(
 ) {
     val homeStatus = if (homeMode) app.forYou.redditHome.status.collectAsStateWithLifecycle().value else null
     val dismissible = feedKey.isEmpty() && deckMode
-    val frontpage = feedKey.isEmpty()
+    // Home's hidden subreddits apply on the front page, and on the Posts tab when it shows r/all.
+    val frontpage = feedKey.isEmpty() || postsTab
     val posts = rememberShownPosts(feedKey, state.posts)
     val hidden = state.posts.size - posts.size
 
@@ -571,14 +579,17 @@ private fun FeedList(
 internal fun rememberShownPosts(feedKey: String, posts: List<Post>): List<Post> {
     val settings by app.settings.state.collectAsStateWithLifecycle()
     val isFrontpage = feedKey.isEmpty()
-    val homeMode = isFrontpage && settings.redditHomeAllowed && settings.redditHomeFeed
-    val deckMode = isFrontpage && (homeMode || settings.forYouFeed)
+    // With the Posts tab on r/all (Settings) the frontpage is a plain page: no For You / Home.
+    val engines = isFrontpage && !settings.postsTabAll
+    val homeMode = engines && settings.redditHomeAllowed && settings.redditHomeFeed
+    val deckMode = engines && (homeMode || settings.forYouFeed)
     val hiddenIds by app.hiddenPosts.ids.collectAsStateWithLifecycle()
     // Home / For You: posts dismissed with the "Dismiss" swipe (kept a day).
     val dismissedIds = if (isFrontpage && deckMode) app.dismissedPosts.ids.collectAsStateWithLifecycle().value else emptySet()
     // Subreddits hidden for 7 days: anywhere on the front page (Home, For You
-    // and Best / Hot / New).
-    val hiddenSubs = if (isFrontpage) app.hiddenHomeSubs.ids.collectAsStateWithLifecycle().value else emptySet()
+    // and Best / Hot / New), and in the feed the Posts tab shows when it's r/all.
+    val homeFeed = isFrontpage || feedKey == settings.postsTabKey
+    val hiddenSubs = if (homeFeed) app.hiddenHomeSubs.ids.collectAsStateWithLifecycle().value else emptySet()
     val filters by app.contentFilters.state.collectAsStateWithLifecycle()
     // Auto-hide already-read items in the For You feed (live: updates when
     // history changes). Only watched while the option is on. Not in Reddit

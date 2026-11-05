@@ -98,12 +98,13 @@ private let restoredPage = "restored"
 
     /// How long a loaded frontpage is kept before returning to it loads a new one (Settings → Keep feed for).
     private var keepMillis: Int { app.settings.value.feedKeepMinutes * 60_000 }
-    private var forYou: Bool { isFrontpage && app.settings.value.forYouFeed && engines != nil }
+    // With the Posts tab on r/all (Settings) the frontpage is a plain pushed page.
+    private var forYou: Bool { isFrontpage && !app.settings.value.postsTabAll && app.settings.value.forYouFeed && engines != nil }
 
     /// Experimental Reddit Home (opt-in after a risk warning in Settings).
     private var redditHome: Bool {
         let s = app.settings.value
-        return isFrontpage && s.redditHomeAllowed && s.redditHomeFeed && engines != nil
+        return isFrontpage && !s.postsTabAll && s.redditHomeAllowed && s.redditHomeFeed && engines != nil
     }
 
     /// Home and For You open with the shuffling deck and deal their cards in,
@@ -196,7 +197,8 @@ private let restoredPage = "restored"
     private func dropRead(_ listing: Listing<Post>) -> Listing<Post> {
         let s = app.settings.value
         if forYou || !s.hideReadPosts { return listing }
-        let subreddit = !key.isEmpty && !key.hasPrefix("m::")
+        // The feed the Posts tab shows (r/all with that setting) counts as the front page here.
+        let subreddit = !key.isEmpty && !key.hasPrefix("m::") && key != s.postsTabKey
         if subreddit && !s.hideReadInSubreddits { return listing }
         let read = app.history.ids
         if read.isEmpty { return listing }

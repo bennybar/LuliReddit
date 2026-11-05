@@ -29,6 +29,7 @@ struct RouteView: View {
         case let .messageThread(fullname): MessageThreadScreen(fullname: fullname)
         case let .composeMessage(to): ComposeMessageScreen(to: to)
         case let .subreddit(name): SubredditScreen(name: name)
+        case .frontpage: FrontpageScreen()
         case let .user(username): UserScreen(username: username)
         case let .multireddit(username, name): MultiredditScreen(username: username, name: name)
         case let .manageMultireddit(username, name): ManageMultiredditScreen(username: username, name: name)

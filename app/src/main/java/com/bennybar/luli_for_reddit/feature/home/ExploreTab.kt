@@ -35,6 +35,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.DynamicFeed
 import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material.icons.rounded.LocalFireDepartment
+import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
@@ -121,6 +122,7 @@ internal fun ExploreTab() {
     val vm = viewModel { SubscriptionsViewModel() }
     val subs by vm.subs.collectAsStateWithLifecycle()
     val visited by app.recentSubreddits.state.collectAsStateWithLifecycle()
+    val settings by app.settings.state.collectAsStateWithLifecycle()
     val session by app.session.state.collectAsStateWithLifecycle()
     val anonymous = (session as? SessionState.LoggedIn)?.session?.anonymous == true
     val listState = rememberLazyListState()
@@ -205,14 +207,16 @@ internal fun ExploreTab() {
                         Text("Popular")
                     }
                     Spacer(Modifier.width(ConnectedGap))
+                    // With the Posts tab on r/all (Settings), this one opens the frontpage instead.
+                    val postsAll = settings.postsTabAll
                     OutlinedButton(
-                        onClick = { nav.openSubreddit("all") },
+                        onClick = { if (postsAll) nav.push(Route.Frontpage) else nav.openSubreddit("all") },
                         modifier = Modifier.weight(1f).defaultMinSize(minHeight = 52.dp),
                         shape = connectedShapes(1, 2).shape,
                     ) {
-                        Icon(Icons.Rounded.Public, null, Modifier.size(18.dp))
+                        Icon(if (postsAll) Icons.Rounded.Home else Icons.Rounded.Public, null, Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("All")
+                        Text(if (postsAll) "Frontpage" else "All")
                     }
                 }
             }
@@ -309,10 +313,12 @@ internal fun ExploreTab() {
                     query = query,
                     favOnly = favOnly,
                     sort = sort,
-                    visited = visited,
+                    // Settings can hide the section (and the side bar's).
+                    visited = if (settings.showRecentlyVisited) visited else emptyList(),
                     // A followed user is a subscription to their profile, u_<name>.
                     onOpen = { if (it.name.startsWith("u_")) nav.openUser(it.name.removePrefix("u_")) else nav.openSubreddit(it.name) },
                     onStar = ::toggleFavorite,
+                    onClearRecent = { app.recentSubreddits.clear() },
                 )
             }
         }
@@ -329,6 +335,7 @@ private fun LazyListScope.subscriptionSections(
     visited: List<RecentSubreddit>,
     onOpen: (Subreddit) -> Unit,
     onStar: (Subreddit) -> Unit,
+    onClearRecent: () -> Unit,
 ) {
     val q = query.trim().lowercase()
     val active = q.isNotEmpty() || favOnly || sort != "default"
@@ -360,7 +367,13 @@ private fun LazyListScope.subscriptionSections(
     // The users you follow (their profiles, u_<name>) get their own section.
     val (following, rest) = list.filter { !it.userHasFavorited }.partition { it.name.startsWith("u_") }
     if (recent.isNotEmpty()) {
-        header("recent", "Recently visited")
+        // "Clear" empties just this list; post history stays (History has its own clear).
+        item(key = "h_recent") {
+            Row(Modifier.padding(start = 16.dp, top = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                SectionHeader("Recently visited", Modifier.weight(1f))
+                TextButton(onClick = onClearRecent) { Text("Clear") }
+            }
+        }
         // No star on ones you aren't subscribed to.
         items(recent, key = { "recent_${it.name}" }, contentType = { "sub" }) {
             SubredditRow(it, onOpen, if (it.name.lowercase() in byName) onStar else null, visits = visits[it.name.lowercase()])

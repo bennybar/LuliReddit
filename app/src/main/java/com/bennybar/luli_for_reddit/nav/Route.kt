@@ -34,6 +34,8 @@ sealed interface Route {
     @Serializable data class MessageThread(val fullname: String) : Route
     @Serializable data class ComposeMessage(val to: String? = null) : Route
     @Serializable data class Subreddit(val name: String) : Route
+    /** The frontpage as a pushed page (Explore's All button, with the Posts tab on r/all). */
+    @Serializable data object Frontpage : Route
     @Serializable data class User(val username: String) : Route
     @Serializable data class Multireddit(val username: String, val name: String) : Route
     @Serializable data class ManageMultireddit(val username: String, val name: String) : Route

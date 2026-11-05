@@ -67,10 +67,12 @@ class SettingsStore(private val p: Prefs) {
             floatingChipsSolid = b("floatingChipsSolid", d.floatingChipsSolid),
             fullBarNewPost = b("fullBarNewPost", d.fullBarNewPost),
             trackHistory = b("trackHistory", d.trackHistory),
+            showRecentlyVisited = b("showRecentlyVisited", d.showRecentlyVisited),
             offlineCache = b("offlineCache", d.offlineCache),
             checkUpdates = b("checkUpdates", d.checkUpdates),
             analytics = b("analytics", d.analytics),
             forYouFeed = b("forYouFeed", d.forYouFeed),
+            postsTabAll = b("postsTabAll", d.postsTabAll),
             redditHomeAllowed = b("redditHomeAllowed", d.redditHomeAllowed),
             redditHomeFeed = b("redditHomeFeed", d.redditHomeFeed),
             autoHideReadForYou = b("autoHideReadForYou", d.autoHideReadForYou),
@@ -147,9 +149,11 @@ class SettingsStore(private val p: Prefs) {
     fun setFloatingChipsSolid(v: Boolean) { p.setBool("floatingChipsSolid", v); set { it.copy(floatingChipsSolid = v) } }
     fun setFullBarNewPost(v: Boolean) { p.setBool("fullBarNewPost", v); set { it.copy(fullBarNewPost = v) } }
     fun setTrackHistory(v: Boolean) { p.setBool("trackHistory", v); set { it.copy(trackHistory = v) } }
+    fun setShowRecentlyVisited(v: Boolean) { p.setBool("showRecentlyVisited", v); set { it.copy(showRecentlyVisited = v) } }
     fun setOfflineCache(v: Boolean) { p.setBool("offlineCache", v); set { it.copy(offlineCache = v) } }
     fun setCheckUpdates(v: Boolean) { p.setBool("checkUpdates", v); set { it.copy(checkUpdates = v) } }
     fun setAnalytics(v: Boolean) { p.setBool("analytics", v); set { it.copy(analytics = v) } }
+    fun setPostsTabAll(v: Boolean) { p.setBool("postsTabAll", v); set { it.copy(postsTabAll = v) } }
 
     /** Turning Reddit Home off in Settings also takes the frontpage off it. */
     fun setRedditHomeAllowed(v: Boolean) {

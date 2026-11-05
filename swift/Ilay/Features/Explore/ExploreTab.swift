@@ -64,8 +64,13 @@ struct ExploreTab: View {
             List {
                 Section {
                     HStack(spacing: 10) {
-                        destinationButton("Popular", "flame", "popular")
-                        destinationButton("All", "globe", "all")
+                        destinationButton("Popular", "flame") { nav.openSubreddit("popular") }
+                        // With the Posts tab on r/all (Settings), this one opens the frontpage instead.
+                        if app.settings.value.postsTabAll {
+                            destinationButton("Frontpage", "house") { nav.push(.frontpage) }
+                        } else {
+                            destinationButton("All", "globe") { nav.openSubreddit("all") }
+                        }
                     }
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets())
@@ -124,14 +129,25 @@ struct ExploreTab: View {
                 case let .data(list):
                     let visits = Dictionary(app.recentSubreddits.state.map { ($0.name.lowercased(), $0.visits) }, uniquingKeysWith: { first, _ in first })
                     let joined = Set(list.map { $0.name.lowercased() })
-                    ForEach(subscriptionSections(list: list, query: query, favOnly: favOnly, sort: sort, visited: app.recentSubreddits.state), id: \.key) { section in
-                        Section(section.title) {
+                    ForEach(subscriptionSections(list: list, query: query, favOnly: favOnly, sort: sort, visited: app.settings.value.showRecentlyVisited ? app.recentSubreddits.state : []), id: \.key) { section in
+                        Section {
                             if section.subs.isEmpty {
                                 Text(section.empty ?? "").foregroundStyle(.secondary)
                             }
                             ForEach(section.subs, id: \.name) { sub in
                                 // No star on ones you aren't subscribed to.
                                 SubredditRow(sub: sub, starred: joined.contains(sub.name.lowercased()), visits: section.key == "recent" ? visits[sub.name.lowercased()] : nil) { toggleFavorite(sub) }
+                            }
+                        } header: {
+                            HStack {
+                                Text(section.title)
+                                if section.key == "recent" {
+                                    Spacer()
+                                    // Empties just this list; post history stays (History has its own clear).
+                                    Button("Clear") { app.recentSubreddits.clear() }
+                                        .font(.subheadline)
+                                        .textCase(nil)
+                                }
                             }
                         }
                     }
@@ -168,8 +184,8 @@ struct ExploreTab: View {
         }
     }
 
-    private func destinationButton(_ title: String, _ systemImage: String, _ subreddit: String) -> some View {
-        Button { app.navigator.openSubreddit(subreddit) } label: {
+    private func destinationButton(_ title: String, _ systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
             Label(title, systemImage: systemImage).frame(maxWidth: .infinity, minHeight: 36)
         }
         .buttonStyle(.bordered)
