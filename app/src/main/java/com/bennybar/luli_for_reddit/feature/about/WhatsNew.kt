@@ -45,6 +45,15 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.61", "Nov 5, 2026",
+        listOf(
+            "Search shows community and user icons, and letter avatars get their own colour",
+            "Mini cards: tap the thumbnail to open the photo or video full screen",
+            "Clear Recently visited from Explore, or hide it (Settings → Data & storage). Thanks, Nath5!",
+            "New option: the Posts tab can show r/all (Settings → Feed)",
+        ),
+    ),
+    Release(
         "2.0.60", "Nov 5, 2026",
         listOf(
             "Browse media: swipe up through a feed's photos, galleries and videos full screen, with votes, comments and saving at hand. Find it in a subreddit's top bar or the Home menu",
