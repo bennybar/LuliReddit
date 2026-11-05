@@ -189,6 +189,27 @@ final class GqlSearchTests: XCTestCase {
         XCTAssertEqual(p.crosspostId, "orig")
     }
 
+    func testSearchResultsCarryTheirIconsGraphQl() {
+        let sub = Subreddit.fromData(gqlSubredditData(json(#"{"__typename":"Subreddit","name":"pics","styles":{"icon":"https://styles.redditmedia.com/p.png"}}"#).obj()!))
+        XCTAssertEqual(sub.iconUrl, "https://styles.redditmedia.com/p.png")
+        let legacy = Subreddit.fromData(gqlSubredditData(json(#"{"name":"old","styles":{"legacyIcon":{"url":"https://b.thumbs/o.png"}}}"#).obj()!))
+        XCTAssertEqual(legacy.iconUrl, "https://b.thumbs/o.png")
+        let user = RedditUser.fromData(gqlUserData(json(#"{"__typename":"Redditor","name":"spez","icon":{"url":"https://styles.redditmedia.com/i.png?width=256&s=x"},"snoovatarIcon":{"url":"https://i.redd.it/snoo.png"},"karma":{"total":5}}"#).obj()!))
+        XCTAssertEqual(user.iconUrl, "https://styles.redditmedia.com/i.png")
+        let snoo = RedditUser.fromData(gqlUserData(json(#"{"name":"a","snoovatarIcon":{"url":"https://i.redd.it/snoo.png"}}"#).obj()!))
+        XCTAssertEqual(snoo.iconUrl, "https://i.redd.it/snoo.png")
+        XCTAssertNil(RedditUser.fromData(gqlUserData(json(#"{"name":"b"}"#).obj()!)).iconUrl)
+    }
+
+    func testSearchResultsCarryTheirIconsRest() {
+        let sub = Subreddit.fromData(json(#"{"display_name":"pics","community_icon":"https://styles.redditmedia.com/c.png?width=256&amp;s=abc","icon_img":""}"#))
+        XCTAssertEqual(sub.iconUrl, "https://styles.redditmedia.com/c.png?width=256&s=abc")
+        XCTAssertEqual(Subreddit.fromData(json(#"{"display_name":"x","community_icon":"","icon_img":"https://b.thumbs/x.png"}"#)).iconUrl, "https://b.thumbs/x.png")
+        XCTAssertNil(Subreddit.fromData(json(#"{"display_name":"y","community_icon":"","icon_img":""}"#)).iconUrl)
+        let user = RedditUser.fromData(json(#"{"name":"spez","icon_img":"https://styles.redditmedia.com/u.png?width=256&amp;s=1"}"#))
+        XCTAssertEqual(user.iconUrl, "https://styles.redditmedia.com/u.png")
+    }
+
     func testOnlyPostsCount() {
         XCTAssertTrue(gqlIsPost(json(#"{"__typename":"SubredditPost"}"#)))
         XCTAssertFalse(gqlIsPost(json(#"{"__typename":"UnavailablePost"}"#)))

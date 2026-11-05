@@ -4,6 +4,8 @@ import com.bennybar.luli_for_reddit.core.AppJson
 import com.bennybar.luli_for_reddit.core.get
 import com.bennybar.luli_for_reddit.core.str
 import com.bennybar.luli_for_reddit.model.Post
+import com.bennybar.luli_for_reddit.model.RedditUser
+import com.bennybar.luli_for_reddit.model.Subreddit
 import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -140,5 +142,52 @@ class GqlSearchTest {
         assertNull(home["time"])
         assertNull(home["after"])
         assertNull(gqlFeedQuery("pics+news", PostSort.HOT, TopTime.DAY, null))
+    }
+
+    @Test
+    fun `search results carry their icons (GraphQL)`() {
+        val sub = Subreddit.fromData(
+            gqlSubredditData(
+                AppJson.parseToJsonElement(
+                    """{"__typename":"Subreddit","name":"pics","styles":{"icon":"https://styles.redditmedia.com/p.png"}}""",
+                ).jsonObject,
+            ),
+        )
+        assertEquals("https://styles.redditmedia.com/p.png", sub.iconUrl)
+        val legacy = Subreddit.fromData(
+            gqlSubredditData(AppJson.parseToJsonElement("""{"name":"old","styles":{"legacyIcon":{"url":"https://b.thumbs/o.png"}}}""").jsonObject),
+        )
+        assertEquals("https://b.thumbs/o.png", legacy.iconUrl)
+        val user = RedditUser.fromData(
+            gqlUserData(
+                AppJson.parseToJsonElement(
+                    """{"__typename":"Redditor","name":"spez","icon":{"url":"https://styles.redditmedia.com/i.png?width=256&s=x"},
+                       "snoovatarIcon":{"url":"https://i.redd.it/snoo.png"},"karma":{"total":5}}""",
+                ).jsonObject,
+            ),
+        )
+        assertEquals("https://styles.redditmedia.com/i.png", user.iconUrl)
+        val snoo = RedditUser.fromData(
+            gqlUserData(AppJson.parseToJsonElement("""{"name":"a","snoovatarIcon":{"url":"https://i.redd.it/snoo.png"}}""").jsonObject),
+        )
+        assertEquals("https://i.redd.it/snoo.png", snoo.iconUrl)
+        assertNull(RedditUser.fromData(gqlUserData(AppJson.parseToJsonElement("""{"name":"b"}""").jsonObject)).iconUrl)
+    }
+
+    @Test
+    fun `search results carry their icons (REST)`() {
+        val sub = Subreddit.fromData(
+            AppJson.parseToJsonElement(
+                """{"display_name":"pics","community_icon":"https://styles.redditmedia.com/c.png?width=256&amp;s=abc","icon_img":""}""",
+            ),
+        )
+        assertEquals("https://styles.redditmedia.com/c.png?width=256&s=abc", sub.iconUrl)
+        val iconOnly = Subreddit.fromData(AppJson.parseToJsonElement("""{"display_name":"x","community_icon":"","icon_img":"https://b.thumbs/x.png"}"""))
+        assertEquals("https://b.thumbs/x.png", iconOnly.iconUrl)
+        assertNull(Subreddit.fromData(AppJson.parseToJsonElement("""{"display_name":"y","community_icon":"","icon_img":""}""")).iconUrl)
+        val user = RedditUser.fromData(
+            AppJson.parseToJsonElement("""{"name":"spez","icon_img":"https://styles.redditmedia.com/u.png?width=256&amp;s=1"}"""),
+        )
+        assertEquals("https://styles.redditmedia.com/u.png", user.iconUrl)
     }
 }

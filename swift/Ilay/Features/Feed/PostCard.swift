@@ -99,7 +99,19 @@ private struct MiniCard: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 if case let .thumbnail(url, pixels, symbol, play) = row.media {
-                    Thumbnail(url: url, pixels: pixels, symbol: symbol, play: play)
+                    // The thumbnail opens the media full screen, as tapping media does on the
+                    // other layouts (a link opens the link); the rest of the card opens the
+                    // post (#104). Blurred (NSFW/spoiler) ones keep opening the post, so a
+                    // tap never shows them uncovered.
+                    if row.blur {
+                        Thumbnail(url: url, pixels: pixels, symbol: symbol, play: play)
+                    } else {
+                        Button(action: a.openMedia) {
+                            Thumbnail(url: url, pixels: pixels, symbol: symbol, play: play).zoomSource()
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Open media")
+                    }
                 }
             }
             .padding(.top, 8)

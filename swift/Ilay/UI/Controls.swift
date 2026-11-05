@@ -104,7 +104,17 @@ extension View {
     }
 }
 
-/// Circle avatar showing `imageUrl` or the first letter of `name`.
+/// A colour picked from `name` by a stable hash, so a name keeps its colour everywhere: the
+/// comment author dots' palette, mid tones that carry white text in light and dark.
+func avatarColor(_ name: String) -> Color {
+    let palette: [Int] = [0xFF7C5CE0, 0xFF4FA89B, 0xFFC77E4A, 0xFFC46A96, 0xFF5B82CE, 0xFF5FA85A]
+    let hash = name.utf16.reduce(0) { ($0 * 31 + Int($1)) & 0x7fffffff }
+    return Color(argb: palette[hash % palette.count])
+}
+
+/// Circle avatar showing `imageUrl` or the first letter of `name`. The letter sits on a
+/// colour picked from the name (#105), so subreddits and users without an icon still stand
+/// apart; `container` backs the image while it loads.
 struct LetterAvatar: View {
     let name: String
     let size: CGFloat
@@ -119,9 +129,10 @@ struct LetterAvatar: View {
             if let url = imageUrl.flatMap(URL.init(string:)) {
                 RemoteImage(url: url) { container }
             } else {
+                if !name.isEmpty { avatarColor(name) }
                 Text(name.first.map { String($0).uppercased() } ?? "?")
                     .font(.system(size: size * 0.42, weight: .bold))
-                    .foregroundStyle(content)
+                    .foregroundStyle(name.isEmpty ? content : .white)
             }
         }
         .frame(width: size, height: size)

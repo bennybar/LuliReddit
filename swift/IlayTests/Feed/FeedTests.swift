@@ -1,3 +1,4 @@
+import SwiftUI
 import UIKit
 import XCTest
 @testable import Ilay
@@ -516,5 +517,15 @@ final class FloatingChipsTests: XCTestCase {
         XCTAssertTrue(up.settle(past: true))
         XCTAssertEqual(up.shift, 0)
         XCTAssertFalse(up.settle(past: true))
+    }
+}
+
+final class AvatarColorTests: XCTestCase {
+    // The same picks as Kotlin's AvatarColorTest: a name keeps its colour on both apps.
+    func testANameKeepsItsColourPickedLikeTheCommentAuthorDots() {
+        XCTAssertEqual(avatarColor("AskReddit"), Color(argb: 0xFFC46A96))
+        XCTAssertEqual(avatarColor("pics"), Color(argb: 0xFF5FA85A))
+        XCTAssertEqual(avatarColor("spez"), Color(argb: 0xFF7C5CE0))
+        XCTAssertNotEqual(avatarColor("pics"), avatarColor("spez"))
     }
 }

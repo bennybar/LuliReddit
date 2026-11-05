@@ -290,13 +290,13 @@ struct SearchScreen: View {
                 let subs = app.contentFilters.value.hideNsfw ? vm.subs.filter { !$0.over18 } : vm.subs
                 tabResults(error: vm.subsError, empty: subs.isEmpty) {
                     ForEach(subs, id: \.name) { s in
-                        ResultRow(name: s.name, title: s.namePrefixed, subtitle: "\(compactNumber(s.subscribers)) members", route: .subreddit(name: s.name))
+                        ResultRow(name: s.name, iconUrl: s.iconUrl, title: s.namePrefixed, subtitle: "\(compactNumber(s.subscribers)) members", route: .subreddit(name: s.name))
                     }
                 }
             default:
                 tabResults(error: vm.usersError, empty: vm.users.isEmpty) {
                     ForEach(vm.users, id: \.name) { u in
-                        ResultRow(name: u.name, title: "u/\(u.name)", subtitle: "\(compactNumber(u.linkKarma + u.commentKarma)) karma", route: .user(username: u.name))
+                        ResultRow(name: u.name, iconUrl: u.iconUrl, title: "u/\(u.name)", subtitle: "\(compactNumber(u.linkKarma + u.commentKarma)) karma", route: .user(username: u.name))
                     }
                 }
             }
@@ -370,6 +370,7 @@ struct SearchScreen: View {
 
 private struct ResultRow: View {
     let name: String
+    let iconUrl: String?
     let title: String
     let subtitle: String
     let route: Route
@@ -377,7 +378,7 @@ private struct ResultRow: View {
     var body: some View {
         NavigationLink(value: route) {
             HStack(spacing: 12) {
-                LetterAvatar(name: name, size: 40)
+                LetterAvatar(name: name, size: 40, imageUrl: iconUrl)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title).lineLimit(1)
                     Text(subtitle).font(.footnote).foregroundStyle(.secondary)

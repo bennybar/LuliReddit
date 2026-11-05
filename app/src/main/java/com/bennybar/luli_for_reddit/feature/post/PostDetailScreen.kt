@@ -188,6 +188,7 @@ import com.bennybar.luli_for_reddit.feature.feed.onVoteColor
 import androidx.compose.animation.animateColorAsState
 import com.bennybar.luli_for_reddit.feature.feed.CalmVoteGroup
 import com.bennybar.luli_for_reddit.feature.feed.LetterAvatar
+import com.bennybar.luli_for_reddit.feature.feed.avatarColor
 import com.bennybar.luli_for_reddit.model.Subreddit
 import com.bennybar.luli_for_reddit.settings.PostDisplay
 import com.bennybar.luli_for_reddit.settings.Settings
@@ -2027,23 +2028,12 @@ private fun CommentMedia(body: String, extra: List<android.net.Uri>, nav: AppNav
     }
 }
 
-private val authorPalette = listOf(
-    Color(0xFF7C5CE0),
-    Color(0xFF4FA89B),
-    Color(0xFFC77E4A),
-    Color(0xFFC46A96),
-    Color(0xFF5B82CE),
-    Color(0xFF5FA85A),
-)
-
 /** Small colored avatar with the author's initial (color derived from name). */
 @Composable
 private fun AuthorDot(name: String, size: Int) {
     val clean = name.removePrefix("u/")
     val deleted = clean.isEmpty() || clean.startsWith("[")
-    var h = 0
-    for (ch in clean) h = (h * 31 + ch.code) and 0x7fffffff
-    val color = if (deleted) MaterialTheme.colorScheme.outline else authorPalette[h % authorPalette.size]
+    val color = if (deleted) MaterialTheme.colorScheme.outline else avatarColor(clean)
     Box(Modifier.size(size.dp).clip(CircleShape).background(color), contentAlignment = Alignment.Center) {
         Text(
             if (deleted) "?" else clean.first().uppercase(),

@@ -393,16 +393,14 @@ private struct GlassPillStyle: ButtonStyle {
 /// their colour down a thread.
 private struct AuthorDot: View {
     let name: String
-    private static let palette: [Int] = [0xFF7C5CE0, 0xFF4FA89B, 0xFFC77E4A, 0xFFC46A96, 0xFF5B82CE, 0xFF5FA85A]
 
     var body: some View {
         let deleted = name.isEmpty || name.hasPrefix("[")
-        let hash = name.utf16.reduce(0) { ($0 * 31 + Int($1)) & 0x7fffffff }
         Text(verbatim: deleted ? "?" : String(name.prefix(1)).uppercased())
             .font(.system(size: 12, weight: .bold))
             .foregroundStyle(.white)
             .frame(width: 24, height: 24)
-            .background(deleted ? Color(.systemGray) : Color(argb: Self.palette[hash % Self.palette.count]), in: .circle)
+            .background(deleted ? Color(.systemGray) : avatarColor(name), in: .circle)
     }
 }
 

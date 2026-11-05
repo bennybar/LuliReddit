@@ -165,7 +165,28 @@ object Haptics {
 @Composable
 fun rememberView(): View = LocalView.current
 
-/** Circle avatar showing [imageUrl] or the first letter of [name]. */
+// The comment author dots' palette: mid tones that carry white text in light and dark.
+private val avatarPalette = listOf(
+    Color(0xFF7C5CE0),
+    Color(0xFF4FA89B),
+    Color(0xFFC77E4A),
+    Color(0xFFC46A96),
+    Color(0xFF5B82CE),
+    Color(0xFF5FA85A),
+)
+
+/** A colour picked from [name] by a stable hash, so a name keeps its colour everywhere. */
+fun avatarColor(name: String): Color {
+    var h = 0
+    for (ch in name) h = (h * 31 + ch.code) and 0x7fffffff
+    return avatarPalette[h % avatarPalette.size]
+}
+
+/**
+ * Circle avatar showing [imageUrl] or the first letter of [name]. The letter sits
+ * on a colour picked from the name (#105), so subreddits and users without an
+ * icon still stand apart; [container] backs the image while it loads.
+ */
 @Composable
 fun LetterAvatar(
     name: String,
@@ -177,8 +198,9 @@ fun LetterAvatar(
     fontSize: androidx.compose.ui.unit.TextUnit = (size.value * 0.42f).sp,
     shape: androidx.compose.ui.graphics.Shape = CircleShape,
 ) {
+    val letter = imageUrl == null && name.isNotEmpty()
     Box(
-        modifier.size(size).clip(shape).background(container),
+        modifier.size(size).clip(shape).background(if (letter) avatarColor(name) else container),
         contentAlignment = Alignment.Center,
     ) {
         if (imageUrl != null) {
@@ -203,7 +225,7 @@ fun LetterAvatar(
         } else {
             Text(
                 if (name.isNotEmpty()) name.first().uppercase() else "?",
-                color = content,
+                color = if (letter) Color.White else content,
                 fontWeight = FontWeight.Bold,
                 fontSize = fontSize,
             )

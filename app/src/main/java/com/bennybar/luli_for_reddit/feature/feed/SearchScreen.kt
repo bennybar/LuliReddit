@@ -380,6 +380,7 @@ fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time:
                                 items(subs, key = { it.name }) { s ->
                                     ResultTile(
                                         s.name,
+                                        s.iconUrl,
                                         subredditName(s.namePrefixed),
                                         "${compactNumber(s.subscribers)} members",
                                     ) { nav.openSubreddit(s.name) }
@@ -392,6 +393,7 @@ fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time:
                             items(state.users, key = { it.name }) { u ->
                                 ResultTile(
                                     u.name,
+                                    u.iconUrl,
                                     "u/${u.name}",
                                     "${compactNumber(u.linkKarma + u.commentKarma)} karma",
                                 ) { nav.openUser(u.name) }
@@ -511,12 +513,12 @@ private fun RefreshableResults(
 }
 
 @Composable
-private fun ResultTile(name: String, title: String, subtitle: String, onClick: () -> Unit) {
+private fun ResultTile(name: String, iconUrl: String?, title: String, subtitle: String, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     Tile(
         title = { Text(title) },
         subtitle = { Text(subtitle) },
-        leading = { LetterAvatar(name, 40.dp, cs.secondaryContainer, cs.onSecondaryContainer) },
+        leading = { LetterAvatar(name, 40.dp, cs.secondaryContainer, cs.onSecondaryContainer, imageUrl = iconUrl) },
         onClick = onClick,
     )
 }

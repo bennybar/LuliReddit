@@ -621,7 +621,15 @@ private fun Thumb(p: Post, a: PostActions, s: Settings, size: Dp) {
     val blur = blurOf(p, s)
     val px = with(LocalDensity.current) { size.roundToPx() }
     Box(
-        Modifier.size(size).clip(RoundedCornerShape(14.dp)).background(cs.surfaceContainerHighest),
+        Modifier
+            .size(size)
+            .clip(RoundedCornerShape(14.dp))
+            .background(cs.surfaceContainerHighest)
+            // The thumbnail opens the media full screen, as tapping media does on the
+            // other layouts (a link opens the link); the rest of the card opens the
+            // post (#104). Blurred (NSFW/spoiler) ones keep opening the post, so a
+            // tap never shows them uncovered.
+            .then(if (blur) Modifier else Modifier.clickable(onClickLabel = "Open media", onClick = a::openMedia)),
         contentAlignment = Alignment.Center,
     ) {
         if (url != null && !blur) {
