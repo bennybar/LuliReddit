@@ -2,6 +2,7 @@ package com.bennybar.luli_for_reddit.data
 
 import com.bennybar.luli_for_reddit.model.UserFlairSelector
 import com.bennybar.luli_for_reddit.model.UserFlairChoice
+import android.net.Uri
 import com.bennybar.luli_for_reddit.app
 import com.bennybar.luli_for_reddit.core.arr
 import com.bennybar.luli_for_reddit.core.get
@@ -12,6 +13,8 @@ import com.bennybar.luli_for_reddit.core.net.RedditClient
 import com.bennybar.luli_for_reddit.core.net.await
 import com.bennybar.luli_for_reddit.core.net.uploadToCatbox
 import com.bennybar.luli_for_reddit.core.obj
+import com.bennybar.luli_for_reddit.core.redditPostRoute
+import com.bennybar.luli_for_reddit.core.resolveShareLink
 import com.bennybar.luli_for_reddit.core.str
 import com.bennybar.luli_for_reddit.feature.post.CommentTree
 import com.bennybar.luli_for_reddit.model.Comment
@@ -30,6 +33,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
@@ -90,22 +96,28 @@ class RedditRepository(val client: RedditClient) {
     // The originals' raw JSON by fullname, so a reloaded page rebuilds its
     // crossposts at once. Null: asked for (in flight, or Reddit didn't return it).
     private val crosspostParents = HashMap<String, JsonElement?>()
+    // Share links (Post.shareLink) by URL, resolved to the fullname of the post
+    // they redirect to, so a reloaded page needn't resolve them again. Null: in
+    // flight; "": not a post, or it couldn't be resolved (not tried again).
+    private val shareLinkTargets = HashMap<String, String?>()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /**
      * Rebuilds [children] (crossposts missing their original, with their raw
      * JSON) as if `crosspost_parent_list` had been there: at once from the
      * originals already known, the rest after one request for all of them.
+     * A share-link post becomes a crosspost of the post its link resolves to.
      * Failures are silent: the card keeps its in-app link to the original.
      */
     private fun fillCrossposts(children: List<Pair<Post, JsonElement>>) {
         if (children.isEmpty()) return
+        fun parentOf(post: Post): String? =
+            post.crosspostParent ?: synchronized(shareLinkTargets) { shareLinkTargets[post.url] }?.ifEmpty { null }
         fun rebuild() {
-            val merged = synchronized(crosspostParents) {
-                children.mapNotNull { (post, raw) ->
-                    val parent = post.crosspostParent?.let { crosspostParents[it] } ?: return@mapNotNull null
-                    post.id to Post.withCrosspostParent(raw, parent)
-                }
+            val merged = children.mapNotNull { (post, raw) ->
+                val fullname = parentOf(post) ?: return@mapNotNull null
+                val parent = synchronized(crosspostParents) { crosspostParents[fullname] } ?: return@mapNotNull null
+                post.id to Post.withCrosspostParent(raw, parent, fullname)
             }
             if (merged.isEmpty()) return
             // Kept for a For You page or an offline thread saved from here.
@@ -114,22 +126,38 @@ class RedditRepository(val client: RedditClient) {
             crosspostsFlow.update { it + posts }
         }
         rebuild()
-        val wanted = synchronized(crosspostParents) {
-            children.mapNotNull { it.first.crosspostParent }.distinct().filter { it !in crosspostParents }.take(100)
+        val unresolved = synchronized(shareLinkTargets) {
+            children.filter { it.first.shareLink }.map { it.first.url }.distinct().filter { it !in shareLinkTargets }
+                .onEach { shareLinkTargets[it] = null }
+        }
+        fun wanted() = synchronized(crosspostParents) {
+            children.mapNotNull { parentOf(it.first) }.distinct().filter { it !in crosspostParents }.take(100)
                 .onEach { crosspostParents[it] = null }
         }
-        if (wanted.isEmpty()) return
+        val known = wanted()
+        if (unresolved.isEmpty() && known.isEmpty()) return
         scope.launch {
+            if (unresolved.isNotEmpty()) {
+                // Each is a redirect on www.reddit.com (no sign-in); a few at a time.
+                val gate = Semaphore(4)
+                val targets = unresolved.map { url ->
+                    async { url to gate.withPermit { resolveShareLink(Uri.parse(url))?.let { redditPostRoute(it.toString()) } } }
+                }.awaitAll()
+                synchronized(shareLinkTargets) { for ((url, route) in targets) shareLinkTargets[url] = route?.let { "t3_${it.postId}" } ?: "" }
+            }
+            // The originals the share links resolved to join the same request.
+            val ids = known + wanted()
+            if (ids.isEmpty()) return@launch
             try {
                 // Reddit's /by_id (or PostsByIds) takes them all in one go.
-                val parents = getPostsByIds(wanted)
+                val parents = getPostsByIds(ids)
                 synchronized(crosspostParents) {
                     for (p in parents) rawPost(p.id)?.let { crosspostParents[p.fullname] = it }
                 }
                 rebuild()
             } catch (_: Exception) {
                 // Asked again with the next page that has them.
-                synchronized(crosspostParents) { wanted.forEach { crosspostParents.remove(it) } }
+                synchronized(crosspostParents) { ids.forEach { crosspostParents.remove(it) } }
             }
         }
     }

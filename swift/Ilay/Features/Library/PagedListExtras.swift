@@ -50,14 +50,26 @@ struct PagedListHook: UIViewRepresentable {
     /// How far the rows have scrolled, 0 at the top.
     var onScroll: ((CGFloat) -> Void)? = nil
 
-    @MainActor final class Coordinator {
+    @MainActor final class Coordinator: NSObject {
         var hook: PagedListHook
+        weak var view: UIView?
         weak var list: ListScrollView?
         var observations: [NSKeyValueObservation] = []
         /// Not touched yet: stays at the top through whatever arrives late (the header's real
         /// height, the bars' insets, the first rows), none of which is a scroll.
         var pinned = true
-        init(hook: PagedListHook) { self.hook = hook }
+        init(hook: PagedListHook) {
+            self.hook = hook
+            super.init()
+            // SwiftUI can put the list in the hierarchy after the look `updateUIView` asks
+            // for (loading → rows): with no update after that, the list never got its
+            // top room and its first rows sat under the profile's header and tabs.
+            NotificationCenter.default.addObserver(self, selector: #selector(listAppeared), name: ListScrollView.didAppear, object: nil)
+        }
+
+        @objc private func listAppeared() {
+            if let view { attach(from: view) }
+        }
 
         func attach(from view: UIView) {
             guard let found = Coordinator.find(from: view) else { return }
@@ -118,6 +130,7 @@ struct PagedListHook: UIViewRepresentable {
     func makeUIView(context: Context) -> UIView {
         let view = UIView()
         view.isUserInteractionEnabled = false
+        context.coordinator.view = view
         return view
     }
 

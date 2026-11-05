@@ -195,7 +195,7 @@ struct PostRow: Identifiable, Equatable {
         }
         canShareMedia = canShareAsMedia(p)
         externalVideoLabel = p.type == .video && isExternalVideo(p) ? externalVideoSource(p) : nil
-        inAppLinkLabel = p.type == .link ? redditPostRoute(p.url).map { redditLinkLabel(p, $0) } : nil
+        inAppLinkLabel = p.type == .link ? redditLinkLabel(p) : nil
 
         var ahead: [Prefetch] = []
         // Mini cards only show small thumbnails; not worth warming.

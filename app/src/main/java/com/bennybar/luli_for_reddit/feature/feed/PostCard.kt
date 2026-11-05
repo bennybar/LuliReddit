@@ -216,7 +216,8 @@ internal class PostActions(val post: Post, val nav: AppNavigator) {
             PostType.GALLERY -> nav.openGallery(p.gallery, title = p.title)
             PostType.VIDEO -> nav.openPostVideo(p)
             // A link to a Reddit post (e.g. a crosspost whose original didn't load) opens in Ilay.
-            PostType.LINK -> redditPostRoute(p.url)?.let(nav::push) ?: nav.openInBrowser(p.url)
+            // A share link (Post.shareLink) whose original didn't load is resolved on tap.
+            PostType.LINK -> if (p.shareLink) nav.openLink(p.url) else redditPostRoute(p.url)?.let(nav::push) ?: nav.openInBrowser(p.url)
             PostType.SELF -> openDetail()
         }
     }
@@ -335,10 +336,15 @@ internal fun rememberCrosspost(post: Post): Post {
 
 /**
  * What a link card says for a link to a Reddit post (opened in Ilay, not the
- * browser): where it was crossposted from, when the link says.
+ * browser): where it was crossposted from, when the link says. Null for any
+ * other link, which shows its site.
  */
-internal fun redditLinkLabel(p: Post, route: Route.Post): String =
-    if (p.crosspostParent != null && route.subreddit != "_") "Crossposted from ${subredditName(route.subreddit)}" else "Reddit post"
+internal fun redditLinkLabel(p: Post): String? {
+    // Not resolved yet (or it couldn't be): still a Reddit post, not an external link.
+    if (p.shareLink) return "Reddit post"
+    val route = redditPostRoute(p.url) ?: return null
+    return if (p.crosspostParent != null && route.subreddit != "_") "Crossposted from ${subredditName(route.subreddit)}" else "Reddit post"
+}
 
 /** Whether [post] is in the local history (read). */
 @Composable
@@ -953,7 +959,7 @@ private fun FeedImage(url: String, modifier: Modifier, brokenIcon: Boolean = fal
 @Composable
 private fun LinkPreview(p: Post, a: PostActions) {
     val cs = MaterialTheme.colorScheme
-    val inApp = remember(p.url) { redditPostRoute(p.url) }
+    val inApp = remember(p.url) { redditLinkLabel(p) }
     Row(
         Modifier
             .padding(bottom = 4.dp)
@@ -977,7 +983,7 @@ private fun LinkPreview(p: Post, a: PostActions) {
             }
         }
         Text(
-            inApp?.let { redditLinkLabel(p, it) } ?: p.domain,
+            inApp ?: p.domain,
             Modifier.weight(1f).padding(horizontal = 12.dp),
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
@@ -1440,7 +1446,7 @@ private fun CalmMedia(p: Post, a: PostActions, s: Settings, shape: androidx.comp
     val top = Modifier.padding(top = topPad)
     if (p.type == PostType.LINK) {
         val img = cardImg(p, s) ?: p.thumbnailUrl
-        val inApp = remember(p.url) { redditPostRoute(p.url) }
+        val inApp = remember(p.url) { redditLinkLabel(p) }
         Column(top.fillMaxWidth().clip(shape).background(calmControlColor()).clickable(onClick = a::openMedia)) {
             if (img != null) {
                 NsfwBlur(blur, blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, s)) {
@@ -1452,7 +1458,7 @@ private fun CalmMedia(p: Post, a: PostActions, s: Settings, shape: androidx.comp
             Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Rounded.Link, null, Modifier.size(14.dp), tint = cs.onSurfaceVariant)
                 Spacer(Modifier.width(6.dp))
-                Text(inApp?.let { redditLinkLabel(p, it) } ?: p.domain, Modifier.weight(1f), fontSize = 12.sp, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(inApp ?: p.domain, Modifier.weight(1f), fontSize = 12.sp, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (inApp == null) Icon(Icons.AutoMirrored.Rounded.OpenInNew, null, Modifier.size(14.dp), tint = cs.onSurfaceVariant)
             }
         }

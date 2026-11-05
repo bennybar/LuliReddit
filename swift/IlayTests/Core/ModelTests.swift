@@ -115,8 +115,57 @@ final class CrosspostAndStubTests: XCTestCase {
         XCTAssertNil(redditPostRoute("https://example.com/r/pics/comments/abc/"))
         XCTAssertNil(redditPostRoute(""))
         let p = Post.fromData(json(child))
-        XCTAssertEqual(redditLinkLabel(p, redditPostRoute("/r/pics/comments/abc/x/")!), "Crossposted from r/pics")
-        XCTAssertEqual(redditLinkLabel(p, redditPostRoute(p.url)!), "Reddit post")
+        XCTAssertEqual(redditLinkLabel(p.with { $0.url = "/r/pics/comments/abc/x/" }), "Crossposted from r/pics")
+        XCTAssertEqual(redditLinkLabel(p), "Reddit post")
+        XCTAssertNil(redditLinkLabel(p.with { $0.url = "https://example.com/a" }))
+    }
+
+    // A "repost": a link post whose url is a share link to the profile post.
+    private let shareChild = #"""
+    { "id": "y7", "name": "t3_y7", "title": "Dumb prize indeed...", "subreddit": "WinStupidPrizes",
+      "author": "jackal-molotov", "score": 88, "num_comments": 9, "is_self": false, "selftext": "",
+      "domain": "reddit.com", "url": "https://www.reddit.com/u/jackal-molotov/s/EsXFnpHs3G" }
+    """#
+
+    func testALinkPostToAShareLinkIsFlaggedForItsOriginal() {
+        let p = Post.fromData(json(shareChild))
+        XCTAssertEqual(p.type, .link)
+        XCTAssertTrue(p.shareLink)
+        XCTAssertTrue(p.missingCrosspostParent, "joins the per-page by_id batch once resolved")
+        XCTAssertNil(p.crosspostParent)
+        // Not share links: a permalink, another site.
+        XCTAssertFalse(Post.fromData(json(child)).shareLink)
+        XCTAssertFalse(p.with { $0.url = "https://example.com/a/b/s/c" }.shareLink)
+    }
+
+    func testAnUnresolvedShareLinkIsARedditPostOpenedViaOpenLink() {
+        let p = Post.fromData(json(shareChild))
+        // No route of its own (must be resolved first), so taps go through openLink, which resolves it.
+        XCTAssertNil(redditPostRoute(p.url))
+        XCTAssertEqual(redditLinkLabel(p), "Reddit post")
+    }
+
+    func testAResolvedShareLinkMergesIntoACrosspostOfTheOriginal() {
+        // What resolveShareLink returns for it; its post id is the one fetched in the page's batch.
+        guard case let .post(_, id, _)? = redditPostRoute("https://www.reddit.com/user/jackal-molotov/comments/1xoodhe/deserved/") else { return XCTFail() }
+        let fullname = "t3_\(id)"
+        XCTAssertEqual(fullname, "t3_1xoodhe")
+        let merged = Post.fromData(Post.withCrosspostParent(json(shareChild), json(parent), fullname: fullname))
+        XCTAssertFalse(merged.shareLink)
+        XCTAssertFalse(merged.missingCrosspostParent)
+        XCTAssertEqual(merged.type, .video)
+        XCTAssertEqual(merged.hlsUrl, "https://v.redd.it/abc123/HLSPlaylist.m3u8")
+        XCTAssertEqual(merged.crosspostFrom, "u_jackal-molotov")
+        XCTAssertEqual(merged.crosspostId, "1xoodhe")
+        XCTAssertEqual(merged.crosspostParent, fullname)
+        XCTAssertEqual(merged.title, "Dumb prize indeed...")
+        XCTAssertEqual(merged.subreddit, "WinStupidPrizes")
+        XCTAssertEqual(merged.author, "jackal-molotov")
+        XCTAssertEqual(merged.score, 88)
+        XCTAssertEqual(merged.numComments, 9)
+        // The card shows it in place once the original has loaded.
+        let listed = Post.fromData(json(shareChild))
+        XCTAssertEqual(Crossposts.merged(listed, in: [listed.id: merged]), merged)
     }
 
     func testContinueThisThreadStubsGetUniqueIds() {

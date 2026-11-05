@@ -1293,7 +1293,8 @@ private fun openMedia(p: Post, nav: AppNavigator) {
         PostType.GALLERY -> nav.openGallery(p.gallery, p.title)
         PostType.VIDEO -> nav.openPostVideo(p)
         // A link to a Reddit post (e.g. a crosspost whose original didn't load) opens in Ilay.
-        PostType.LINK -> redditPostRoute(p.url)?.let(nav::push) ?: nav.openInBrowser(p.url)
+        // A share link (Post.shareLink) whose original didn't load is resolved on tap.
+        PostType.LINK -> if (p.shareLink) nav.openLink(p.url) else redditPostRoute(p.url)?.let(nav::push) ?: nav.openInBrowser(p.url)
         PostType.SELF -> {}
     }
 }
@@ -1313,11 +1314,11 @@ private fun PostMedia(p: Post, nav: AppNavigator, radius: androidx.compose.ui.un
         return
     }
     if (p.type == PostType.LINK) {
-        val inApp = remember(p.url) { redditPostRoute(p.url) }
+        val inApp = remember(p.url) { redditLinkLabel(p) }
         OutlinedButton(onClick = { openMedia(p, nav) }, modifier = Modifier.padding(bottom = 12.dp)) {
             Icon(if (inApp != null) Icons.Rounded.Link else Icons.AutoMirrored.Rounded.OpenInNew, null, Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
-            Text(inApp?.let { redditLinkLabel(p, it) } ?: p.domain, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(inApp ?: p.domain, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         return
     }

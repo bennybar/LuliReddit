@@ -265,7 +265,9 @@ struct PostHeaderView: View {
     case .gallery: nav.openGallery(p.gallery, title: p.title)
     case .video: nav.openPostVideo(p)
     // A link to a Reddit post (e.g. a crosspost whose original didn't load) opens in Ilay.
-    case .link: if let route = redditPostRoute(p.url) { nav.push(route) } else { nav.openInBrowser(p.url) }
+    // A share link (`Post.shareLink`) whose original didn't load is resolved on tap.
+    case .link:
+        if p.shareLink { nav.openLink(p.url) } else if let route = redditPostRoute(p.url) { nav.push(route) } else { nav.openInBrowser(p.url) }
     case .selfPost: break
     }
 }
@@ -292,8 +294,8 @@ private struct PostMediaView: View {
             Button {
                 openMedia(p)
             } label: {
-                let inApp = redditPostRoute(p.url)
-                Label(inApp.map { redditLinkLabel(p, $0) } ?? p.domain, systemImage: inApp == nil ? "arrow.up.right.square" : "link").lineLimit(1)
+                let inApp = redditLinkLabel(p)
+                Label(inApp ?? p.domain, systemImage: inApp == nil ? "arrow.up.right.square" : "link").lineLimit(1)
             }
             .buttonStyle(.bordered)
             .buttonBorderShape(.capsule)

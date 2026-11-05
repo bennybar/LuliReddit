@@ -158,6 +158,8 @@ final class ListScrollView: UICollectionView {
     /// Every layout pass, which a scroll view gets on every scrolled frame.
     var onLayout: (() -> Void)?
     private var lastWidth: CGFloat = 0
+    /// Posted when a list enters a window, for `PagedListHook`.
+    static let didAppear = Notification.Name("ListScrollView.didAppear")
 
     override func layoutSubviews() {
         super.layoutSubviews()
@@ -173,6 +175,7 @@ final class ListScrollView: UICollectionView {
         super.didMoveToWindow()
         onWindowChange?(window != nil)
         guard window != nil else { return }
+        NotificationCenter.default.post(name: ListScrollView.didAppear, object: self)
         var responder: UIResponder? = self
         while let r = responder, !(r is UIViewController) { responder = r.next }
         if let screen = responder as? UIViewController {

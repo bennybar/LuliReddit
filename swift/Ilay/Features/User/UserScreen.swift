@@ -5,6 +5,9 @@ import SwiftUI
     private(set) var about: Async<RedditUser> = .loading
     /// How far the header has slid away. Read only by the header, so scrolling doesn't re-run the screen.
     var collapse: CGFloat = 0
+    /// How far the list is pulled down past its top (pull to refresh): the header moves down
+    /// with it, or the large title, which follows the pull, slides in behind the header.
+    var pull: CGFloat = 0
 
     @ObservationIgnored private let username: String
     @ObservationIgnored private var started = false
@@ -259,6 +262,8 @@ struct UserProfileBody<Below: View>: View {
         return PagedListHook(generation: count, topInset: top) { scrolled in
             let collapse = min(max(scrolled, 0), headerHeight)
             if collapse != model.collapse { model.collapse = collapse }
+            let pull = max(-scrolled, 0)
+            if pull != model.pull { model.pull = pull }
         }
     }
 }
@@ -310,6 +315,7 @@ private struct ProfileTop<Header: View, Tabs: View>: View {
         .background(Color(.systemBackground))
         .frame(height: max(headerHeight + tabsHeight - model.collapse, 0), alignment: .bottom)
         .clipped()
+        .offset(y: model.pull)
     }
 }
 

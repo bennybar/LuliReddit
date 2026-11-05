@@ -71,7 +71,9 @@ import UIKit
         case .gallery: nav.openGallery(p.gallery, title: p.title)
         case .video: nav.openPostVideo(p)
         // A link to a Reddit post (e.g. a crosspost whose original didn't load) opens in Ilay.
-        case .link: if let route = redditPostRoute(p.url) { nav.push(route) } else { nav.openInBrowser(p.url) }
+        // A share link (`Post.shareLink`) whose original didn't load is resolved on tap.
+        case .link:
+            if p.shareLink { nav.openLink(p.url) } else if let route = redditPostRoute(p.url) { nav.push(route) } else { nav.openInBrowser(p.url) }
         case .selfPost: openDetail()
         }
     }

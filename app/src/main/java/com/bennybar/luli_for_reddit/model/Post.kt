@@ -8,6 +8,7 @@ import com.bennybar.luli_for_reddit.core.bool
 import com.bennybar.luli_for_reddit.core.double
 import com.bennybar.luli_for_reddit.core.get
 import com.bennybar.luli_for_reddit.core.int
+import com.bennybar.luli_for_reddit.core.isShareLink
 import com.bennybar.luli_for_reddit.core.isTrue
 import com.bennybar.luli_for_reddit.core.long
 import com.bennybar.luli_for_reddit.core.obj
@@ -15,6 +16,7 @@ import com.bennybar.luli_for_reddit.core.str
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 enum class PostType { SELF, IMAGE, VIDEO, GIF, GALLERY, LINK }
 
@@ -90,8 +92,15 @@ data class Post(
      * A crosspost whose listing left out the original (`crosspost_parent_list`;
      * Reddit omits it at times, e.g. for posts on a user's profile): its media
      * and text are on the original, fetched afterwards (see RedditRepository).
+     * A [shareLink] post is one too, once its link is resolved to the original.
      */
-    val missingCrosspostParent: Boolean get() = crosspostParent != null && crosspostId == null
+    val missingCrosspostParent: Boolean get() = (crosspostParent != null && crosspostId == null) || shareLink
+
+    /**
+     * A link post to a Reddit share link (`/r/<sub>/s/<code>`, `/u/<name>/s/<code>`),
+     * Reddit's "repost": a post that only redirects to another one.
+     */
+    val shareLink: Boolean by lazy { type == PostType.LINK && crosspostParent == null && isShareLink(Uri.parse(url)) }
 
     /** The body as a feed card previews it: without image / video links that the post view shows as media. */
     val snippet: String by lazy { if (bodyMedia.isEmpty() && "http" !in selftext) selftext else textWithoutMedia(selftext) }
@@ -100,10 +109,14 @@ data class Post(
         /**
          * A crosspost's [d] with its original's [parent] `data` (fetched
          * separately, as the listing left it out) put back where Reddit
-         * normally sends it, `crosspost_parent_list`.
+         * normally sends it, `crosspost_parent_list`. [fullname] names the
+         * original (`crosspost_parent`) for a [shareLink] post, which doesn't.
          */
-        fun withCrosspostParent(d: JsonElement, parent: JsonElement): JsonElement =
-            JsonObject(d.obj().orEmpty() + ("crosspost_parent_list" to JsonArray(listOf(parent))))
+        fun withCrosspostParent(d: JsonElement, parent: JsonElement, fullname: String? = null): JsonElement =
+            JsonObject(
+                d.obj().orEmpty() + ("crosspost_parent_list" to JsonArray(listOf(parent))) +
+                    listOfNotNull(fullname?.let { "crosspost_parent" to JsonPrimitive(it) }),
+            )
 
         /** Parses a single listing child's `data` object. */
         fun fromData(d: JsonElement): Post {

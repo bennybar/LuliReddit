@@ -79,6 +79,46 @@ class CrosspostAndStubTest {
         assertEquals(14, merged.numComments)
     }
 
+    // A "repost": a link post whose url is a share link to the profile post.
+    private val shareChild = """
+        { "id": "y7", "name": "t3_y7", "title": "Dumb prize indeed...", "subreddit": "WinStupidPrizes",
+          "author": "jackal-molotov", "score": 88, "num_comments": 9, "is_self": false, "selftext": "",
+          "domain": "reddit.com", "url": "https://www.reddit.com/u/jackal-molotov/s/EsXFnpHs3G" }
+    """.trimIndent()
+
+    @Test
+    fun `a link post to a share link is flagged for its original`() {
+        val p = Post.fromData(AppJson.parseToJsonElement(shareChild))
+        assertEquals(PostType.LINK, p.type)
+        assertTrue(p.shareLink)
+        assertTrue("joins the per-page by_id batch once resolved", p.missingCrosspostParent)
+        assertNull(p.crosspostParent)
+        // Not share links: a permalink, another site, a crosspost.
+        assertFalse(Post.fromData(AppJson.parseToJsonElement(child)).shareLink)
+        assertFalse(Post.fromData(AppJson.parseToJsonElement(shareChild.replace("www.reddit.com/u/jackal-molotov/s/EsXFnpHs3G", "example.com/a/b/s/c"))).shareLink)
+    }
+
+    @Test
+    fun `a resolved share link merges into a crosspost of the original`() {
+        // What resolveShareLink returns for it; its post id is the one fetched in the page's batch.
+        val route = com.bennybar.luli_for_reddit.core.redditPostRoute("https://www.reddit.com/user/jackal-molotov/comments/1xoodhe/deserved/")
+        val fullname = "t3_${route!!.postId}"
+        assertEquals("t3_1xoodhe", fullname)
+        val merged = Post.fromData(Post.withCrosspostParent(AppJson.parseToJsonElement(shareChild), AppJson.parseToJsonElement(parent), fullname))
+        assertFalse(merged.shareLink)
+        assertFalse(merged.missingCrosspostParent)
+        assertEquals(PostType.VIDEO, merged.type)
+        assertEquals("https://v.redd.it/abc123/HLSPlaylist.m3u8", merged.hlsUrl)
+        assertEquals("u_jackal-molotov", merged.crosspostFrom)
+        assertEquals("1xoodhe", merged.crosspostId)
+        assertEquals(fullname, merged.crosspostParent)
+        assertEquals("Dumb prize indeed...", merged.title)
+        assertEquals("WinStupidPrizes", merged.subreddit)
+        assertEquals("jackal-molotov", merged.author)
+        assertEquals(88, merged.score)
+        assertEquals(9, merged.numComments)
+    }
+
     @Test
     fun `continue-this-thread stubs get unique ids`() {
         fun stub(parent: String) = Comment.fromChild(

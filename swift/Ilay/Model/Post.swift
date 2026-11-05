@@ -76,8 +76,13 @@ struct Post: Identifiable, Equatable, Sendable, Copyable {
 
     /// A crosspost whose listing left out the original (`crosspost_parent_list`; Reddit
     /// omits it at times, e.g. for posts on a user's profile): its media and text are on
-    /// the original, fetched afterwards (see `RedditRepository.fillCrossposts`).
-    var missingCrosspostParent: Bool { crosspostParent != nil && crosspostId == nil }
+    /// the original, fetched afterwards (see `RedditRepository.fillCrossposts`). A
+    /// `shareLink` post is one too, once its link is resolved to the original.
+    var missingCrosspostParent: Bool { (crosspostParent != nil && crosspostId == nil) || shareLink }
+
+    /// A link post to a Reddit share link (`/r/<sub>/s/<code>`, `/u/<name>/s/<code>`),
+    /// Reddit's "repost": a post that only redirects to another one.
+    var shareLink: Bool { type == .link && crosspostParent == nil && URL(string: url).map(isShareLink) == true }
 
     /// The body as a feed card previews it: without image / video links that the post view shows as media.
     var snippet: String { parsedSnippet ?? Post.snippetOf(selftext, bodyMedia) }
@@ -88,9 +93,11 @@ struct Post: Identifiable, Equatable, Sendable, Copyable {
 
     /// A crosspost's `d` with its original's `parent` data (fetched separately, as the
     /// listing left it out) put back where Reddit normally sends it, `crosspost_parent_list`.
-    static func withCrosspostParent(_ d: JsonElement, _ parent: JsonElement) -> JsonElement {
+    /// `fullname` names the original (`crosspost_parent`) for a `shareLink` post, which doesn't.
+    static func withCrosspostParent(_ d: JsonElement, _ parent: JsonElement, fullname: String? = nil) -> JsonElement {
         var o = d.obj() ?? JsonObject()
         o["crosspost_parent_list"] = .array([parent])
+        if let fullname { o["crosspost_parent"] = .string(fullname) }
         return .object(o)
     }
 

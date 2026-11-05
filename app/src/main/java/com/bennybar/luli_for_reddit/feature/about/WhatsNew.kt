@@ -45,6 +45,12 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.65", "Nov 5, 2026",
+        listOf(
+            "Reposts made with a Reddit share link now show the original post's photo or video instead of a reddit.com link",
+        ),
+    ),
+    Release(
         "2.0.64", "Nov 5, 2026",
         listOf(
             "Crossposts that showed up as a bare reddit.com link now show the original post's photo or video",

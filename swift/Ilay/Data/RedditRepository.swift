@@ -76,6 +76,11 @@ final class RedditRepository: Sendable {
         // flight, or Reddit didn't return them).
         var crosspostParents: [String: JsonElement] = [:]
         var crosspostsAsked: Set<String> = []
+        // Share links (`Post.shareLink`) by URL, resolved to the fullname of the post
+        // they redirect to, so a reloaded page needn't resolve them again. "": not a
+        // post, or it couldn't be resolved (not tried again); missing but asked: in flight.
+        var shareLinkTargets: [String: String] = [:]
+        var shareLinksAsked: Set<String> = []
     }
     private let state = OSAllocatedUnfairLock(initialState: State())
 
@@ -102,14 +107,19 @@ final class RedditRepository: Sendable {
 
     /// Rebuilds `children` (crossposts missing their original, with their raw JSON) as
     /// if `crosspost_parent_list` had been there: at once from the originals already
-    /// known, the rest after one request for all of them. Failures are silent: the card
-    /// keeps its in-app link to the original.
+    /// known, the rest after one request for all of them. A share-link post becomes a
+    /// crosspost of the post its link resolves to. Failures are silent: the card keeps
+    /// its in-app link to the original.
     private func fillCrossposts(_ children: [(Post, JsonElement)]) {
         if children.isEmpty { return }
+        func parentOf(_ post: Post, _ s: State) -> String? {
+            post.crosspostParent ?? s.shareLinkTargets[post.url]?.nilIfEmpty
+        }
         func rebuild() {
             let merged: [(String, JsonElement)] = state.withLock { s in
                 children.compactMap { post, raw in
-                    post.crosspostParent.flatMap { s.crosspostParents[$0] }.map { (post.id, Post.withCrosspostParent(raw, $0)) }
+                    guard let fullname = parentOf(post, s), let parent = s.crosspostParents[fullname] else { return nil }
+                    return (post.id, Post.withCrosspostParent(raw, parent, fullname: fullname))
                 }
             }
             if merged.isEmpty { return }
@@ -118,27 +128,58 @@ final class RedditRepository: Sendable {
             let posts = Dictionary(merged.map { ($0.0, Post.fromData($0.1)) }) { $1 }
             Task { @MainActor in self.crossposts.add(posts) }
         }
-        rebuild()
-        let wanted: [String] = state.withLock { s in
-            var w: [String] = []
-            for case let id? in children.map(\.0.crosspostParent) where w.count < 100 && !s.crosspostsAsked.contains(id) {
-                s.crosspostsAsked.insert(id)
-                w.append(id)
+        func wanted() -> [String] {
+            state.withLock { s in
+                var w: [String] = []
+                for case let id? in children.map({ parentOf($0.0, s) }) where w.count < 100 && !s.crosspostsAsked.contains(id) {
+                    s.crosspostsAsked.insert(id)
+                    w.append(id)
+                }
+                return w
             }
-            return w
         }
-        if wanted.isEmpty { return }
+        rebuild()
+        let unresolved: [String] = state.withLock { s in
+            var u: [String] = []
+            for (post, _) in children where post.shareLink && !s.shareLinksAsked.contains(post.url) {
+                s.shareLinksAsked.insert(post.url)
+                u.append(post.url)
+            }
+            return u
+        }
+        let known = wanted()
+        if unresolved.isEmpty && known.isEmpty { return }
         Task {
+            if !unresolved.isEmpty {
+                // Each is a redirect on www.reddit.com (no sign-in); a few at a time.
+                let targets = await withTaskGroup(of: (String, String).self) { group in
+                    var out: [(String, String)] = []
+                    for (i, link) in unresolved.enumerated() {
+                        if i >= 4, let r = await group.next() { out.append(r) }
+                        group.addTask {
+                            guard let uri = URL(string: link), let resolved = await resolveShareLink(uri),
+                                  case let .post(_, id, _)? = redditPostRoute(resolved.absoluteString) else { return (link, "") }
+                            return (link, "t3_\(id)")
+                        }
+                    }
+                    for await r in group { out.append(r) }
+                    return out
+                }
+                state.withLock { s in for (link, fullname) in targets { s.shareLinkTargets[link] = fullname } }
+            }
+            // The originals the share links resolved to join the same request.
+            let ids = known + wanted()
+            if ids.isEmpty { return }
             do {
                 // Reddit's /by_id (or PostsByIds) takes them all in one go.
-                let parents = try await getPostsByIds(wanted)
+                let parents = try await getPostsByIds(ids)
                 state.withLock { s in
                     for p in parents { if let raw = s.rawPosts[p.id] { s.crosspostParents[p.fullname] = raw } }
                 }
                 rebuild()
             } catch {
                 // Asked again with the next page that has them.
-                state.withLock { $0.crosspostsAsked.subtract(wanted) }
+                state.withLock { $0.crosspostsAsked.subtract(ids) }
             }
         }
     }

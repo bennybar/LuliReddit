@@ -3,6 +3,7 @@ package com.bennybar.luli_for_reddit.core
 import com.bennybar.luli_for_reddit.nav.Route
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** Links to Reddit posts open in Ilay rather than as an external link card. */
@@ -28,5 +29,20 @@ class RedditPostLinkTest {
         assertNull(redditPostRoute("https://v.redd.it/abc"))
         assertNull(redditPostRoute("https://example.com/r/pics/comments/abc/"))
         assertNull(redditPostRoute(""))
+    }
+
+    @Test
+    fun `an unresolved share link is a Reddit post opened via openLink`() {
+        val share = com.bennybar.luli_for_reddit.model.Post.fromData(
+            AppJson.parseToJsonElement(
+                """{ "id": "y7", "title": "Dumb prize indeed...", "is_self": false, "domain": "reddit.com",
+                     "url": "https://www.reddit.com/u/jackal-molotov/s/EsXFnpHs3G" }""",
+            ),
+        )
+        assertTrue(share.shareLink)
+        // No route of its own (must be resolved first), so taps go through openLink, which resolves it.
+        assertNull(redditPostRoute(share.url))
+        assertEquals("Reddit post", com.bennybar.luli_for_reddit.feature.feed.redditLinkLabel(share))
+        assertNull(com.bennybar.luli_for_reddit.feature.feed.redditLinkLabel(share.copy(url = "https://example.com/a")))
     }
 }
