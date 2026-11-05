@@ -30,7 +30,9 @@ struct PostHeaderTranslate: Equatable {
 /// The post itself. [fresh]: the post as just fetched with its comments; false for
 /// the feed's copy shown while loading, which can be stale.
 struct PostHeaderView: View {
-    let post: Post
+    let listed: Post
+    /// A crosspost whose original the thread left out fills in once it's fetched.
+    private var post: Post { app.repository.crossposts.merged(listed) }
     let fresh: Bool
     let translate: PostHeaderTranslate
     let model: PostHeaderModel
@@ -60,7 +62,7 @@ struct PostHeaderView: View {
                 Button {
                     if let id = post.crosspostId { nav.push(.post(subreddit: from, postId: id)) }
                 } label: {
-                    Label("Crossposted from r/\(from)", systemImage: "repeat")
+                    Label("Crossposted from \(crosspostSource(from))", systemImage: "repeat")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -262,7 +264,8 @@ struct PostHeaderView: View {
         }
     case .gallery: nav.openGallery(p.gallery, title: p.title)
     case .video: nav.openPostVideo(p)
-    case .link: nav.openInBrowser(p.url)
+    // A link to a Reddit post (e.g. a crosspost whose original didn't load) opens in Ilay.
+    case .link: if let route = redditPostRoute(p.url) { nav.push(route) } else { nav.openInBrowser(p.url) }
     case .selfPost: break
     }
 }
@@ -289,7 +292,8 @@ private struct PostMediaView: View {
             Button {
                 openMedia(p)
             } label: {
-                Label(p.domain, systemImage: "arrow.up.right.square").lineLimit(1)
+                let inApp = redditPostRoute(p.url)
+                Label(inApp.map { redditLinkLabel(p, $0) } ?? p.domain, systemImage: inApp == nil ? "arrow.up.right.square" : "link").lineLimit(1)
             }
             .buttonStyle(.bordered)
             .buttonBorderShape(.capsule)

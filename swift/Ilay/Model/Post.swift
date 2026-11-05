@@ -45,6 +45,8 @@ struct Post: Identifiable, Equatable, Sendable, Copyable {
     var crosspostFrom: String? = nil // subreddit a crosspost originates from
     /// The original post's id, for opening it from "Crossposted from" (#100).
     var crosspostId: String? = nil
+    /// The original's fullname (`crosspost_parent`), also when the listing left out its data.
+    var crosspostParent: String? = nil
     /// Images / GIFs referenced inside the body (`media_metadata`), by id — shown inline, not as links.
     var bodyMedia: [String: String] = [:]
     var pollOptions: [String] = []
@@ -72,11 +74,24 @@ struct Post: Identifiable, Equatable, Sendable, Copyable {
 
     var hasMedia: Bool { previewUrl != nil || !gallery.isEmpty || type == .video }
 
+    /// A crosspost whose listing left out the original (`crosspost_parent_list`; Reddit
+    /// omits it at times, e.g. for posts on a user's profile): its media and text are on
+    /// the original, fetched afterwards (see `RedditRepository.fillCrossposts`).
+    var missingCrosspostParent: Bool { crosspostParent != nil && crosspostId == nil }
+
     /// The body as a feed card previews it: without image / video links that the post view shows as media.
     var snippet: String { parsedSnippet ?? Post.snippetOf(selftext, bodyMedia) }
 
     private static func snippetOf(_ selftext: String, _ bodyMedia: [String: String]) -> String {
         bodyMedia.isEmpty && !selftext.contains("http") ? selftext : textWithoutMedia(selftext)
+    }
+
+    /// A crosspost's `d` with its original's `parent` data (fetched separately, as the
+    /// listing left it out) put back where Reddit normally sends it, `crosspost_parent_list`.
+    static func withCrosspostParent(_ d: JsonElement, _ parent: JsonElement) -> JsonElement {
+        var o = d.obj() ?? JsonObject()
+        o["crosspost_parent_list"] = .array([parent])
+        return .object(o)
     }
 
     /// Parses a single listing child's `data` object.
@@ -137,6 +152,7 @@ struct Post: Identifiable, Equatable, Sendable, Copyable {
             suggestedSort: d["suggested_sort"].str()?.nilIfEmpty,
             crosspostFrom: parent["subreddit"].str(),
             crosspostId: parent["id"].str(),
+            crosspostParent: d["crosspost_parent"].str()?.nilIfEmpty,
             bodyMedia: bodyMedia,
             pollOptions: pollRaw.map { $0["text"].str()! },
             authorFlair: flairOf(d, "author"),

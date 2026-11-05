@@ -56,6 +56,69 @@ final class CrosspostAndStubTests: XCTestCase {
         XCTAssertFalse(p.isSelf, "not editable as the user's own text")
     }
 
+    // A crosspost of a profile post, as a listing sends it when it leaves out
+    // `crosspost_parent_list`: only the original's fullname and permalink.
+    private let child = #"""
+    { "id": "x9", "name": "t3_x9", "title": "Dumb prize indeed...", "subreddit": "WinStupidPrizes",
+      "subreddit_name_prefixed": "r/WinStupidPrizes", "author": "jackal-molotov", "score": 120, "num_comments": 14,
+      "permalink": "/r/WinStupidPrizes/comments/x9/dumb_prize_indeed/", "is_self": false, "selftext": "",
+      "domain": "reddit.com", "url": "/user/jackal-molotov/comments/1xoodhe/deserved/",
+      "crosspost_parent": "t3_1xoodhe" }
+    """#
+    private let parent = #"""
+    { "id": "1xoodhe", "name": "t3_1xoodhe", "title": "Deserved", "subreddit": "u_jackal-molotov",
+      "is_self": false, "is_video": true, "domain": "v.redd.it", "url": "https://v.redd.it/abc123",
+      "post_hint": "hosted:video", "thumbnail": "https://b.thumbs.redditmedia.com/t.jpg",
+      "media": { "reddit_video": { "hls_url": "https://v.redd.it/abc123/HLSPlaylist.m3u8", "fallback_url": "https://v.redd.it/abc123/CMAF_720.mp4" } },
+      "preview": { "images": [ { "source": { "url": "https://preview.redd.it/p.jpg", "width": 720, "height": 1280 }, "resolutions": [] } ] } }
+    """#
+
+    func testACrosspostWithoutItsParentListIsRecognisedByCrosspostParent() {
+        let p = Post.fromData(json(child))
+        XCTAssertEqual(p.crosspostParent, "t3_1xoodhe")
+        XCTAssertNil(p.crosspostId)
+        XCTAssertTrue(p.missingCrosspostParent)
+        XCTAssertEqual(p.type, .link)
+    }
+
+    func testMergingTheFetchedParentGivesTheSamePostAsTheParentList() {
+        let withList = json(String(child.dropLast()) + #","crosspost_parent_list": [\#(parent)] }"#)
+        let merged = Post.fromData(Post.withCrosspostParent(json(child), json(parent)))
+        XCTAssertEqual(merged, Post.fromData(withList))
+        XCTAssertFalse(merged.missingCrosspostParent)
+        XCTAssertEqual(merged.type, .video)
+        XCTAssertEqual(merged.hlsUrl, "https://v.redd.it/abc123/HLSPlaylist.m3u8")
+        XCTAssertEqual(merged.previewUrl, "https://preview.redd.it/p.jpg")
+        XCTAssertEqual(merged.crosspostFrom, "u_jackal-molotov")
+        XCTAssertEqual(merged.crosspostId, "1xoodhe")
+        // The crosspost's own title, place, author and counts stay.
+        XCTAssertEqual(merged.title, "Dumb prize indeed...")
+        XCTAssertEqual(merged.subreddit, "WinStupidPrizes")
+        XCTAssertEqual(merged.author, "jackal-molotov")
+        XCTAssertEqual(merged.score, 120)
+        XCTAssertEqual(merged.numComments, 14)
+        // The feed shows it in place once the original has loaded.
+        let listed = Post.fromData(json(child)).with { $0.feedReason = "Popular" }
+        XCTAssertEqual(Crossposts.merged(listed, in: [listed.id: merged]), merged.with { $0.feedReason = "Popular" })
+    }
+
+    func testLinksToRedditPostsOpenInTheApp() {
+        XCTAssertEqual(redditPostRoute("/r/pics/comments/abc/a_title/"), .post(subreddit: "pics", postId: "abc"))
+        XCTAssertEqual(redditPostRoute("/user/jackal-molotov/comments/1xoodhe/deserved/"), .post(subreddit: "_", postId: "1xoodhe"))
+        XCTAssertEqual(redditPostRoute("https://www.reddit.com/r/pics/comments/abc/a_title/"), .post(subreddit: "pics", postId: "abc"))
+        XCTAssertEqual(redditPostRoute("https://reddit.com/user/jackal-molotov/comments/1xoodhe/deserved/"), .post(subreddit: "_", postId: "1xoodhe"))
+        XCTAssertEqual(redditPostRoute("https://old.reddit.com/comments/abc"), .post(subreddit: "_", postId: "abc"))
+        XCTAssertEqual(redditPostRoute("https://redd.it/abc"), .post(subreddit: "_", postId: "abc"))
+        XCTAssertNil(redditPostRoute("https://www.reddit.com/r/pics/"))
+        XCTAssertNil(redditPostRoute("https://i.redd.it/abc.jpg"))
+        XCTAssertNil(redditPostRoute("https://v.redd.it/abc"))
+        XCTAssertNil(redditPostRoute("https://example.com/r/pics/comments/abc/"))
+        XCTAssertNil(redditPostRoute(""))
+        let p = Post.fromData(json(child))
+        XCTAssertEqual(redditLinkLabel(p, redditPostRoute("/r/pics/comments/abc/x/")!), "Crossposted from r/pics")
+        XCTAssertEqual(redditLinkLabel(p, redditPostRoute(p.url)!), "Reddit post")
+    }
+
     func testContinueThisThreadStubsGetUniqueIds() {
         func stub(_ parent: String) -> Comment {
             Comment.fromChild(json(#"{"kind": "more", "data": {"id": "_", "name": "t1__", "parent_id": "\#(parent)", "count": 0, "children": []}}"#), 9)

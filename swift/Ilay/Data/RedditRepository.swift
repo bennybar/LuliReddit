@@ -9,6 +9,28 @@ struct RedditThread: Sendable {
     let suggestedSort: String?
 }
 
+/// Crossposts whose listing left out the original (`Post.missingCrosspostParent`),
+/// rebuilt around it once it's fetched (`RedditRepository.fillCrossposts`), by post id.
+/// Cards and the thread header read this, so the post fills in where it's shown and
+/// the list itself never moves.
+@MainActor @Observable final class Crossposts {
+    private(set) var posts: [String: Post] = [:]
+
+    nonisolated init() {}
+
+    func add(_ new: [String: Post]) { posts.merge(new) { $1 } }
+
+    /// `post`, or once its original has loaded, the crosspost rebuilt around it. Only a
+    /// view showing such a crosspost reads (and so watches) the map.
+    func merged(_ post: Post) -> Post { post.missingCrosspostParent ? Crossposts.merged(post, in: posts) : post }
+
+    nonisolated static func merged(_ post: Post, in posts: [String: Post]) -> Post {
+        guard post.missingCrosspostParent, let m = posts[post.id] else { return post }
+        // For You's "why you're seeing this" is set on the listed post, not the fetched one.
+        return m.with { $0.feedReason = post.feedReason }
+    }
+}
+
 /// The most comments one "more replies" request asks for.
 private let moreLimit = 500
 
@@ -49,8 +71,15 @@ final class RedditRepository: Sendable {
         // The raw JSON of recently parsed posts (bounded), so a ranked For You
         // page or an offline thread can be saved and painted instantly next time.
         var rawPosts = OrderedMap<JsonElement>()
+        // The originals of crossposts that came without them, raw, by fullname, so a
+        // reloaded page rebuilds its crossposts at once; and those asked for (in
+        // flight, or Reddit didn't return them).
+        var crosspostParents: [String: JsonElement] = [:]
+        var crosspostsAsked: Set<String> = []
     }
     private let state = OSAllocatedUnfairLock(initialState: State())
+
+    let crossposts = Crossposts()
 
     init(client: RedditClient) { self.client = client }
 
@@ -71,15 +100,61 @@ final class RedditRepository: Sendable {
         }
     }
 
+    /// Rebuilds `children` (crossposts missing their original, with their raw JSON) as
+    /// if `crosspost_parent_list` had been there: at once from the originals already
+    /// known, the rest after one request for all of them. Failures are silent: the card
+    /// keeps its in-app link to the original.
+    private func fillCrossposts(_ children: [(Post, JsonElement)]) {
+        if children.isEmpty { return }
+        func rebuild() {
+            let merged: [(String, JsonElement)] = state.withLock { s in
+                children.compactMap { post, raw in
+                    post.crosspostParent.flatMap { s.crosspostParents[$0] }.map { (post.id, Post.withCrosspostParent(raw, $0)) }
+                }
+            }
+            if merged.isEmpty { return }
+            // Kept for a For You page or an offline thread saved from here.
+            state.withLock { s in for (id, raw) in merged where s.rawPosts[id] != nil { s.rawPosts[id] = raw } }
+            let posts = Dictionary(merged.map { ($0.0, Post.fromData($0.1)) }) { $1 }
+            Task { @MainActor in self.crossposts.add(posts) }
+        }
+        rebuild()
+        let wanted: [String] = state.withLock { s in
+            var w: [String] = []
+            for case let id? in children.map(\.0.crosspostParent) where w.count < 100 && !s.crosspostsAsked.contains(id) {
+                s.crosspostsAsked.insert(id)
+                w.append(id)
+            }
+            return w
+        }
+        if wanted.isEmpty { return }
+        Task {
+            do {
+                // Reddit's /by_id (or PostsByIds) takes them all in one go.
+                let parents = try await getPostsByIds(wanted)
+                state.withLock { s in
+                    for p in parents { if let raw = s.rawPosts[p.id] { s.crosspostParents[p.fullname] = raw } }
+                }
+                rebuild()
+            } catch {
+                // Asked again with the next page that has them.
+                state.withLock { $0.crosspostsAsked.subtract(wanted) }
+            }
+        }
+    }
+
     func parsePostListing(_ json: JsonElement, fromCache: Bool = false) -> Listing<Post> {
         let data = json["data"]
         var posts: [Post] = []
+        var crossposts: [(Post, JsonElement)] = []
         for c in data["children"].arr() ?? [] {
             guard c["kind"].str() == "t3", let raw = c["data"] else { continue }
             let post = Post.fromData(raw)
             posts.append(post)
+            if post.missingCrosspostParent { crossposts.append((post, raw)) }
             keepRaw(post.id, raw)
         }
+        fillCrossposts(crossposts)
         return Listing(items: posts, after: data["after"].str(), fromCache: fromCache)
     }
 
@@ -183,6 +258,7 @@ final class RedditRepository: Sendable {
     func parseThread(_ body: JsonElement) throws -> RedditThread {
         guard let postData = body[0]["data"]["children"][0]["data"] else { throw AppException("This post isn't available") }
         let post = Post.fromData(postData)
+        if post.missingCrosspostParent { fillCrossposts([(post, postData)]) }
         let comments = (body[1]["data"]["children"].arr() ?? []).filter { $0.obj() != nil }.map { Comment.fromChild($0, 0) }
         return RedditThread(post: post, comments: comments, suggestedSort: postData["suggested_sort"].str()?.nilIfEmpty)
     }
@@ -276,16 +352,20 @@ final class RedditRepository: Sendable {
     func getUserSaved(_ username: String, after: String? = nil, limit: Int = 25) async throws -> Listing<SavedItem> {
         let json = try await client.get("/user/\(username)/saved", [("limit", "\(limit)"), ("after", after), ("sr_detail", "true")])
         let data = json["data"]
-        return Listing(
-            items: (data["children"].arr() ?? []).compactMap { c -> SavedItem? in
-                switch c["kind"].str() {
-                case "t3": return c["data"].map { .post(Post.fromData($0)) }
-                case "t1": return .comment(Comment.fromChild(c, 0))
-                default: return nil
-                }
-            },
-            after: data["after"].str()
-        )
+        var crossposts: [(Post, JsonElement)] = []
+        let items = (data["children"].arr() ?? []).compactMap { c -> SavedItem? in
+            switch c["kind"].str() {
+            case "t3":
+                guard let raw = c["data"] else { return nil }
+                let post = Post.fromData(raw)
+                if post.missingCrosspostParent { crossposts.append((post, raw)) }
+                return .post(post)
+            case "t1": return .comment(Comment.fromChild(c, 0))
+            default: return nil
+            }
+        }
+        fillCrossposts(crossposts)
+        return Listing(items: items, after: data["after"].str())
     }
 
     func searchPosts(_ query: String, subreddit: String? = nil, after: String? = nil, sort: String = "relevance", time: String = "all") async throws -> Listing<Post> {

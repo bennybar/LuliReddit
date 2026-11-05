@@ -12,6 +12,7 @@ import com.bennybar.luli_for_reddit.core.isTrue
 import com.bennybar.luli_for_reddit.core.long
 import com.bennybar.luli_for_reddit.core.obj
 import com.bennybar.luli_for_reddit.core.str
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
@@ -58,6 +59,8 @@ data class Post(
     val crosspostFrom: String? = null, // subreddit a crosspost originates from
     /** The original post's id, for opening it from "Crossposted from" (#100). */
     val crosspostId: String? = null,
+    /** The original's fullname (`crosspost_parent`), also when the listing left out its data. */
+    val crosspostParent: String? = null,
     /** Images / GIFs referenced inside the body (`media_metadata`), by id — shown inline, not as links. */
     val bodyMedia: Map<String, String> = emptyMap(),
     val pollOptions: List<String> = emptyList(),
@@ -83,10 +86,25 @@ data class Post(
 ) {
     val hasMedia: Boolean get() = previewUrl != null || gallery.isNotEmpty() || type == PostType.VIDEO
 
+    /**
+     * A crosspost whose listing left out the original (`crosspost_parent_list`;
+     * Reddit omits it at times, e.g. for posts on a user's profile): its media
+     * and text are on the original, fetched afterwards (see RedditRepository).
+     */
+    val missingCrosspostParent: Boolean get() = crosspostParent != null && crosspostId == null
+
     /** The body as a feed card previews it: without image / video links that the post view shows as media. */
     val snippet: String by lazy { if (bodyMedia.isEmpty() && "http" !in selftext) selftext else textWithoutMedia(selftext) }
 
     companion object {
+        /**
+         * A crosspost's [d] with its original's [parent] `data` (fetched
+         * separately, as the listing left it out) put back where Reddit
+         * normally sends it, `crosspost_parent_list`.
+         */
+        fun withCrosspostParent(d: JsonElement, parent: JsonElement): JsonElement =
+            JsonObject(d.obj().orEmpty() + ("crosspost_parent_list" to JsonArray(listOf(parent))))
+
         /** Parses a single listing child's `data` object. */
         fun fromData(d: JsonElement): Post {
             // A crosspost carries no content of its own: its text, media and
@@ -144,6 +162,7 @@ data class Post(
                 distinguished = d["distinguished"].str(),
                 crosspostFrom = parent?.get("subreddit").str(),
                 crosspostId = parent?.get("id").str(),
+                crosspostParent = d["crosspost_parent"].str()?.ifEmpty { null },
                 bodyMedia = Comment.mediaUrls(content["media_metadata"]),
                 pollOptions = pollRaw.map { it["text"].str()!! },
                 pollVotes = pollRaw.map { it["vote_count"].int() ?: -1 }.takeIf { v -> v.isNotEmpty() && v.none { it < 0 } } ?: emptyList(),

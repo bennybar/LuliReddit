@@ -22,7 +22,13 @@ import com.bennybar.luli_for_reddit.model.Multireddit
 import com.bennybar.luli_for_reddit.model.Post
 import com.bennybar.luli_for_reddit.model.RedditUser
 import com.bennybar.luli_for_reddit.model.Subreddit
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
@@ -74,19 +80,76 @@ class RedditRepository(val client: RedditClient) {
 
     fun rawPost(id: String): JsonElement? = synchronized(rawPosts) { rawPosts[id] }
 
+    // Crossposts whose listing left out the original (Post.missingCrosspostParent),
+    // rebuilt around it once it's fetched, by post id. Cards and the thread
+    // header read this, so the post fills in where it's shown and the list
+    // itself never moves.
+    private val crosspostsFlow = MutableStateFlow<Map<String, Post>>(emptyMap())
+    val crossposts: StateFlow<Map<String, Post>> = crosspostsFlow
+
+    // The originals' raw JSON by fullname, so a reloaded page rebuilds its
+    // crossposts at once. Null: asked for (in flight, or Reddit didn't return it).
+    private val crosspostParents = HashMap<String, JsonElement?>()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * Rebuilds [children] (crossposts missing their original, with their raw
+     * JSON) as if `crosspost_parent_list` had been there: at once from the
+     * originals already known, the rest after one request for all of them.
+     * Failures are silent: the card keeps its in-app link to the original.
+     */
+    private fun fillCrossposts(children: List<Pair<Post, JsonElement>>) {
+        if (children.isEmpty()) return
+        fun rebuild() {
+            val merged = synchronized(crosspostParents) {
+                children.mapNotNull { (post, raw) ->
+                    val parent = post.crosspostParent?.let { crosspostParents[it] } ?: return@mapNotNull null
+                    post.id to Post.withCrosspostParent(raw, parent)
+                }
+            }
+            if (merged.isEmpty()) return
+            // Kept for a For You page or an offline thread saved from here.
+            synchronized(rawPosts) { for ((id, raw) in merged) if (id in rawPosts) rawPosts[id] = raw }
+            val posts = merged.map { (id, raw) -> id to Post.fromData(raw) }
+            crosspostsFlow.update { it + posts }
+        }
+        rebuild()
+        val wanted = synchronized(crosspostParents) {
+            children.mapNotNull { it.first.crosspostParent }.distinct().filter { it !in crosspostParents }.take(100)
+                .onEach { crosspostParents[it] = null }
+        }
+        if (wanted.isEmpty()) return
+        scope.launch {
+            try {
+                // Reddit's /by_id (or PostsByIds) takes them all in one go.
+                val parents = getPostsByIds(wanted)
+                synchronized(crosspostParents) {
+                    for (p in parents) rawPost(p.id)?.let { crosspostParents[p.fullname] = it }
+                }
+                rebuild()
+            } catch (_: Exception) {
+                // Asked again with the next page that has them.
+                synchronized(crosspostParents) { wanted.forEach { crosspostParents.remove(it) } }
+            }
+        }
+    }
+
     fun parsePostListing(json: JsonElement, fromCache: Boolean = false): Listing<Post> {
         val data = json["data"]
         val posts = mutableListOf<Post>()
+        val crossposts = mutableListOf<Pair<Post, JsonElement>>()
         for (c in data["children"].arr() ?: emptyList()) {
             if (c["kind"].str() != "t3") continue
             val raw = c["data"] ?: continue
             val post = Post.fromData(raw)
             posts.add(post)
+            if (post.missingCrosspostParent) crossposts.add(post to raw)
             synchronized(rawPosts) {
                 rawPosts.remove(post.id)
                 rawPosts[post.id] = raw
             }
         }
+        fillCrossposts(crossposts)
         return Listing(posts, data["after"].str(), fromCache)
     }
 
@@ -213,6 +276,7 @@ class RedditRepository(val client: RedditClient) {
     fun parseThread(body: JsonElement): Thread {
         val postData = body[0]["data"]["children"][0]["data"]
         val post = Post.fromData(postData!!)
+        if (post.missingCrosspostParent) fillCrossposts(listOf(post to postData))
         val suggested = postData["suggested_sort"].str()
         val comments = (body[1]["data"]["children"].arr() ?: emptyList())
             .filter { it.obj() != null }
@@ -310,16 +374,17 @@ class RedditRepository(val client: RedditClient) {
         val json = client.get("/user/$username/saved", linkedMapOf<String, Any?>("limit" to limit, "after" to after, "sr_detail" to true))
         return parse {
             val data = json["data"]
+            val crossposts = mutableListOf<Pair<Post, JsonElement>>()
             Listing(
                 (data["children"].arr() ?: emptyList()).mapNotNull { c ->
                     when (c["kind"].str()) {
-                        "t3" -> c["data"]?.let { Post.fromData(it) }
+                        "t3" -> c["data"]?.let { raw -> Post.fromData(raw).also { if (it.missingCrosspostParent) crossposts.add(it to raw) } }
                         "t1" -> Comment.fromChild(c, 0)
                         else -> null
                     }
                 },
                 data["after"].str(),
-            )
+            ).also { fillCrossposts(crossposts) }
         }
     }
 

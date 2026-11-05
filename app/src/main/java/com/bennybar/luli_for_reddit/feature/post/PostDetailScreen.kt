@@ -60,6 +60,7 @@ import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.outlined.ModeComment
 import androidx.compose.material.icons.rounded.AddCircleOutline
 import androidx.compose.material.icons.rounded.AddComment
+import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.AutoAwesome
@@ -159,6 +160,9 @@ import com.bennybar.luli_for_reddit.feature.settings.pickOption
 import androidx.compose.ui.unit.Dp
 import com.bennybar.luli_for_reddit.core.Translate
 import com.bennybar.luli_for_reddit.core.compactNumber
+import com.bennybar.luli_for_reddit.core.redditPostRoute
+import com.bennybar.luli_for_reddit.feature.feed.redditLinkLabel
+import com.bennybar.luli_for_reddit.feature.feed.rememberCrosspost
 import com.bennybar.luli_for_reddit.core.extractMediaLinks
 import com.bennybar.luli_for_reddit.core.bodySegments
 import com.bennybar.luli_for_reddit.core.BodySegment
@@ -999,7 +1003,8 @@ private fun ThreadToolbar(
  */
 @Composable
 private fun PostHeader(post: Post, fresh: Boolean, translate: (@Composable (Dp) -> Unit)? = null) {
-    val p = post
+    // A crosspost whose original the thread left out fills in once it's fetched.
+    val p = rememberCrosspost(post)
     val cs = MaterialTheme.colorScheme
     val nav = LocalNavigator.current
     val scope = rememberCoroutineScope()
@@ -1094,7 +1099,7 @@ private fun PostHeader(post: Post, fresh: Boolean, translate: (@Composable (Dp) 
             ) {
                 Icon(Icons.Rounded.Repeat, null, Modifier.size(14.dp), tint = cs.onSurfaceVariant)
                 Spacer(Modifier.width(6.dp))
-                Text("Crossposted from r/$from", fontSize = 12.sp, color = cs.onSurfaceVariant)
+                Text("Crossposted from ${subredditName(from)}", fontSize = 12.sp, color = cs.onSurfaceVariant)
             }
         }
         ReminderLine(p)
@@ -1240,7 +1245,7 @@ private fun CalmPostHeader(
             ) {
                 Icon(Icons.Rounded.Repeat, null, Modifier.size(14.dp), tint = cs.onSurfaceVariant)
                 Spacer(Modifier.width(6.dp))
-                Text("Crossposted from r/$from", fontSize = 12.sp, color = cs.onSurfaceVariant)
+                Text("Crossposted from ${subredditName(from)}", fontSize = 12.sp, color = cs.onSurfaceVariant)
             }
         }
         ReminderLine(p)
@@ -1287,7 +1292,8 @@ private fun openMedia(p: Post, nav: AppNavigator) {
         }
         PostType.GALLERY -> nav.openGallery(p.gallery, p.title)
         PostType.VIDEO -> nav.openPostVideo(p)
-        PostType.LINK -> nav.openInBrowser(p.url)
+        // A link to a Reddit post (e.g. a crosspost whose original didn't load) opens in Ilay.
+        PostType.LINK -> redditPostRoute(p.url)?.let(nav::push) ?: nav.openInBrowser(p.url)
         PostType.SELF -> {}
     }
 }
@@ -1307,10 +1313,11 @@ private fun PostMedia(p: Post, nav: AppNavigator, radius: androidx.compose.ui.un
         return
     }
     if (p.type == PostType.LINK) {
+        val inApp = remember(p.url) { redditPostRoute(p.url) }
         OutlinedButton(onClick = { openMedia(p, nav) }, modifier = Modifier.padding(bottom = 12.dp)) {
-            Icon(Icons.AutoMirrored.Rounded.OpenInNew, null, Modifier.size(18.dp))
+            Icon(if (inApp != null) Icons.Rounded.Link else Icons.AutoMirrored.Rounded.OpenInNew, null, Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
-            Text(p.domain, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(inApp?.let { redditLinkLabel(p, it) } ?: p.domain, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         return
     }

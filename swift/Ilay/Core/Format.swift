@@ -26,3 +26,9 @@ func timeAgo(_ epochMillis: Int) -> String {
     if minutes >= 1 { return "\(minutes)m" }
     return "now"
 }
+
+/// Where a crosspost came from, for "Crossposted from …": a profile's own subreddit
+/// ("u_name") reads as the user.
+func crosspostSource(_ subreddit: String) -> String {
+    subreddit.hasPrefix("u_") ? "u/" + subreddit.dropFirst(2) : "r/" + subreddit
+}

@@ -70,6 +70,14 @@ suspend fun resolveShareLink(uri: Uri): Uri? = withContext(Dispatchers.IO) {
     null
 }
 
+/**
+ * The in-app post a link to a Reddit post opens — a permalink, relative
+ * (`/r/…/comments/…`, `/user/…/comments/…`, a crosspost's own url) or on
+ * reddit.com, or a redd.it short link — or null for any other link.
+ */
+fun redditPostRoute(url: String): Route.Post? =
+    routeForRedditUrl(Uri.parse(if (url.startsWith("/")) "https://www.reddit.com$url" else url)) as? Route.Post
+
 /** Maps a reddit.com / redd.it URL to an in-app route, or null if unsupported. */
 fun routeForRedditUrl(uri: Uri): Route? {
     val host = uri.host?.lowercase() ?: return null

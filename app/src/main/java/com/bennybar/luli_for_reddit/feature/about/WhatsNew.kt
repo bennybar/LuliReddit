@@ -45,6 +45,13 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.64", "Nov 5, 2026",
+        listOf(
+            "Crossposts that showed up as a bare reddit.com link now show the original post's photo or video",
+            "A link to a Reddit post opens it in the app, and crossposts from someone's profile say \"from u/name\"",
+        ),
+    ),
+    Release(
         "2.0.63", "Nov 5, 2026",
         listOf(
             "Subreddits and custom feeds: a tidier top bar (more actions under ⋯) that hides as you scroll down and comes back when you scroll up, like Home's",

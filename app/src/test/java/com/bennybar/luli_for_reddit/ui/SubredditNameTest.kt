@@ -22,4 +22,9 @@ class SubredditNameTest {
         assertEquals("u/someone", subredditName("u/someone", prefix = true))
         assertEquals("u/someone", subredditName("u/someone", prefix = false))
     }
+
+    @Test fun aProfileSubredditReadsAsTheUser() {
+        assertEquals("u/jackal-molotov", subredditName("u_jackal-molotov", prefix = true))
+        assertEquals("u/jackal-molotov", subredditName("u_jackal-molotov", prefix = false))
+    }
 }

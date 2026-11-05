@@ -335,7 +335,7 @@ final class CommentListController: UIViewController, UICollectionViewDelegate {
             let (post, fresh, translate, env) = (last?.post, last?.fresh ?? false, last?.translation ?? PostHeaderTranslate(), env)
             let model = header
             cell.contentConfiguration = UIHostingConfiguration {
-                if let post { PostHeaderView(post: post, fresh: fresh, translate: translate, model: model).threadCellTheme(env) }
+                if let post { PostHeaderView(listed: post, fresh: fresh, translate: translate, model: model).threadCellTheme(env) }
             }
             .margins(.all, 0)
             .minSize(height: 0)

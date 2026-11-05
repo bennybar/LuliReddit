@@ -51,7 +51,8 @@ struct PostListView<Header: View>: View {
             dismissedIds: dismissible ? app.dismissedPosts.ids : [],
             hiddenSubs: isFrontpage || postsTab ? app.hiddenHomeSubs.ids : [],
             filters: app.contentFilters.value,
-            viewing: feedKey.isEmpty || feedKey.hasPrefix("m::") ? nil : feedKey
+            viewing: feedKey.isEmpty || feedKey.hasPrefix("m::") ? nil : feedKey,
+            crossposts: app.repository.crossposts.posts
         )
         PostCollection(model: PostListModel(
             controller: controller,

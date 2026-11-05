@@ -9,7 +9,8 @@ struct PostCard: View {
 
     /// For a post outside `PostListView`, e.g. in a `PagedList` row.
     @MainActor init(post: Post, width: CGFloat? = nil) {
-        row = PostRow(post, config: .current(width: width))
+        // A crosspost rebuilt around its original once that has loaded.
+        row = PostRow(app.repository.crossposts.merged(post), config: .current(width: width))
     }
 
     init(row: PostRow) { self.row = row }
@@ -414,7 +415,7 @@ private struct TextBelowTitle: View {
             Button {
                 if let id = row.post.crosspostId { app.navigator.push(.post(subreddit: from, postId: id)) }
             } label: {
-                Label("Crossposted from r/\(from)", systemImage: "arrow.2.squarepath")
+                Label("Crossposted from \(crosspostSource(from))", systemImage: "arrow.2.squarepath")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -556,7 +557,7 @@ private struct CardMedia: View {
                 if row.config.display.isCalm {
                     CalmLink(row: row, hero: hero, height: heroHeight, pixels: heroPixels, radius: radius)
                 } else {
-                    PlainLink(domain: row.post.domain, thumb: thumb, pixels: thumbPixels)
+                    PlainLink(domain: row.inAppLinkLabel ?? row.post.domain, external: row.inAppLinkLabel == nil, thumb: thumb, pixels: thumbPixels)
                 }
             }
             .buttonStyle(.plain)
@@ -566,6 +567,7 @@ private struct CardMedia: View {
 
 private struct PlainLink: View {
     let domain: String
+    let external: Bool
     let thumb: URL?
     let pixels: Int
 
@@ -578,7 +580,7 @@ private struct PlainLink: View {
             }
             Text(domain).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
             Spacer(minLength: 0)
-            Image(systemName: "arrow.up.right").font(.footnote).foregroundStyle(.tertiary).padding(.trailing, 12)
+            if external { Image(systemName: "arrow.up.right").font(.footnote).foregroundStyle(.tertiary).padding(.trailing, 12) }
         }
         .background(Color(.tertiarySystemFill), in: .rect(cornerRadius: 12))
         .clipShape(.rect(cornerRadius: 12))
@@ -601,8 +603,8 @@ private struct CalmLink: View {
             }
             HStack(spacing: 6) {
                 Image(systemName: "link")
-                Text(row.post.domain).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
-                Image(systemName: "arrow.up.right")
+                Text(row.inAppLinkLabel ?? row.post.domain).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+                if row.inAppLinkLabel == nil { Image(systemName: "arrow.up.right") }
             }
             .font(.caption)
             .foregroundStyle(.secondary)

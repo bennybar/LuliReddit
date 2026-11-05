@@ -70,7 +70,8 @@ import UIKit
             }
         case .gallery: nav.openGallery(p.gallery, title: p.title)
         case .video: nav.openPostVideo(p)
-        case .link: nav.openInBrowser(p.url)
+        // A link to a Reddit post (e.g. a crosspost whose original didn't load) opens in Ilay.
+        case .link: if let route = redditPostRoute(p.url) { nav.push(route) } else { nav.openInBrowser(p.url) }
         case .selfPost: openDetail()
         }
     }

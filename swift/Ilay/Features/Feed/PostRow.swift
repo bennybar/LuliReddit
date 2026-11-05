@@ -133,6 +133,8 @@ struct PostRow: Identifiable, Equatable {
     let calmReason: String?
     let canShareMedia: Bool
     let externalVideoLabel: String?
+    /// A link to a Reddit post (opened in Ilay, not the browser) says so instead of its site.
+    let inAppLinkLabel: String?
     let prefetch: [Prefetch]
 
     struct Prefetch: Equatable {
@@ -193,6 +195,7 @@ struct PostRow: Identifiable, Equatable {
         }
         canShareMedia = canShareAsMedia(p)
         externalVideoLabel = p.type == .video && isExternalVideo(p) ? externalVideoSource(p) : nil
+        inAppLinkLabel = p.type == .link ? redditPostRoute(p.url).map { redditLinkLabel(p, $0) } : nil
 
         var ahead: [Prefetch] = []
         // Mini cards only show small thumbnails; not worth warming.
@@ -306,9 +309,12 @@ struct FeedVisibility: Equatable {
     var filters: ContentFilters
     /// A subreddit feed still shows that subreddit's own posts.
     var viewing: String?
+    /// Crossposts rebuilt around their originals once those loaded (`Crossposts`).
+    var crossposts: [String: Post] = [:]
 
     func visible() -> [Post] {
         var list = posts
+        if !crossposts.isEmpty { list = list.map { Crossposts.merged($0, in: crossposts) } }
         if let seen { list = list.filter { !($0.feedReason != nil && seen.contains($0.id)) } }
         if !hiddenIds.isEmpty { list = list.filter { !hiddenIds.contains($0.id) } }
         if !dismissedIds.isEmpty { list = list.filter { !dismissedIds.contains($0.id) } }

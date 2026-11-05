@@ -50,6 +50,22 @@ func resolveShareLink(_ uri: URL) async -> URL? {
     return nil
 }
 
+/// The in-app post a link to a Reddit post opens — a permalink, relative
+/// (`/r/…/comments/…`, `/user/…/comments/…`, a crosspost's own url) or on reddit.com,
+/// or a redd.it short link — or nil for any other link.
+func redditPostRoute(_ url: String) -> Route? {
+    guard let uri = URL(string: url.hasPrefix("/") ? "https://www.reddit.com\(url)" : url),
+          let route = routeForRedditUrl(uri), case .post = route else { return nil }
+    return route
+}
+
+/// What a link card says for a link to a Reddit post (opened in Ilay, not the
+/// browser): where it was crossposted from, when the link says.
+func redditLinkLabel(_ p: Post, _ route: Route) -> String {
+    if p.crosspostParent != nil, case let .post(sub, _, _) = route, sub != "_" { return "Crossposted from \(crosspostSource(sub))" }
+    return "Reddit post"
+}
+
 /// Maps a reddit.com / redd.it URL to an in-app route, or nil if unsupported.
 func routeForRedditUrl(_ uri: URL) -> Route? {
     guard let host = uri.host?.lowercased() else { return nil }
