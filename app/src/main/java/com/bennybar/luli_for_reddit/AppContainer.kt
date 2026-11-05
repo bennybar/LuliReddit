@@ -85,7 +85,7 @@ class AppContainer(val context: Context) {
     val hiddenHomeSubs = ExpiringIds(prefs, "hiddenHomeSubs") { 7 * 24 * 60 * 60_000L }
     val summaries = SummaryStore(context)
     val history = HistoryStore(prefs)
-    val recentSubreddits = RecentSubreddits(prefs)
+    val recentSubreddits = RecentSubreddits(prefs) { settings.value.recentSubsByVisits }
     val threadVisits = ThreadVisits(prefs, settings)
     val contentFilters = ContentFiltersStore(prefs)
     val offline = OfflineStore(context, prefs, repository)
@@ -125,6 +125,8 @@ class AppContainer(val context: Context) {
         }
         // A new "Hide posts for" time applies at once (a shorter one un-hides now).
         scope.launch { settings.state.map { it.hiddenPostDays }.distinctUntilChanged().drop(1).collect { hiddenPosts.refresh() } }
+        // Recently visited takes a new order at once.
+        scope.launch { settings.state.map { it.recentSubsByVisits }.distinctUntilChanged().drop(1).collect { recentSubreddits.refresh() } }
                 // On any account change (switch, or logout then login as someone else):
         // re-read auth config and reload everything that belongs to an account.
         scope.launch {

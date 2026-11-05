@@ -164,6 +164,7 @@ func gqlSubredditData(_ n: JsonObject) -> JsonElement {
         "subscribers": .int(n["subscribersCount"].int() ?? 0),
         "public_description": .string(n["publicDescriptionText"].str() ?? ""),
         "icon_img": .of(n["styles"]["icon"].str() ?? n["styles"]["legacyIcon"]["url"].str()),
+        "over18": .bool(n["isNsfw"].bool() == true), // for "Hide NSFW posts" (#94), when Reddit sends it
     ]
 }
 

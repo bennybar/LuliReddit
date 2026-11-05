@@ -99,7 +99,7 @@ fun ContentFiltersScreen() {
             item("gap") { Spacer(Modifier.height(12.dp)) }
             item("nsfw") {
                 SwitchTile(
-                    "Hide NSFW posts", "Remove them from feeds instead of blurring", Icons.Rounded.NoAdultContent,
+                    "Hide NSFW posts", "Remove them from feeds and search instead of blurring", Icons.Rounded.NoAdultContent,
                     filters.hideNsfw, onChange = store::setHideNsfw,
                 )
             }

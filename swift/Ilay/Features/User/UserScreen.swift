@@ -182,10 +182,19 @@ struct UserProfileBody<Below: View>: View {
         let sortTime = sort.needsTime ? time : nil
         let sort = sort
         let top = headerHeight + tabsHeight
+        // "Hide NSFW posts" (Content filters) applies to profiles too (#94), and to
+        // the Saved / Upvoted / Downvoted tabs.
+        let hideNsfw = app.contentFilters.value.hideNsfw
+        let sfw = hideNsfw ? "_sfw" : ""
         switch current {
         case "Posts":
-            let source: PagedSource<Post> = model.source("posts_\(sortKey)") { try await repo.getUserPosts(username, after: $0, sort: sort, time: sortTime) }
-            postList(source, top: top, emptyLabel: "No posts yet", staleAfter: staleAfter).id("posts_\(sortKey)")
+            let key = "posts_\(sortKey)\(sfw)"
+            let source: PagedSource<Post> = model.source(key) {
+                var page = try await repo.getUserPosts(username, after: $0, sort: sort, time: sortTime)
+                if hideNsfw { page.items = page.items.filter { !$0.over18 } }
+                return page
+            }
+            postList(source, top: top, emptyLabel: "No posts yet", staleAfter: staleAfter).id(key)
         case "Comments":
             let source: PagedSource<Comment> = model.source("comments_\(sortKey)") { try await repo.getUserComments(username, after: $0, sort: sort, time: sortTime) }
             PagedList(source: source, itemKey: { AnyHashable($0.fullname) }, emptyLabel: "No comments yet", staleAfterMillis: staleAfter, scrollTop: scrollTop) {
@@ -194,7 +203,11 @@ struct UserProfileBody<Below: View>: View {
             .background(hook(source.state.items.count, top: top))
             .id("comments_\(sortKey)")
         case "Saved":
-            let source: PagedSource<SavedItem> = model.source("saved") { try await repo.getUserSaved(username, after: $0) }
+            let source: PagedSource<SavedItem> = model.source("saved\(sfw)") {
+                var page = try await repo.getUserSaved(username, after: $0)
+                if hideNsfw { page.items = page.items.filter { !$0.over18 } }
+                return page
+            }
             PagedList(
                 source: source,
                 itemKey: { AnyHashable($0.fullname) },
@@ -210,13 +223,21 @@ struct UserProfileBody<Below: View>: View {
                 }
             }
             .background(hook(source.state.items.count, top: top))
-            .id("saved")
+            .id("saved\(sfw)")
         case "Upvoted":
-            let source: PagedSource<Post> = model.source("upvoted") { try await repo.getUserPosts(username, where: "upvoted", after: $0) }
-            postList(source, top: top, emptyLabel: "Nothing upvoted", staleAfter: staleAfter).id("upvoted")
+            let source: PagedSource<Post> = model.source("upvoted\(sfw)") {
+                var page = try await repo.getUserPosts(username, where: "upvoted", after: $0)
+                if hideNsfw { page.items = page.items.filter { !$0.over18 } }
+                return page
+            }
+            postList(source, top: top, emptyLabel: "Nothing upvoted", staleAfter: staleAfter).id("upvoted\(sfw)")
         default:
-            let source: PagedSource<Post> = model.source("downvoted") { try await repo.getUserPosts(username, where: "downvoted", after: $0) }
-            postList(source, top: top, emptyLabel: "Nothing downvoted", staleAfter: staleAfter).id("downvoted")
+            let source: PagedSource<Post> = model.source("downvoted\(sfw)") {
+                var page = try await repo.getUserPosts(username, where: "downvoted", after: $0)
+                if hideNsfw { page.items = page.items.filter { !$0.over18 } }
+                return page
+            }
+            postList(source, top: top, emptyLabel: "Nothing downvoted", staleAfter: staleAfter).id("downvoted\(sfw)")
         }
     }
 
@@ -258,6 +279,14 @@ extension SavedItem {
 
     var post: Post? {
         if case let .post(post) = self { post } else { nil }
+    }
+
+    /// An NSFW post, or a comment on one.
+    var over18: Bool {
+        switch self {
+        case let .post(post): post.over18
+        case let .comment(comment): comment.over18
+        }
     }
 }
 

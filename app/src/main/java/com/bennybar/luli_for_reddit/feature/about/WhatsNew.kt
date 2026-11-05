@@ -45,6 +45,24 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.60", "Nov 5, 2026",
+        listOf(
+            "Browse media: swipe up through a feed's photos, galleries and videos full screen, with votes, comments and saving at hand. Find it in a subreddit's top bar or the Home menu",
+        ),
+    ),
+    Release(
+        "2.0.59", "Nov 5, 2026",
+        listOf(
+            "r/ and u/ mentions in comments and posts are links, and \"Crossposted from\" opens the original post",
+            "Hide NSFW posts now also hides them in search, profiles, Saved and History",
+            "Recently visited counts your visits, and can list the most visited first (Settings → Data & storage)",
+            "The floating button can hide the posts you've read, and floating chips can be transparent or solid",
+            "Show subreddit names without the r/ (Settings → Appearance)",
+            "Comments: a small pin instead of the PINNED badge, and long flairs no longer hide the username",
+            "Calm vote buttons fill with the vote colour and change shape when tapped",
+        ),
+    ),
+    Release(
         "2.0.58", "Nov 3, 2026",
         listOf(
             "Choose the floating button on Home and in subreddits: New post, Search, Scroll to top, Refresh or none. Threads have their own choice (Settings → Appearance)",

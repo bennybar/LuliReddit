@@ -16,7 +16,12 @@ struct SearchFetcher {
     @MainActor static var reddit: SearchFetcher {
         let repo = app.repository
         return SearchFetcher(
-            posts: { try await repo.searchPosts($0, subreddit: $1, after: $2, sort: $3, time: $4) },
+            posts: {
+                var page = try await repo.searchPosts($0, subreddit: $1, after: $2, sort: $3, time: $4)
+                // "Hide NSFW posts" (Content filters) applies to results too (#94).
+                if await MainActor.run(body: { app.contentFilters.value.hideNsfw }) { page.items = page.items.filter { !$0.over18 } }
+                return page
+            },
             subreddits: { try await repo.searchSubreddits($0) },
             users: { try await repo.searchUsers($0) }
         )
@@ -281,8 +286,10 @@ struct SearchScreen: View {
                     .background(PagedListHook(generation: source.state.items.count))
                 }
             case "Subreddits":
-                tabResults(error: vm.subsError, empty: vm.subs.isEmpty) {
-                    ForEach(vm.subs, id: \.name) { s in
+                // "Hide NSFW posts" (Content filters) keeps NSFW communities out too (#94).
+                let subs = app.contentFilters.value.hideNsfw ? vm.subs.filter { !$0.over18 } : vm.subs
+                tabResults(error: vm.subsError, empty: subs.isEmpty) {
+                    ForEach(subs, id: \.name) { s in
                         ResultRow(name: s.name, title: s.namePrefixed, subtitle: "\(compactNumber(s.subscribers)) members", route: .subreddit(name: s.name))
                     }
                 }

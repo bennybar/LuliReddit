@@ -178,7 +178,7 @@ struct CommentRowView: View {
                 if c.author != "[deleted]" { app.navigator.openUser(c.author) }
             }
             if row.isOp { Tag("OP", tint: env.accent) }
-            if c.stickied { Image(systemName: "pin.fill").font(.caption2).foregroundStyle(.green) }
+            if c.stickied { Image(systemName: "pin.fill").font(.caption2).foregroundStyle(.green).accessibilityLabel("Pinned") }
             if let flair = c.authorFlair { FlairChip(flair: flair) }
             Text(verbatim: "· \(timeAgo(c.createdUtc))")
                 .font(.footnote)

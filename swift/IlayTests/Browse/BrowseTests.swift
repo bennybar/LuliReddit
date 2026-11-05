@@ -309,6 +309,21 @@ final class HistoryFilterTests: XCTestCase {
         XCTAssertEqual(ids(removed: ["t3_p"]), ["t1_c", "t3_q"])
     }
 
+    func testVisibleHidesNsfwPostsAndCommentsOnThem() {
+        var nsfwPost = post("n")
+        nsfwPost.over18 = true
+        var nsfwComment = comment("m")
+        nsfwComment.over18 = true
+        let items: [SavedItem] = [.post(post("p")), .post(nsfwPost), .comment(comment("c")), .comment(nsfwComment)]
+        XCTAssertEqual(SavedModel.visible(items, query: "", type: "all", removed: []).count, 4)
+        XCTAssertEqual(SavedModel.visible(items, query: "", type: "all", removed: [], hideNsfw: true).map(\.fullname), ["t3_p", "t1_c"])
+    }
+
+    func testCommentReadsItsPostsNsfwFlag() {
+        XCTAssertTrue(Comment.fromChild(json(#"{"kind":"t1","data":{"id":"x","body":"b","over_18":true}}"#), 0).over18)
+        XCTAssertFalse(comment("y").over18)
+    }
+
     func testChangingTheFilterDoesNotAskRedditAgain() async {
         var fetched = 0
         let model = SavedModel { _ in

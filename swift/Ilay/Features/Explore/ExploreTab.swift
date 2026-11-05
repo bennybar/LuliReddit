@@ -127,6 +127,7 @@ struct ExploreTab: View {
                         .listRowBackground(Color.clear)
                     }
                 case let .data(list):
+                    let visits = Dictionary(app.recentSubreddits.state.map { ($0.name.lowercased(), $0.visits) }, uniquingKeysWith: { first, _ in first })
                     let joined = Set(list.map { $0.name.lowercased() })
                     ForEach(subscriptionSections(list: list, query: query, favOnly: favOnly, sort: sort, visited: app.settings.value.showRecentlyVisited ? app.recentSubreddits.state : []), id: \.key) { section in
                         Section {
@@ -135,7 +136,7 @@ struct ExploreTab: View {
                             }
                             ForEach(section.subs, id: \.name) { sub in
                                 // No star on ones you aren't subscribed to.
-                                SubredditRow(sub: sub, starred: joined.contains(sub.name.lowercased())) { toggleFavorite(sub) }
+                                SubredditRow(sub: sub, starred: joined.contains(sub.name.lowercased()), visits: section.key == "recent" ? visits[sub.name.lowercased()] : nil) { toggleFavorite(sub) }
                             }
                         } header: {
                             HStack {
@@ -217,6 +218,7 @@ struct ExploreTab: View {
 private struct SubredditRow: View {
     let sub: Subreddit
     let starred: Bool
+    let visits: Int?
     let onStar: () -> Void
 
     var body: some View {
@@ -226,7 +228,8 @@ private struct SubredditRow: View {
                 LetterAvatar(name: sub.name, size: 40, imageUrl: sub.iconUrl)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(sub.namePrefixed).lineLimit(1)
-                    Text("\(compactNumber(sub.subscribers)) \(isUser ? "followers" : "members")")
+                    // Recently visited: how often you opened it (#92).
+                    Text("\(compactNumber(sub.subscribers)) \(isUser ? "followers" : "members")\(visits.map { " · \($0) \($0 == 1 ? "visit" : "visits")" } ?? "")")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }

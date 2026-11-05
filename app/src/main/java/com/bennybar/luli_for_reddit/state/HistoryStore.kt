@@ -3,6 +3,7 @@ package com.bennybar.luli_for_reddit.state
 import androidx.compose.runtime.Immutable
 import com.bennybar.luli_for_reddit.core.AppJson
 import com.bennybar.luli_for_reddit.core.get
+import com.bennybar.luli_for_reddit.core.isTrue
 import com.bennybar.luli_for_reddit.core.long
 import com.bennybar.luli_for_reddit.core.storage.Prefs
 import com.bennybar.luli_for_reddit.core.str
@@ -20,6 +21,8 @@ data class HistoryEntry(
     val title: String,
     val permalink: String,
     val viewedAt: Long = 0, // millis since epoch; 0 = legacy/unknown
+    // For "Hide NSFW posts"; absent in older entries (unknown: shown).
+    val nsfw: Boolean = false,
 )
 
 /** Viewed posts, newest first, per account (prefs `history_<user>`, a JSON string list). */
@@ -43,6 +46,7 @@ class HistoryStore(private val prefs: Prefs) : UserScoped {
                     title = j["title"].str() ?: "",
                     permalink = j["permalink"].str() ?: "",
                     viewedAt = j["ts"].long() ?: 0,
+                    nsfw = j["nsfw"].isTrue(),
                 )
             }.getOrNull()
         }
@@ -52,7 +56,7 @@ class HistoryStore(private val prefs: Prefs) : UserScoped {
     fun contains(id: String): Boolean = id in _ids.value
 
     fun markViewed(p: Post) {
-        val entry = HistoryEntry(p.id, p.subreddit, p.title, p.permalink, System.currentTimeMillis())
+        val entry = HistoryEntry(p.id, p.subreddit, p.title, p.permalink, System.currentTimeMillis(), p.over18)
         publish((listOf(entry) + _state.value.filter { it.id != p.id }).take(CAP))
         persist()
     }
@@ -86,6 +90,8 @@ class HistoryStore(private val prefs: Prefs) : UserScoped {
                 buildJsonObject {
                     put("id", e.id); put("sub", e.subreddit); put("title", e.title)
                     put("permalink", e.permalink); put("ts", e.viewedAt)
+                    // Only when set: SFW entries keep the shape older versions wrote.
+                    if (e.nsfw) put("nsfw", true)
                 }.toString()
             },
         )

@@ -56,6 +56,8 @@ data class Post(
     val suggestedSort: String? = null,
     val feedReason: String? = null, // "why you're seeing this" in For You (transient)
     val crosspostFrom: String? = null, // subreddit a crosspost originates from
+    /** The original post's id, for opening it from "Crossposted from" (#100). */
+    val crosspostId: String? = null,
     /** Images / GIFs referenced inside the body (`media_metadata`), by id — shown inline, not as links. */
     val bodyMedia: Map<String, String> = emptyMap(),
     val pollOptions: List<String> = emptyList(),
@@ -141,6 +143,7 @@ data class Post(
                 linkFlair = flairOf(d, "link"),
                 distinguished = d["distinguished"].str(),
                 crosspostFrom = parent?.get("subreddit").str(),
+                crosspostId = parent?.get("id").str(),
                 bodyMedia = Comment.mediaUrls(content["media_metadata"]),
                 pollOptions = pollRaw.map { it["text"].str()!! },
                 pollVotes = pollRaw.map { it["vote_count"].int() ?: -1 }.takeIf { v -> v.isNotEmpty() && v.none { it < 0 } } ?: emptyList(),

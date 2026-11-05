@@ -7,19 +7,22 @@ import SwiftUI
     private(set) var query = ""
     private(set) var type = "all" // all | posts | comments
     private(set) var removed: Set<String> = []
+    /// "Hide NSFW posts" (Content filters) covers what you saved too: NSFW posts and
+    /// comments on them.
+    private(set) var hideNsfw: Bool
 
     /// What's shown.
     @ObservationIgnored private(set) lazy var source = PagedSource<SavedItem> { [unowned self] after in
         if after == nil && reapplying {
             reapplying = false
-            return Listing(items: SavedModel.visible(loaded, query: query, type: type, removed: removed), after: loadedAfter)
+            return Listing(items: SavedModel.visible(loaded, query: query, type: type, removed: removed, hideNsfw: hideNsfw), after: loadedAfter)
         }
         let page = try await fetch(after)
         try Task.checkCancellation()
         loaded = after == nil ? page.items : loaded + page.items
         loadedAfter = page.after
         hasLoaded = true
-        return Listing(items: SavedModel.visible(page.items, query: query, type: type, removed: removed), after: page.after)
+        return Listing(items: SavedModel.visible(page.items, query: query, type: type, removed: removed, hideNsfw: hideNsfw), after: page.after)
     }
 
     @ObservationIgnored private let fetch: (String?) async throws -> Listing<SavedItem>
@@ -28,12 +31,18 @@ import SwiftUI
     @ObservationIgnored private var hasLoaded = false
     @ObservationIgnored private var reapplying = false
 
-    init(fetch: @escaping (String?) async throws -> Listing<SavedItem>) { self.fetch = fetch }
+    init(hideNsfw: Bool = false, fetch: @escaping (String?) async throws -> Listing<SavedItem>) {
+        self.hideNsfw = hideNsfw
+        self.fetch = fetch
+    }
 
-    nonisolated static func visible(_ items: [SavedItem], query: String, type: String, removed: Set<String>) -> [SavedItem] {
+    /// Something loaded is hidden as NSFW: an empty list says why.
+    var hidingNsfw: Bool { hideNsfw && loaded.contains { $0.over18 && !removed.contains($0.fullname) } }
+
+    nonisolated static func visible(_ items: [SavedItem], query: String, type: String, removed: Set<String>, hideNsfw: Bool = false) -> [SavedItem] {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return items.filter { item in
-            if removed.contains(item.fullname) { return false }
+            if removed.contains(item.fullname) || (hideNsfw && item.over18) { return false }
             switch item {
             case let .post(p): return (type == "all" || type == "posts") && (q.isEmpty || p.title.lowercased().contains(q))
             case let .comment(c): return (type == "all" || type == "comments") && (q.isEmpty || c.body.lowercased().contains(q))
@@ -48,6 +57,11 @@ import SwiftUI
 
     func setType(_ t: String) {
         type = t
+        reapply()
+    }
+
+    func setHideNsfw(_ v: Bool) {
+        hideNsfw = v
         reapply()
     }
 
@@ -102,7 +116,7 @@ struct SavedScreen: View {
     init() {
         let username = app.session.username
         let repo = app.repository
-        _model = State(initialValue: SavedModel { try await repo.getUserSaved(username, after: $0) })
+        _model = State(initialValue: SavedModel(hideNsfw: app.contentFilters.value.hideNsfw) { try await repo.getUserSaved(username, after: $0) })
     }
 
     var body: some View {
@@ -117,7 +131,7 @@ struct SavedScreen: View {
             PagedList(
                 source: source,
                 itemKey: { AnyHashable($0.fullname) },
-                emptyLabel: unfiltered ? "Nothing saved" : "No matches",
+                emptyLabel: unfiltered ? (model.hidingNsfw ? "NSFW posts are hidden" : "Nothing saved") : "No matches",
                 contentType: { $0.post.map(pagedPostKind) ?? 6 },
                 staleAfterMillis: .max,
                 posts: PagedPostRows(post: \.post, swipes: { [model] post in
@@ -138,6 +152,7 @@ struct SavedScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search saved")
         .onChange(of: query) { _, new in model.setQuery(new) }
+        .onChange(of: app.contentFilters.value.hideNsfw) { _, new in model.setHideNsfw(new) }
         .onChange(of: "\(state.items.count)|\(state.after ?? "")|\(state.loading)|\(state.loadingMore)", initial: true) { model.fillIfShort() }
     }
 }

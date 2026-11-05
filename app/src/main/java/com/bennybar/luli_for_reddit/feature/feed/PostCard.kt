@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.ui.subredditName
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.ui.text.AnnotatedString
@@ -74,6 +75,13 @@ import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.interaction.InteractionSource
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.material3.ripple
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -143,7 +151,7 @@ import kotlinx.coroutines.launch
  * still completes (or rolls back) if the card scrolls away mid-request.
  */
 @Immutable
-private class PostActions(val post: Post, val nav: AppNavigator) {
+internal class PostActions(val post: Post, val nav: AppNavigator) {
     // Vote / score / saved / comment-count live in the shared post-overrides
     // store (keyed by post id) so the card stays in sync with the post-detail
     // screen and survives scrolling.
@@ -300,7 +308,7 @@ fun filterOutSub(post: Post) {
 
 /** The live override for one post: only this card recomposes when it changes. */
 @Composable
-private fun rememberOverride(post: Post): State<PostOverride?> {
+internal fun rememberOverride(post: Post): State<PostOverride?> {
     val flow = remember(post.id) { app.postOverrides.state.map { it[post.id] }.distinctUntilChanged() }
     // Seeds the first frame with the current value; the collected flow then
     // keeps it up to date (so this .value read can't go stale).
@@ -553,8 +561,8 @@ private fun cardImg(p: Post, s: Settings): String? {
 /** The image URL a full-width card shows (shared with the list's prefetcher). */
 fun feedImageUrl(p: Post, s: Settings): String? = cardImg(p, s) ?: p.gallery.firstOrNull()?.url
 
-private fun blurOf(p: Post, s: Settings) = (p.over18 && s.blurNsfw) || p.spoiler
-private fun blurLabel(p: Post, s: Settings) = if (p.over18 && s.blurNsfw) "NSFW" else "Spoiler"
+internal fun blurOf(p: Post, s: Settings) = (p.over18 && s.blurNsfw) || p.spoiler
+internal fun blurLabel(p: Post, s: Settings) = if (p.over18 && s.blurNsfw) "NSFW" else "Spoiler"
 
 /** Full-width media for the "Cards" layout, cover-cropped to [height]. */
 @Composable
@@ -656,10 +664,10 @@ private fun Header(p: Post, a: PostActions, s: Settings) {
         Spacer(Modifier.width(10.dp))
         // Tapping the "u/author" part of the header opens their profile; the
         // rest opens the subreddit.
-        val text = remember(p.id, cs) {
+        val text = remember(p.id, cs, s.subredditPrefix) {
             buildAnnotatedString {
                 withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = cs.onSurface)) {
-                    append(p.subredditPrefixed.ifEmpty { "r/${p.subreddit}" })
+                    append(subredditName(p.subredditPrefixed.ifEmpty { p.subreddit }, s.subredditPrefix))
                 }
                 append("  ·  ")
                 withLink(LinkAnnotation.Clickable("author") { a.openAuthor() }) { append("u/${p.author}") }
@@ -757,13 +765,22 @@ fun ReminderLine(p: Post) {
     }
 }
 
-/** "Crossposted from r/x" (the media comes from the original post). */
+/** "Crossposted from r/x" (the media comes from the original post); a tap opens the original and its comments (#100). */
 @Composable
 private fun CrosspostLine(p: Post) {
     val from = p.crosspostFrom ?: return
     val cs = MaterialTheme.colorScheme
+    val nav = LocalNavigator.current
     Spacer(Modifier.height(8.dp))
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        Modifier
+            .clip(CircleShape)
+            .clickable(enabled = p.crosspostId != null, onClickLabel = "Open the original post") {
+                nav.push(Route.Post(from, p.crosspostId!!))
+            }
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Icon(Icons.Rounded.Repeat, null, Modifier.size(14.dp), tint = cs.onSurfaceVariant)
         Spacer(Modifier.width(6.dp))
         Text("Crossposted from r/$from", fontSize = 12.sp, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -1252,7 +1269,7 @@ private class CalmButton(
     val icon: ImageVector,
     val label: String?,
     val clickLabel: String?,
-    /** A vote colour: fills the button at 22% and colours its content. */
+    /** A vote colour: fills the button, as the vote swipe does (#93). */
     val tint: Color?,
     val onClick: () -> Unit,
     val labelTint: Color? = null,
@@ -1267,16 +1284,16 @@ private fun CalmButtonGroup(buttons: List<CalmButton>) {
     val r = height / 2
     Row(horizontalArrangement = Arrangement.spacedBy(CalmGap)) {
         buttons.forEachIndexed { i, b ->
-            val start = if (i == 0) r else CalmInner
-            val end = if (i == buttons.lastIndex) r else CalmInner
-            val bg = if (b.tint != null) b.tint.copy(alpha = 0.22f).compositeOver(base) else base
-            val fg = b.tint ?: cs.onSecondaryContainer
+            val interaction = remember { MutableInteractionSource() }
+            val shape = calmSegmentShape(if (i == 0) r else CalmInner, if (i == buttons.lastIndex) r else CalmInner, r, b.tint != null, interaction)
+            val bg by animateColorAsState(b.tint ?: base, MaterialTheme.motionScheme.fastEffectsSpec())
+            val fg by animateColorAsState(b.tint?.let(::onVoteColor) ?: cs.onSecondaryContainer, MaterialTheme.motionScheme.fastEffectsSpec())
             Row(
                 Modifier
                     .height(height)
-                    .clip(RoundedCornerShape(topStart = start, bottomStart = start, topEnd = end, bottomEnd = end))
+                    .clip(shape)
                     .background(bg)
-                    .clickable(onClickLabel = b.clickLabel, onClick = b.onClick)
+                    .clickable(interactionSource = interaction, indication = ripple(), onClickLabel = b.clickLabel, onClick = b.onClick)
                     .padding(start = if (i == 0) 14.dp else 12.dp, end = if (i == buttons.lastIndex) 14.dp else 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -1315,7 +1332,7 @@ private fun CalmHeader(p: Post, a: PostActions, s: Settings) {
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                p.subredditPrefixed.ifEmpty { "r/${p.subreddit}" },
+                subredditName(p.subredditPrefixed.ifEmpty { p.subreddit }, s.subredditPrefix),
                 Modifier.clickable(onClick = a::openSubreddit),
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -1509,7 +1526,8 @@ fun CalmVoteGroup(
     val r = height / 2
     Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
         CalmSegment(
-            RoundedCornerShape(topStart = r, bottomStart = r, topEnd = 6.dp, bottomEnd = 6.dp),
+            r,
+            6.dp,
             if (up) votes.up else null,
             height,
             hPad,
@@ -1521,7 +1539,8 @@ fun CalmVoteGroup(
             Text(compactNumber(score), fontSize = 13.sp, fontWeight = FontWeight.Medium, color = if (down) votes.down else fg)
         }
         CalmSegment(
-            RoundedCornerShape(topStart = 6.dp, bottomStart = 6.dp, topEnd = r, bottomEnd = r),
+            6.dp,
+            r,
             if (down) votes.down else null,
             height,
             hPad,
@@ -1534,17 +1553,18 @@ fun CalmVoteGroup(
 /** A solo Calm pill (icon + label), e.g. the comment count. */
 @Composable
 fun CalmPill(icon: ImageVector, label: String, onClick: (() -> Unit)?, height: Dp = 36.dp, iconSize: Dp = 17.dp, hPad: Dp = 11.dp) {
-    CalmSegment(RoundedCornerShape(height / 2), null, height, hPad, null, onClick) { fg ->
+    CalmSegment(height / 2, height / 2, null, height, hPad, null, onClick) { fg ->
         Icon(icon, null, Modifier.size(iconSize), tint = fg)
         Spacer(Modifier.width(4.dp))
         Text(label, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = fg)
     }
 }
 
-/** One tonal segment; [tint] (a vote colour) fills it at 22% and colours its content. */
+/** One tonal segment, [start] / [end] its corners; [tint] (a vote colour) fills it, as the vote swipe does (#93). */
 @Composable
 private fun CalmSegment(
-    shape: RoundedCornerShape,
+    start: Dp,
+    end: Dp,
     tint: Color?,
     height: Dp,
     hPad: Dp,
@@ -1554,8 +1574,10 @@ private fun CalmSegment(
 ) {
     val cs = MaterialTheme.colorScheme
     val base = calmControlColor()
-    val bg = if (tint != null) tint.copy(alpha = 0.22f).compositeOver(base) else base
-    val fg = tint ?: cs.onSurface
+    val interaction = remember { MutableInteractionSource() }
+    val shape = calmSegmentShape(start, end, height / 2, tint != null, interaction)
+    val bg by animateColorAsState(tint ?: base, MaterialTheme.motionScheme.fastEffectsSpec())
+    val fg by animateColorAsState(tint?.let(::onVoteColor) ?: cs.onSurface, MaterialTheme.motionScheme.fastEffectsSpec())
     Row(
         Modifier
             .height(height)
@@ -1566,14 +1588,39 @@ private fun CalmSegment(
             .then(
                 when {
                     onClick == null -> Modifier
-                    label != null -> Modifier.toggleable(value = tint != null, role = Role.Switch) { onClick() }.semantics { contentDescription = label }
-                    else -> Modifier.clickable(onClick = onClick)
+                    label != null -> Modifier
+                        .toggleable(value = tint != null, interactionSource = interaction, indication = ripple(), role = Role.Switch) { onClick() }
+                        .semantics { contentDescription = label }
+                    else -> Modifier.clickable(interactionSource = interaction, indication = ripple(), onClick = onClick)
                 },
             )
             .padding(horizontal = hPad),
         verticalAlignment = Alignment.CenterVertically,
     ) { content(fg) }
 }
+
+/**
+ * A Calm segment's corners, moving like the inbox's connected buttons (#93):
+ * pressed, its inner corners tighten; voted, it rounds fully. [full] (half
+ * its height) marks an outer corner, which stays round.
+ */
+@Composable
+private fun calmSegmentShape(start: Dp, end: Dp, full: Dp, on: Boolean, interaction: InteractionSource): Shape {
+    val pressed by interaction.collectIsPressedAsState()
+    val spec = MaterialTheme.motionScheme.fastSpatialSpec<Dp>()
+    fun corner(c: Dp) = when {
+        c == full -> full
+        pressed -> 4.dp
+        on -> full
+        else -> c
+    }
+    val s by animateDpAsState(corner(start), spec)
+    val e by animateDpAsState(corner(end), spec)
+    return RoundedCornerShape(topStart = s, bottomStart = s, topEnd = e, bottomEnd = e)
+}
+
+/** Content on a vote colour, as on the vote swipe's background. */
+internal fun onVoteColor(vote: Color): Color = if (vote.luminance() > 0.5f) Color.Black else Color.White
 
 /** A borderless icon button (Calm's share / save). */
 @Composable

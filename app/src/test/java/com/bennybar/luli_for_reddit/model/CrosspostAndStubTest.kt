@@ -16,7 +16,7 @@ class CrosspostAndStubTest {
                   "id": "x2", "title": "Audio book app suggestion.", "subreddit": "audiobookshelf",
                   "url": "/r/audiobooks/comments/abc/audio_book_app_suggestion/", "is_self": false, "selftext": "",
                   "crosspost_parent_list": [
-                    { "subreddit": "audiobooks", "is_self": true, "selftext": "Can you suggest a good app?",
+                    { "id": "abc", "subreddit": "audiobooks", "is_self": true, "selftext": "Can you suggest a good app?",
                       "url": "https://www.reddit.com/r/audiobooks/comments/abc/audio_book_app_suggestion/" }
                   ]
                 }
@@ -26,6 +26,7 @@ class CrosspostAndStubTest {
         assertEquals(PostType.SELF, p.type)
         assertEquals("Can you suggest a good app?", p.selftext)
         assertEquals("audiobooks", p.crosspostFrom)
+        assertEquals("abc", p.crosspostId)
         assertFalse("not editable as the user's own text", p.isSelf)
     }
 

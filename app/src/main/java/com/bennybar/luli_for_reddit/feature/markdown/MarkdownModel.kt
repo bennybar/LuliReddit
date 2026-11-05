@@ -79,6 +79,12 @@ object RedditMarkdownParser {
     // `^(several words)` or `^word`, as Reddit renders them.
     private val supRe = Regex("""\^\(([^)\n]+)\)|\^([^\s^()]+)""")
 
+    // A bare u/name or r/name, with an optional leading slash, as Reddit links
+    // them (#102). Not in the middle of a word or path (and/or/r/foo). A word
+    // character is any script's letter or digit, as in Swift's ICU regex; spelled
+    // out, because Android's ICU throws on `(?U)` and every thread would crash.
+    private val mentionRe = Regex("""(?<![\p{L}\p{N}_/])/?[ru]/[A-Za-z0-9_][A-Za-z0-9_-]+""")
+
     private val parser: Parser = Parser.builder()
         .extensions(listOf(TablesExtension.create(), StrikethroughExtension.create(), AutolinkExtension.create()))
         .build()
@@ -261,17 +267,35 @@ object RedditMarkdownParser {
 
         private fun supRuns(text: String, style: Int, link: String?, spoiler: Int, out: MutableList<MdInline>) {
             if (!text.contains('^')) {
-                out.add(MdInline(text, style, link, spoiler))
+                mentionRuns(text, style, link, spoiler, out)
                 return
             }
             var i = 0
             for (m in supRe.findAll(text)) {
-                if (m.range.first > i) out.add(MdInline(text.substring(i, m.range.first), style, link, spoiler))
+                if (m.range.first > i) mentionRuns(text.substring(i, m.range.first), style, link, spoiler, out)
                 val inner = m.groups[1]?.value ?: m.groups[2]!!.value
-                out.add(MdInline(inner, style or MdStyle.SUP, link, spoiler))
+                mentionRuns(inner, style or MdStyle.SUP, link, spoiler, out)
                 i = m.range.last + 1
             }
-            if (i < text.length) out.add(MdInline(text.substring(i), style, link, spoiler))
+            if (i < text.length) mentionRuns(text.substring(i), style, link, spoiler, out)
+        }
+
+        // Reddit links a bare u/name and r/name; the API's markdown leaves them
+        // as text. Only outside links (autolinked URLs and emails are links
+        // already) and code, which never comes through here.
+        // `AppNavigator.openLink` takes them as they are.
+        private fun mentionRuns(text: String, style: Int, link: String?, spoiler: Int, out: MutableList<MdInline>) {
+            if (link != null || !(text.contains("r/") || text.contains("u/"))) {
+                out.add(MdInline(text, style, link, spoiler))
+                return
+            }
+            var i = 0
+            for (m in mentionRe.findAll(text)) {
+                if (m.range.first > i) out.add(MdInline(text.substring(i, m.range.first), style, null, spoiler))
+                out.add(MdInline(m.value, style, m.value, spoiler))
+                i = m.range.last + 1
+            }
+            if (i < text.length) out.add(MdInline(text.substring(i), style, null, spoiler))
         }
 
         private fun altOf(img: Image): String {

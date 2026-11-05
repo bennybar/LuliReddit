@@ -8,6 +8,7 @@ import com.bennybar.luli_for_reddit.data.TopTime
 import com.bennybar.luli_for_reddit.model.Listing
 import com.bennybar.luli_for_reddit.model.Post
 import com.bennybar.luli_for_reddit.ui.friendlyError
+import com.bennybar.luli_for_reddit.settings.postsTabKey
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -92,6 +93,9 @@ class FeedController(val key: String) {
 
     private val current: FeedState? get() = (_ui.value as? FeedUi.Data)?.state
 
+    /** The post Browse media (#103) was on when it closed: the list scrolls to it, then clears it. */
+    val browsedTo = MutableStateFlow<String?>(null)
+
     /**
      * Home and For You open with the shuffling deck and deal their cards in,
      * rather than painting the last saved page and then swapping it out.
@@ -175,11 +179,33 @@ class FeedController(val key: String) {
     private fun dropRead(listing: Listing<Post>): Listing<Post> {
         val s = app.settings.value
         if (forYou || !s.hideReadPosts) return listing
-        val subreddit = key.isNotEmpty() && !key.startsWith("m::")
+        // The feed the Posts tab shows (r/all with that setting) counts as the front page here.
+        val subreddit = key.isNotEmpty() && !key.startsWith("m::") && key != s.postsTabKey
         if (subreddit && !s.hideReadInSubreddits) return listing
         val read = app.history.ids.value
         if (read.isEmpty()) return listing
         return Listing(listing.items.filter { it.id !in read }, listing.after, listing.fromCache)
+    }
+
+    /**
+     * The Hide read posts floating button (#99): takes the posts already in
+     * history off the list on screen, here only (Reddit isn't told). Returns
+     * the list as it was, for Undo; null when none of them was read.
+     */
+    fun hideRead(): List<Post>? {
+        val cur = current ?: return null
+        val read = app.history.ids.value
+        val kept = cur.posts.filter { it.id !in read }
+        if (kept.size == cur.posts.size) return null
+        _ui.value = FeedUi.Data(cur.copy(posts = kept))
+        return cur.posts
+    }
+
+    /** Undo of [hideRead]: the list as it was, plus any posts loaded since. */
+    fun unhideRead(before: List<Post>) {
+        val cur = current ?: return
+        val had = before.mapTo(HashSet()) { it.id }
+        _ui.value = FeedUi.Data(cur.copy(posts = before + cur.posts.filter { it.id !in had }))
     }
 
     private suspend fun fetch(after: String? = null): Listing<Post> = dropRead(fetchRaw(after))

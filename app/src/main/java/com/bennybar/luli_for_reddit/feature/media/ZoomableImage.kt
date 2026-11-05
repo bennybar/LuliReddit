@@ -59,6 +59,7 @@ internal fun ZoomableImage(
     onTap: () -> Unit,
     onZoomChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    decodeSize: coil3.size.Size = coil3.size.Size.ORIGINAL,
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current.density
@@ -193,7 +194,7 @@ internal fun ZoomableImage(
         contentAlignment = Alignment.Center,
     ) {
         AsyncImage(
-            model = remember(url) { ImageRequest.Builder(context).data(url).size(coil3.size.Size.ORIGINAL).build() },
+            model = remember(url, decodeSize) { ImageRequest.Builder(context).data(url).size(decodeSize).build() },
             contentDescription = null,
             contentScale = ContentScale.Fit,
             onState = { s ->

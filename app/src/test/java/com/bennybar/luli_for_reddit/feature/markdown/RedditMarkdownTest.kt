@@ -104,4 +104,29 @@ class RedditMarkdownTest {
         val only = RedditMarkdownParser.parseUncached("![](https://a/x.png)\n![](https://a/y.png)")
         assertEquals(listOf("https://a/x.png", "https://a/y.png"), only.blocks.map { (it as MdBlock.ImageBlock).url })
     }
+
+    @Test
+    fun `bare r and u mentions link, not inside words, paths, links or code`() {
+        // Same cases as Swift's testMentionsLink (#102).
+        assertEquals(
+            listOf(
+                MdInline("ask "), MdInline("u/some_one", link = "u/some_one"), MdInline(" in "),
+                MdInline("r/foo-bar", link = "r/foo-bar"), MdInline(" or "), MdInline("/r/baz", link = "/r/baz"),
+                MdInline(", not and/or/r/no or r/ or "), MdInline("https://x.y/r/also", link = "https://x.y/r/also"),
+            ),
+            runs(RedditMarkdownParser.parseUncached("ask u/some_one in r/foo-bar or /r/baz, not and/or/r/no or r/ or https://x.y/r/also")),
+        )
+        val r = runs(RedditMarkdownParser.parseUncached("[r/foo](https://a.b) `r/foo`"))
+        assertEquals(MdInline("r/foo", link = "https://a.b"), r.first())
+        assertEquals(MdInline("r/foo", MdStyle.CODE), r.last())
+        assertEquals(
+            listOf(MdInline("r/foo", MdStyle.BOLD, "r/foo"), MdInline(" "), MdInline("u/bar", MdStyle.SUP, "u/bar")),
+            runs(RedditMarkdownParser.parseUncached("**r/foo** ^u/bar")),
+        )
+        assertEquals(
+            listOf("a@b.co"),
+            runs(RedditMarkdownParser.parseUncached("mail a@b.co or see bar/r/xyz and my_u/xyz")).filter { it.link != null }.map { it.text },
+        )
+        assertTrue(RedditMarkdownParser.parseUncached("```\nr/foo\n```").blocks.single() is MdBlock.CodeBlock)
+    }
 }

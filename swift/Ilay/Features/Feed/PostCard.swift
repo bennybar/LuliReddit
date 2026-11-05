@@ -398,11 +398,19 @@ private struct TextBelowTitle: View {
             FlairView(runs: row.flair, symbol: row.config.display.isCalm ? row.flairSymbol : nil).padding(.top, 6)
         }
         if let from = row.post.crosspostFrom {
-            Label("Crossposted from r/\(from)", systemImage: "arrow.2.squarepath")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .padding(.top, 6)
+            // A tap opens the original post and its comments (#100), not the card's post.
+            Button {
+                if let id = row.post.crosspostId { app.navigator.push(.post(subreddit: from, postId: id)) }
+            } label: {
+                Label("Crossposted from r/\(from)", systemImage: "arrow.2.squarepath")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .buttonStyle(.plain)
+            .disabled(row.post.crosspostId == nil)
+            .accessibilityHint("Opens the original post")
+            .padding(.top, 6)
         }
         ReminderLine(post: row.post)
     }

@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import com.bennybar.luli_for_reddit.ui.subredditName
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.bennybar.luli_for_reddit.feature.feed.FabScroll
@@ -79,6 +80,7 @@ import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.PlayCircleFilled
 import androidx.compose.material.icons.rounded.RecordVoiceOver
+import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Share
@@ -182,6 +184,8 @@ import com.bennybar.luli_for_reddit.nav.Route
 import com.bennybar.luli_for_reddit.feature.feed.CalmFlair
 import com.bennybar.luli_for_reddit.feature.feed.CalmGhost
 import com.bennybar.luli_for_reddit.feature.feed.CalmPill
+import com.bennybar.luli_for_reddit.feature.feed.onVoteColor
+import androidx.compose.animation.animateColorAsState
 import com.bennybar.luli_for_reddit.feature.feed.CalmVoteGroup
 import com.bennybar.luli_for_reddit.feature.feed.LetterAvatar
 import com.bennybar.luli_for_reddit.model.Subreddit
@@ -353,7 +357,7 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
             TopAppBar(
                 title = {
                     Text(
-                        thread?.post?.subredditPrefixed ?: if (subreddit == "_") "Post" else "r/$subreddit",
+                        thread?.post?.subredditPrefixed?.let { subredditName(it) } ?: if (subreddit == "_") "Post" else subredditName(subreddit),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -1051,7 +1055,7 @@ private fun PostHeader(post: Post, fresh: Boolean, translate: (@Composable (Dp) 
 
     Column(Modifier.fillMaxWidth().padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 8.dp)) {
         Text(
-            p.subredditPrefixed,
+            subredditName(p.subredditPrefixed),
             Modifier.clickable { nav.openSubreddit(p.subreddit) },
             fontWeight = FontWeight.Bold,
             color = cs.primary,
@@ -1077,7 +1081,16 @@ private fun PostHeader(post: Post, fresh: Boolean, translate: (@Composable (Dp) 
         }
         p.crosspostFrom?.let { from ->
             Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // A tap opens the original post and its comments (#100).
+            Row(
+                Modifier
+                    .clip(CircleShape)
+                    .clickable(enabled = p.crosspostId != null, onClickLabel = "Open the original post") {
+                        nav.push(Route.Post(from, p.crosspostId!!))
+                    }
+                    .padding(vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Icon(Icons.Rounded.Repeat, null, Modifier.size(14.dp), tint = cs.onSurfaceVariant)
                 Spacer(Modifier.width(6.dp))
                 Text("Crossposted from r/$from", fontSize = 12.sp, color = cs.onSurfaceVariant)
@@ -1155,7 +1168,7 @@ private fun CalmPostHeader(
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    p.subredditPrefixed.ifEmpty { "r/${p.subreddit}" },
+                    subredditName(p.subredditPrefixed.ifEmpty { p.subreddit }),
                     Modifier.clickable { nav.openSubreddit(p.subreddit) },
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium,
@@ -1214,7 +1227,16 @@ private fun CalmPostHeader(
         p.linkFlair?.let { CalmFlair(it, Modifier.padding(top = 8.dp)) }
         p.crosspostFrom?.let { from ->
             Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // A tap opens the original post and its comments (#100).
+            Row(
+                Modifier
+                    .clip(CircleShape)
+                    .clickable(enabled = p.crosspostId != null, onClickLabel = "Open the original post") {
+                        nav.push(Route.Post(from, p.crosspostId!!))
+                    }
+                    .padding(vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Icon(Icons.Rounded.Repeat, null, Modifier.size(14.dp), tint = cs.onSurfaceVariant)
                 Spacer(Modifier.width(6.dp))
                 Text("Crossposted from r/$from", fontSize = 12.sp, color = cs.onSurfaceVariant)
@@ -1456,10 +1478,10 @@ private fun CommentTile(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 // Tapping the avatar/name opens the commenter's profile.
+                // The name is measured first and never gives way: the flair (weighted,
+                // so it gets what's left) is what truncates (#96).
                 Row(
-                    Modifier
-                        .weight(1f, fill = false)
-                        .clickable(enabled = comment.author != "[deleted]") { nav.openUser(comment.author) },
+                    Modifier.clickable(enabled = comment.author != "[deleted]") { nav.openUser(comment.author) },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     AuthorDot(comment.author, 20)
@@ -1479,11 +1501,11 @@ private fun CommentTile(
                 }
                 if (comment.stickied) {
                     Spacer(Modifier.width(6.dp))
-                    Badge("PINNED", cs.secondaryContainer, cs.onSecondaryContainer, 10.sp)
+                    Icon(Icons.Rounded.PushPin, "Pinned", Modifier.size(14.dp), tint = cs.primary)
                 }
                 comment.authorFlair?.let {
                     Spacer(Modifier.width(6.dp))
-                    FlairChip(it)
+                    FlairChip(it, Modifier.weight(1f, fill = false))
                 }
                 Spacer(Modifier.width(8.dp))
                 Text("· ${timeAgo(comment.createdUtc)}", fontSize = 12.5.sp, color = cs.onSurfaceVariant, maxLines = 1)
@@ -1491,8 +1513,10 @@ private fun CommentTile(
                     Spacer(Modifier.width(6.dp))
                     Badge("NEW", cs.tertiaryContainer, cs.onTertiaryContainer, 10.5.sp)
                 }
-                Spacer(Modifier.weight(1f))
-                if (collapsed) Icon(Icons.Rounded.UnfoldMore, "Expand", Modifier.size(16.dp), tint = cs.onSurfaceVariant)
+                if (collapsed) {
+                    Spacer(Modifier.weight(1f))
+                    Icon(Icons.Rounded.UnfoldMore, "Expand", Modifier.size(16.dp), tint = cs.onSurfaceVariant)
+                }
             }
             if (!collapsed) {
                 Column(
@@ -1537,12 +1561,12 @@ private fun Badge(text: String, bg: Color, fg: Color, size: androidx.compose.ui.
 
 /** A user's flair in this community, next to their name (#31): its text, with its emoji drawn inline. */
 @Composable
-private fun FlairChip(flair: UserFlair) {
+private fun FlairChip(flair: UserFlair, modifier: Modifier = Modifier) {
     val cs = MaterialTheme.colorScheme
     val (text, emoji) = com.bennybar.luli_for_reddit.feature.feed.rememberFlairText(flair)
     Text(
         text,
-        Modifier.widthIn(max = 160.dp).clip(RoundedCornerShape(6.dp)).background(cs.surfaceContainerHighest).padding(horizontal = 6.dp, vertical = 1.dp),
+        modifier.widthIn(max = 160.dp).clip(RoundedCornerShape(6.dp)).background(cs.surfaceContainerHighest).padding(horizontal = 6.dp, vertical = 1.dp),
         fontSize = 11.sp,
         color = cs.onSurfaceVariant,
         maxLines = 1,
@@ -1779,10 +1803,10 @@ private fun CalmCommentRow(
                     ),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                // The name is measured first and never gives way: the flair (weighted,
+                // so it gets what's left) is what truncates (#96).
                 Row(
-                    Modifier
-                        .weight(1f, fill = false)
-                        .clickable(enabled = comment.author != "[deleted]") { nav.openUser(comment.author) },
+                    Modifier.clickable(enabled = comment.author != "[deleted]") { nav.openUser(comment.author) },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     AuthorDot(comment.author, 24)
@@ -1802,11 +1826,11 @@ private fun CalmCommentRow(
                 }
                 if (comment.stickied) {
                     Spacer(Modifier.width(6.dp))
-                    Badge("PINNED", cs.secondaryContainer, cs.onSecondaryContainer, 10.sp)
+                    Icon(Icons.Rounded.PushPin, "Pinned", Modifier.size(14.dp), tint = cs.primary)
                 }
                 comment.authorFlair?.let {
                     Spacer(Modifier.width(6.dp))
-                    FlairChip(it)
+                    FlairChip(it, Modifier.weight(1f, fill = false))
                 }
                 Spacer(Modifier.width(6.dp))
                 Text("· ${timeAgo(comment.createdUtc)}", fontSize = 13.sp, color = cs.onSurfaceVariant, maxLines = 1)
@@ -1814,8 +1838,10 @@ private fun CalmCommentRow(
                     Spacer(Modifier.width(6.dp))
                     Badge("NEW", cs.tertiaryContainer, cs.onTertiaryContainer, 10.5.sp)
                 }
-                Spacer(Modifier.weight(1f))
-                if (collapsed) CollapsePill(Icons.Rounded.UnfoldMore, "Expand", toggle)
+                if (collapsed) {
+                    Spacer(Modifier.weight(1f))
+                    CollapsePill(Icons.Rounded.UnfoldMore, "Expand", toggle)
+                }
             }
             if (collapsed) {
                 Text(
@@ -1840,8 +1866,11 @@ private fun CalmCommentRow(
             // ↑ score ↓ · Reply · Collapse · ⋯ — small, 32dp targets.
             Row(Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 val muted = cs.onSurfaceVariant
-                Box(Modifier.size(32.dp).clip(CircleShape).clickable { actions.vote(comment, 1) }, contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.ArrowUpward, "Upvote", Modifier.size(16.dp).popOn(up), tint = if (up) votes.up else muted)
+                // A vote fills its arrow's circle with the deep vote colour, as the vote swipe and the Calm cards do (#93).
+                val upFill by animateColorAsState(if (up) votes.up else Color.Transparent, MaterialTheme.motionScheme.fastEffectsSpec())
+                val downFill by animateColorAsState(if (down) votes.down else Color.Transparent, MaterialTheme.motionScheme.fastEffectsSpec())
+                Box(Modifier.size(32.dp).clip(CircleShape).background(upFill).clickable { actions.vote(comment, 1) }, contentAlignment = Alignment.Center) {
+                    Icon(Icons.Rounded.ArrowUpward, "Upvote", Modifier.size(16.dp).popOn(up), tint = if (up) onVoteColor(votes.up) else muted)
                 }
                 Text(
                     if (comment.scoreHidden) "–" else compactNumber(comment.score),
@@ -1849,8 +1878,8 @@ private fun CalmCommentRow(
                     fontWeight = FontWeight.Medium,
                     color = if (up) votes.up else if (down) votes.down else muted,
                 )
-                Box(Modifier.size(32.dp).clip(CircleShape).clickable { actions.vote(comment, -1) }, contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.ArrowDownward, "Downvote", Modifier.size(16.dp).popOn(down), tint = if (down) votes.down else muted)
+                Box(Modifier.size(32.dp).clip(CircleShape).background(downFill).clickable { actions.vote(comment, -1) }, contentAlignment = Alignment.Center) {
+                    Icon(Icons.Rounded.ArrowDownward, "Downvote", Modifier.size(16.dp).popOn(down), tint = if (down) onVoteColor(votes.down) else muted)
                 }
                 Spacer(Modifier.width(6.dp))
                 Row(

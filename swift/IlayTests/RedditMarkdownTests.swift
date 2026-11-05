@@ -198,7 +198,8 @@ final class RedditMarkdownTests: XCTestCase {
     }
 
     func testMentionsLink() {
-        // Differs from Kotlin, which leaves these as text; Reddit links them.
+        // Reddit links them; so does Kotlin (#102).
+        XCTAssertEqual(runs(parse("mail a@b.co or see bar/r/xyz and my_u/xyz")).filter { $0.link != nil }.map(\.text), ["a@b.co"])
         XCTAssertEqual(runs(parse("ask u/some_one in r/foo-bar or /r/baz, not and/or/r/no or r/ or https://x.y/r/also")), [
             MdInline(text: "ask "),
             MdInline(text: "u/some_one", link: "u/some_one"),

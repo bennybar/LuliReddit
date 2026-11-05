@@ -186,6 +186,7 @@ final class GqlSearchTests: XCTestCase {
     func testACrosspostCarriesTheOriginalPost() {
         let p = Post.fromData(.object(gqlPostData(node(#""url":"/r/other/comments/orig/","crosspostRoot":{"post":{"__typename":"SubredditPost","id":"t3_orig","subreddit":{"name":"other"},"url":"https://i.redd.it/o.jpg","media":{"still":{"source":{"url":"https://p/o.jpg","dimensions":{"width":10,"height":10}}}}}}"#))))
         XCTAssertEqual(p.crosspostFrom, "other")
+        XCTAssertEqual(p.crosspostId, "orig")
     }
 
     func testOnlyPostsCount() {

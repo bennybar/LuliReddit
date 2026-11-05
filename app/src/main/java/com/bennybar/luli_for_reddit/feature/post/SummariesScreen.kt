@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import com.bennybar.luli_for_reddit.ui.subredditName
 import kotlinx.coroutines.launch
 import com.bennybar.luli_for_reddit.feature.settings.confirmDialog
 import androidx.compose.runtime.rememberCoroutineScope
@@ -195,7 +196,7 @@ private fun SummaryCard(s: SavedSummary, selected: Boolean?, onToggle: () -> Uni
                 Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(14.dp), tint = cs.primary)
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    "r/${s.subreddit} · ${s.style} · ${timeAgo(s.createdAt)}",
+                    "${subredditName(s.subreddit)} · ${s.style} · ${timeAgo(s.createdAt)}",
                     Modifier.weight(1f),
                     fontSize = 12.sp,
                     color = cs.onSurfaceVariant,

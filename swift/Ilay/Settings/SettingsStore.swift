@@ -35,6 +35,7 @@ final class SettingsStore {
         s.collapseTopLevel = b("collapseTopLevel", s.collapseTopLevel)
         s.hideReadPosts = b("hideReadPosts", s.hideReadPosts)
         s.hideReadInSubreddits = b("hideReadInSubreddits", s.hideReadInSubreddits)
+        s.recentSubsByVisits = b("recentSubredditsByVisits", s.recentSubsByVisits)
         s.dimReadTextOnly = b("dimReadTextOnly", s.dimReadTextOnly)
         s.subredditIcons = b("subredditIcons", s.subredditIcons)
         s.markReadOnScroll = b("markReadOnScroll", s.markReadOnScroll)
@@ -178,6 +179,7 @@ final class SettingsStore {
     func setForYouDiscovery(_ v: Int) { p.setInt("forYouDiscovery", v); set { $0.forYouDiscovery = v } }
     func setHideReadPosts(_ v: Bool) { p.setBool("hideReadPosts", v); set { $0.hideReadPosts = v } }
     func setHideReadInSubreddits(_ v: Bool) { p.setBool("hideReadInSubreddits", v); set { $0.hideReadInSubreddits = v } }
+    func setRecentSubsByVisits(_ v: Bool) { p.setBool("recentSubredditsByVisits", v); set { $0.recentSubsByVisits = v } }
     func setDimReadTextOnly(_ v: Bool) { p.setBool("dimReadTextOnly", v); set { $0.dimReadTextOnly = v } }
     func setSubredditIcons(_ v: Bool) { p.setBool("subredditIcons", v); set { $0.subredditIcons = v } }
     func setMarkReadOnScroll(_ v: Bool) { p.setBool("markReadOnScroll", v); set { $0.markReadOnScroll = v } }

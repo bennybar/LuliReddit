@@ -56,10 +56,18 @@ struct PostHeaderView: View {
                 .padding(.top, 14)
             if let flair = post.linkFlair { FlairChip(flair: flair).padding(.top, 8) }
             if let from = post.crosspostFrom {
-                Label("Crossposted from r/\(from)", systemImage: "repeat")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 8)
+                // A tap opens the original post and its comments (#100).
+                Button {
+                    if let id = post.crosspostId { nav.push(.post(subreddit: from, postId: id)) }
+                } label: {
+                    Label("Crossposted from r/\(from)", systemImage: "repeat")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .disabled(post.crosspostId == nil)
+                .accessibilityHint("Opens the original post")
+                .padding(.top, 8)
             }
             ReminderLine(post: post)
             PostMediaView(post: post).padding(.top, 12)

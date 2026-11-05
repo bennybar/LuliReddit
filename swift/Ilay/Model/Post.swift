@@ -43,6 +43,8 @@ struct Post: Identifiable, Equatable, Sendable, Copyable {
     var suggestedSort: String? = nil
     var feedReason: String? = nil // "why you're seeing this" in For You (transient)
     var crosspostFrom: String? = nil // subreddit a crosspost originates from
+    /// The original post's id, for opening it from "Crossposted from" (#100).
+    var crosspostId: String? = nil
     /// Images / GIFs referenced inside the body (`media_metadata`), by id — shown inline, not as links.
     var bodyMedia: [String: String] = [:]
     var pollOptions: [String] = []
@@ -134,6 +136,7 @@ struct Post: Identifiable, Equatable, Sendable, Copyable {
             distinguished: d["distinguished"].str(),
             suggestedSort: d["suggested_sort"].str()?.nilIfEmpty,
             crosspostFrom: parent["subreddit"].str(),
+            crosspostId: parent["id"].str(),
             bodyMedia: bodyMedia,
             pollOptions: pollRaw.map { $0["text"].str()! },
             authorFlair: flairOf(d, "author"),

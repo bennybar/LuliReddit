@@ -168,6 +168,7 @@ internal fun gqlSubredditData(n: JsonObject): JsonObject = buildJsonObject {
     put("subscribers", n["subscribersCount"].int() ?: 0)
     put("public_description", n["publicDescriptionText"].str() ?: "")
     put("icon_img", n["styles"]["icon"].str() ?: n["styles"]["legacyIcon"]["url"].str())
+    put("over18", n["isNsfw"].bool() == true) // for "Hide NSFW posts" (#94), when Reddit sends it
 }
 
 /** A people search result in the shape RedditUser.fromData reads (search only has total karma). */

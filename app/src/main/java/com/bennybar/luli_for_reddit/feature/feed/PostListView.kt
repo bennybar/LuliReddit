@@ -104,9 +104,12 @@ import com.bennybar.luli_for_reddit.feature.foryou.HomeStatus
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.Route
 import com.bennybar.luli_for_reddit.settings.PostDisplay
+import com.bennybar.luli_for_reddit.settings.postsTabKey
 import com.bennybar.luli_for_reddit.ui.ErrorView
 import com.bennybar.luli_for_reddit.ui.Overlays
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
+import com.bennybar.luli_for_reddit.model.Post
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -162,6 +165,8 @@ fun PostListView(
     refreshRequests: Int = 0,
     /** Hosted by the Posts tab: its re-tap and Back signals, and Home's hidden subreddits, apply. */
     postsTab: Boolean = false,
+    /** Bumped to take the posts you've read off the list, with Undo (the Hide read posts floating button, #99). */
+    hideReadRequests: Int = 0,
 ) {
     val controller = rememberFeedController(feedKey)
     val ui by controller.ui.collectAsStateWithLifecycle()
@@ -288,6 +293,17 @@ fun PostListView(
         if (refreshRequests == 0 || controller.ui.value !is FeedUi.Data) return@LaunchedEffect
         listState.scrollToItem(0)
         refresh()
+    }
+
+    LaunchedEffect(hideReadRequests) {
+        if (hideReadRequests == 0) return@LaunchedEffect
+        val before = controller.hideRead()
+        if (before == null) {
+            nav.showSnackbar("No read posts here")
+            return@LaunchedEffect
+        }
+        val hidden = before.count { it.id in app.history.ids.value }
+        nav.showSnackbar("Hid $hidden read post${if (hidden == 1) "" else "s"}", actionLabel = "Undo") { controller.unhideRead(before) }
     }
 
     // Returning to the feed after a pushed route (e.g. a post) is popped, or
@@ -419,7 +435,8 @@ fun PostListView(
                     .offset { IntOffset(0, chipsAt(height)) }
                     // The top bar's own surface, so posts don't show between the chips;
                     // it fades in with the outline, so the swap with the list's row doesn't show.
-                    .drawBehind { drawRect(barColor, alpha = floatingOutline) }
+                    // Transparent (#91): just the outlined chips over the posts, as before 2.0.58.
+                    .then(if (settings.floatingChipsSolid) Modifier.drawBehind { drawRect(barColor, alpha = floatingOutline) } else Modifier)
                     // The list's own side padding, so it's right over the list's row (#83).
                     .padding(horizontal = 7.dp),
             ) { chipsIn(floatingChipsState, floatingOutline) }
@@ -454,38 +471,11 @@ private fun FeedList(
     listPadding: PaddingValues,
     onRetry: () -> Unit,
 ) {
-    val settings by app.settings.state.collectAsStateWithLifecycle()
     val homeStatus = if (homeMode) app.forYou.redditHome.status.collectAsStateWithLifecycle().value else null
-    val hiddenIds by app.hiddenPosts.ids.collectAsStateWithLifecycle()
-    // Home / For You: posts dismissed with the "Dismiss" swipe (kept a day).
     val dismissible = feedKey.isEmpty() && deckMode
-    val dismissedIds = if (dismissible) app.dismissedPosts.ids.collectAsStateWithLifecycle().value else emptySet()
-    // Subreddits hidden for 7 days: anywhere on the front page (Home, For You
-    // and Best / Hot / New), and on the Posts tab when it shows r/all.
+    // Home's hidden subreddits apply on the front page, and on the Posts tab when it shows r/all.
     val frontpage = feedKey.isEmpty() || postsTab
-    val hiddenSubs = if (frontpage) app.hiddenHomeSubs.ids.collectAsStateWithLifecycle().value else emptySet()
-    val filters by app.contentFilters.state.collectAsStateWithLifecycle()
-    // Auto-hide already-read items in the For You feed (live: updates when
-    // history changes). Only watched while the option is on. Not in Reddit
-    // Home: its recommended posts carry Reddit's reason too, and opening one
-    // made it vanish on return.
-    val seen: Set<String>? = if (settings.autoHideReadForYou && !homeMode) app.history.ids.collectAsStateWithLifecycle().value else null
-    // A subreddit feed still shows that subreddit's own posts.
-    val viewing = if (feedKey.isEmpty() || feedKey.startsWith("m::")) null else feedKey
-
-    val posts = remember(state.posts, seen, hiddenIds, dismissedIds, hiddenSubs, filters, viewing) {
-        var list = state.posts
-        if (seen != null) list = list.filter { !(it.feedReason != null && it.id in seen) }
-        // Posts hidden this session (Hide / swipe-to-hide).
-        if (hiddenIds.isNotEmpty()) list = list.filter { it.id !in hiddenIds }
-        if (dismissedIds.isNotEmpty()) list = list.filter { it.id !in dismissedIds }
-        if (hiddenSubs.isNotEmpty()) list = list.filter { it.subreddit.lowercase() !in hiddenSubs }
-        // User content filters (keywords / domains / flairs / subreddits).
-        if (!filters.isEmpty) list = list.filter { !filters.hides(it, viewingSubreddit = viewing) }
-        // A page boundary can repeat a post that moved up meanwhile; the list
-        // needs unique keys.
-        list.distinctBy { it.id }
-    }
+    val posts = rememberShownPosts(feedKey, state.posts)
     val hidden = state.posts.size - posts.size
 
     // Paging is triggered by reaching rows near the end. If the filters hide
@@ -504,6 +494,15 @@ private fun FeedList(
     val prefetched = remember { HashSet<String>() }
     val latestPosts by rememberUpdatedState(posts)
     val headerCount = if (header != null) 2 else 1 // header + sort bar
+    // Back from Browse media (#103): the post it was on comes to the top.
+    val firstPostRow by rememberUpdatedState(headerCount + if (homeStatus is HomeStatus.Saved || homeStatus is HomeStatus.FellBack) 1 else 0)
+    LaunchedEffect(controller) {
+        controller.browsedTo.filterNotNull().collect { id ->
+            controller.browsedTo.value = null
+            val i = latestPosts.indexOfFirst { it.id == id }
+            if (i >= 0) listState.scrollToItem(firstPostRow + i)
+        }
+    }
     // 10 posts from the end = 11 rows counting the footer.
     LoadMoreNearEnd(listState, fromEnd = 11, page = state.posts.size to state.after, onLoadMore = controller::loadMore)
     LaunchedEffect(listState) {
@@ -567,6 +566,51 @@ private fun FeedList(
                 }
             }
         }
+    }
+}
+
+/**
+ * [posts] as the feed list shows them: without posts hidden or dismissed,
+ * subreddits hidden from the front page, content filters (Hide NSFW
+ * included) and, in For You, read posts when auto-hidden. Browse media
+ * (#103) shows the same posts.
+ */
+@Composable
+internal fun rememberShownPosts(feedKey: String, posts: List<Post>): List<Post> {
+    val settings by app.settings.state.collectAsStateWithLifecycle()
+    val isFrontpage = feedKey.isEmpty()
+    // With the Posts tab on r/all (Settings) the frontpage is a plain page: no For You / Home.
+    val engines = isFrontpage && !settings.postsTabAll
+    val homeMode = engines && settings.redditHomeAllowed && settings.redditHomeFeed
+    val deckMode = engines && (homeMode || settings.forYouFeed)
+    val hiddenIds by app.hiddenPosts.ids.collectAsStateWithLifecycle()
+    // Home / For You: posts dismissed with the "Dismiss" swipe (kept a day).
+    val dismissedIds = if (isFrontpage && deckMode) app.dismissedPosts.ids.collectAsStateWithLifecycle().value else emptySet()
+    // Subreddits hidden for 7 days: anywhere on the front page (Home, For You
+    // and Best / Hot / New), and in the feed the Posts tab shows when it's r/all.
+    val homeFeed = isFrontpage || feedKey == settings.postsTabKey
+    val hiddenSubs = if (homeFeed) app.hiddenHomeSubs.ids.collectAsStateWithLifecycle().value else emptySet()
+    val filters by app.contentFilters.state.collectAsStateWithLifecycle()
+    // Auto-hide already-read items in the For You feed (live: updates when
+    // history changes). Only watched while the option is on. Not in Reddit
+    // Home: its recommended posts carry Reddit's reason too, and opening one
+    // made it vanish on return.
+    val seen: Set<String>? = if (settings.autoHideReadForYou && !homeMode) app.history.ids.collectAsStateWithLifecycle().value else null
+    // A subreddit feed still shows that subreddit's own posts.
+    val viewing = if (feedKey.isEmpty() || feedKey.startsWith("m::")) null else feedKey
+
+    return remember(posts, seen, hiddenIds, dismissedIds, hiddenSubs, filters, viewing) {
+        var list = posts
+        if (seen != null) list = list.filter { !(it.feedReason != null && it.id in seen) }
+        // Posts hidden this session (Hide / swipe-to-hide).
+        if (hiddenIds.isNotEmpty()) list = list.filter { it.id !in hiddenIds }
+        if (dismissedIds.isNotEmpty()) list = list.filter { it.id !in dismissedIds }
+        if (hiddenSubs.isNotEmpty()) list = list.filter { it.subreddit.lowercase() !in hiddenSubs }
+        // User content filters (keywords / domains / flairs / subreddits).
+        if (!filters.isEmpty) list = list.filter { !filters.hides(it, viewingSubreddit = viewing) }
+        // A page boundary can repeat a post that moved up meanwhile; the list
+        // needs unique keys.
+        list.distinctBy { it.id }
     }
 }
 

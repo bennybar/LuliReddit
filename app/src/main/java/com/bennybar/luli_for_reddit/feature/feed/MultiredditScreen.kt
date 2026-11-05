@@ -4,6 +4,7 @@ import kotlinx.coroutines.launch
 import com.bennybar.luli_for_reddit.app
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -26,11 +27,15 @@ import com.bennybar.luli_for_reddit.nav.Route
 fun MultiredditScreen(username: String, name: String) {
     val nav = LocalNavigator.current
     val scope = rememberCoroutineScope()
+    val listState = rememberFeedListState()
     Scaffold(
         topBar = {
             BloomTopBar(
                 name,
                 actions = {
+                    IconButton(onClick = { openMediaBrowser(nav, "m::$username::$name", listState) }) {
+                        Icon(Icons.Outlined.VideoLibrary, "Browse media")
+                    }
                     val mine = username.equals(app.session.username, ignoreCase = true)
                     if (mine) {
                         IconButton(onClick = { nav.push(Route.ManageMultireddit(username, name)) }) {
@@ -62,6 +67,7 @@ fun MultiredditScreen(username: String, name: String) {
         PostListView(
             feedKey = "m::$username::$name",
             modifier = Modifier.padding(top = padding.calculateTopPadding()),
+            listState = listState,
             header = {
                 Text(
                     name,

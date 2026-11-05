@@ -1,6 +1,8 @@
 package com.bennybar.luli_for_reddit.feature.home
 
 import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.VideoLibrary
+import com.bennybar.luli_for_reddit.feature.feed.openMediaBrowser
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.layout.statusBars
@@ -149,6 +151,7 @@ internal fun FrontpageTab(selected: Boolean) {
 
     val fab = remember { FabScroll() }
     var refreshRequests by remember { mutableIntStateOf(0) } // the Refresh floating button
+    var hideReadRequests by remember { mutableIntStateOf(0) } // the Hide read posts floating button
     val barScroll = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
@@ -209,7 +212,7 @@ internal fun FrontpageTab(selected: Boolean) {
                 }
                 Spacer(Modifier.width(8.dp))
                 // The menu, without what's already in this bar (#78).
-                ProfileAvatar(username, 44.dp) { showFloatingToolbar(nav, username, compact = true) }
+                ProfileAvatar(username, 44.dp) { showFloatingToolbar(nav, username, { openMediaBrowser(nav, feedKey, listState) }, compact = true) }
             }
     }
     // The title row: the bar itself in Expandable mode; Full mode scrolls it with the feed.
@@ -247,7 +250,7 @@ internal fun FrontpageTab(selected: Boolean) {
             // Expandable mode: search right here, and one button that floats the toolbar in.
             if (expandable) {
                 IconButton(onClick = { nav.push(Route.Search()) }) { Icon(Icons.Rounded.Search, "Search") }
-                IconButton(onClick = { showFloatingToolbar(nav, username) }) {
+                IconButton(onClick = { showFloatingToolbar(nav, username, { openMediaBrowser(nav, feedKey, listState) }) }) {
                     Icon(Icons.Rounded.MoreHoriz, "Toolbar")
                 }
             }
@@ -261,6 +264,7 @@ internal fun FrontpageTab(selected: Boolean) {
             topPadding = with(LocalDensity.current) { barHeight.toDp() },
             listState = listState,
             refreshRequests = refreshRequests,
+            hideReadRequests = hideReadRequests,
             // Right under the bar when it's fully out, off the top when it's gone.
             floatingChipsY = if (!settings.floatingChips) null else ({ height ->
                 if (barHeight == 0) -height
@@ -293,6 +297,7 @@ internal fun FrontpageTab(selected: Boolean) {
             onSearch = { nav.push(Route.Search()) },
             onTop = { scope.launch { listState.animateScrollToItem(0) } },
             onRefresh = { refreshRequests++ },
+            onHideRead = { hideReadRequests++ },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .navigationBarsPadding()
@@ -353,7 +358,7 @@ private fun ApiUsagePill(modifier: Modifier = Modifier) {
  * display, profile) in from the top as a dismissible overlay — it never
  * displaces the feed.
  */
-private fun showFloatingToolbar(nav: AppNavigator, username: String, compact: Boolean = false) {
+private fun showFloatingToolbar(nav: AppNavigator, username: String, onBrowseMedia: () -> Unit, compact: Boolean = false) {
     Overlays.launch { done ->
         val cs = MaterialTheme.colorScheme
         val visible = remember { MutableTransitionState(false).apply { targetState = true } }
@@ -392,6 +397,7 @@ private fun showFloatingToolbar(nav: AppNavigator, username: String, compact: Bo
                     onNewPost = { close { nav.push(Route.Submit()) } },
                     onProfile = { close { nav.push(Route.User(username)) } },
                     onSettings = { close { nav.push(Route.Settings) } },
+                    onBrowseMedia = { close(onBrowseMedia) },
                 )
             }
         }
@@ -408,7 +414,15 @@ private val PanelInner = 6.dp
  * apply at once and leave the panel open, so the change is visible behind it.
  */
 @Composable
-private fun ToolbarPanel(username: String, compact: Boolean, onSearch: () -> Unit, onNewPost: () -> Unit, onProfile: () -> Unit, onSettings: () -> Unit) {
+private fun ToolbarPanel(
+    username: String,
+    compact: Boolean,
+    onSearch: () -> Unit,
+    onNewPost: () -> Unit,
+    onProfile: () -> Unit,
+    onSettings: () -> Unit,
+    onBrowseMedia: () -> Unit,
+) {
     val cs = MaterialTheme.colorScheme
     val settings by app.settings.state.collectAsStateWithLifecycle()
     val seg = cs.surfaceContainerHigh
@@ -448,6 +462,8 @@ private fun ToolbarPanel(username: String, compact: Boolean, onSearch: () -> Uni
                     PanelButton(Icons.Outlined.Settings, "Settings", Modifier.weight(1f), onSettings)
                 }
             }
+            // The feed's images and videos, full screen, one after another (#103).
+            PanelButton(Icons.Outlined.VideoLibrary, "Browse media", Modifier.fillMaxWidth(), onBrowseMedia)
             Column(
                 Modifier
                     .fillMaxWidth()

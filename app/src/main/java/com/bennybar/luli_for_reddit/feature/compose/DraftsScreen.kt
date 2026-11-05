@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.compose
 
+import com.bennybar.luli_for_reddit.ui.subredditName
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -52,7 +53,7 @@ private fun rowOf(d: Draft): DraftRow {
             listOfNotNull(
                 info["to"].str()?.let { "Reply to u/$it" } ?: "Reply",
                 info["title"].str()?.let { "in \"$it\"" },
-                info["sub"].str()?.let { "r/$it" },
+                info["sub"].str()?.let { subredditName(it) },
             ).joinToString(" · "),
             d.text,
             info["post"].str()?.let { Route.Post(info["sub"].str() ?: "_", it, info["comment"].str()) },

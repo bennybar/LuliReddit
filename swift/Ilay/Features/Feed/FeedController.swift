@@ -81,6 +81,9 @@ private let restoredPage = "restored"
     // A freshly-fetched first page staged behind the "New posts" pill.
     @ObservationIgnored private var pending: [Post]?
     @ObservationIgnored private var pendingAfter: String?
+    /// Opens the full-screen media browser (#103) from the post at the top of this feed's
+    /// list on screen. Set by that list, which knows what's on screen and what's filtered out.
+    @ObservationIgnored var browseMedia: (() -> Void)?
 
     private var engines: FeedEngines? { app.feed.engines }
     private var isFrontpage: Bool { key.isEmpty }
@@ -194,7 +197,8 @@ private let restoredPage = "restored"
     private func dropRead(_ listing: Listing<Post>) -> Listing<Post> {
         let s = app.settings.value
         if forYou || !s.hideReadPosts { return listing }
-        let subreddit = !key.isEmpty && !key.hasPrefix("m::")
+        // The feed the Posts tab shows (r/all with that setting) counts as the front page here.
+        let subreddit = !key.isEmpty && !key.hasPrefix("m::") && key != s.postsTabKey
         if subreddit && !s.hideReadInSubreddits { return listing }
         let read = app.history.ids
         if read.isEmpty { return listing }

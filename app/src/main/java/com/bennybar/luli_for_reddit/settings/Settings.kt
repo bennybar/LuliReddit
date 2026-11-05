@@ -50,6 +50,7 @@ enum class HomeFab(val label: String) {
     SEARCH("Search"),
     SCROLL_TOP("Scroll to top"),
     REFRESH("Refresh"),
+    HIDE_READ("Hide read posts"), // takes the posts you've read off the list on screen (#99)
 }
 
 /** The floating button in a thread (#90). Persisted by index (`threadFab`), so new ones go at the end. */
@@ -122,8 +123,10 @@ data class Settings(
     val collapseTopLevel: Boolean = false, // threads open with top-level comments' replies collapsed
     val hideReadPosts: Boolean = false, // skip already-read posts when feeds load
     val hideReadInSubreddits: Boolean = false, // …in single subreddits too (else front page / custom feeds only)
+    val recentSubsByVisits: Boolean = false, // "Recently visited" lists the most visited first (#92), else the newest
     val dimReadTextOnly: Boolean = false, // read posts: dim only title / text (images stay bright), else the whole card
     val subredditIcons: Boolean = true, // cards show the subreddit's icon (else its first letter)
+    val subredditPrefix: Boolean = true, // subreddit names show as "r/name" (else just "name", #97); display only
     val markReadOnScroll: Boolean = false, // a post scrolled past counts as read
     // What swiping does: "start" = from the start edge (rightward in LTR).
     val swipePostStart: SwipeAction = SwipeAction.UPVOTE,
@@ -140,6 +143,7 @@ data class Settings(
     val commentStyle: CommentStyle = CommentStyle.SAME,
     val swipeActions: Boolean = true,
     val floatingChips: Boolean = true, // feeds: filter chips float under the top bar past the list's own
+    val floatingChipsSolid: Boolean = true, // the floating chips sit on the top bar's background; off: transparent, as before 2.0.58 (#91)
     val fullBarNewPost: Boolean = true, // Full top bar: a New post button beside your avatar
     val trackHistory: Boolean = true,
     val showRecentlyVisited: Boolean = true, // Explore and the side bar list the subreddits you opened last

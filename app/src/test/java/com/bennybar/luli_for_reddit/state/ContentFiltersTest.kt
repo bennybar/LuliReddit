@@ -50,4 +50,13 @@ class ContentFiltersTest {
         assertTrue(ContentFilters(hideNsfw = true).hides(post("x", nsfw = true)))
         assertFalse(ContentFilters().hides(post("x", nsfw = true)))
     }
+
+    @Test
+    fun hideNsfwKeepsSafePostsAndAppliesOnTheSubredditsOwnPage() {
+        val f = ContentFilters(hideNsfw = true)
+        assertFalse(f.isEmpty) // the feed list runs the filter at all
+        assertFalse(f.hides(post("safe")))
+        // Unlike a filtered subreddit, an NSFW one's page hides them too (it says so instead).
+        assertTrue(f.hides(post("x", sub = "nsfwsub", nsfw = true), viewingSubreddit = "nsfwsub"))
+    }
 }

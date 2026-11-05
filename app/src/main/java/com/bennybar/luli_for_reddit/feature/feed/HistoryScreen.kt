@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.ui.subredditName
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -51,12 +52,16 @@ fun HistoryScreen() {
     var filterOpen by remember { mutableStateOf(false) }
     var clearOpen by remember { mutableStateOf(false) }
 
-    val subs = remember(history) { history.map { it.subreddit }.toSortedSet().toList() }
+    // "Hide NSFW posts" (Content filters) covers History too; entries from before it
+    // was recorded have no flag and stay shown.
+    val hideNsfw = app.contentFilters.state.collectAsStateWithLifecycle().value.hideNsfw
+    val visible = remember(history, hideNsfw) { if (hideNsfw) history.filter { !it.nsfw } else history }
+    val subs = remember(visible) { visible.map { it.subreddit }.toSortedSet().toList() }
     // Keep the chosen filter valid if its subreddit dropped out of history.
     val subFilter = subFilterRaw?.takeIf { it in subs }
-    val filtered = remember(history, query, subFilter) {
+    val filtered = remember(visible, query, subFilter) {
         val q = query.trim().lowercase()
-        history.filter {
+        visible.filter {
             (subFilter == null || it.subreddit == subFilter) &&
                 (q.isEmpty() || it.title.lowercase().contains(q) || it.subreddit.lowercase().contains(q))
         }
@@ -78,7 +83,7 @@ fun HistoryScreen() {
                                     subFilterRaw = null
                                 })
                                 for (s in subs) {
-                                    DropdownMenuItem(text = { Text("r/$s") }, onClick = {
+                                    DropdownMenuItem(text = { Text(subredditName(s)) }, onClick = {
                                         filterOpen = false
                                         subFilterRaw = s
                                     })
@@ -121,7 +126,7 @@ fun HistoryScreen() {
                 fontSize = 12.sp,
                 color = cs.onSurfaceVariant,
             )
-            if (history.isNotEmpty()) {
+            if (visible.isNotEmpty()) {
                 PillTextField(
                     value = query,
                     onValueChange = { query = it },
@@ -131,12 +136,13 @@ fun HistoryScreen() {
             }
             when {
                 history.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No history yet") }
+                visible.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("NSFW posts are hidden") }
                 filtered.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No matches") }
                 else -> LazyColumn(Modifier.fillMaxSize()) {
                     items(filtered, key = { it.id }) { e ->
                         Tile(
                             title = { Text(e.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-                            subtitle = { Text("r/${e.subreddit}") },
+                            subtitle = { Text(subredditName(e.subreddit)) },
                             trailing = {
                                 IconButton(onClick = { app.history.removeViewed(e.id) }) {
                                     Icon(Icons.Rounded.Close, "Remove", Modifier.size(18.dp))

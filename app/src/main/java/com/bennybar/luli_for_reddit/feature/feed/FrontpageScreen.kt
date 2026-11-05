@@ -33,6 +33,7 @@ fun FrontpageScreen() {
     val fab = remember { FabScroll() }
     val listState = rememberFeedListState()
     var refreshRequests by remember { mutableIntStateOf(0) } // the Refresh floating button
+    var hideReadRequests by remember { mutableIntStateOf(0) } // the Hide read posts floating button
     Scaffold(
         topBar = {
             BloomTopBar(
@@ -50,6 +51,7 @@ fun FrontpageScreen() {
                 onSearch = { nav.push(Route.Search()) },
                 onTop = { scope.launch { listState.animateScrollToItem(0) } },
                 onRefresh = { refreshRequests++ },
+                onHideRead = { hideReadRequests++ },
             )
         },
         containerColor = MaterialTheme.colorScheme.surface,
@@ -59,6 +61,7 @@ fun FrontpageScreen() {
             modifier = Modifier.padding(top = padding.calculateTopPadding()).nestedScroll(fab),
             listState = listState,
             refreshRequests = refreshRequests,
+            hideReadRequests = hideReadRequests,
         )
     }
 }
