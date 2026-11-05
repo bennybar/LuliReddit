@@ -371,6 +371,10 @@ fun SettingsList(
             pickOption(PostSort.entries.map { PickOption(it, it.label) }, s.defaultSort)?.let(ctrl::setDefaultSort)
         })
         switch(
+            "Posts tab shows r/all", "Instead of your frontpage, which Explore's All button opens then. For You, Blend and Reddit Home don't apply.",
+            Icons.Rounded.Public, s.postsTabAll, ctrl::setPostsTabAll,
+        )
+        switch(
             "\"For You\" feed",
             "A personalized frontpage, built on your phone from what you read and like",
             Icons.Rounded.AutoAwesome, s.forYouFeed, ctrl::setForYouFeed,
@@ -858,6 +862,10 @@ fun SettingsList(
                 },
             )
         }
+        switch(
+            "Recently visited", "List the subreddits you opened last on Explore and in the side bar",
+            Icons.Rounded.History, s.showRecentlyVisited, ctrl::setShowRecentlyVisited,
+        )
         switch("Offline cache", "Show the last loaded content when offline", Icons.Rounded.CloudOff, s.offlineCache, ctrl::setOfflineCache)
         switch(
             "Cache subscriptions", "Keep your subreddit list in memory to speed up \"For You\"",

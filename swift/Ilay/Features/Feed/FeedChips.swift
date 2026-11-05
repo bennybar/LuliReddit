@@ -16,7 +16,8 @@ struct FeedChips: View {
     var body: some View {
         let s = app.settings.value
         let isFrontpage = controller.key.isEmpty
-        let engines = isFrontpage && app.feed.engines != nil
+        // With the Posts tab on r/all (Settings) the frontpage is a plain pushed page.
+        let engines = isFrontpage && !s.postsTabAll && app.feed.engines != nil
         let homeAllowed = engines && s.redditHomeAllowed
         let redditHome = homeAllowed && s.redditHomeFeed
         let blend = engines && s.forYouFeed && s.blendHome && s.redditHomeAllowed

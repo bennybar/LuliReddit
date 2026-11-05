@@ -460,7 +460,9 @@ private fun SideBar(selected: Int, unread: Int, open: Boolean, onTab: (Int) -> U
                     onClick = { onPick { nav.push(route) } },
                 )
             }
-            SideBarSubs("Recently visited", recent, onPick, empty = "Subreddits you open will show here".takeIf { settings.trackHistory }, visits = visited.map { it.visits })
+            if (settings.showRecentlyVisited) {
+                SideBarSubs("Recently visited", recent, onPick, empty = "Subreddits you open will show here".takeIf { settings.trackHistory }, visits = visited.map { it.visits })
+            }
             SideBarSubs("Favorites", favorites, onPick)
             Spacer(Modifier.height(16.dp))
         }

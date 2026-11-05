@@ -146,10 +146,12 @@ data class Settings(
     val floatingChipsSolid: Boolean = true, // the floating chips sit on the top bar's background; off: transparent, as before 2.0.58 (#91)
     val fullBarNewPost: Boolean = true, // Full top bar: a New post button beside your avatar
     val trackHistory: Boolean = true,
+    val showRecentlyVisited: Boolean = true, // Explore and the side bar list the subreddits you opened last
     val offlineCache: Boolean = true,
     val checkUpdates: Boolean = true,
     val analytics: Boolean = true, // anonymous usage stats (Aptabase)
     val forYouFeed: Boolean = false, // frontpage uses the "For You" feed
+    val postsTabAll: Boolean = false, // the Posts tab shows r/all instead of the frontpage, which Explore's All button opens then
     val blendHome: Boolean = false, // with forYouFeed + Reddit Home allowed: "Blend (Beta)", For You ranking over your Reddit Home too
     val blendReddit: Int = 1, // Blend: Reddit ↔ Ilay — 0 mostly Ilay, 1 balanced, 2 mostly Reddit
     // Experimental Reddit Home: the user accepted its risk warning (allowed),
@@ -201,3 +203,6 @@ val Settings.calmComments: Boolean
         CommentStyle.CARDS -> false
         CommentStyle.CALM -> true
     }
+
+/** The Posts tab's feed key: the frontpage, or r/all with [Settings.postsTabAll]. */
+val Settings.postsTabKey: String get() = if (postsTabAll) "all" else ""

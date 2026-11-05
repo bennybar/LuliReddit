@@ -62,7 +62,9 @@ import com.bennybar.luli_for_reddit.feature.feed.MultiredditScreen
 import com.bennybar.luli_for_reddit.feature.feed.OfflineScreen
 import com.bennybar.luli_for_reddit.feature.feed.SavedScreen
 import com.bennybar.luli_for_reddit.feature.feed.SearchScreen
+import com.bennybar.luli_for_reddit.feature.feed.FrontpageScreen
 import com.bennybar.luli_for_reddit.feature.feed.SubredditScreen
+import com.bennybar.luli_for_reddit.settings.postsTabKey
 import com.bennybar.luli_for_reddit.feature.feed.UserScreen
 import com.bennybar.luli_for_reddit.feature.home.HomeScreen
 import com.bennybar.luli_for_reddit.feature.compose.DraftsScreen
@@ -180,6 +182,7 @@ class IlayActivity : ComponentActivity() {
             // allowed at all), to see how many actually use Home.
             val s = app.settings.value
             val feed = when {
+                s.postsTabAll -> "all"
                 s.redditHomeAllowed && s.redditHomeFeed -> "home"
                 s.forYouFeed && s.blendHome && s.redditHomeAllowed -> "blend"
                 s.forYouFeed -> "for_you"
@@ -200,7 +203,7 @@ class IlayActivity : ComponentActivity() {
             val s = app.session.state.first { it != SessionState.Loading } as? SessionState.LoggedIn ?: return@launch
             // After the account's stores are loaded: that also resets the feeds.
             app.loadedIdentity.first { it == s.session.identity }
-            app.feed.controller("").start()
+            app.feed.controller(app.settings.value.postsTabKey).start()
         }
     }
 
@@ -358,6 +361,7 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
                 screen<Route.MessageThread> { MessageThreadScreen(it.toRoute<Route.MessageThread>().fullname) }
                 screen<Route.ComposeMessage> { ComposeMessageScreen(it.toRoute<Route.ComposeMessage>().to) }
                 screen<Route.Subreddit> { SubredditScreen(it.toRoute<Route.Subreddit>().name) }
+                screen<Route.Frontpage> { FrontpageScreen() }
                 screen<Route.User> { UserScreen(it.toRoute<Route.User>().username) }
                 screen<Route.Multireddit> { val r = it.toRoute<Route.Multireddit>(); MultiredditScreen(r.username, r.name) }
                 screen<Route.ManageMultireddit> {
