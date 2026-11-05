@@ -45,6 +45,13 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.63", "Nov 5, 2026",
+        listOf(
+            "Subreddits and custom feeds: a tidier top bar (more actions under ⋯) that hides as you scroll down and comes back when you scroll up, like Home's",
+            "Inbox: swiping from the edge (or right on All) opens the side bar, and swiping between sections works again",
+        ),
+    ),
+    Release(
         "2.0.62", "Nov 5, 2026",
         listOf(
             "Pages you open from the side bar act like side-bar tabs: ☰ instead of the back arrow, and the side bar shows where you are",

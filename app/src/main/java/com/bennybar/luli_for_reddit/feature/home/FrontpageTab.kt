@@ -2,57 +2,37 @@ package com.bennybar.luli_for_reddit.feature.home
 
 import androidx.compose.material.icons.outlined.VideoLibrary
 import com.bennybar.luli_for_reddit.feature.feed.openMediaBrowser
-import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.WindowInsets
 import com.bennybar.luli_for_reddit.ui.switchThumb
 import com.bennybar.luli_for_reddit.feature.feed.FabScroll
 import com.bennybar.luli_for_reddit.feature.feed.FeedFab
 import com.bennybar.luli_for_reddit.settings.HomeFab
 import com.bennybar.luli_for_reddit.settings.postsTabKey
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.animation.core.animate
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.Velocity
 import com.bennybar.luli_for_reddit.feature.feed.FeedUi
 import com.bennybar.luli_for_reddit.feature.feed.rememberFeedController
 import com.bennybar.luli_for_reddit.feature.feed.rememberFeedListState
-import kotlin.math.roundToInt
-import kotlinx.coroutines.Job
+import com.bennybar.luli_for_reddit.feature.feed.rememberHidingBar
+import com.bennybar.luli_for_reddit.feature.feed.HidingTopBar
+import com.bennybar.luli_for_reddit.feature.feed.showTopPanel
+import com.bennybar.luli_for_reddit.feature.feed.PanelButton
+import com.bennybar.luli_for_reddit.feature.feed.PanelOuter
+import com.bennybar.luli_for_reddit.feature.feed.PanelInner
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.offset
 import androidx.compose.material.icons.outlined.PostAdd
-import androidx.activity.compose.BackHandler
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Surface
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.MutableTransitionState
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -66,28 +46,26 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.PlayCircleOutline
-import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Speed
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -110,7 +88,6 @@ import com.bennybar.luli_for_reddit.settings.PostDisplay
 import com.bennybar.luli_for_reddit.settings.TopBarMode
 import com.bennybar.luli_for_reddit.settings.TopBarMenuItem
 import com.bennybar.luli_for_reddit.settings.topBarMenu
-import com.bennybar.luli_for_reddit.ui.Overlays
 
 @Composable
 internal fun currentUsername(): String {
@@ -134,58 +111,17 @@ internal fun FrontpageTab(selected: Boolean) {
     val blendState by app.forYou.redditHome.blendState.collectAsStateWithLifecycle()
     val expandable = settings.topBarMode == TopBarMode.EXPANDABLE
 
-    // The top bar floats over the feed and follows the finger, in and out (#55):
-    // it slides away as you scroll down and back as you scroll up, and the feed
-    // stays put under it instead of being pushed around.
+    // The top bar floats over the feed and follows the finger, in and out (#55).
     val listState = rememberFeedListState()
     val scope = rememberCoroutineScope()
-    var barHeight by remember { mutableIntStateOf(0) }
-    var barShift by remember { mutableFloatStateOf(0f) } // 0 = shown, -barHeight = hidden
-    var settling by remember { mutableStateOf<Job?>(null) }
-    var scrollingUp by remember { mutableStateOf(false) }
-
-    fun slideBar(to: Float) {
-        settling?.cancel()
-        settling = scope.launch { animate(barShift, to, animationSpec = tween(200)) { v, _ -> barShift = v } }
-    }
+    val bar = rememberHidingBar(listState)
 
     val fab = remember { FabScroll() }
     var refreshRequests by remember { mutableIntStateOf(0) } // the Refresh floating button
     var hideReadRequests by remember { mutableIntStateOf(0) } // the Hide read posts floating button
-    val barScroll = remember {
-        object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (source == NestedScrollSource.UserInput) settling?.cancel()
-                return Offset.Zero
-            }
-
-            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
-                barShift = (barShift + consumed.y).coerceIn(-barHeight.toFloat(), 0f)
-                if (consumed.y != 0f) scrollingUp = consumed.y > 0f
-                return Offset.Zero
-            }
-
-            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-                // Don't rest half way; hide only with the feed scrolled far
-                // enough to fill the space the bar leaves.
-                val past = listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset >= barHeight
-                if (barShift != 0f && barShift != -barHeight.toFloat()) {
-                    // It finishes the way you were going: a little scroll up brings it out.
-                    slideBar(if (past && !scrollingUp) -barHeight.toFloat() else 0f)
-                }
-                return Velocity.Zero
-            }
-        }
-    }
-    // Never hidden past the feed's top, however it got there (a re-tap on the
-    // tab, Back, new posts): there'd be a blank gap above the first card.
-    LaunchedEffect(listState) {
-        snapshotFlow { if (listState.firstVisibleItemIndex == 0) listState.firstVisibleItemScrollOffset else null }
-            .collect { top -> if (top != null) barShift = maxOf(barShift, -top.toFloat()) }
-    }
     // Reloading starts a new list from the top; returning to the tab shows the bar too.
     val loaded = rememberFeedController(feedKey).ui.collectAsStateWithLifecycle().value is FeedUi.Data
-    LaunchedEffect(loaded, selected) { if (!loaded || selected) slideBar(0f) }
+    LaunchedEffect(loaded, selected) { if (!loaded || selected) bar.slide(0f) }
 
     // Full mode: Google-app style search bar with avatar.
     val actionRow: @Composable () -> Unit = {
@@ -256,39 +192,21 @@ internal fun FrontpageTab(selected: Boolean) {
             }
         }
     }
-    Box(Modifier.fillMaxSize().clipToBounds().nestedScroll(barScroll).nestedScroll(fab)) {
+    Box(Modifier.fillMaxSize().clipToBounds().nestedScroll(bar).nestedScroll(fab)) {
         PostListView(
             feedKey = feedKey,
             postsTab = true,
             header = if (expandable) null else titleRow,
-            topPadding = with(LocalDensity.current) { barHeight.toDp() },
+            topPadding = with(LocalDensity.current) { bar.height.toDp() },
             listState = listState,
             refreshRequests = refreshRequests,
             hideReadRequests = hideReadRequests,
             // Right under the bar when it's fully out, off the top when it's gone.
-            floatingChipsY = if (!settings.floatingChips) null else ({ height ->
-                if (barHeight == 0) -height
-                else (barHeight + barShift / barHeight * (barHeight + height)).roundToInt()
-            }),
+            floatingChipsY = if (!settings.floatingChips) null else bar::chipsY,
         )
-        // With the bar away the feed runs under the status bar, softly faded so
-        // its icons stay readable (#74, #80). The bar covers it when it's out.
-        val fade = cs.surface
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 16.dp)
-                .background(Brush.verticalGradient(listOf(fade.copy(alpha = 0.7f), fade.copy(alpha = 0f)))),
-        )
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .onSizeChanged { barHeight = it.height }
-                .offset { IntOffset(0, barShift.roundToInt()) }
-                .background(cs.surface)
-                .statusBarsPadding()
-                .padding(horizontal = if (expandable) 7.dp else 0.dp),
-        ) { if (expandable) titleRow() else actionRow() }
+        HidingTopBar(bar, Modifier.statusBarsPadding().padding(horizontal = if (expandable) 7.dp else 0.dp)) {
+            if (expandable) titleRow() else actionRow()
+        }
         FeedFab(
             // The Full bar's own New post button already does it: not two of them.
             if (!expandable && settings.fullBarNewPost && settings.homeFab == HomeFab.NEW_POST) HomeFab.OFF else settings.homeFab,
@@ -359,53 +277,18 @@ private fun ApiUsagePill(modifier: Modifier = Modifier) {
  * displaces the feed.
  */
 private fun showFloatingToolbar(nav: AppNavigator, username: String, onBrowseMedia: () -> Unit, compact: Boolean = false) {
-    Overlays.launch { done ->
-        val cs = MaterialTheme.colorScheme
-        val visible = remember { MutableTransitionState(false).apply { targetState = true } }
-        var after by remember { mutableStateOf<(() -> Unit)?>(null) }
-        fun close(then: (() -> Unit)? = null) {
-            after = then
-            visible.targetState = false
-        }
-        // Finish closing once the exit animation has run.
-        LaunchedEffect(visible.currentState, visible.targetState) {
-            if (!visible.targetState && !visible.currentState && visible.isIdle) {
-                done()
-                after?.invoke()
-            }
-        }
-        BackHandler { close() }
-        Box(Modifier.fillMaxSize()) {
-            AnimatedVisibility(visible, enter = fadeIn(tween(200)), exit = fadeOut(tween(200))) {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.30f))
-                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { close() },
-                )
-            }
-            AnimatedVisibility(
-                visible,
-                Modifier.statusBarsPadding().padding(start = 12.dp, top = 8.dp, end = 12.dp),
-                enter = fadeIn(tween(200)) + slideInVertically(tween(200)) { -it / 6 },
-                exit = fadeOut(tween(200)) + slideOutVertically(tween(200)) { -it / 6 },
-            ) {
-                ToolbarPanel(
-                    username,
-                    compact = compact,
-                    onSearch = { close { nav.push(Route.Search()) } },
-                    onNewPost = { close { nav.push(Route.Submit()) } },
-                    onProfile = { close { nav.push(Route.User(username)) } },
-                    onSettings = { close { nav.push(Route.Settings) } },
-                    onBrowseMedia = { close(onBrowseMedia) },
-                )
-            }
-        }
+    showTopPanel { close ->
+        ToolbarPanel(
+            username,
+            compact = compact,
+            onSearch = { close { nav.push(Route.Search()) } },
+            onNewPost = { close { nav.push(Route.Submit()) } },
+            onProfile = { close { nav.push(Route.User(username)) } },
+            onSettings = { close { nav.push(Route.Settings) } },
+            onBrowseMedia = { close(onBrowseMedia) },
+        )
     }
 }
-
-private val PanelOuter = 26.dp
-private val PanelInner = 6.dp
 
 /**
  * The top bar's panel: connected segments 3dp apart — search (with the
@@ -536,30 +419,6 @@ private fun ToolbarPanel(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun PanelButton(
-    icon: ImageVector,
-    label: String,
-    modifier: Modifier,
-    onClick: () -> Unit,
-    shape: Shape = RoundedCornerShape(PanelInner),
-) {
-    val cs = MaterialTheme.colorScheme
-    Row(
-        modifier
-            .height(56.dp)
-            .clip(shape)
-            .background(cs.surfaceContainerHigh)
-            .clickable(onClick = onClick),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(icon, null, Modifier.size(20.dp), tint = cs.onSurface)
-        Spacer(Modifier.width(10.dp))
-        Text(label, fontSize = 15.sp, fontWeight = FontWeight.Medium)
     }
 }
 

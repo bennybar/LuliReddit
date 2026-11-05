@@ -36,6 +36,10 @@ import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -131,25 +135,12 @@ fun SubredditScreen(name: String) {
     val listState = rememberFeedListState()
     var refreshRequests by remember { mutableIntStateOf(0) } // the Refresh floating button
     var hideReadRequests by remember { mutableIntStateOf(0) } // the Hide read posts floating button
+    // The top bar hides and comes back as on Home (#112).
+    val bar = rememberHidingBar(listState)
+    // Reloading (a sort change, too) starts a new list from the top: the bar comes back with it.
+    val loaded = rememberFeedController(name).ui.collectAsStateWithLifecycle().value is FeedUi.Data
+    LaunchedEffect(loaded) { if (!loaded) bar.slide(0f) }
     Scaffold(
-        topBar = {
-            BloomTopBar(
-                subredditName(name),
-                actions = {
-                    IconButton(onClick = { openMediaBrowser(nav, name, listState) }) { Icon(Icons.Outlined.VideoLibrary, "Browse media") }
-                    IconButton(onClick = { nav.push(Route.Search(subreddit = name)) }) { Icon(Icons.Rounded.Search, "Search") }
-                    IconButton(onClick = { scope.launch { showAbout(name, (about as? Async.Data)?.value) } }) {
-                        Icon(Icons.Outlined.Info, "About & rules")
-                    }
-                    if (!anonymous && name.lowercase() !in setOf("all", "popular")) {
-                        IconButton(onClick = { scope.launch { showAddToCustomFeed(name) } }) {
-                            Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, "Add to a custom feed")
-                        }
-                    }
-                    IconButton(onClick = { nav.share("https://reddit.com/r/$name") }) { Icon(Icons.Outlined.Share, "Share") }
-                },
-            )
-        },
         floatingActionButton = {
             FeedFab(
                 settings.homeFab,
@@ -163,38 +154,61 @@ fun SubredditScreen(name: String) {
         },
         containerColor = MaterialTheme.colorScheme.surface,
     ) { padding ->
-        // "Hide NSFW posts" would leave an NSFW subreddit's page empty: say why instead (#94).
-        val hideNsfw = app.contentFilters.state.collectAsStateWithLifecycle().value.hideNsfw
-        if (hideNsfw && (about as? Async.Data)?.value?.over18 == true) {
-            Column(
-                Modifier.padding(padding).fillMaxSize().padding(32.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text("This community is NSFW", style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "Its posts are hidden because Hide NSFW posts is on.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-                Spacer(Modifier.height(16.dp))
-                FilledTonalButton(onClick = { nav.push(Route.ContentFilters) }) { Text("Content filters") }
-            }
-        } else PostListView(
-            feedKey = name,
-            modifier = Modifier.padding(top = padding.calculateTopPadding()).nestedScroll(fab),
-            listState = listState,
-            refreshRequests = refreshRequests,
-            hideReadRequests = hideReadRequests,
-            header = {
-                when (val a = about) {
-                    Async.Loading -> LinearProgressIndicator(Modifier.fillMaxWidth().height(4.dp))
-                    is Async.Error -> {}
-                    is Async.Data -> SubredditHeader(a.value, vm)
+        Box(Modifier.fillMaxSize().clipToBounds().nestedScroll(bar).nestedScroll(fab)) {
+            // "Hide NSFW posts" would leave an NSFW subreddit's page empty: say why instead (#94).
+            val hideNsfw = app.contentFilters.state.collectAsStateWithLifecycle().value.hideNsfw
+            if (hideNsfw && (about as? Async.Data)?.value?.over18 == true) {
+                Column(
+                    Modifier.padding(padding).fillMaxSize().padding(32.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text("This community is NSFW", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Its posts are hidden because Hide NSFW posts is on.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    FilledTonalButton(onClick = { nav.push(Route.ContentFilters) }) { Text("Content filters") }
                 }
-            },
-        )
+            } else PostListView(
+                feedKey = name,
+                topPadding = with(LocalDensity.current) { bar.height.toDp() },
+                listState = listState,
+                refreshRequests = refreshRequests,
+                hideReadRequests = hideReadRequests,
+                header = {
+                    when (val a = about) {
+                        Async.Loading -> LinearProgressIndicator(Modifier.fillMaxWidth().height(4.dp))
+                        is Async.Error -> {}
+                        is Async.Data -> SubredditHeader(a.value, vm)
+                    }
+                },
+                floatingChipsY = if (!settings.floatingChips) null else bar::chipsY,
+            )
+            HidingTopBar(bar) {
+                BloomTopBar(
+                    subredditName(name),
+                    // Search, and the rest in the ⋯ menu: a row of five cropped the name (#112).
+                    actions = {
+                        IconButton(onClick = { nav.push(Route.Search(subreddit = name)) }) { Icon(Icons.Rounded.Search, "Search") }
+                        IconButton(onClick = {
+                            showBarMenu(
+                                listOfNotNull(
+                                    MenuAction(Icons.Outlined.Info, "About & rules") { scope.launch { showAbout(name, (about as? Async.Data)?.value) } },
+                                    MenuAction(Icons.Outlined.VideoLibrary, "Browse media") { openMediaBrowser(nav, name, listState) },
+                                    if (anonymous || name.lowercase() in setOf("all", "popular")) null
+                                    else MenuAction(Icons.AutoMirrored.Rounded.PlaylistAdd, "Add to a custom feed") { scope.launch { showAddToCustomFeed(name) } },
+                                    MenuAction(Icons.Outlined.Share, "Share") { nav.share("https://reddit.com/r/$name") },
+                                ),
+                            )
+                        }) { Icon(Icons.Rounded.MoreHoriz, "More") }
+                    },
+                )
+            }
+        }
     }
 }
 

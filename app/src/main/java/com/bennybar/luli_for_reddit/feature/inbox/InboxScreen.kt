@@ -7,6 +7,17 @@ import com.bennybar.luli_for_reddit.ui.ConnectedChoice
 import com.bennybar.luli_for_reddit.ui.RefreshBox
 import com.bennybar.luli_for_reddit.ui.Loading
 import com.bennybar.luli_for_reddit.feature.home.SideBarButton
+import com.bennybar.luli_for_reddit.feature.home.LocalSideBar
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
+import kotlin.math.abs
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.rounded.ArrowUpward
@@ -130,6 +141,8 @@ fun InboxScreen(reselect: Int) {
     }
 
     val fab = remember { FabScroll() }
+    val openSideBar = LocalSideBar.current
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     Scaffold(
         topBar = {
             Column {
@@ -187,11 +200,52 @@ fun InboxScreen(reselect: Int) {
             Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()).nestedScroll(fab),
             beyondViewportPageCount = 1,
         ) { page ->
-            if (tabs[page].second == REDDIT_TAB) RedditNotificationsList(active = pager.currentPage == page, lists[page])
-            else InboxList(tabs[page].second, lists[page])
+            Box(if (openSideBar == null) Modifier else Modifier.pointerInput(rtl) {
+                // The side bar's own drag sits above the pager, which takes every
+                // sideways drag first, even on the first section where it can only
+                // stretch (#113). So a drag toward the side bar opens it: from the
+                // start edge before the rows see it (they'd mark read), and on the
+                // first section after them, so a row's swipe still wins there.
+                val edge = 48.dp.toPx()
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                    val fromEdge = if (rtl) down.position.x > size.width - edge else down.position.x < edge
+                    if (!fromEdge && pager.canScrollBackward) return@awaitEachGesture
+                    val pass = if (fromEdge) PointerEventPass.Initial else PointerEventPass.Main
+                    // The down's own Main pass: a row's tap has consumed it by then.
+                    if (pass == PointerEventPass.Main) awaitPointerEvent(pass)
+                    val slop = viewConfiguration.touchSlop
+                    var total = Offset.Zero
+                    var change: PointerInputChange
+                    do {
+                        change = awaitPointerEvent(pass).changes.firstOrNull { it.id == down.id } ?: return@awaitEachGesture
+                        if (!change.pressed || change.isConsumed) return@awaitEachGesture
+                        total += change.positionChange()
+                    } while (total.getDistance() < slop)
+                    if (!isSideBarDrag(total.x, total.y, rtl)) return@awaitEachGesture
+                    change.consume()
+                    openSideBar()
+                    // Keep the rest of it, or the pager or list picks the drag back up.
+                    while (true) {
+                        change = awaitPointerEvent(pass).changes.firstOrNull { it.id == down.id } ?: break
+                        if (!change.pressed) break
+                        change.consume()
+                    }
+                }
+            }) {
+                if (tabs[page].second == REDDIT_TAB) RedditNotificationsList(active = pager.currentPage == page, lists[page])
+                else InboxList(tabs[page].second, lists[page])
+            }
         }
     }
 }
+
+/**
+ * Whether a drag of ([dx], [dy]) px, as it leaves the touch slop, heads for
+ * the side bar (toward the end edge, rightward in left-to-right layouts):
+ * one the pager would have taken, sideways more than up or down.
+ */
+internal fun isSideBarDrag(dx: Float, dy: Float, rtl: Boolean): Boolean = (if (rtl) -dx else dx) > abs(dy)
 
 private val kindFilters = listOf("all" to "All", "replies" to "Replies", "mentions" to "Mentions", "messages" to "Messages")
 

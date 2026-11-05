@@ -13,7 +13,16 @@ import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -28,14 +37,33 @@ fun MultiredditScreen(username: String, name: String) {
     val nav = LocalNavigator.current
     val scope = rememberCoroutineScope()
     val listState = rememberFeedListState()
-    Scaffold(
-        topBar = {
+    val settings by app.settings.state.collectAsStateWithLifecycle()
+    val feedKey = "m::$username::$name"
+    // The top bar hides and comes back as on Home (#112).
+    val bar = rememberHidingBar(listState)
+    // Reloading (a sort change, too) starts a new list from the top: the bar comes back with it.
+    val loaded = rememberFeedController(feedKey).ui.collectAsStateWithLifecycle().value is FeedUi.Data
+    LaunchedEffect(loaded) { if (!loaded) bar.slide(0f) }
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).clipToBounds().nestedScroll(bar)) {
+        PostListView(
+            feedKey = feedKey,
+            topPadding = with(LocalDensity.current) { bar.height.toDp() },
+            listState = listState,
+            header = {
+                Text(
+                    name,
+                    Modifier.fillMaxWidth().padding(start = 16.dp, top = 12.dp, end = 16.dp),
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                )
+            },
+            floatingChipsY = if (!settings.floatingChips) null else bar::chipsY,
+        )
+        HidingTopBar(bar) {
             BloomTopBar(
                 name,
+                // Manage (or Copy), and the rest in the ⋯ menu, so the feed's name has room (#112).
                 actions = {
-                    IconButton(onClick = { openMediaBrowser(nav, "m::$username::$name", listState) }) {
-                        Icon(Icons.Outlined.VideoLibrary, "Browse media")
-                    }
                     val mine = username.equals(app.session.username, ignoreCase = true)
                     if (mine) {
                         IconButton(onClick = { nav.push(Route.ManageMultireddit(username, name)) }) {
@@ -56,26 +84,16 @@ fun MultiredditScreen(username: String, name: String) {
                             }
                         }) { Icon(Icons.Rounded.ContentCopy, "Copy to your feeds") }
                     }
-                    IconButton(onClick = { nav.share("https://www.reddit.com/user/$username/m/$name/") }) {
-                        Icon(Icons.Outlined.Share, "Share link")
-                    }
+                    IconButton(onClick = {
+                        showBarMenu(
+                            listOf(
+                                MenuAction(Icons.Outlined.VideoLibrary, "Browse media") { openMediaBrowser(nav, feedKey, listState) },
+                                MenuAction(Icons.Outlined.Share, "Share link") { nav.share("https://www.reddit.com/user/$username/m/$name/") },
+                            ),
+                        )
+                    }) { Icon(Icons.Rounded.MoreHoriz, "More") }
                 },
             )
-        },
-        containerColor = MaterialTheme.colorScheme.surface,
-    ) { padding ->
-        PostListView(
-            feedKey = "m::$username::$name",
-            modifier = Modifier.padding(top = padding.calculateTopPadding()),
-            listState = listState,
-            header = {
-                Text(
-                    name,
-                    Modifier.fillMaxWidth().padding(start = 16.dp, top = 12.dp, end = 16.dp),
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.ExtraBold,
-                )
-            },
-        )
+        }
     }
 }

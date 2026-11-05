@@ -113,10 +113,12 @@ fun isSwipeDrag(dx: Float, dy: Float): Boolean = abs(dx) > 2 * abs(dy)
 /**
  * A swipe row's horizontal drag (posts, comments, inbox): like
  * detectHorizontalDragGestures, but past the slop it takes the gesture only
- * when [isSwipeDrag]; otherwise it lets go, unconsumed, and the list scrolls.
+ * when [isSwipeDrag] and [claims] its x distance; otherwise it lets go,
+ * unconsumed, and the list scrolls (or the Inbox pages, #113).
  * [onDrag] gets x deltas, the first one what's past the slop.
  */
 internal suspend fun PointerInputScope.detectSwipeDrags(
+    claims: (dx: Float) -> Boolean = { true },
     onDragStart: () -> Unit = {},
     onDragEnd: () -> Unit,
     onDragCancel: () -> Unit,
@@ -132,7 +134,7 @@ internal suspend fun PointerInputScope.detectSwipeDrags(
         if (!change.pressed || change.isConsumed) return@awaitEachGesture
         total += change.positionChange()
     } while (total.getDistance() < slop)
-    if (!isSwipeDrag(total.x, total.y)) return@awaitEachGesture
+    if (!isSwipeDrag(total.x, total.y) || !claims(total.x)) return@awaitEachGesture
     change.consume()
     onDragStart()
     onDrag(change, total.x * (1 - slop / total.getDistance()))
@@ -176,6 +178,9 @@ fun SwipeActions(
     Box(
         modifier.pointerInput(rtl, tracker) {
             detectSwipeDrags(
+                // A side with no action leaves the drag alone: taking it froze
+                // the row and kept the Inbox from paging past it (#113).
+                claims = { dx -> if (tracker.sideFor(dx, rtl) == SwipeTracker.Side.START) startSpec != null else endSpec != null },
                 onDragEnd = {
                     val side = tracker.release(rtl)
                     armed = 0f
