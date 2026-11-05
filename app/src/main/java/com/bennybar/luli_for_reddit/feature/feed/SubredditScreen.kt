@@ -32,6 +32,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Search
@@ -135,6 +136,7 @@ fun SubredditScreen(name: String) {
             BloomTopBar(
                 subredditName(name),
                 actions = {
+                    IconButton(onClick = { openMediaBrowser(nav, name, listState) }) { Icon(Icons.Outlined.VideoLibrary, "Browse media") }
                     IconButton(onClick = { nav.push(Route.Search(subreddit = name)) }) { Icon(Icons.Rounded.Search, "Search") }
                     IconButton(onClick = { scope.launch { showAbout(name, (about as? Async.Data)?.value) } }) {
                         Icon(Icons.Outlined.Info, "About & rules")

@@ -91,6 +91,9 @@ class FeedController(val key: String) {
 
     private val current: FeedState? get() = (_ui.value as? FeedUi.Data)?.state
 
+    /** The post Browse media (#103) was on when it closed: the list scrolls to it, then clears it. */
+    val browsedTo = MutableStateFlow<String?>(null)
+
     /**
      * Home and For You open with the shuffling deck and deal their cards in,
      * rather than painting the last saved page and then swapping it out.

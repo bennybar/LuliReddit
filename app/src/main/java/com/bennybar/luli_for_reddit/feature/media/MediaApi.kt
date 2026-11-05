@@ -60,6 +60,7 @@ import com.bennybar.luli_for_reddit.app
 import com.bennybar.luli_for_reddit.core.isVideoUrl
 import com.bennybar.luli_for_reddit.core.net.Redgifs
 import com.bennybar.luli_for_reddit.core.resolveVideoUrl
+import com.bennybar.luli_for_reddit.feature.feed.FeedMediaBrowser
 import com.bennybar.luli_for_reddit.feature.feed.feedDecodeWidth
 import com.bennybar.luli_for_reddit.feature.feed.rememberSizedRequest
 import com.bennybar.luli_for_reddit.model.GalleryImage
@@ -344,6 +345,7 @@ fun MediaViewerHost(stack: ViewerStack) {
                         is MediaViewer.Image -> ImageViewer(v.url, v.title)
                         is MediaViewer.Gallery -> GalleryViewer(v)
                         is MediaViewer.Video -> VideoViewer(v)
+                        is MediaViewer.Feed -> FeedMediaBrowser(v)
                     }
                 }
             }

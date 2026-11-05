@@ -30,6 +30,7 @@ struct MultiredditScreen: View {
                             }
                         }
                     }
+                    Button("Browse media", systemImage: "play.rectangle.on.rectangle") { app.feed.controller("m::\(username)::\(name)").browseMedia?() }
                     Button("Share link", systemImage: "square.and.arrow.up") { nav.share("https://www.reddit.com/user/\(username)/m/\(name)/") }
                 }
             }

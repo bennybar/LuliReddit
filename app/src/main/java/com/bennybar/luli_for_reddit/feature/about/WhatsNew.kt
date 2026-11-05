@@ -45,6 +45,12 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.60", "Nov 5, 2026",
+        listOf(
+            "Browse media: swipe up through a feed's photos, galleries and videos full screen, with votes, comments and saving at hand. Find it in a subreddit's top bar or the Home menu",
+        ),
+    ),
+    Release(
         "2.0.59", "Nov 5, 2026",
         listOf(
             "r/ and u/ mentions in comments and posts are links, and \"Crossposted from\" opens the original post",

@@ -224,6 +224,8 @@ private enum FeedItem: Hashable {
     /// The loading deck was just showing: deal the first cards in.
     private var dealing = false
     private var prefetched = Set<String>()
+    /// The media browser opened from this list, told about each new page.
+    private weak var browser: MediaBrowserModel?
 
     /// What changes every cell at once, and the chips.
     private struct Style: Equatable {
@@ -412,6 +414,11 @@ private enum FeedItem: Hashable {
         }
         collectionView.backgroundColor = config.isCarded ? .systemGroupedBackground : .systemBackground
         if styleChanged || replacedController || chipsView == nil { makeChips() }
+
+        if collectionView.window != nil || new.controller.browseMedia == nil {
+            new.controller.browseMedia = { [weak self] in self?.openMediaBrowser() }
+        }
+        browser?.feedChanged(visiblePosts, loaded: new.ui.state?.posts.count ?? 0)
 
         footer.loadingMore = new.ui.state?.loadingMore ?? false
         footer.hasMore = new.ui.state?.hasMore ?? false
@@ -699,6 +706,8 @@ private enum FeedItem: Hashable {
             dwellTimer = nil
         } else {
             updateDwellTimer()
+            // The feed's Browse media button opens from the list on screen (a feed can be open twice).
+            model.controller.browseMedia = { [weak self] in self?.openMediaBrowser() }
         }
     }
 
@@ -754,6 +763,29 @@ private enum FeedItem: Hashable {
             lastViewing = firstId
             app.feed.engines?.homeViewing(firstId)
         }
+    }
+}
+
+// MARK: Media browser
+
+extension PostListCoordinator {
+    /// Browse media (#103): from the first media post at or below the post at the top of
+    /// the screen (one more than half scrolled away doesn't count); back on the last post
+    /// viewed when it closes.
+    fileprivate func openMediaBrowser() {
+        let view = collectionView
+        let edge = view.bounds.minY + view.adjustedContentInset.top
+        let topId = view.indexPathsForVisibleItems.sorted().compactMap { indexPath -> String? in
+            guard case let .post(id) = dataSource.itemIdentifier(for: indexPath),
+                  let frame = view.layoutAttributesForItem(at: indexPath)?.frame, frame.midY > edge else { return nil }
+            return id
+        }.first
+        let browser = MediaBrowserModel(visible: visiblePosts, loaded: model.ui.state?.posts.count ?? 0, startId: topId, controller: model.controller) { [weak self] lastId in
+            guard let self, let lastId, let indexPath = dataSource.indexPath(for: .post(lastId)) else { return }
+            collectionView.scrollToItem(at: indexPath, at: .top, animated: false)
+        }
+        self.browser = browser
+        browser.present()
     }
 }
 

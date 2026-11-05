@@ -30,6 +30,12 @@ sealed interface MediaViewer {
         val downloadUrl: String? = null,
         val externalUrl: String? = null,
     ) : MediaViewer
+
+    /**
+     * Browse media (#103): every media post of the feed [feedKey], paged
+     * vertically, from the first one at or below the post [startId].
+     */
+    @Serializable data class Feed(val feedKey: String, val startId: String? = null) : MediaViewer
 }
 
 /** The open viewers, bottom to top. Each fades in (220ms) and out (180ms) before it leaves. */

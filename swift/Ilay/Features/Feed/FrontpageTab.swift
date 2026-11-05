@@ -126,6 +126,9 @@ private struct ToolbarPanel: View {
             if let username { Button("Your profile", systemImage: "person.crop.circle") { nav.openUser(username) } }
             if !compact { Button("New post", systemImage: "square.and.pencil") { nav.push(.submit()) } }
             Button("Settings", systemImage: "gearshape") { nav.push(.settings) }
+            // Unlike the layout and autoplay below, this closes the menu: it opens a viewer.
+            Button("Browse media", systemImage: "play.rectangle.on.rectangle") { app.feed.controller("").browseMedia?() }
+                .menuActionDismissBehavior(.enabled)
         }
         Picker("Layout", selection: Binding(get: { settings.postDisplay }, set: { app.settings.setPostDisplay($0) })) {
             ForEach(PostDisplay.allCases, id: \.self) { Label($0.label, systemImage: $0.icon).tag($0) }

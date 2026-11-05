@@ -151,7 +151,7 @@ import kotlinx.coroutines.launch
  * still completes (or rolls back) if the card scrolls away mid-request.
  */
 @Immutable
-private class PostActions(val post: Post, val nav: AppNavigator) {
+internal class PostActions(val post: Post, val nav: AppNavigator) {
     // Vote / score / saved / comment-count live in the shared post-overrides
     // store (keyed by post id) so the card stays in sync with the post-detail
     // screen and survives scrolling.
@@ -308,7 +308,7 @@ fun filterOutSub(post: Post) {
 
 /** The live override for one post: only this card recomposes when it changes. */
 @Composable
-private fun rememberOverride(post: Post): State<PostOverride?> {
+internal fun rememberOverride(post: Post): State<PostOverride?> {
     val flow = remember(post.id) { app.postOverrides.state.map { it[post.id] }.distinctUntilChanged() }
     // Seeds the first frame with the current value; the collected flow then
     // keeps it up to date (so this .value read can't go stale).
@@ -561,8 +561,8 @@ private fun cardImg(p: Post, s: Settings): String? {
 /** The image URL a full-width card shows (shared with the list's prefetcher). */
 fun feedImageUrl(p: Post, s: Settings): String? = cardImg(p, s) ?: p.gallery.firstOrNull()?.url
 
-private fun blurOf(p: Post, s: Settings) = (p.over18 && s.blurNsfw) || p.spoiler
-private fun blurLabel(p: Post, s: Settings) = if (p.over18 && s.blurNsfw) "NSFW" else "Spoiler"
+internal fun blurOf(p: Post, s: Settings) = (p.over18 && s.blurNsfw) || p.spoiler
+internal fun blurLabel(p: Post, s: Settings) = if (p.over18 && s.blurNsfw) "NSFW" else "Spoiler"
 
 /** Full-width media for the "Cards" layout, cover-cropped to [height]. */
 @Composable

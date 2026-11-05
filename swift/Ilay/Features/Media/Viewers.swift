@@ -23,7 +23,8 @@ class DismissableContentView: UIView, UIGestureRecognizerDelegate {
     let contentRoot = UIView()
     let singleTap = UITapGestureRecognizer()
     let edgePan = UIScreenEdgePanGestureRecognizer()
-    private let pan = UIPanGestureRecognizer()
+    /// The swipe-to-dismiss; the media browser turns it off, as its vertical swipes page.
+    let pan = UIPanGestureRecognizer()
 
     init(state: DismissState) {
         self.state = state
@@ -149,13 +150,14 @@ struct ViewerButton: View {
     let label: String
     var size: CGFloat = 44
     var iconSize: CGFloat = 17
+    var color: Color = .white
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: iconSize, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(color)
                 .frame(width: size, height: size)
                 .contentShape(Circle())
         }

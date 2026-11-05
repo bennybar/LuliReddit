@@ -89,6 +89,7 @@ struct SubredditScreen: View {
                     Button("Search", systemImage: "magnifyingglass") { nav.push(.search(subreddit: name)) }
                     Menu("More", systemImage: "ellipsis") {
                         Button("About & rules", systemImage: "info.circle") { showAbout(name, vm.about.value) }
+                        Button("Browse media", systemImage: "play.rectangle.on.rectangle") { app.feed.controller(name).browseMedia?() }
                         if !anonymous && !["all", "popular"].contains(name.lowercased()) {
                             Button("Add to a custom feed", systemImage: "text.badge.plus") {
                                 Task { await showAddToCustomFeed(name) }
