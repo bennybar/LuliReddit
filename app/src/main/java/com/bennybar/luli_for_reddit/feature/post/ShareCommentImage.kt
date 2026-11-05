@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import com.bennybar.luli_for_reddit.ui.subredditName
 import com.bennybar.luli_for_reddit.ui.switchThumb
 import android.content.Intent
 import android.graphics.Bitmap
@@ -144,7 +145,7 @@ private fun ChainCard(post: Post, chain: List<Comment>, hideNames: Boolean, modi
     val names = remember(chain, hideNames) { CommentTree.shareNames(chain, hideNames) }
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     Column(modifier.background(cs.surface).padding(14.dp)) {
-        Text("r/${post.subreddit}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = cs.onSurfaceVariant)
+        Text(subredditName(post.subreddit), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = cs.onSurfaceVariant)
         Spacer(Modifier.height(4.dp))
         Text(post.title, fontSize = 16.sp, fontWeight = FontWeight.Bold, lineHeight = 20.8.sp, color = cs.onSurface)
         Spacer(Modifier.height(12.dp))

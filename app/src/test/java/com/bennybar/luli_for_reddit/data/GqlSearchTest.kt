@@ -91,6 +91,7 @@ class GqlSearchTest {
             ),
         )
         assertEquals("other", p.crosspostFrom)
+        assertEquals("orig", p.crosspostId)
     }
 
     @Test

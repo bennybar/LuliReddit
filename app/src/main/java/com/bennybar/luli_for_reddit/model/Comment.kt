@@ -37,6 +37,8 @@ data class Comment(
     val linkTitle: String = "",
     val permalink: String = "",
     val subreddit: String = "",
+    /** The parent post is NSFW (`over_18`, on user/saved listings only). */
+    val over18: Boolean = false,
     /** media_metadata id → playable URL, for media referenced as `![gif](giphy|…)`. */
     val media: Map<String, String> = emptyMap(),
     val replies: List<Comment> = emptyList(),
@@ -98,6 +100,7 @@ data class Comment(
                 linkTitle = d["link_title"].str()?.trim() ?: "",
                 permalink = d["permalink"].str() ?: "",
                 subreddit = d["subreddit"].str() ?: "",
+                over18 = d["over_18"].isTrue(),
                 media = mediaUrls(d["media_metadata"]),
                 replies = replies,
             )

@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.compose
 
+import com.bennybar.luli_for_reddit.ui.subredditName
 import com.bennybar.luli_for_reddit.ui.switchThumb
 import com.bennybar.luli_for_reddit.ui.ConnectedChoice
 import androidx.compose.material3.LocalContentColor
@@ -586,7 +587,7 @@ private suspend fun pickSubreddit(): String? = Overlays.show<String> { done ->
             else -> LazyColumn(Modifier.navigationBarsPadding()) {
                 items(list, key = { it.name }) { s ->
                     ListItem(
-                        content = { Text(s.namePrefixed) },
+                        content = { Text(subredditName(s.namePrefixed)) },
                         leadingContent = {
                             if (s.iconUrl != null) {
                                 AsyncImage(s.iconUrl, null, Modifier.size(32.dp).clip(CircleShape), contentScale = ContentScale.Crop)

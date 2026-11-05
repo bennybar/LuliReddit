@@ -87,7 +87,7 @@ final class AppContainer {
         hiddenHomeSubs = ExpiringIds(prefs: prefs, baseKey: "hiddenHomeSubs") { 7 * 24 * 60 * 60_000 }
         summaries = SummaryStore()
         history = HistoryStore(prefs: prefs)
-        recentSubreddits = RecentSubreddits(prefs: prefs)
+        recentSubreddits = RecentSubreddits(prefs: prefs) { settings.value.recentSubsByVisits }
         threadVisits = ThreadVisits(prefs: prefs, settings: settings)
         contentFilters = ContentFiltersStore(prefs: prefs)
         offline = OfflineStore(prefs: prefs, repo: repository)
@@ -114,6 +114,8 @@ final class AppContainer {
             }
             // A new "Hide posts for" time applies at once (a shorter one un-hides now).
             if old.hiddenPostDays != new.hiddenPostDays { hiddenPosts.refresh() }
+            // Recently visited takes a new order at once.
+            if old.recentSubsByVisits != new.recentSubsByVisits { recentSubreddits.refresh() }
         }
         session.onStateChanged = { [unowned self] in sessionChanged($0) }
     }

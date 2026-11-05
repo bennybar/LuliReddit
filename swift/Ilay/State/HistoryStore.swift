@@ -8,6 +8,8 @@ struct HistoryEntry: Equatable, Sendable {
     let title: String
     let permalink: String
     var viewedAt: Int = 0 // millis since epoch; 0 = legacy/unknown
+    // For "Hide NSFW posts"; absent in older entries (unknown: shown).
+    var nsfw: Bool = false
 }
 
 /// Viewed posts, newest first, per account (prefs `history_<user>`, a JSON string list).
@@ -34,7 +36,8 @@ final class HistoryStore: UserScoped {
                 subreddit: j["sub"].str() ?? "",
                 title: j["title"].str() ?? "",
                 permalink: j["permalink"].str() ?? "",
-                viewedAt: j["ts"].long() ?? 0
+                viewedAt: j["ts"].long() ?? 0,
+                nsfw: j["nsfw"].isTrue()
             )
         })
     }
@@ -42,7 +45,7 @@ final class HistoryStore: UserScoped {
     func contains(_ id: String) -> Bool { ids.contains(id) }
 
     func markViewed(_ p: Post) {
-        let entry = HistoryEntry(id: p.id, subreddit: p.subreddit, title: p.title, permalink: p.permalink, viewedAt: nowMillis())
+        let entry = HistoryEntry(id: p.id, subreddit: p.subreddit, title: p.title, permalink: p.permalink, viewedAt: nowMillis(), nsfw: p.over18)
         publish(Array(([entry] + state.filter { $0.id != p.id }).prefix(HistoryStore.cap)))
         persist()
     }
@@ -71,11 +74,13 @@ final class HistoryStore: UserScoped {
 
     private func persist() {
         prefs.setStringList(key, state.map { e in
-            let j: JsonElement = [
+            var o: JsonObject = [
                 "id": .string(e.id), "sub": .string(e.subreddit), "title": .string(e.title),
                 "permalink": .string(e.permalink), "ts": .int(e.viewedAt),
             ]
-            return j.encoded()
+            // Only when set: SFW entries keep the shape older versions wrote.
+            if e.nsfw { o["nsfw"] = .bool(true) }
+            return JsonElement.object(o).encoded()
         })
     }
 }

@@ -32,6 +32,14 @@ final class ContentFiltersTests: XCTestCase {
         XCTAssertFalse(ContentFilters().hides(post(title: "x", nsfw: true)))
     }
 
+    func testHideNsfwKeepsSafePostsAndAppliesOnTheSubredditsOwnPage() {
+        let f = ContentFilters(hideNsfw: true)
+        XCTAssertFalse(f.isEmpty) // the feed list runs the filter at all
+        XCTAssertFalse(f.hides(post(title: "safe")))
+        // Unlike a filtered subreddit, an NSFW one's page hides them too (it says so instead).
+        XCTAssertTrue(f.hides(post(title: "x", sub: "nsfwsub", nsfw: true), viewingSubreddit: "nsfwsub"))
+    }
+
     func testChangingKeywordsRecompilesThePattern() {
         var f = ContentFilters(keywords: ["cat"])
         f.keywords = ["dog"]
@@ -142,12 +150,58 @@ final class PostOverridesTests: XCTestCase {
 final class RecentSubredditsTests: XCTestCase {
     private func r(_ name: String) -> RecentSubreddit { RecentSubreddit(name: name, namePrefixed: "r/\(name)", iconUrl: nil, subscribers: 0, visitedAt: 0) }
 
-    func testNewestFirstOncePerSubredditWhateverTheCaseAtMostFive() {
+    func testNewestFirstOncePerSubredditWhateverTheCaseAtMostFiveListed() {
         var list: [RecentSubreddit] = []
         for n in ["a", "b", "c", "d", "e", "f"] { list = RecentSubreddits.visited(list, r(n)) }
-        XCTAssertEqual(list.map(\.name), ["f", "e", "d", "c", "b"])
+        XCTAssertEqual(RecentSubreddits.shown(list, byVisits: false).map(\.name), ["f", "e", "d", "c", "b"])
         list = RecentSubreddits.visited(list, r("C"))
-        XCTAssertEqual(list.map(\.name), ["C", "f", "e", "d", "b"])
+        XCTAssertEqual(RecentSubreddits.shown(list, byVisits: false).map(\.name), ["C", "f", "e", "d", "b"])
+    }
+
+    func testVisitsAreCountedWhateverTheCase() {
+        var list: [RecentSubreddit] = []
+        for n in ["pics", "news", "Pics", "PICS"] { list = RecentSubreddits.visited(list, r(n)) }
+        XCTAssertEqual(list.map(\.name), ["PICS", "news"])
+        XCTAssertEqual(list.map(\.visits), [3, 1])
+    }
+
+    func testMostVisitedFirstTiesNewestFirstAndAFrequentOneOutlivesFiveNewer() {
+        var list: [RecentSubreddit] = []
+        for _ in 0..<4 { list = RecentSubreddits.visited(list, r("often")) }
+        for n in ["a", "b", "c", "d", "e", "f"] { list = RecentSubreddits.visited(list, r(n)) }
+        list = RecentSubreddits.visited(list, r("b"))
+        XCTAssertEqual(RecentSubreddits.shown(list, byVisits: true).map(\.name), ["often", "b", "f", "e", "d"])
+        // Most recent: "often" fell off the five listed but kept its count.
+        XCTAssertEqual(RecentSubreddits.shown(list, byVisits: false).map(\.name), ["b", "f", "e", "d", "c"])
+        XCTAssertEqual(list.first { $0.name == "often" }?.visits, 4)
+    }
+
+    func testRemembersAHundred() {
+        var list: [RecentSubreddit] = []
+        for i in 0..<120 { list = RecentSubreddits.visited(list, r("s\(i)")) }
+        XCTAssertEqual(list.count, 100)
+        XCTAssertEqual(list.first?.name, "s119")
+        XCTAssertEqual(list.last?.name, "s20")
+    }
+
+    @MainActor
+    func testCountsSurviveARestartPerAccountAndTheOrderFollowsTheSetting() {
+        let p = testPrefs()
+        var byVisits = false
+        let store = RecentSubreddits(prefs: p, byVisits: { byVisits })
+        store.onUserChanged("bob")
+        for n in ["often", "often", "often", "rare"] { store.visit(Subreddit(name: n, namePrefixed: "r/\(n)", title: "", description: "", subscribers: 0, iconUrl: nil)) }
+        XCTAssertEqual(store.state.map(\.name), ["rare", "often"])
+        byVisits = true
+        store.refresh()
+        XCTAssertEqual(store.state.map(\.name), ["often", "rare"])
+
+        let again = RecentSubreddits(prefs: p, byVisits: { true })
+        again.onUserChanged("bob")
+        XCTAssertEqual(again.state.map(\.name), ["often", "rare"])
+        XCTAssertEqual(again.state.map(\.visits), [3, 1])
+        again.onUserChanged("alice")
+        XCTAssertTrue(again.state.isEmpty, "another account has its own list")
     }
 }
 

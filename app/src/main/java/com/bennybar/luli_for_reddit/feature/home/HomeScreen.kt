@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import com.bennybar.luli_for_reddit.ui.subredditName
 import com.bennybar.luli_for_reddit.model.Subreddit
 import com.bennybar.luli_for_reddit.feature.feed.SectionHeader
 import com.bennybar.luli_for_reddit.feature.feed.LetterAvatar
@@ -459,7 +460,7 @@ private fun SideBar(selected: Int, unread: Int, open: Boolean, onTab: (Int) -> U
                     onClick = { onPick { nav.push(route) } },
                 )
             }
-            SideBarSubs("Recently visited", recent, onPick, empty = "Subreddits you open will show here".takeIf { settings.trackHistory })
+            SideBarSubs("Recently visited", recent, onPick, empty = "Subreddits you open will show here".takeIf { settings.trackHistory }, visits = visited.map { it.visits })
             SideBarSubs("Favorites", favorites, onPick)
             Spacer(Modifier.height(16.dp))
         }
@@ -468,7 +469,7 @@ private fun SideBar(selected: Int, unread: Int, open: Boolean, onTab: (Int) -> U
 
 /** A titled list of subreddits in the side bar (#63); when it has none, [empty], or nothing. */
 @Composable
-private fun SideBarSubs(title: String, subs: List<Subreddit>, onPick: (() -> Unit) -> Unit, empty: String? = null) {
+private fun SideBarSubs(title: String, subs: List<Subreddit>, onPick: (() -> Unit) -> Unit, empty: String? = null, visits: List<Int>? = null) {
     if (subs.isEmpty() && empty == null) return
     val nav = LocalNavigator.current
     val cs = MaterialTheme.colorScheme
@@ -476,10 +477,12 @@ private fun SideBarSubs(title: String, subs: List<Subreddit>, onPick: (() -> Uni
     if (subs.isEmpty()) {
         Text(empty.orEmpty(), Modifier.padding(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 8.dp), color = cs.onSurfaceVariant)
     }
-    for (sub in subs) {
+    for ((i, sub) in subs.withIndex()) {
         NavigationDrawerItem(
-            label = { Text(sub.namePrefixed, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            label = { Text(subredditName(sub.namePrefixed), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             icon = { LetterAvatar(sub.name, 28.dp, cs.secondaryContainer, cs.onSecondaryContainer, imageUrl = sub.iconUrl, fontSize = 13.sp) },
+            // Recently visited: how often you opened it (#92).
+            badge = visits?.getOrNull(i)?.let { { Text("$it", color = cs.onSurfaceVariant, style = MaterialTheme.typography.labelMedium) } },
             selected = false,
             // A followed user is a subscription to their profile, u_<name>.
             onClick = { onPick { if (sub.name.startsWith("u_")) nav.openUser(sub.name.removePrefix("u_")) else nav.openSubreddit(sub.name) } },

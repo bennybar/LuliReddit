@@ -7,7 +7,8 @@ import org.junit.Test
 class FabSettingsTest {
     @Test
     fun `existing Home button indices are unchanged`() {
-        assertEquals(listOf("OFF", "NEW_POST", "SEARCH", "SCROLL_TOP", "REFRESH"), HomeFab.entries.map { it.name })
+        // Hide read posts (#99) went on the end, so stored indexes keep their meaning.
+        assertEquals(listOf("OFF", "NEW_POST", "SEARCH", "SCROLL_TOP", "REFRESH", "HIDE_READ"), HomeFab.entries.map { it.name })
         assertEquals(listOf("NEW_COMMENT", "SCROLL_TOP", "OFF"), ThreadFab.entries.map { it.name })
     }
 
@@ -19,5 +20,8 @@ class FabSettingsTest {
         assertEquals(ThreadFab.NEW_COMMENT, d.threadFab)
         assertEquals(null, d.customSeedColor)
         assertEquals(Settings.DEFAULT_SEED, d.seedColor)
+        // #91 and #97: today's look until changed.
+        assertEquals(true, d.floatingChipsSolid)
+        assertEquals(true, d.subredditPrefix)
     }
 }

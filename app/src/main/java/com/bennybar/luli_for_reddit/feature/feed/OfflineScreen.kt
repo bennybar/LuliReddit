@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.ui.subredditName
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -82,7 +83,7 @@ private fun OfflineRow(t: OfflineThread) {
     ) {
         Tile(
             title = { Text(t.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-            subtitle = { Text("r/${t.subreddit} · saved ${timeAgo(t.savedAt)}") },
+            subtitle = { Text("${subredditName(t.subreddit)} · saved ${timeAgo(t.savedAt)}") },
             leading = { Icon(Icons.Rounded.OfflinePin, null) },
             modifier = Modifier.background(cs.surface),
             onClick = { nav.push(Route.Post(t.subreddit.ifEmpty { "_" }, t.id)) },

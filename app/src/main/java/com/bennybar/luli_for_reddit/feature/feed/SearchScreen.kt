@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.ui.subredditName
 import com.bennybar.luli_for_reddit.ui.ConnectedChoice
 import com.bennybar.luli_for_reddit.ui.RefreshBox
 import com.bennybar.luli_for_reddit.ui.Loading
@@ -371,13 +372,18 @@ fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time:
                         state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Loading() }
                         tabs[page] == "Subreddits" -> if (state.subsError != null) {
                             ErrorView(state.subsError, onRetry = { vm.search(state.query, saveRecent = false) })
-                        } else RefreshableResults(state.subs.isEmpty(), "No subreddits found", vm, state.query) {
-                            items(state.subs, key = { it.name }) { s ->
-                                ResultTile(
-                                    s.name,
-                                    s.namePrefixed,
-                                    "${compactNumber(s.subscribers)} members",
-                                ) { nav.openSubreddit(s.name) }
+                        } else {
+                            // "Hide NSFW posts" (Content filters) keeps NSFW communities out too (#94).
+                            val hideNsfw = app.contentFilters.state.collectAsStateWithLifecycle().value.hideNsfw
+                            val subs = if (hideNsfw) state.subs.filter { !it.over18 } else state.subs
+                            RefreshableResults(subs.isEmpty(), "No subreddits found", vm, state.query) {
+                                items(subs, key = { it.name }) { s ->
+                                    ResultTile(
+                                        s.name,
+                                        subredditName(s.namePrefixed),
+                                        "${compactNumber(s.subscribers)} members",
+                                    ) { nav.openSubreddit(s.name) }
+                                }
                             }
                         }
                         else -> if (state.usersError != null) {
@@ -519,6 +525,9 @@ private fun ResultTile(name: String, title: String, subtitle: String, onClick: (
 @Composable
 private fun PostsTab(state: SearchState, vm: SearchViewModel) {
     var refreshing by remember { mutableStateOf(false) }
+    // "Hide NSFW posts" (Content filters) applies to results too (#94).
+    val hideNsfw = app.contentFilters.state.collectAsStateWithLifecycle().value.hideNsfw
+    val posts = remember(state.posts, hideNsfw) { if (hideNsfw) state.posts.filter { !it.over18 } else state.posts }
     val scope = rememberCoroutineScope()
     Column(Modifier.fillMaxSize()) {
         // The chips stay through a search (#58), so the new pick can be seen landing.
@@ -548,13 +557,13 @@ private fun PostsTab(state: SearchState, vm: SearchViewModel) {
                 contentPadding = PaddingValues(start = 10.dp, top = 6.dp, end = 10.dp, bottom = 130.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                if (state.posts.isEmpty()) {
+                if (posts.isEmpty()) {
                     item {
                         Spacer(Modifier.height(120.dp))
                         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { Text("No posts found") }
                     }
                 } else {
-                    items(state.posts, key = { it.id }, contentType = { "post_${it.type}" }) { PostCard(it) }
+                    items(posts, key = { it.id }, contentType = { "post_${it.type}" }) { PostCard(it) }
                     if (state.loadingMore) {
                         item(key = "__more") {
                             Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { Loading() }

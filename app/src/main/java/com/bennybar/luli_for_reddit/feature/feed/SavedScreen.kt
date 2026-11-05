@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.ui.subredditName
 import com.bennybar.luli_for_reddit.ui.Loading
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.rounded.BookmarkRemove
@@ -85,10 +86,14 @@ fun SavedScreen() {
         }
     }
 
-    val filtered = remember(state.items, query, type, removed) {
+    // "Hide NSFW posts" (Content filters) covers what you saved too: NSFW posts and
+    // comments on them.
+    val hideNsfw = app.contentFilters.state.collectAsStateWithLifecycle().value.hideNsfw
+    val filtered = remember(state.items, query, type, removed, hideNsfw) {
         val q = query.trim().lowercase()
         state.items.filter {
             (if (it is Post) it.fullname else (it as Comment).fullname) !in removed &&
+            !(hideNsfw && (if (it is Post) it.over18 else (it as Comment).over18)) &&
             (type == "all" || (type == "posts" && it is Post) || (type == "comments" && it is Comment)) &&
                 (q.isEmpty() || (it is Post && it.title.lowercase().contains(q)) || (it is Comment && it.body.lowercase().contains(q)))
         }.distinctBy { if (it is Post) it.fullname else (it as Comment).fullname }
@@ -130,7 +135,14 @@ fun SavedScreen() {
                         Button(onClick = { source.load() }) { Text("Retry") }
                     }
                     filtered.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(if (state.items.isEmpty() || (query.isBlank() && type == "all")) "Nothing saved" else "No matches")
+                        Text(
+                            when {
+                                state.items.isEmpty() -> "Nothing saved"
+                                query.isBlank() && type == "all" ->
+                                    if (hideNsfw && state.items.any { if (it is Post) it.over18 else (it as Comment).over18 }) "NSFW posts are hidden" else "Nothing saved"
+                                else -> "No matches"
+                            },
+                        )
                     }
                     else -> {
                         val listState = rememberLazyListState()
@@ -184,7 +196,7 @@ private fun SavedComment(comment: Comment) {
                 Icon(Icons.Outlined.ModeComment, null, Modifier.size(14.dp), tint = cs.primary)
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    "r/${comment.subreddit} · u/${comment.author} · ${compactNumber(comment.score)}",
+                    "${subredditName(comment.subreddit)} · u/${comment.author} · ${compactNumber(comment.score)}",
                     Modifier.weight(1f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

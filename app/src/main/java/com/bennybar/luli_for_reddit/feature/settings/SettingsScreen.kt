@@ -2,6 +2,7 @@ package com.bennybar.luli_for_reddit.feature.settings
 
 import androidx.compose.material.icons.outlined.PostAdd
 import androidx.compose.material.icons.rounded.FilterList
+import androidx.compose.material.icons.rounded.Tag
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.PermMedia
@@ -17,6 +18,7 @@ import androidx.compose.material.icons.rounded.CropFree
 import androidx.compose.material.icons.rounded.Menu
 import com.bennybar.luli_for_reddit.BuildConfig
 import androidx.compose.material.icons.rounded.NewReleases
+import androidx.compose.material.icons.rounded.NoAdultContent
 import com.bennybar.luli_for_reddit.feature.web.RedditWeb
 import androidx.compose.material.icons.rounded.ManageAccounts
 import android.content.Context
@@ -327,6 +329,7 @@ fun SettingsList(
     var redditAccess by remember { mutableStateOf(RedditAppNotifications.hasAccess(context)) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { redditAccess = RedditAppNotifications.hasAccess(context) }
     val hiddenSubs by app.hiddenHomeSubs.ids.collectAsStateWithLifecycle()
+    val filters by app.contentFilters.state.collectAsStateWithLifecycle()
     // What Ilay keeps in its cache folder: saved pages, images, videos.
     var cacheBytes by remember { mutableStateOf<Long?>(null) }
     LaunchedEffect(Unit) { cacheBytes = withContext(Dispatchers.IO) { context.cacheDir.walk().filter { it.isFile }.sumOf { it.length() } } }
@@ -424,6 +427,18 @@ fun SettingsList(
             "Floating filter chips", "On Home, subreddits and custom feeds, show the chips under the top bar when you scroll back up",
             Icons.Rounded.FilterList, s.floatingChips, ctrl::setFloatingChips,
         )
+        if (s.floatingChips) {
+            // #91: the solid top-bar background of 2.0.58, or the outlined chips over the posts as before.
+            tile("Floating chips background", if (s.floatingChipsSolid) "Solid" else "Transparent", Icons.Rounded.FilterList, onClick = launch {
+                pickOption(
+                    listOf(
+                        PickOption(false, "Transparent", "Just the outlined chips, over the posts"),
+                        PickOption(true, "Solid", "On the top bar's background, so posts don't show between the chips"),
+                    ),
+                    s.floatingChipsSolid,
+                )?.let(ctrl::setFloatingChipsSolid)
+            })
+        }
         divider("feed-lists")
         tile("Keep feed for", "Home / For You: ${keepLabel(s.feedKeepMinutes)}, then a new feed (pull down to refresh anytime)", Icons.Outlined.Timer, onClick = launch {
             pickOption(listOf(10, 30, 60, 180).map { PickOption(it, keepLabel(it)) }, s.feedKeepMinutes)
@@ -473,6 +488,10 @@ fun SettingsList(
             pickOption(AppFont.entries.map { PickOption(it, it.label, subtitle = it.description) }, s.appFont)?.let(ctrl::setAppFont)
         })
         switch("Dynamic color", "Use colors from your wallpaper", Icons.Rounded.Palette, s.useDynamicColor, ctrl::setUseDynamicColor)
+        switch(
+            "r/ before subreddit names", "Show \"r/pics\" on posts and lists. Off: just \"pics\"",
+            Icons.Rounded.Tag, s.subredditPrefix, ctrl::setSubredditPrefix,
+        )
         add(Entry("accent", null) { AccentPicker(s) })
         add(Entry("appIcon", "App icon launcher home screen colour") {
             val current = AppIcon.parse(s.appIcon)
@@ -641,6 +660,11 @@ fun SettingsList(
             Icons.Rounded.ViewCarousel, s.feedGalleryCarousel, ctrl::setFeedGalleryCarousel,
         )
         switch("Blur NSFW media", "Tap to reveal blurred images", Icons.Rounded.BlurOn, s.blurNsfw, ctrl::setBlurNsfw)
+        // Content filters' switch, here too: beside the blur is where people look for it (#94).
+        switch(
+            "Hide NSFW posts", "Remove them from feeds and search instead of blurring",
+            Icons.Rounded.NoAdultContent, filters.hideNsfw, app.contentFilters::setHideNsfw,
+        )
         switch(
             "Data-saver thumbnails", "Load smaller preview images in feeds (faster, less data)",
             Icons.Outlined.Image, s.midResThumbnails, ctrl::setMidResThumbnails,
@@ -812,6 +836,16 @@ fun SettingsList(
         section("Data & storage")
         switch("Track history", "Remember and dim viewed posts (local only)", Icons.Outlined.Visibility, s.trackHistory, ctrl::setTrackHistory)
         if (s.trackHistory) {
+            // Like Sync for Reddit's: the subreddits you open most stay on top (#92).
+            tile(
+                "Recently visited order", if (s.recentSubsByVisits) "Most visited first" else "Most recent first", Icons.Rounded.History,
+                onClick = launch {
+                    pickOption(
+                        listOf(PickOption(false, "Most recent first"), PickOption(true, "Most visited first", "The subreddits you open most stay on top")),
+                        s.recentSubsByVisits,
+                    )?.let(ctrl::setRecentSubsByVisits)
+                },
+            )
             tile(
                 "Dim read posts",
                 if (s.dimReadTextOnly) "Text only: titles and text fade, images stay bright" else "Whole card",

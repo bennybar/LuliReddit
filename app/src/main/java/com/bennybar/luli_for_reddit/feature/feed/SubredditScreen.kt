@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.ui.subredditName
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material3.FilledTonalToggleButton
 import com.bennybar.luli_for_reddit.ui.Loading
@@ -19,6 +20,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -53,6 +56,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -125,10 +129,11 @@ fun SubredditScreen(name: String) {
     val settings by app.settings.state.collectAsStateWithLifecycle()
     val listState = rememberFeedListState()
     var refreshRequests by remember { mutableIntStateOf(0) } // the Refresh floating button
+    var hideReadRequests by remember { mutableIntStateOf(0) } // the Hide read posts floating button
     Scaffold(
         topBar = {
             BloomTopBar(
-                "r/$name",
+                subredditName(name),
                 actions = {
                     IconButton(onClick = { nav.push(Route.Search(subreddit = name)) }) { Icon(Icons.Rounded.Search, "Search") }
                     IconButton(onClick = { scope.launch { showAbout(name, (about as? Async.Data)?.value) } }) {
@@ -151,15 +156,35 @@ fun SubredditScreen(name: String) {
                 onSearch = { nav.push(Route.Search(subreddit = name)) },
                 onTop = { scope.launch { listState.animateScrollToItem(0) } },
                 onRefresh = { refreshRequests++ },
+                onHideRead = { hideReadRequests++ },
             )
         },
         containerColor = MaterialTheme.colorScheme.surface,
     ) { padding ->
-        PostListView(
+        // "Hide NSFW posts" would leave an NSFW subreddit's page empty: say why instead (#94).
+        val hideNsfw = app.contentFilters.state.collectAsStateWithLifecycle().value.hideNsfw
+        if (hideNsfw && (about as? Async.Data)?.value?.over18 == true) {
+            Column(
+                Modifier.padding(padding).fillMaxSize().padding(32.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text("This community is NSFW", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Its posts are hidden because Hide NSFW posts is on.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(16.dp))
+                FilledTonalButton(onClick = { nav.push(Route.ContentFilters) }) { Text("Content filters") }
+            }
+        } else PostListView(
             feedKey = name,
             modifier = Modifier.padding(top = padding.calculateTopPadding()).nestedScroll(fab),
             listState = listState,
             refreshRequests = refreshRequests,
+            hideReadRequests = hideReadRequests,
             header = {
                 when (val a = about) {
                     Async.Loading -> LinearProgressIndicator(Modifier.fillMaxWidth().height(4.dp))
@@ -191,7 +216,7 @@ private fun SubredditHeader(s: Subreddit, vm: SubredditAboutViewModel) {
                     LetterAvatar(s.name, 52.dp, cs.secondaryContainer, cs.onSecondaryContainer, imageUrl = s.iconUrl)
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(s.namePrefixed, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+                        Text(subredditName(s.namePrefixed), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
                         Text("${compactNumber(s.subscribers)} members", color = cs.onSurfaceVariant)
                     }
                     // One toggle: its shape and fill change with the state, and it reads as on/off.
@@ -220,7 +245,7 @@ private suspend fun showAbout(name: String, about: Subreddit?) {
             }
             LazyColumn(Modifier.navigationBarsPadding().padding(start = 20.dp, top = 4.dp, end = 20.dp, bottom = 24.dp)) {
                 item {
-                    Text("r/$name", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+                    Text(subredditName(name), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
                     if (about != null && about.title.isNotEmpty()) {
                         Text(about.title, Modifier.padding(top = 2.dp), style = MaterialTheme.typography.bodyMedium)
                     }

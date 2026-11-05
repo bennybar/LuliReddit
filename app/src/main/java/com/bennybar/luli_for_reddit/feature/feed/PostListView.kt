@@ -160,6 +160,8 @@ fun PostListView(
     floatingChipsY: ((Int) -> Int)? = null,
     /** Bumped to go to the top and refresh, with the spinner (the Refresh floating button, #90). */
     refreshRequests: Int = 0,
+    /** Bumped to take the posts you've read off the list, with Undo (the Hide read posts floating button, #99). */
+    hideReadRequests: Int = 0,
 ) {
     val controller = rememberFeedController(feedKey)
     val ui by controller.ui.collectAsStateWithLifecycle()
@@ -284,6 +286,17 @@ fun PostListView(
         if (refreshRequests == 0 || controller.ui.value !is FeedUi.Data) return@LaunchedEffect
         listState.scrollToItem(0)
         refresh()
+    }
+
+    LaunchedEffect(hideReadRequests) {
+        if (hideReadRequests == 0) return@LaunchedEffect
+        val before = controller.hideRead()
+        if (before == null) {
+            nav.showSnackbar("No read posts here")
+            return@LaunchedEffect
+        }
+        val hidden = before.count { it.id in app.history.ids.value }
+        nav.showSnackbar("Hid $hidden read post${if (hidden == 1) "" else "s"}", actionLabel = "Undo") { controller.unhideRead(before) }
     }
 
     // Returning to the feed after a pushed route (e.g. a post) is popped, or
@@ -414,7 +427,8 @@ fun PostListView(
                     .offset { IntOffset(0, chipsAt(height)) }
                     // The top bar's own surface, so posts don't show between the chips;
                     // it fades in with the outline, so the swap with the list's row doesn't show.
-                    .drawBehind { drawRect(barColor, alpha = floatingOutline) }
+                    // Transparent (#91): just the outlined chips over the posts, as before 2.0.58.
+                    .then(if (settings.floatingChipsSolid) Modifier.drawBehind { drawRect(barColor, alpha = floatingOutline) } else Modifier)
                     // The list's own side padding, so it's right over the list's row (#83).
                     .padding(horizontal = 7.dp),
             ) { chipsIn(floatingChipsState, floatingOutline) }

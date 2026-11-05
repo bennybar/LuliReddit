@@ -231,9 +231,10 @@ final class FlutterPrefsCompatTests: XCTestCase {
         let visits = ThreadVisits(prefs: p, settings: settings)
         visits.onUserChanged("bob")
         XCTAssertEqual(visits.lastVisit("new"), 2)
-        let recent = RecentSubreddits(prefs: p)
+        let recent = RecentSubreddits(prefs: p, byVisits: { false })
         recent.onUserChanged("bob")
         XCTAssertEqual(recent.state.map(\.name), ["pics"])
+        XCTAssertEqual(recent.state[0].visits, 1, "saved before visits were counted: once")
         let saved = SavedSearches(prefs: p, username: { "bob" })
         saved.refresh()
         XCTAssertEqual(saved.items.map(\.query), ["cats", "dogs"])
@@ -309,6 +310,26 @@ final class FlutterPrefsCompatTests: XCTestCase {
         let again = ForYouMetrics(prefs: p, trackHistory: { true })
         again.load("bob")
         XCTAssertEqual(again.totals()["impr.primary"], 2)
+    }
+
+    /// `nsfw` is optional both ways: older entries (and older app versions, which ignore it)
+    /// read as shown; it's written only when set, the same shape as the Kotlin app.
+    @MainActor
+    func testHistoryNsfwFlagRoundTrips() throws {
+        let p = try fromDisk(["flutter.history_bob": [#"{"id":"old","sub":"pics","title":"T","permalink":"/p","ts":1}"#]])
+        let history = HistoryStore(prefs: p)
+        history.onUserChanged("bob")
+        XCTAssertFalse(history.state[0].nsfw, "no field: unknown, shown")
+        history.markViewed(post("n", nsfw: true))
+        history.markViewed(post("s"))
+        let rows = p.getStringList("history_bob")!.map(json)
+        XCTAssertEqual(rows.map { $0["id"].str() }, ["s", "n", "old"])
+        XCTAssertNil(rows[0]["nsfw"], "SFW entries keep the old shape")
+        XCTAssertEqual(rows[1]["nsfw"].bool(), true)
+        XCTAssertNil(rows[2]["nsfw"])
+        let again = HistoryStore(prefs: p)
+        again.onUserChanged("bob")
+        XCTAssertEqual(again.state.map(\.nsfw), [false, true, false])
     }
 
     @MainActor

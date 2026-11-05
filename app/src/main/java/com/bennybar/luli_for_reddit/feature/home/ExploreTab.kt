@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import com.bennybar.luli_for_reddit.ui.subredditName
 import com.bennybar.luli_for_reddit.state.RecentSubreddit
 import com.bennybar.luli_for_reddit.ui.ToggleIcon
 import com.bennybar.luli_for_reddit.ui.PickOneMenu
@@ -354,6 +355,7 @@ private fun LazyListScope.subscriptionSections(
     // Default view: recently visited + favorites + the rest.
     val byName = list.associateBy { it.name.lowercase() }
     val recent = visited.map { byName[it.name.lowercase()] ?: it.asSubreddit() }
+    val visits = visited.associate { it.name.lowercase() to it.visits }
     val favs = list.filter { it.userHasFavorited }
     // The users you follow (their profiles, u_<name>) get their own section.
     val (following, rest) = list.filter { !it.userHasFavorited }.partition { it.name.startsWith("u_") }
@@ -361,7 +363,7 @@ private fun LazyListScope.subscriptionSections(
         header("recent", "Recently visited")
         // No star on ones you aren't subscribed to.
         items(recent, key = { "recent_${it.name}" }, contentType = { "sub" }) {
-            SubredditRow(it, onOpen, if (it.name.lowercase() in byName) onStar else null)
+            SubredditRow(it, onOpen, if (it.name.lowercase() in byName) onStar else null, visits = visits[it.name.lowercase()])
         }
     }
     if (favs.isNotEmpty()) {
@@ -393,11 +395,15 @@ private fun SortMenu(sort: String, onPick: (String) -> Unit) {
 }
 
 @Composable
-internal fun SubredditRow(s: Subreddit, onOpen: (Subreddit) -> Unit, onStar: ((Subreddit) -> Unit)? = null) {
+internal fun SubredditRow(s: Subreddit, onOpen: (Subreddit) -> Unit, onStar: ((Subreddit) -> Unit)? = null, visits: Int? = null) {
     val cs = MaterialTheme.colorScheme
     Tile(
-        title = { Text(s.namePrefixed) },
-        subtitle = { Text("${compactNumber(s.subscribers)} ${if (s.name.startsWith("u_")) "followers" else "members"}") },
+        title = { Text(subredditName(s.namePrefixed)) },
+        subtitle = {
+            val members = "${compactNumber(s.subscribers)} ${if (s.name.startsWith("u_")) "followers" else "members"}"
+            // Recently visited: how often you opened it (#92).
+            Text(if (visits == null) members else "$members · $visits ${if (visits == 1) "visit" else "visits"}")
+        },
         leading = {
             LetterAvatar(s.name, 40.dp, cs.secondaryContainer, cs.onSecondaryContainer, imageUrl = s.iconUrl)
         },

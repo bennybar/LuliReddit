@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.ui.subredditName
 import com.bennybar.luli_for_reddit.ui.Loading
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.rounded.Edit
@@ -179,7 +180,7 @@ fun ManageMultiredditScreen(username: String, name: String) {
                             }
                             items(multi.subreddits, key = { it }) { sr ->
                                 Tile(
-                                    title = { Text("r/$sr") },
+                                    title = { Text(subredditName(sr)) },
                                     leading = { Icon(Icons.Rounded.SubdirectoryArrowRight, null) },
                                     onClick = { nav.openSubreddit(sr) },
                                     trailing = {

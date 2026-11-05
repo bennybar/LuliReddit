@@ -17,7 +17,10 @@ struct HistoryScreen: View {
 
     var body: some View {
         let history = app.history.state
-        let subs = Set(history.map(\.subreddit)).sorted()
+        // "Hide NSFW posts" (Content filters) covers History too; entries from before it
+        // was recorded have no flag and stay shown.
+        let visible = app.contentFilters.value.hideNsfw ? history.filter { !$0.nsfw } : history
+        let subs = Set(visible.map(\.subreddit)).sorted()
         // Keep the chosen filter valid if its subreddit dropped out of history.
         let subFilter = subFilterRaw.flatMap { subs.contains($0) ? $0 : nil }
 
@@ -28,8 +31,14 @@ struct HistoryScreen: View {
                 } description: {
                     Text(note)
                 }
+            } else if visible.isEmpty {
+                ContentUnavailableView {
+                    Label("NSFW posts are hidden", systemImage: "eye.slash")
+                } description: {
+                    Text(note)
+                }
             } else {
-                let filtered = filterHistory(history, query: query, subreddit: subFilter)
+                let filtered = filterHistory(visible, query: query, subreddit: subFilter)
                 List {
                     Section {
                         ForEach(filtered, id: \.id) { row($0) }

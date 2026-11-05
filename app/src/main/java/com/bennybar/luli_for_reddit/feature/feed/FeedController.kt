@@ -181,6 +181,27 @@ class FeedController(val key: String) {
         return Listing(listing.items.filter { it.id !in read }, listing.after, listing.fromCache)
     }
 
+    /**
+     * The Hide read posts floating button (#99): takes the posts already in
+     * history off the list on screen, here only (Reddit isn't told). Returns
+     * the list as it was, for Undo; null when none of them was read.
+     */
+    fun hideRead(): List<Post>? {
+        val cur = current ?: return null
+        val read = app.history.ids.value
+        val kept = cur.posts.filter { it.id !in read }
+        if (kept.size == cur.posts.size) return null
+        _ui.value = FeedUi.Data(cur.copy(posts = kept))
+        return cur.posts
+    }
+
+    /** Undo of [hideRead]: the list as it was, plus any posts loaded since. */
+    fun unhideRead(before: List<Post>) {
+        val cur = current ?: return
+        val had = before.mapTo(HashSet()) { it.id }
+        _ui.value = FeedUi.Data(cur.copy(posts = before + cur.posts.filter { it.id !in had }))
+    }
+
     private suspend fun fetch(after: String? = null): Listing<Post> = dropRead(fetchRaw(after))
 
     private suspend fun fetchRaw(after: String?): Listing<Post> {

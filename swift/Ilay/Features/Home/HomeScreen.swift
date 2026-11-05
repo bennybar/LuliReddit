@@ -256,7 +256,8 @@ private struct SideBar: View {
             }
             SideBarSubs(
                 title: "Recently visited", subs: recent, onPick: onPick,
-                empty: app.settings.value.trackHistory ? "Subreddits you open will show here" : nil
+                empty: app.settings.value.trackHistory ? "Subreddits you open will show here" : nil,
+                visits: app.recentSubreddits.state.map(\.visits)
             )
             SideBarSubs(title: "Favorites", subs: favorites, onPick: onPick)
         }
@@ -283,6 +284,7 @@ private struct SideBarSubs: View {
     let subs: [Subreddit]
     let onPick: (@escaping () -> Void) -> Void
     var empty: String? = nil
+    var visits: [Int]? = nil
 
     var body: some View {
         if !subs.isEmpty || empty != nil {
@@ -290,7 +292,7 @@ private struct SideBarSubs: View {
                 if subs.isEmpty {
                     Text(empty ?? "").foregroundStyle(.secondary)
                 }
-                ForEach(subs, id: \.name) { sub in
+                ForEach(Array(subs.enumerated()), id: \.element.name) { i, sub in
                     Button {
                         // A followed user is a subscription to their profile, u_<name>.
                         onPick {
@@ -306,6 +308,8 @@ private struct SideBarSubs: View {
                             Text(sub.namePrefixed).lineLimit(1).foregroundStyle(.primary)
                         }
                     }
+                    // Recently visited: how often you opened it (#92).
+                    .badge(visits.map { i < $0.count ? $0[i] : 0 } ?? 0)
                 }
             }
         }

@@ -266,6 +266,8 @@ struct SettingsCatalog {
         b.toggle("Open videos muted", "Full-screen videos start muted; tap the speaker for sound", s.viewerMuted, set: ctrl.setViewerMuted)
         b.toggle("Gallery carousel in feeds", "Galleries show a big image with the next ones beside it. Off: one image at a time", s.feedGalleryCarousel, set: ctrl.setFeedGalleryCarousel)
         b.toggle("Blur NSFW media", "Tap to reveal blurred images", s.blurNsfw, set: ctrl.setBlurNsfw)
+        // Content filters' switch, here too: beside the blur is where people look for it (#94).
+        b.toggle("Hide NSFW posts", "Remove them from feeds and search instead of blurring", app.contentFilters.value.hideNsfw, set: app.contentFilters.setHideNsfw)
         b.toggle("Data-saver thumbnails", "Load smaller preview images in feeds (faster, less data)", s.midResThumbnails, set: ctrl.setMidResThumbnails)
     }
 
@@ -423,6 +425,12 @@ struct SettingsCatalog {
         b.section("Data & storage")
         b.toggle("Track history", "Remember and dim viewed posts (local only)", s.trackHistory, set: ctrl.setTrackHistory)
         if s.trackHistory {
+            // Like Sync for Reddit's: the subreddits you open most stay on top (#92).
+            b.picker(
+                "Recently visited order", value: s.recentSubsByVisits,
+                options: [PickOption(value: false, label: "Most recent first"), PickOption(value: true, label: "Most visited first", subtitle: "The subreddits you open most stay on top")],
+                set: ctrl.setRecentSubsByVisits
+            )
             b.picker(
                 "Dim read posts", s.dimReadTextOnly ? "Titles and text fade, images stay bright" : nil, value: s.dimReadTextOnly,
                 options: [PickOption(value: false, label: "Whole card"), PickOption(value: true, label: "Text only", subtitle: "Images and videos stay bright")],

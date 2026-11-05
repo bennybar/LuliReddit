@@ -40,8 +40,10 @@ class SettingsStore(private val p: Prefs) {
             collapseTopLevel = b("collapseTopLevel", d.collapseTopLevel),
             hideReadPosts = b("hideReadPosts", d.hideReadPosts),
             hideReadInSubreddits = b("hideReadInSubreddits", d.hideReadInSubreddits),
+            recentSubsByVisits = b("recentSubredditsByVisits", d.recentSubsByVisits),
             dimReadTextOnly = b("dimReadTextOnly", d.dimReadTextOnly),
             subredditIcons = b("subredditIcons", d.subredditIcons),
+            subredditPrefix = b("subredditPrefix", d.subredditPrefix),
             markReadOnScroll = b("markReadOnScroll", d.markReadOnScroll),
             swipePostStart = SwipeAction.parse(p.getString("swipePostStart"), SwipeAction.UPVOTE),
             swipePostEnd = SwipeAction.parse(p.getString("swipePostEnd"), SwipeAction.DOWNVOTE),
@@ -62,6 +64,7 @@ class SettingsStore(private val p: Prefs) {
             commentStyle = idx(CommentStyle.entries.toTypedArray(), "commentStyle", d.commentStyle),
             swipeActions = b("swipeActions", d.swipeActions),
             floatingChips = b("floatingChips", d.floatingChips),
+            floatingChipsSolid = b("floatingChipsSolid", d.floatingChipsSolid),
             fullBarNewPost = b("fullBarNewPost", d.fullBarNewPost),
             trackHistory = b("trackHistory", d.trackHistory),
             offlineCache = b("offlineCache", d.offlineCache),
@@ -141,6 +144,7 @@ class SettingsStore(private val p: Prefs) {
     fun setCommentStyle(v: CommentStyle) { p.setInt("commentStyle", v.ordinal); set { it.copy(commentStyle = v) } }
     fun setSwipeActions(v: Boolean) { p.setBool("swipeActions", v); set { it.copy(swipeActions = v) } }
     fun setFloatingChips(v: Boolean) { p.setBool("floatingChips", v); set { it.copy(floatingChips = v) } }
+    fun setFloatingChipsSolid(v: Boolean) { p.setBool("floatingChipsSolid", v); set { it.copy(floatingChipsSolid = v) } }
     fun setFullBarNewPost(v: Boolean) { p.setBool("fullBarNewPost", v); set { it.copy(fullBarNewPost = v) } }
     fun setTrackHistory(v: Boolean) { p.setBool("trackHistory", v); set { it.copy(trackHistory = v) } }
     fun setOfflineCache(v: Boolean) { p.setBool("offlineCache", v); set { it.copy(offlineCache = v) } }
@@ -183,8 +187,10 @@ class SettingsStore(private val p: Prefs) {
     }
     fun setHideReadPosts(v: Boolean) { p.setBool("hideReadPosts", v); set { it.copy(hideReadPosts = v) } }
     fun setHideReadInSubreddits(v: Boolean) { p.setBool("hideReadInSubreddits", v); set { it.copy(hideReadInSubreddits = v) } }
+    fun setRecentSubsByVisits(v: Boolean) { p.setBool("recentSubredditsByVisits", v); set { it.copy(recentSubsByVisits = v) } }
     fun setDimReadTextOnly(v: Boolean) { p.setBool("dimReadTextOnly", v); set { it.copy(dimReadTextOnly = v) } }
     fun setSubredditIcons(v: Boolean) { p.setBool("subredditIcons", v); set { it.copy(subredditIcons = v) } }
+    fun setSubredditPrefix(v: Boolean) { p.setBool("subredditPrefix", v); set { it.copy(subredditPrefix = v) } }
     fun setMarkReadOnScroll(v: Boolean) { p.setBool("markReadOnScroll", v); set { it.copy(markReadOnScroll = v) } }
 
     /** [key] is one of swipePostStart / swipePostEnd / swipeCommentStart / swipeCommentEnd. */

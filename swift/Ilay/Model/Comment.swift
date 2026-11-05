@@ -22,6 +22,8 @@ struct Comment: Identifiable, Equatable, Sendable, Copyable {
     var linkTitle: String = ""
     var permalink: String = ""
     var subreddit: String = ""
+    /// The parent post is NSFW (`over_18`, on user/saved listings only).
+    var over18: Bool = false
     /// media_metadata id → playable URL, for media referenced as `![gif](giphy|…)`.
     var media: [String: String] = [:]
     var replies: [Comment] = []
@@ -82,6 +84,7 @@ struct Comment: Identifiable, Equatable, Sendable, Copyable {
             linkTitle: d["link_title"].str()?.trimmed ?? "",
             permalink: d["permalink"].str() ?? "",
             subreddit: d["subreddit"].str() ?? "",
+            over18: d["over_18"].isTrue(),
             media: mediaUrls(d["media_metadata"]),
             replies: replies
         )

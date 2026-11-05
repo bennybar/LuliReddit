@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.settings
 
+import com.bennybar.luli_for_reddit.ui.subredditName
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -111,7 +112,7 @@ fun ManageForYouScreen() {
                     item("sub:$sub") {
                         LeadingTile(
                             leading = { Sign(v) },
-                            title = "r/$sub",
+                            title = subredditName(sub),
                             subtitle = if (v > 0) "More from here" else "Less from here",
                         ) { TextButton(onClick = { m.explicit.setSub(sub, 0) }) { Text("Remove") } }
                     }
@@ -131,7 +132,7 @@ fun ManageForYouScreen() {
                 for (sub in muted) {
                     item("muted:$sub") {
                         SettingTile(
-                            "r/$sub", icon = Icons.AutoMirrored.Rounded.VolumeOff,
+                            subredditName(sub), icon = Icons.AutoMirrored.Rounded.VolumeOff,
                             trailing = { TextButton(onClick = { m.muted.toggle(sub) }) { Text("Unmute") } },
                         )
                     }
@@ -162,7 +163,7 @@ fun ManageForYouScreen() {
                 for (e in less) {
                     item("less:${e.key}") {
                         SettingTile(
-                            "r/${e.key}", icon = Icons.Outlined.ThumbDown,
+                            subredditName(e.key), icon = Icons.Outlined.ThumbDown,
                             trailing = { TextButton(onClick = { m.interest.reset(e.key) }) { Text("Reset") } },
                         )
                     }
@@ -173,7 +174,7 @@ fun ManageForYouScreen() {
                 for (e in more) {
                     item("more:${e.key}") {
                         SettingTile(
-                            "r/${e.key}", icon = Icons.Outlined.ThumbUp,
+                            subredditName(e.key), icon = Icons.Outlined.ThumbUp,
                             trailing = { TextButton(onClick = { m.interest.reset(e.key) }) { Text("Reset") } },
                         )
                     }

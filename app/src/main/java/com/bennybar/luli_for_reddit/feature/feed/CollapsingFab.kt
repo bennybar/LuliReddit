@@ -34,6 +34,7 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.VerticalAlignTop
 import com.bennybar.luli_for_reddit.settings.HomeFab
+import androidx.compose.material.icons.outlined.VisibilityOff
 
 /** Whether a [CollapsingFab] shows its label: it folds as the finger scrolls down and opens on the way up (#62). */
 class FabScroll : NestedScrollConnection {
@@ -90,6 +91,7 @@ fun FeedFab(
     onSearch: () -> Unit,
     onTop: () -> Unit,
     onRefresh: () -> Unit,
+    onHideRead: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val (icon, onClick) = when (kind) {
@@ -98,6 +100,7 @@ fun FeedFab(
         HomeFab.SEARCH -> Icons.Rounded.Search to onSearch
         HomeFab.SCROLL_TOP -> Icons.Rounded.VerticalAlignTop to onTop
         HomeFab.REFRESH -> Icons.Rounded.Refresh to onRefresh
+        HomeFab.HIDE_READ -> Icons.Outlined.VisibilityOff to onHideRead
     }
     CollapsingFab(icon, kind.label, expanded, onClick, modifier)
 }

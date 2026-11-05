@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.ui.subredditName
 import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.Flow
@@ -167,6 +168,7 @@ fun UserProfileBody(
     var time by rememberSaveable { mutableStateOf(TopTime.ALL) }
     val sortKey = if (sort.needsTime) "${sort.path}_${time.param}" else sort.path
     val sortTime = time.takeIf { sort.needsTime }
+    val hideNsfw = app.contentFilters.state.collectAsStateWithLifecycle().value.hideNsfw
 
     // The header (and the Profile tab's row under it) slides away as a list
     // scrolls down and comes back once it's back at the top; the tabs stay.
@@ -244,8 +246,11 @@ fun UserProfileBody(
         HorizontalPager(pager, Modifier.weight(1f), beyondViewportPageCount = 0, key = { tabs[it] }) { page ->
             when (tabs[page]) {
                 "Posts" -> PagedList(
-                    rememberPagedSource("u_${username}_posts_$sortKey") { a ->
+                    // "Hide NSFW posts" (Content filters) applies to profiles too (#94), and to
+                    // the Saved / Upvoted / Downvoted tabs below.
+                    rememberPagedSource("u_${username}_posts_$sortKey${if (hideNsfw) "_sfw" else ""}") { a ->
                         repo.getUserPosts(username, after = a, sort = sort, time = sortTime)
+                            .let { if (hideNsfw) it.copy(items = it.items.filter { p -> !p.over18 }) else it }
                     },
                     itemKey = Post::id,
                     listModifier = listModifier,
@@ -264,7 +269,10 @@ fun UserProfileBody(
                     staleAfterMillis = staleAfter,
                 ) { ProfileCommentCard(it) }
                 "Saved" -> PagedList(
-                    rememberPagedSource("u_${username}_saved") { a -> repo.getUserSaved(username, after = a) },
+                    rememberPagedSource("u_${username}_saved${if (hideNsfw) "_sfw" else ""}") { a ->
+                        repo.getUserSaved(username, after = a)
+                            .let { if (hideNsfw) it.copy(items = it.items.filter { i -> !(if (i is Post) i.over18 else (i as Comment).over18) }) else it }
+                    },
                     itemKey = { if (it is Post) it.fullname else (it as Comment).fullname },
                     listModifier = listModifier,
                     scrollTop = scrollTop,
@@ -273,7 +281,10 @@ fun UserProfileBody(
                     contentType = { if (it is Post) "post" else "comment" },
                 ) { item -> if (item is Post) PostCard(item) else ProfileCommentCard(item as Comment) }
                 "Upvoted" -> PagedList(
-                    rememberPagedSource("u_${username}_upvoted") { a -> repo.getUserPosts(username, where = "upvoted", after = a) },
+                    rememberPagedSource("u_${username}_upvoted${if (hideNsfw) "_sfw" else ""}") { a ->
+                        repo.getUserPosts(username, where = "upvoted", after = a)
+                            .let { if (hideNsfw) it.copy(items = it.items.filter { p -> !p.over18 }) else it }
+                    },
                     itemKey = Post::id,
                     listModifier = listModifier,
                     scrollTop = scrollTop,
@@ -281,7 +292,10 @@ fun UserProfileBody(
                     staleAfterMillis = staleAfter,
                 ) { PostCard(it) }
                 else -> PagedList(
-                    rememberPagedSource("u_${username}_downvoted") { a -> repo.getUserPosts(username, where = "downvoted", after = a) },
+                    rememberPagedSource("u_${username}_downvoted${if (hideNsfw) "_sfw" else ""}") { a ->
+                        repo.getUserPosts(username, where = "downvoted", after = a)
+                            .let { if (hideNsfw) it.copy(items = it.items.filter { p -> !p.over18 }) else it }
+                    },
                     itemKey = Post::id,
                     listModifier = listModifier,
                     scrollTop = scrollTop,
@@ -371,7 +385,7 @@ private fun ProfileCommentCard(comment: Comment) {
                 Text(comment.linkTitle, maxLines = 2, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold)
             }
             Text(
-                "r/${comment.subreddit} · ${compactNumber(vote?.score ?: comment.score)} pts · ${timeAgo(comment.createdUtc)}",
+                "${subredditName(comment.subreddit)} · ${compactNumber(vote?.score ?: comment.score)} pts · ${timeAgo(comment.createdUtc)}",
                 fontSize = 12.sp,
                 color = when (likes) { true -> voteColors.up; false -> voteColors.down; null -> cs.onSurfaceVariant },
             )

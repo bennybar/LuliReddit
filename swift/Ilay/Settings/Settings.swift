@@ -143,6 +143,7 @@ struct Settings: Equatable, Sendable {
     var collapseTopLevel = false // threads open with top-level comments' replies collapsed
     var hideReadPosts = false // skip already-read posts when feeds load
     var hideReadInSubreddits = false // …in single subreddits too (else front page / custom feeds only)
+    var recentSubsByVisits = false // "Recently visited" lists the most visited first (#92), else the newest
     var dimReadTextOnly = false // read posts: dim only title / text (images stay bright), else the whole card
     var subredditIcons = true // cards show the subreddit's icon (else its first letter)
     var markReadOnScroll = false // a post scrolled past counts as read

@@ -68,7 +68,20 @@ struct SubredditScreen: View {
         let nav = app.navigator
         let anonymous = app.session.session?.anonymous != false
 
-        PostListView(feedKey: name, fabScroll: fab) { SubredditHeader(vm: vm) }
+        Group {
+            // "Hide NSFW posts" would leave an NSFW subreddit's page empty: say why instead (#94).
+            if app.contentFilters.value.hideNsfw, vm.about.value?.over18 == true {
+                ContentUnavailableView {
+                    Label("This community is NSFW", systemImage: "eye.slash")
+                } description: {
+                    Text("Its posts are hidden because Hide NSFW posts is on.")
+                } actions: {
+                    Button("Content filters") { nav.push(.contentFilters) }.buttonStyle(.glass)
+                }
+            } else {
+                PostListView(feedKey: name, fabScroll: fab) { SubredditHeader(vm: vm) }
+            }
+        }
             .navigationTitle("r/\(name)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

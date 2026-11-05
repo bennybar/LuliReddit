@@ -3,6 +3,7 @@
 package com.bennybar.luli_for_reddit.feature.settings
 
 import com.bennybar.luli_for_reddit.ui.switchThumb
+import com.bennybar.luli_for_reddit.ui.subredditName
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.selection.selectable
@@ -309,7 +310,7 @@ internal fun showHiddenSubsDialog() {
                     if (subs.isEmpty()) Text("None. Hide one from a post's ⋮ menu or a swipe; it comes back after 7 days.")
                     for (sub in subs.sorted()) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("r/$sub", Modifier.weight(1f))
+                            Text(subredditName(sub), Modifier.weight(1f))
                             TextButton(onClick = { app.hiddenHomeSubs.remove(sub) }, shapes = ButtonDefaults.shapes()) { Text("Unhide") }
                         }
                     }

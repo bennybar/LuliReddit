@@ -379,8 +379,8 @@ enum RedditMarkdownParser {
             if i < ns.length { mentionRuns(ns.substring(from: i), style, link, spoiler, &out) }
         }
 
-        // Reddit links a bare u/name and r/name. Kotlin doesn't; `AppNavigator.openLink`
-        // takes them as they are.
+        // Reddit links a bare u/name and r/name; the API's markdown leaves them as
+        // text (#102). `AppNavigator.openLink` takes them as they are.
         private func mentionRuns(_ text: String, _ style: MdStyle, _ link: String?, _ spoiler: Int, _ out: inout [MdInline]) {
             guard link == nil, text.contains("r/") || text.contains("u/") else {
                 out.append(MdInline(text: text, style: style, link: link, spoiler: spoiler))

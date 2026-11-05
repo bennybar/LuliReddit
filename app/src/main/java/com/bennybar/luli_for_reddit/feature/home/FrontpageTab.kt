@@ -145,6 +145,7 @@ internal fun FrontpageTab(selected: Boolean) {
 
     val fab = remember { FabScroll() }
     var refreshRequests by remember { mutableIntStateOf(0) } // the Refresh floating button
+    var hideReadRequests by remember { mutableIntStateOf(0) } // the Hide read posts floating button
     val barScroll = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
@@ -256,6 +257,7 @@ internal fun FrontpageTab(selected: Boolean) {
             topPadding = with(LocalDensity.current) { barHeight.toDp() },
             listState = listState,
             refreshRequests = refreshRequests,
+            hideReadRequests = hideReadRequests,
             // Right under the bar when it's fully out, off the top when it's gone.
             floatingChipsY = if (!settings.floatingChips) null else ({ height ->
                 if (barHeight == 0) -height
@@ -288,6 +290,7 @@ internal fun FrontpageTab(selected: Boolean) {
             onSearch = { nav.push(Route.Search()) },
             onTop = { scope.launch { listState.animateScrollToItem(0) } },
             onRefresh = { refreshRequests++ },
+            onHideRead = { hideReadRequests++ },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .navigationBarsPadding()
