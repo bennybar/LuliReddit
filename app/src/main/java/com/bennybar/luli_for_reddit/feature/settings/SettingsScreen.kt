@@ -10,6 +10,9 @@ import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material.icons.rounded.DynamicFeed
 import com.bennybar.luli_for_reddit.settings.HomeFab
 import com.bennybar.luli_for_reddit.settings.ThreadFab
+import com.bennybar.luli_for_reddit.settings.ThreadFabPosition
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.RecordVoiceOver
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.outlined.ModeComment
 import androidx.compose.material.icons.rounded.ViewCarousel
@@ -573,6 +576,19 @@ fun SettingsList(
         tile("Floating button in threads", s.threadFab.label, Icons.Outlined.ModeComment, onClick = launch {
             pickOption(ThreadFab.entries.map { PickOption(it, it.label) }, s.threadFab)?.let(ctrl::setThreadFab)
         })
+        tile("Jump button position in threads", s.threadFabPosition.label, Icons.Rounded.KeyboardArrowDown, onClick = launch {
+            pickOption(ThreadFabPosition.entries.map { PickOption(it, it.label) }, s.threadFabPosition)?.let(ctrl::setThreadFabPosition)
+        })
+        switch(
+            "Jump to OP's comments button",
+            "Show a button in threads to jump between comments by the original poster",
+            Icons.Rounded.RecordVoiceOver, s.threadJumpOp, ctrl::setThreadJumpOp,
+        )
+        switch(
+            "Jump to your comments button",
+            "Show a button in threads to jump between your own comments",
+            Icons.Rounded.Person, s.threadJumpMine, ctrl::setThreadJumpMine,
+        )
         tile("Navigation", NAV_STYLES[s.navStyle.coerceIn(0, 2)].first, Icons.Rounded.Menu, onClick = launch {
             pickOption(NAV_STYLES.mapIndexed { i, (l, d) -> PickOption(i, l, d) }, s.navStyle)?.let(ctrl::setNavStyle)
         })
