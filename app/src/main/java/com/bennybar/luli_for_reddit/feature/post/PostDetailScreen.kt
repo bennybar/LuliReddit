@@ -6,6 +6,8 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.bennybar.luli_for_reddit.feature.feed.FabScroll
 import com.bennybar.luli_for_reddit.feature.feed.CollapsingFab
 import com.bennybar.luli_for_reddit.settings.ThreadFab
+import com.bennybar.luli_for_reddit.settings.ThreadFabPosition
+import androidx.compose.material3.FabPosition
 import androidx.compose.material.icons.rounded.VerticalAlignTop
 import com.bennybar.luli_for_reddit.settings.calmComments
 import com.bennybar.luli_for_reddit.ui.ToggleIcon
@@ -305,15 +307,15 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
 
     /**
      * Scrolls to the next comment below the current top that passes [match],
-     * wrapping to the first. False when none in the thread does. List index 0
-     * is the post header, so comment `ci` lives at list index `ci + 1`.
+     * wrapping to the first when moving forward. False when none does. List
+     * index 0 is the post header, so comment `ci` lives at list index `ci + 1`.
      */
     fun jumpNext(backwards: Boolean = false, match: (Comment) -> Boolean): Boolean {
         if (flat.isEmpty()) return false
         val topIndex = listState.firstVisibleItemIndex
         val hits = flat.indices.filter { !flat[it].isMore && match(flat[it]) }.map { it + 1 }
         if (hits.isEmpty()) return false
-        val target = if (backwards) hits.lastOrNull { it < topIndex } ?: hits.last()
+        val target = if (backwards) hits.lastOrNull { it < topIndex } ?: return false
         else hits.firstOrNull { it > topIndex } ?: hits.first()
         scope.launch { listState.animateScrollToItem(target) }
         return true
@@ -384,37 +386,55 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
                 },
             )
         },
+        floatingActionButtonPosition = when (settings.threadFabPosition) {
+            ThreadFabPosition.LEFT -> FabPosition.Start
+            ThreadFabPosition.MIDDLE -> FabPosition.Center
+            ThreadFabPosition.RIGHT -> FabPosition.End
+        },
         floatingActionButton = {
             if (thread != null) {
                 val newCount = remember(flat, since, username) { flat.count(::isNew) }
-                val hasMine = remember(flat, username) { username.isNotEmpty() && flat.any { it.author == username } }
+                val opAuthor = thread.post.author
+                val hasOp = remember(flat, opAuthor, settings.threadJumpOp) {
+                    settings.threadJumpOp && opAuthor.isNotEmpty() && opAuthor != "[deleted]" && flat.any { !it.isMore && it.author == opAuthor }
+                }
+                val hasMine = remember(flat, username, settings.threadJumpMine) {
+                    settings.threadJumpMine && username.isNotEmpty() && flat.any { !it.isMore && it.author == username }
+                }
                 ThreadToolbar(
                     newCount = newCount,
+                    hasOp = hasOp,
                     hasMine = hasMine,
                     hasComments = thread.comments.isNotEmpty(),
                     onPrevNew = { jumpNext(backwards = true, match = ::isNew) },
                     onNextNew = { jumpNext(match = ::isNew) },
+                    onOp = { jumpNext { it.author == opAuthor } },
+                    onPrevOp = {
+                        haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                        jumpNext(backwards = true) { it.author == opAuthor }
+                    },
                     onMine = { jumpNext { it.author == username } },
+                    onPrevMine = {
+                        haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                        jumpNext(backwards = true) { it.author == username }
+                    },
                     button = settings.threadFab,
+                    position = settings.threadFabPosition,
                     onComment = { actions.replyToPost() },
                     onTop = { scope.launch { listState.animateScrollToItem(0) } },
                     onSummarize = if (!aiKey.isNullOrEmpty()) ({ showSummarySheet(thread.post, flat) }) else null,
                     onAsk = if (!aiKey.isNullOrEmpty()) ({ showAskSheet(thread.post, flat) { id -> revealId = id } }) else null,
                     onNext = { jumpNext { it.depth == 0 } },
-                    onNextLongPress = {
-                        // Long-press on the ↓ button: jump by the original poster or
-                        // your own comments instead of top-level ones.
+                    onPrev = {
                         haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                        showJumpMenu(thread.post.author, username, isNew = if (newCount > 0) ::isNew else null) { test ->
-                            if (!jumpNext(match = test)) nav.showSnackbar("No such comment here")
-                        }
+                        jumpNext(backwards = true) { it.depth == 0 }
                     },
                     expanded = fab.expanded,
                 )
             }
         },
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding).nestedScroll(fab)) {
+        Box(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()).nestedScroll(fab)) {
             when {
                 thread != null -> Column(Modifier.fillMaxSize()) {
                     if (focusCommentId != null) FocusBanner { nav.pop(); nav.push(Route.Post(subreddit, postId)) }
@@ -891,68 +911,63 @@ private fun SearchBar(
     }
 }
 
-/** Long-press menu of the ↓ button: jump by OP, your comments or new ones instead. */
-@OptIn(ExperimentalMaterial3Api::class)
-private fun showJumpMenu(opAuthor: String, me: String, isNew: ((Comment) -> Boolean)?, onPick: ((Comment) -> Boolean) -> Unit) {
-    Overlays.launch { done ->
-        val sheet = rememberModalBottomSheetState()
-        val scope = rememberCoroutineScope()
-        val entries = buildList<Triple<String, ImageVector, (Comment) -> Boolean>> {
-            add(Triple("Next top-level comment", Icons.Rounded.KeyboardArrowDown) { c -> c.depth == 0 })
-            if (isNew != null) add(Triple("Next new comment", Icons.Rounded.FiberNew, isNew))
-            add(Triple("Next comment by OP", Icons.Rounded.RecordVoiceOver) { c -> c.author == opAuthor })
-            if (me.isNotEmpty()) add(Triple("Next of your comments", Icons.Rounded.Person) { c -> c.author == me })
-        }
-        ModalBottomSheet(onDismissRequest = done, sheetState = sheet) {
-            Column(Modifier.navigationBarsPadding().padding(bottom = 8.dp)) {
-                for ((label, icon, test) in entries) {
-                    ListItem(
-                        content = { Text(label) },
-                        leadingContent = { Icon(icon, null) },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clickable { scope.hideThen(sheet) { done(); onPick(test) } },
-                    )
-                }
-            }
-        }
-    }
-}
-
 /**
  * Two levels, like WhatsApp's (#72): a row for moving through the thread,
- * [↑ N new ↓] [your comment] [summarize] [ask] [● next top-level], over a big
+ * [↑ N new ↓] [OP] [your comment] [summarize] [ask] [● next/prev top-level], over a big
  * New comment button that folds as you scroll.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ThreadToolbar(
     newCount: Int,
+    hasOp: Boolean,
     hasMine: Boolean,
     hasComments: Boolean,
     onPrevNew: () -> Unit,
     onNextNew: () -> Unit,
+    onOp: () -> Unit,
+    onPrevOp: () -> Unit,
     onMine: () -> Unit,
+    onPrevMine: () -> Unit,
     button: ThreadFab, // the big button under the row (#90)
+    position: ThreadFabPosition,
     onComment: () -> Unit,
     onTop: () -> Unit,
     onSummarize: (() -> Unit)?,
     onAsk: (() -> Unit)?,
     onNext: () -> Unit,
-    onNextLongPress: () -> Unit,
+    onPrev: () -> Unit,
     expanded: Boolean,
 ) {
     val cs = MaterialTheme.colorScheme
     val on = cs.onSurface
 
     @Composable
-    fun btn(icon: ImageVector, tip: String, onClick: () -> Unit) {
+    fun btn(icon: ImageVector, tip: String, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
         IconTooltip(tip) {
-            IconButton(onClick = onClick, modifier = Modifier.size(48.dp)) { Icon(icon, tip, Modifier.size(24.dp), tint = on) }
+            if (onLongClick != null) {
+                Box(
+                    Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .combinedClickable(onClick = onClick, onLongClick = onLongClick, onClickLabel = tip),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(icon, tip, Modifier.size(24.dp), tint = on)
+                }
+            } else {
+                IconButton(onClick = onClick, modifier = Modifier.size(48.dp)) { Icon(icon, tip, Modifier.size(24.dp), tint = on) }
+            }
         }
     }
 
-    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-    if (newCount > 0 || hasMine || onSummarize != null || onAsk != null || hasComments) Surface(color = cs.surfaceContainerHigh, shape = CircleShape, shadowElevation = 3.dp) {
+    val align = when (position) {
+        ThreadFabPosition.LEFT -> Alignment.Start
+        ThreadFabPosition.MIDDLE -> Alignment.CenterHorizontally
+        ThreadFabPosition.RIGHT -> Alignment.End
+    }
+    Column(horizontalAlignment = align, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    if (newCount > 0 || hasOp || hasMine || onSummarize != null || onAsk != null || hasComments) Surface(color = cs.surfaceContainerHigh, shape = CircleShape, shadowElevation = 3.dp) {
         Row(Modifier.padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
             if (newCount > 0) {
                 // The new-comments stepper, on its own tonal segment.
@@ -960,26 +975,27 @@ private fun ThreadToolbar(
                     Modifier.height(48.dp).clip(CircleShape).background(on.copy(alpha = 0.08f)),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    btn(Icons.Rounded.KeyboardArrowUp, "Previous new comment", onPrevNew)
+                    btn(Icons.Rounded.KeyboardArrowUp, "Previous new comment", onClick = onPrevNew)
                     Text("$newCount new", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = on)
-                    btn(Icons.Rounded.KeyboardArrowDown, "Next new comment", onNextNew)
+                    btn(Icons.Rounded.KeyboardArrowDown, "Next new comment", onClick = onNextNew)
                 }
             }
-            if (hasMine) btn(Icons.Rounded.Person, "Your comments", onMine)
-            onSummarize?.let { btn(Icons.Rounded.AutoAwesome, "Summarize thread", it) }
-            onAsk?.let { btn(Icons.Rounded.Forum, "Ask about this thread", it) }
+            if (hasOp) btn(Icons.Rounded.RecordVoiceOver, "OP's comments (long-press for previous)", onLongClick = onPrevOp, onClick = onOp)
+            if (hasMine) btn(Icons.Rounded.Person, "Your comments (long-press for previous)", onLongClick = onPrevMine, onClick = onMine)
+            onSummarize?.let { btn(Icons.Rounded.AutoAwesome, "Summarize thread", onClick = it) }
+            onAsk?.let { btn(Icons.Rounded.Forum, "Ask about this thread", onClick = it) }
             if (hasComments) {
-                // The main action: a filled accent circle. Long-press for the
-                // jump menu (OP / yours / new).
+                // The main action: a filled accent circle. Tap for next
+                // top-level comment, long-press for previous.
                 Box(
                     Modifier
                         .size(48.dp)
                         .clip(CircleShape)
                         .background(cs.primary)
-                        .combinedClickable(onClick = onNext, onLongClick = onNextLongPress, onClickLabel = "Next top-level comment"),
+                        .combinedClickable(onClick = onNext, onLongClick = onPrev, onClickLabel = "Next top-level comment"),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.Rounded.KeyboardArrowDown, "Next top-level comment (long-press for more)", tint = cs.onPrimary)
+                    Icon(Icons.Rounded.KeyboardArrowDown, "Next top-level comment (long-press for previous)", tint = cs.onPrimary)
                 }
             }
         }
