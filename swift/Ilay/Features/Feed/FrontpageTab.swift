@@ -67,7 +67,7 @@ struct FrontpageTab: View {
                         expanded: fab.expanded
                     ) { nav.push(newPost ? .submit() : .search()) }
                     .padding(.trailing, 16)
-                    .padding(.bottom, 8)
+                    .padding(.bottom, 12) // a little clear of the tab bar, as every floating button over it
                 }
             }
     }
@@ -172,7 +172,7 @@ struct FrontpageScreen: View {
                     nav.push(.submit())
                 }
                 .padding(.trailing, 16)
-                .padding(.bottom, 8)
+                .padding(.bottom, 12) // a little clear of the tab bar, as every floating button over it
             }
     }
 }

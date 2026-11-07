@@ -286,6 +286,8 @@ fun HomeScreen() {
     }
 
     val navOffset by animateFloatAsState(if (chrome) 0f else 1.4f, tween(220, easing = FastOutSlowInEasing), label = "nav")
+    // For the tabs' floating buttons (LocalNavHidden): past 1 the nav only clears its shadow.
+    val navHidden = remember { { navOffset.coerceIn(0f, 1f) } }
 
     fun selectTab(i: Int) {
         // Double-tapping Explore opens search, keyboard up.
@@ -307,6 +309,8 @@ fun HomeScreen() {
     }
 
     SideBarDrawer(drawer, sideBar, selected = index, current = null, unread = unread, onTab = ::selectTab) {
+    // The tabs' floating buttons follow the nav down as it hides (aboveFloatingNav).
+    CompositionLocalProvider(LocalNavHidden provides navHidden.takeIf { bottomBar }) {
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
         KeepAliveTabs(
             selected = index,
@@ -356,6 +360,7 @@ fun HomeScreen() {
             onSelected = ::selectTab,
         )
         }
+    }
     }
     }
 }
