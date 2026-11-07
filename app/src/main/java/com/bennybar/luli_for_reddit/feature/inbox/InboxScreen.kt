@@ -7,6 +7,7 @@ import com.bennybar.luli_for_reddit.ui.ConnectedChoice
 import com.bennybar.luli_for_reddit.ui.RefreshBox
 import com.bennybar.luli_for_reddit.ui.Loading
 import com.bennybar.luli_for_reddit.feature.home.SideBarButton
+import com.bennybar.luli_for_reddit.feature.home.aboveFloatingNav
 import com.bennybar.luli_for_reddit.feature.home.LocalSideBar
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -190,8 +191,9 @@ fun InboxScreen(reselect: Int) {
                 "New message",
                 fab.expanded,
                 onClick = { nav.push(Route.ComposeMessage()) },
-                // Clear of the home shell's floating nav bar.
-                modifier = Modifier.padding(bottom = nav.snackbarBottomPadding),
+                // Over the home shell's floating nav, down with it as it hides (the
+                // Scaffold keeps it 16dp above the system bar).
+                modifier = Modifier.aboveFloatingNav(),
             )
         },
     ) { padding ->

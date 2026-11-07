@@ -219,8 +219,8 @@ internal fun FrontpageTab(selected: Boolean) {
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .navigationBarsPadding()
-                // Above the bottom bar, when there is one.
-                .padding(end = 16.dp, bottom = if (settings.navStyle != 1) 86.dp else 16.dp),
+                .aboveFloatingNav()
+                .padding(end = 16.dp, bottom = 16.dp),
         )
     }
 }
