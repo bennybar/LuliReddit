@@ -12,9 +12,39 @@
   },
   "content_scripts": [
     {
-      "js": ["content.js"],
-      "matches": ["*://reddit.com/*", "*://*.reddit.com/*", "*://redd.it/*"],
+      "js": [
+        "routes.js",
+        "content.js"
+      ],
+      "matches": [
+        "*://reddit.com/*",
+        "*://*.reddit.com/*",
+        "*://redd.it/*"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "js": [
+        "routes.js",
+        "links.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ],
+      "exclude_matches": [
+        "*://reddit.com/*",
+        "*://*.reddit.com/*"
+      ],
       "run_at": "document_start"
     }
+  ],
+  "background": {
+    "scripts": [
+      "background.js"
+    ],
+    "persistent": false
+  },
+  "permissions": [
+    "nativeMessaging"
   ]
 }

@@ -80,11 +80,18 @@ targets:
     sources:
       - path: SafariOpen
         excludes: [Resources]
+      - path: ShareExtension/SharedStore.swift
       # Copied to the extension's root, as Apple's template does (a folder named
       # Resources there breaks code signing).
       - path: SafariOpen/Resources/manifest.json
         buildPhase: resources
       - path: SafariOpen/Resources/content.js
+        buildPhase: resources
+      - path: SafariOpen/Resources/links.js
+        buildPhase: resources
+      - path: SafariOpen/Resources/routes.js
+        buildPhase: resources
+      - path: SafariOpen/Resources/background.js
         buildPhase: resources
       - path: SafariOpen/Resources/images
         type: folder
@@ -97,6 +104,7 @@ targets:
         PRODUCT_NAME: SafariOpen
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: SafariOpen/Info.plist
+        CODE_SIGN_ENTITLEMENTS: SafariOpen/SafariOpen.entitlements
       configs:
         Release:
           PRODUCT_BUNDLE_IDENTIFIER: com.bennybar.lulireddit.SafariOpen

@@ -1,13 +1,14 @@
 import Foundation
 import Security
 
-/// What Ilay and its "Summarize with Ilay" share extension hand each other,
-/// kept in their shared keychain group (an App Group would need the developer
-/// portal): the AI settings the extension uses, and the summaries it made for
-/// You → Summaries. Compiled into both targets.
+/// What Ilay and its extensions hand each other, kept in their shared keychain
+/// group (an App Group would need the developer portal): the AI settings the share
+/// extension uses, the summaries it made for You → Summaries, and whether the
+/// Safari extension asks which app. Compiled into all three targets.
 enum SharedStore {
   static let aiSettings = "ai_settings"
   static let pendingSummaries = "pending_summaries"
+  static let safariAsk = "safari_ask"
 
   private static func query(_ key: String) -> [CFString: Any] {
     [kSecClass: kSecClassGenericPassword, kSecAttrService: "ilay_shared", kSecAttrAccount: key]

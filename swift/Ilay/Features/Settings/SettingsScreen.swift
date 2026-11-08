@@ -539,7 +539,8 @@ struct SettingsCatalog {
         b.toggle("Check for updates", "Check GitHub releases on launch", s.checkUpdates, set: ctrl.setCheckUpdates)
         b.tile("Check now") { Task { await checkUpdatesNow() } }
         b.toggle("Send anonymous usage stats", "App starts, which feed you use, whether Reddit Home loads. Never your account or what you read", s.analytics, set: ctrl.setAnalytics)
-        b.info("Open reddit links in Ilay", "Use Share on a reddit link in another app and pick Ilay: it opens the link, or summarizes a post.")
+        b.info("Open reddit links in Ilay", "Use Share on a reddit link in another app and pick Ilay: it opens the link, or summarizes a post. In Safari, turn on the Ilay extension (Settings → Apps → Safari → Extensions) and allow it on all websites: Reddit links then open here.")
+        b.toggle("Safari extension: ask which app", "On a Reddit link, choose Ilay or the Reddit app each time", s.safariAsk, set: ctrl.setSafariAsk)
         b.link("Content & conduct policy", nil, .policy)
         b.tile("Open-source licenses", "swift-markdown, swift-cmark") {
             Task {

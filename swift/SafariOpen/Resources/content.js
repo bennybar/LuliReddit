@@ -1,18 +1,10 @@
-// Sends a Reddit page Ilay can show to the app (luli://share?url=…, the share
-// sheet's handoff); Safari asks "Open in Ilay?" first. Other pages (login,
-// settings, wiki, search…) stay in Safari.
-(() => {
+// A Reddit page Safari loads (typed, a bookmark, a link Safari opened itself) goes
+// to Ilay; Safari asks "Open in Ilay?" first. Other pages (login, settings, wiki,
+// search…) stay in Safari. With "ask which app" on, a sheet offers Ilay or staying.
+(async () => {
   if (window.top !== window) return;
   const url = new URL(location.href);
-  const segs = url.pathname.split("/").filter(Boolean);
-  const host = url.hostname.toLowerCase();
-  const shown =
-    host === "redd.it" ? segs.length >= 1
-    : segs.includes("comments") ||
-      (segs[0] === "gallery" && segs.length >= 2) ||
-      ((segs[0] === "r" || segs[0] === "u" || segs[0] === "user") && segs.length >= 2 &&
-        !["wiki", "about", "submit", "search"].includes(segs[2]));
-  if (!shown) return;
+  if (!ilay.shows(url)) return;
   // Once per page in this tab: coming back to Safari (or tapping Cancel) and
   // reloading shows the page instead of asking again.
   const key = "ilay-opened:" + url.href;
@@ -20,5 +12,8 @@
     if (sessionStorage.getItem(key)) return;
     sessionStorage.setItem(key, "1");
   } catch (e) {}
-  location.href = "luli://share?url=" + encodeURIComponent(url.href);
+  if (!(await ilay.asks())) return ilay.open(url);
+  const show = () => ilay.choose(url, { label: "Stay in Safari", action: () => {} });
+  if (document.body) show();
+  else document.addEventListener("DOMContentLoaded", show, { once: true });
 })();

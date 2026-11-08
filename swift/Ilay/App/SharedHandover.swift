@@ -1,14 +1,21 @@
 import UIKit
 
-/// What the app and "Summarize with Ilay" hand each other through `SharedStore`.
+/// What the app and its share and Safari extensions hand each other through `SharedStore`.
 enum SharedHandover {
     /// The share extension can't read the app's settings: copy the ones its summary
     /// uses to the shared keychain, now and whenever Ilay leaves the screen.
     static func start() {
         shareAiSettings()
+        shareSafariAsk()
         NotificationCenter.default.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { _ in
             shareAiSettings()
         }
+    }
+
+    /// Settings → "Safari extension: ask which app", for the Safari extension.
+    static func shareSafariAsk() {
+        let on = UserDefaults.standard.bool(forKey: Prefs.prefix + "safariAsk")
+        SharedStore.write(SharedStore.safariAsk, Data((on ? "1" : "0").utf8))
     }
 
     private static func shareAiSettings() {

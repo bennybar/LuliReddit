@@ -64,6 +64,7 @@ final class SettingsStore {
         s.showRecentlyVisited = b("showRecentlyVisited", s.showRecentlyVisited)
         s.offlineCache = b("offlineCache", s.offlineCache)
         s.checkUpdates = b("checkUpdates", s.checkUpdates)
+        s.safariAsk = b("safariAsk", s.safariAsk)
         s.analytics = b("analytics", s.analytics)
         s.forYouFeed = b("forYouFeed", s.forYouFeed)
         s.postsTabAll = b("postsTabAll", s.postsTabAll)
@@ -146,6 +147,7 @@ final class SettingsStore {
     func setShowRecentlyVisited(_ v: Bool) { p.setBool("showRecentlyVisited", v); set { $0.showRecentlyVisited = v } }
     func setOfflineCache(_ v: Bool) { p.setBool("offlineCache", v); set { $0.offlineCache = v } }
     func setCheckUpdates(_ v: Bool) { p.setBool("checkUpdates", v); set { $0.checkUpdates = v } }
+    func setSafariAsk(_ v: Bool) { p.setBool("safariAsk", v); set { $0.safariAsk = v }; SharedHandover.shareSafariAsk() }
     func setAnalytics(_ v: Bool) { p.setBool("analytics", v); set { $0.analytics = v } }
     func setPostsTabAll(_ v: Bool) { p.setBool("postsTabAll", v); set { $0.postsTabAll = v } }
 

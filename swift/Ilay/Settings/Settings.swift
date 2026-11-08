@@ -167,6 +167,7 @@ struct Settings: Equatable, Sendable {
     var showRecentlyVisited = true // Explore and the side bar list the subreddits you opened last
     var offlineCache = true
     var checkUpdates = true
+    var safariAsk = false // the Safari extension asks: Ilay or the Reddit app
     var analytics = true // anonymous usage stats (Aptabase)
     var forYouFeed = false // frontpage uses the "For You" feed
     var postsTabAll = false // the Posts tab shows r/all instead of the frontpage, which Explore's All button opens then

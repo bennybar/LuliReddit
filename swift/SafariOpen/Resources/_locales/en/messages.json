@@ -1,4 +1,8 @@
 {
-  "extension_name": { "message": "Ilay" },
-  "extension_description": { "message": "Opens Reddit posts, comments, subreddits and profiles in Ilay." }
+  "extension_name": {
+    "message": "Ilay"
+  },
+  "extension_description": {
+    "message": "Opens Reddit posts, comments, subreddits and profiles in Ilay, from Safari and from links on other sites."
+  }
 }
