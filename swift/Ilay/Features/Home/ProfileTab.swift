@@ -1,10 +1,13 @@
 import SwiftUI
 
-/// The Profile tab: your profile (Posts, Comments, Saved, Upvoted) under a
-/// bar with the account switcher and Settings, and a "Your stuff" row for
-/// what's kept on this device. Browsing without an account: sign in, plus
-/// your stuff.
+/// The Profile tab: your profile (Posts, Comments, Saved) under a bar with a
+/// Library menu (Upvoted, Downvoted, and what's kept on this device) and
+/// Settings; your name opens the account switcher. Browsing without an
+/// account: sign in, plus your stuff.
 struct ProfileTab: View {
+    @Environment(AppNavigator.self) private var nav
+    @State private var tab = "Posts"
+
     var body: some View {
         let session = app.session.session
         let username = session?.username ?? ""
@@ -24,19 +27,17 @@ struct ProfileTab: View {
                 }
                 .listStyle(.insetGrouped)
             } else {
-                UserProfileBody(username: username, scrollTop: app.navigator.tabReselect[3]) { YourStuffRow() }
-                    .id(username)
+                UserProfileBody(username: username, scrollTop: app.navigator.tabReselect[3], tab: $tab) {
+                    Task { await showAccountSheet(current: username) }
+                }
+                .id(username)
             }
         }
         .navigationTitle("Profile")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) { SideBarButton() }
             ToolbarItemGroup(placement: .topBarTrailing) {
-                if !anonymous {
-                    Button("Switch / add account", systemImage: "person.2") {
-                        Task { await showAccountSheet(current: username) }
-                    }
-                }
+                if !anonymous && !username.isEmpty { library }
                 SettingsButton()
             }
         }
@@ -54,38 +55,25 @@ struct ProfileTab: View {
             }
         }
     }
-}
 
-/// History, Read later, Drafts, Summaries and saved search, as one row of chips.
-struct YourStuffRow: View {
-    @Environment(AppNavigator.self) private var nav
-
-    var body: some View {
+    /// Your Upvoted and Downvoted lists (shown in the profile), then what's kept on
+    /// this device: History, Read later, Drafts, Summaries and saved search.
+    private var library: some View {
         // Reading `changes` keeps the count live.
         let drafts = app.drafts.changes >= 0 ? app.drafts.list().count : 0
-        let chips: [(icon: String, label: String, route: Route)] = [
-            ("clock.arrow.circlepath", "History", .history),
-            ("arrow.down.circle", "Read later", .offline),
-            ("square.and.pencil", drafts == 0 ? "Drafts" : "Drafts · \(drafts)", .drafts),
-            ("sparkles", "Summaries", .summaries),
-            ("bookmark", "Search saved", .saved),
-        ]
-        ScrollView(.horizontal) {
-            HStack(spacing: 8) {
-                ForEach(chips, id: \.route) { chip in
-                    Button { nav.push(chip.route) } label: {
-                        Label(chip.label, systemImage: chip.icon).font(.subheadline)
-                    }
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.capsule)
-                    .tint(.secondary)
-                    .foregroundStyle(.primary)
-                }
+        return Menu("Library", systemImage: "books.vertical") {
+            Section {
+                Button("Upvoted", systemImage: "arrow.up") { tab = "Upvoted" }
+                Button("Downvoted", systemImage: "arrow.down") { tab = "Downvoted" }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 4)
+            Section {
+                Button("History", systemImage: "clock.arrow.circlepath") { nav.push(.history) }
+                Button("Read later", systemImage: "arrow.down.circle") { nav.push(.offline) }
+                Button(drafts == 0 ? "Drafts" : "Drafts · \(drafts)", systemImage: "square.and.pencil") { nav.push(.drafts) }
+                Button("Summaries", systemImage: "sparkles") { nav.push(.summaries) }
+                Button("Search saved", systemImage: "bookmark") { nav.push(.saved) }
+            }
         }
-        .scrollIndicators(.hidden)
     }
 }
 

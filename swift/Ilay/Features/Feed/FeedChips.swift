@@ -195,7 +195,7 @@ struct FloatingChipsTracker {
     }
 }
 
-/// The profile's sort: a button that opens the list (no room beside its tabs for `FeedChips`).
+/// The profile's sort: a round button beside its tabs that opens the list (the menu marks the current one).
 struct SortBar: View {
     let sort: PostSort
     let time: TopTime
@@ -222,11 +222,11 @@ struct SortBar: View {
                 }
             }
         } label: {
-            Label(sort.needsTime ? "\(sort.label) · \(time.label)" : sort.label, systemImage: "arrow.up.arrow.down")
-                .font(.subheadline)
+            Image(systemName: "arrow.up.arrow.down").frame(width: 20, height: 20)
         }
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.capsule)
+        .buttonStyle(.glass)
+        .buttonBorderShape(.circle)
+        .accessibilityLabel("Sort: \(sort.needsTime ? "\(sort.label) · \(time.label)" : sort.label)")
     }
 }
 

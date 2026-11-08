@@ -40,13 +40,14 @@ import SwiftUI
 /// A user's profile: header + Posts / Comments (and your own Saved / Upvoted / Downvoted) tabs.
 struct UserScreen: View {
     let username: String
+    @State private var tab = "Posts"
 
     var body: some View {
         let nav = app.navigator
         let me = app.session.username
         let isSelf = !me.isEmpty && me.lowercased() == username.lowercased()
 
-        UserProfileBody(username: username)
+        UserProfileBody(username: username, tab: $tab)
             .navigationTitle("u/\(username)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -69,25 +70,27 @@ struct UserScreen: View {
 }
 
 /// A profile's header and its Posts / Comments (and your own Saved / Upvoted / Downvoted)
-/// lists: the user screen, and the Profile tab (`belowHeader`: its "Your stuff" row).
+/// lists: the user screen, and the Profile tab (whose Library menu picks Upvoted and
+/// Downvoted, and whose name opens the account switcher: `onSwitchAccount`).
 /// Each new `scrollTop` value takes the list and header back to the top.
-struct UserProfileBody<Below: View>: View {
+struct UserProfileBody: View {
     let username: String
     var scrollTop = 0
-    @ViewBuilder let belowHeader: () -> Below
+    @Binding var tab: String
+    var onSwitchAccount: (() -> Void)?
 
     @State private var model: UserProfileModel
-    @State private var tab = "Posts"
     // Posts and comments, newest first like reddit.com; Hot and Top too.
     @State private var sort = PostSort.newest
     @State private var time = TopTime.all
     @State private var headerHeight: CGFloat = 0
     @State private var tabsHeight: CGFloat = 0
 
-    init(username: String, scrollTop: Int = 0, @ViewBuilder belowHeader: @escaping () -> Below) {
+    init(username: String, scrollTop: Int = 0, tab: Binding<String>, onSwitchAccount: (() -> Void)? = nil) {
         self.username = username
         self.scrollTop = scrollTop
-        self.belowHeader = belowHeader
+        _tab = tab
+        self.onSwitchAccount = onSwitchAccount
         _model = State(initialValue: UserProfileModel(username: username))
     }
 
@@ -105,7 +108,7 @@ struct UserProfileBody<Below: View>: View {
         let current = tabs.contains(tab) ? tab : "Posts"
         // A deleted (Reddit's 404) or suspended account has no lists either: just say so.
         let gone: Error? = if case let .error(e) = model.about, e is AppException || (e as? RedditApiException)?.statusCode == 404 { e } else { nil }
-        // The header (and the Profile tab's row under it) slides away as a list scrolls down
+        // The header slides away as a list scrolls down
         // and comes back once it's back at the top; the tabs stay. It sits over the list, which
         // leaves it room: moving with the rows, not resizing them, keeps the scrolling smooth.
         Group {
@@ -124,46 +127,22 @@ struct UserProfileBody<Below: View>: View {
                         case let .error(error):
                             ErrorView(message: error, onRetry: model.retry)
                         case let .data(user):
-                            ProfileHeader(user: user, canFollow: !isSelf && !me.isEmpty)
+                            ProfileHeader(user: user, canFollow: !isSelf && !me.isEmpty, onSwitchAccount: onSwitchAccount)
                         }
-                        belowHeader()
                     } tabs: {
-                        // Posts / Comments / Saved as segments, your Upvoted and Downvoted (used less) in a menu
-                        // beside them, and the sort for Posts and Comments: on the same row when it fits, else under it.
-                        let more = isSelf ? ["Upvoted", "Downvoted"] : []
-                        let segments = ConnectedChoice(options: tabs.filter { !more.contains($0) }.map { (key: $0, label: $0) }, selected: current, onSelect: { tab = $0 })
-                        let moreMenu = PickOneMenu(
-                            options: more.map { (key: $0, label: $0) },
-                            selected: more.contains(current) ? current : nil,
-                            onPick: { tab = $0 },
-                            icon: { $0 == "Upvoted" ? "arrow.up" : "arrow.down" }
-                        ) {
-                            // On one of its lists, the button names it (no segment is selected then).
-                            if more.contains(current) {
-                                Label(current, systemImage: current == "Upvoted" ? "arrow.up" : "arrow.down").font(.subheadline)
-                            } else {
-                                Label("More", systemImage: "ellipsis").labelStyle(.iconOnly).frame(minHeight: 20)
+                        // Posts / Comments / Saved as segments; Upvoted and Downvoted (picked from the
+                        // Library menu) join them as a fourth while open. The sort is beside them.
+                        let shown = ["Posts", "Comments", "Saved"].filter(tabs.contains) + (["Upvoted", "Downvoted"].contains(current) ? [current] : [])
+                        HStack(spacing: 8) {
+                            Picker("List", selection: $tab) {
+                                ForEach(shown, id: \.self) { Text($0).tag($0) }
                             }
-                        }
-                        .buttonStyle(.bordered)
-                        .buttonBorderShape(.capsule)
-                        let sortBar = SortBar(sort: sort, time: time, sorts: [.newest, .hot, .top]) { s, t in
-                            sort = s
-                            if let t { time = t }
-                        }
-                        let sorted = current == "Posts" || current == "Comments"
-                        ViewThatFits(in: .horizontal) {
-                            HStack(spacing: 8) {
-                                segments
-                                if sorted { sortBar }
-                                if !more.isEmpty { moreMenu }
-                            }
-                            VStack(alignment: .trailing, spacing: 6) {
-                                HStack(spacing: 8) {
-                                    segments
-                                    if !more.isEmpty { moreMenu }
+                            .pickerStyle(.segmented)
+                            if current == "Posts" || current == "Comments" {
+                                SortBar(sort: sort, time: time, sorts: [.newest, .hot, .top]) { s, t in
+                                    sort = s
+                                    if let t { time = t }
                                 }
-                                if sorted { sortBar }
                             }
                         }
                         .padding(.horizontal, 16)
@@ -268,12 +247,6 @@ struct UserProfileBody<Below: View>: View {
     }
 }
 
-extension UserProfileBody where Below == EmptyView {
-    init(username: String, scrollTop: Int = 0) {
-        self.init(username: username, scrollTop: scrollTop) { EmptyView() }
-    }
-}
-
 extension SavedItem {
     var fullname: String {
         switch self {
@@ -322,29 +295,41 @@ private struct ProfileTop<Header: View, Tabs: View>: View {
 private struct ProfileHeader: View {
     let user: RedditUser
     let canFollow: Bool
+    let onSwitchAccount: (() -> Void)?
 
     // Following a user is subscribing to their profile (u_<name>): their posts
     // then show in your Best / Hot / New and For You, like a subreddit's.
     @State private var following: Bool
     @State private var busy = false
 
-    init(user: RedditUser, canFollow: Bool) {
+    init(user: RedditUser, canFollow: Bool, onSwitchAccount: (() -> Void)?) {
         self.user = user
         self.canFollow = canFollow
+        self.onSwitchAccount = onSwitchAccount
         _following = State(initialValue: user.following)
     }
 
     var body: some View {
         HStack(spacing: 16) {
-            LetterAvatar(name: user.name, size: 60, imageUrl: user.iconUrl)
+            LetterAvatar(name: user.name, size: 56, imageUrl: user.iconUrl)
             VStack(alignment: .leading, spacing: 2) {
-                Text("u/\(user.name)").font(.title3.bold()).lineLimit(1)
-                Text("\(compactNumber(user.linkKarma)) post · \(compactNumber(user.commentKarma)) comment karma")
+                // Your own name opens the account switcher, as in Mail or the App Store.
+                if let onSwitchAccount {
+                    Button(action: onSwitchAccount) {
+                        HStack(spacing: 4) {
+                            Text("u/\(user.name)").font(.title3.bold()).lineLimit(1)
+                            Image(systemName: "chevron.down").font(.caption.bold()).foregroundStyle(.secondary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Switch or add account")
+                } else {
+                    Text("u/\(user.name)").font(.title3.bold()).lineLimit(1)
+                }
+                Text("\(compactNumber(user.linkKarma + user.commentKarma)) karma · joined \(Date(timeIntervalSince1970: Double(user.createdUtc) / 1000).formatted(.dateTime.month(.abbreviated).year()))")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                Text("Joined \(Date(timeIntervalSince1970: Double(user.createdUtc) / 1000).formatted(.dateTime.month(.abbreviated).year()))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
             Spacer(minLength: 0)
             if canFollow {

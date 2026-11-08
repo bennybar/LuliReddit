@@ -28,10 +28,11 @@ targets:
     dependencies:
       - package: swift-markdown
         product: Markdown
-      # "Open in Ilay" and "Summarize with Ilay" in the share sheet. Release ids stay
-      # the Flutter app's, so they survive the switch.
-      - target: ShareOpen
+      # "Ilay" in the share sheet (open the link, or summarize a post). Release ids
+      # stay the Flutter app's, so they survive the switch.
       - target: ShareSummarize
+      # "Ilay" in Safari's extensions: opens reddit.com pages in the app.
+      - target: SafariOpen
     settings:
       base:
         PRODUCT_NAME: Ilay
@@ -53,31 +54,13 @@ targets:
           PRODUCT_BUNDLE_IDENTIFIER: com.bennybar.lulireddit.swiftdev
           APP_DISPLAY_NAME: Ilay Swift
           APP_URL_SCHEME: ilayswift
-  ShareOpen:
-    type: app-extension
-    platform: iOS
-    sources:
-      - path: ShareExtension
-      - path: ShareOpen
-    settings:
-      base:
-        PRODUCT_NAME: ShareOpen
-        GENERATE_INFOPLIST_FILE: NO
-        INFOPLIST_FILE: ShareOpen/Info.plist
-        CODE_SIGN_ENTITLEMENTS: ShareOpen/ShareOpen.entitlements
-      configs:
-        Release:
-          PRODUCT_BUNDLE_IDENTIFIER: com.bennybar.lulireddit.ShareOpen
-          APP_URL_SCHEME: luli
-        Debug:
-          PRODUCT_BUNDLE_IDENTIFIER: com.bennybar.lulireddit.swiftdev.ShareOpen
-          APP_URL_SCHEME: ilayswift
   ShareSummarize:
     type: app-extension
     platform: iOS
     sources:
       - path: ShareExtension
       - path: ShareSummarize
+      - path: Ilay/Core/Rtl.swift
     settings:
       base:
         PRODUCT_NAME: ShareSummarize
@@ -91,6 +74,34 @@ targets:
         Debug:
           PRODUCT_BUNDLE_IDENTIFIER: com.bennybar.lulireddit.swiftdev.ShareSummarize
           APP_URL_SCHEME: ilayswift
+  SafariOpen:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: SafariOpen
+        excludes: [Resources]
+      # Copied to the extension's root, as Apple's template does (a folder named
+      # Resources there breaks code signing).
+      - path: SafariOpen/Resources/manifest.json
+        buildPhase: resources
+      - path: SafariOpen/Resources/content.js
+        buildPhase: resources
+      - path: SafariOpen/Resources/images
+        type: folder
+        buildPhase: resources
+      - path: SafariOpen/Resources/_locales
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_NAME: SafariOpen
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: SafariOpen/Info.plist
+      configs:
+        Release:
+          PRODUCT_BUNDLE_IDENTIFIER: com.bennybar.lulireddit.SafariOpen
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.bennybar.lulireddit.swiftdev.SafariOpen
   IlayTests:
     type: bundle.unit-test
     platform: iOS

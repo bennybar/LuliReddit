@@ -141,8 +141,12 @@ final class InboxModule: UserScoped {
 
     /// Applies `change` to `fullname` in every tab (an item can show in several).
     private func mapItem(_ fullname: String, _ change: (InboxItem) -> InboxItem?) {
-        for key in states.keys where states[key]?.items.contains(where: { $0.fullname == fullname }) == true {
-            states[key]?.items = states[key]?.items.compactMap { $0.fullname == fullname ? change($0) : $0 } ?? []
+        for key in Array(states.keys) {
+            guard let items = states[key]?.items, items.contains(where: { $0.fullname == fullname }) else { continue }
+            // Built first: `states[key]?.items = states[key]?…` starts the write on
+            // `states` before reading it again on the right, an exclusivity crash.
+            let changed = items.compactMap { $0.fullname == fullname ? change($0) : $0 }
+            states[key]?.items = changed
         }
     }
 

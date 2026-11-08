@@ -539,7 +539,7 @@ struct SettingsCatalog {
         b.toggle("Check for updates", "Check GitHub releases on launch", s.checkUpdates, set: ctrl.setCheckUpdates)
         b.tile("Check now") { Task { await checkUpdatesNow() } }
         b.toggle("Send anonymous usage stats", "App starts, which feed you use, whether Reddit Home loads. Never your account or what you read", s.analytics, set: ctrl.setAnalytics)
-        b.info("Open reddit links in Ilay", "Use Share on a reddit link in another app, then Open in Ilay or Summarize with Ilay.")
+        b.info("Open reddit links in Ilay", "Use Share on a reddit link in another app and pick Ilay: it opens the link, or summarizes a post.")
         b.link("Content & conduct policy", nil, .policy)
         b.tile("Open-source licenses", "swift-markdown, swift-cmark") {
             Task {

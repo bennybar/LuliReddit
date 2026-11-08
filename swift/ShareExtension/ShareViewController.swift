@@ -1,21 +1,11 @@
 import UIKit
 import UniformTypeIdentifiers
 
-/// "Open in Ilay" in the share sheet: finds the Reddit link in what was shared
-/// and opens Ilay on it, luli://share?url=<link> (the Debug build's own scheme
-/// there). The app does the rest.
-/// ("Summarize with Ilay" is SummarizeViewController, which uses the helpers
-/// here too.)
+/// Helpers for "Ilay" in the share sheet (SummarizeViewController): find the
+/// Reddit link in what was shared and open Ilay on it, luli://share?url=<link>
+/// (the Debug build's own scheme there). The app does the rest.
+/// (It was also the "Open in Ilay" extension, now merged into that one.)
 class ShareViewController: UIViewController {
-  override func viewDidAppear(_ animated: Bool) {
-    super.viewDidAppear(animated)
-    Task { @MainActor in
-      if let link = await Self.sharedLink(extensionContext) {
-        Self.openInIlay(link, summarize: false, from: self)
-      }
-      extensionContext?.completeRequest(returningItems: nil)
-    }
-  }
 
   /// The Reddit link in what was shared: apps share a post as a URL, or as
   /// text ("title https://…").

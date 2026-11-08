@@ -112,7 +112,7 @@ struct AppRoot: View {
     }
 
     private func handleLink(_ uri: URL) {
-        // "Open in Ilay" / "Summarize with Ilay" in another app's share sheet, or a reddit link.
+        // "Ilay" in another app's share sheet (open, or summarize), or a reddit link.
         let incoming: (url: URL, summarize: Bool)
         if let shared = sharedLink(uri) {
             incoming = shared
