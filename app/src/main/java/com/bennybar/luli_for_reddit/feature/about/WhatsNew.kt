@@ -45,6 +45,13 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.69", "Nov 9, 2026",
+        listOf(
+            "Settings › Appearance opens normally again (it jumped straight into Theme & colours, and Back couldn't leave)",
+            "The side bar closes again after you pick a page or a tab",
+        ),
+    ),
+    Release(
         "2.0.68", "Nov 9, 2026",
         listOf(
             "New Theme & colours page: preview presets, enter any hex colour, and pick a Material palette style (Expressive, Vibrant, Rainbow and more), with a live preview",

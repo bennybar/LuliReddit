@@ -185,7 +185,10 @@ fun HomeScreen() {
     // Settings › Navigation: the bottom bar, the side bar, or both.
     val bottomBar = settings.navStyle != 1
     val sideBar = settings.navStyle != 0
-    val drawer = rememberDrawerState(DrawerValue.Closed)
+    // Not saved with the back stack: a side-bar page opens with no transition (#118),
+    // so Home leaves before the side bar finishes closing, and a saved state brought
+    // it back open on the next tab picked (#136).
+    val drawer = remember { DrawerState(DrawerValue.Closed) }
     val shellScope = rememberCoroutineScope()
 
     // Snackbars float above the floating nav while the shell is showing.

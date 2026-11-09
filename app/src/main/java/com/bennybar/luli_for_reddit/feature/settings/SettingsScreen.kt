@@ -492,7 +492,7 @@ fun SettingsList(
         section("Appearance")
         // Light / dark, AMOLED, wallpaper colours, the accent and the palette style: one page (#114).
         add(Entry("t:Theme & colours", "Theme & colours ${themeSummary(s)} dark light AMOLED black accent color colour wallpaper dynamic palette style hex") {
-            SettingTile("Theme & colours", themeSummary(s), Icons.Rounded.Palette) { nav.push(Route.ThemeColors) }
+            SettingTile("Theme & colours", themeSummary(s), Icons.Rounded.Palette, onClick = { nav.push(Route.ThemeColors) })
         })
         tile("App font", s.appFont.label, Icons.Rounded.FontDownload, onClick = launch {
             pickOption(AppFont.entries.map { PickOption(it, it.label, subtitle = it.description) }, s.appFont)?.let(ctrl::setAppFont)
