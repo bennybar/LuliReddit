@@ -12,6 +12,8 @@ struct AppRoot: View {
     @State private var lastLink: String?
     @State private var lastLinkAt = Date.distantPast
     @State private var lastInboxSync = Date()
+    /// A fresh install shows the setup before sign-in (#114).
+    @State private var setup = needsSetup()
 
     var body: some View {
         @Bindable var nav = app.navigator
@@ -24,6 +26,8 @@ struct AppRoot: View {
                 Color(.systemBackground).ignoresSafeArea()
             } else if showHome {
                 HomeScreen()
+            } else if setup {
+                SetupScreen { setup = false }
             } else {
                 NavigationStack(path: $nav.loginPath) {
                     RouteView(route: .login)
@@ -39,6 +43,11 @@ struct AppRoot: View {
         .ilayTheme()
         .onChange(of: showHome, initial: true) { old, new in
             nav.showingHome = new
+            // Someone who already has an account never sees the setup, even after signing out.
+            if new, setup {
+                app.prefs.setBool(setupDoneKey, true)
+                setup = false
+            }
             if old != new { nav.resetTo(new ? .home : .login) }
         }
         .onChange(of: showHome && pendingLink != nil) { if showHome { openPendingLink() } }

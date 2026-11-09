@@ -6,7 +6,7 @@ import UniformTypeIdentifiers
 // Bottom bar labels and outline (the system's tab bar has neither); Save media to
 // (Android's folder: on iOS media saves to the "Ilay" album). Their prefs stay untouched.
 
-private let accentSwatches: [(argb: Int, name: String)] = [
+let accentSwatches: [(argb: Int, name: String)] = [
     (0xFF6750A4, "Lavender"), // default
     (0xFFEA4335, "Red"),
     (0xFFFF7043, "Orange"),
@@ -40,7 +40,7 @@ private let summaryStyleLabels = ["TL;DR", "Key points", "Consensus & disagreeme
 
 private let aiModels = ["gpt-6.1-sol", "gpt-5.5", "gpt-5.4-mini", "gpt-5.4-nano"]
 
-private let navStyles: [(String, String)] = [
+let navStyles: [(String, String)] = [
     ("Bottom bar", "The tab bar at the bottom"),
     ("Side bar", "The ☰ at the top of each tab opens it, or swipe in from the left edge"),
     ("Both", "The tab bar, plus the side bar (☰, or swipe in from the left edge)"),
@@ -655,7 +655,7 @@ private struct OptionLabel<T: Hashable>: View {
 }
 
 /// Amber for Reddit Home's caution (readable on light and dark surfaces).
-private let homeAmber = Color(uiColor: UIColor { traits in
+let homeAmber = Color(uiColor: UIColor { traits in
     traits.userInterfaceStyle == .dark
         ? UIColor(red: 1, green: 0xC9 / 255, blue: 0x4D / 255, alpha: 1)
         : UIColor(red: 0x9A / 255, green: 0x67 / 255, blue: 0, alpha: 1)
@@ -998,7 +998,7 @@ private func keepLabel(_ minutes: Int) -> String {
 private func dayLabel(_ days: Int) -> String { days == 1 ? "1 day" : "\(days) days" }
 
 /// What Reddit Home is (unofficial, can break) before turning it on. True to turn it on.
-@MainActor private func confirmRedditHome() async -> Bool {
+@MainActor func confirmRedditHome() async -> Bool {
     await confirmDialog(
         "About Reddit Home",
         "Reddit Home shows your real reddit.com Home feed. Ilay loads reddit.com in a hidden browser with your website sign-in and reads which posts it shows.\n\n"
@@ -1052,7 +1052,7 @@ private func dayLabel(_ days: Int) -> String { days == 1 ? "1 day" : "\(days) da
     if download { nav.openInBrowser(info.url) }
 }
 
-@MainActor private func restoreData(_ result: Result<URL, Error>) async {
+@MainActor func restoreData(_ result: Result<URL, Error>) async {
     do {
         let file = try result.get()
         let scoped = file.startAccessingSecurityScopedResource()
