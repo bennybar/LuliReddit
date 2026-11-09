@@ -45,6 +45,12 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.67", "Nov 9, 2026",
+        listOf(
+            "Comments show their authors' profile pictures (with the website sign-in), in place of the letter dot. Settings → Posts & comments can turn it off",
+        ),
+    ),
+    Release(
         "2.0.66", "Nov 9, 2026",
         listOf(
             "Comments you voted on glow softly in the vote's colour instead of a line down the side",
