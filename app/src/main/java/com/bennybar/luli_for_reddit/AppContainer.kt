@@ -71,6 +71,7 @@ class AppContainer(val context: Context) {
     // Shared, per-account local state.
     val postOverrides = PostOverrides()
     val commentVotes = CommentVotes()
+    val authorAvatars = com.bennybar.luli_for_reddit.state.AuthorAvatars()
     /** Reddit's own notification list (website sign-in), read like Home. */
     val redditNotifications = RedditNotifications(this)
     /**

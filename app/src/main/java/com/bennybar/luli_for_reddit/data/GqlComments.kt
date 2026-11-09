@@ -84,6 +84,18 @@ internal fun postCommentsVariables(postFullname: String, sort: String, focusComm
  * starts deeper, a focused thread's parents are negative), so the shallowest
  * entries hang off the forest's own parent, else [linkFullname].
  */
+/** Each comment author's picture in a GraphQL comment forest: lowercased name → its iconSmall url. */
+internal fun gqlAuthorIcons(trees: List<JsonElement>): Map<String, String> {
+    val out = HashMap<String, String>()
+    for (tree in trees) {
+        val info = tree["node"]["authorInfo"]
+        val name = info["name"].str() ?: continue
+        val url = info["iconSmall"]["url"].str() ?: continue
+        out[name.lowercase()] = url
+    }
+    return out
+}
+
 internal fun gqlCommentThings(trees: List<JsonElement>, linkFullname: String, moreParent: String? = null): List<JsonObject> {
     val base = trees.mapNotNull { it["depth"].int() }.minOrNull() ?: 0
     // ancestors[d]: the latest comment at relative depth d.

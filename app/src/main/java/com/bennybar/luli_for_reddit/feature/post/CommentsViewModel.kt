@@ -136,6 +136,9 @@ class CommentsViewModel(
             _state.update { it.copy(sort = sort) }
             t = repo.getComments(subreddit, postId, sort, focusCommentId, limit)
         }
+        // Commenters' pictures come after, on their own request (#133).
+        val avatarSort = sort
+        viewModelScope.launch { app.authorAvatars.loadFor(postId, avatarSort) }
         val collapsed = startCollapsed(t.comments)
         // Fetch the full page only when the first one was cut short (it ends in
         // "load more" rows); a small thread is already complete.

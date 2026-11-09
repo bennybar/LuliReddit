@@ -537,6 +537,16 @@ class RedditRepository(val client: RedditClient) {
      * 403 with a reason (a private, quarantined or gated subreddit) is
      * Reddit's own answer, not the edge's page.
      */
+    /**
+     * Commenters' profile pictures (#133), lowercased name → url, from the first page of
+     * the thread's GraphQL comment forest (the .json comments carry none). Website
+     * sign-in only.
+     */
+    suspend fun getCommentAvatars(postId: String, sort: String): Map<String, String> {
+        val data = client.gql("PostComments", GQL_POST_COMMENTS, postCommentsVariables("t3_$postId", sort, null, null))
+        return gqlAuthorIcons(data["postInfoById"]["commentForest"]["trees"].arr() ?: emptyList())
+    }
+
     private suspend fun <T> orGql(rest: suspend () -> T, gql: suspend () -> T): T {
         try {
             return rest()

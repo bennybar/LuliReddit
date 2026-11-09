@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.settings
 
+import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.outlined.Folder
 import android.provider.DocumentsContract
 import com.bennybar.luli_for_reddit.ui.SearchIcon
@@ -657,6 +658,11 @@ fun SettingsList(
             "Collapse only the replies",
             "Collapsing a comment keeps its own text and hides its replies",
             Icons.Rounded.UnfoldLess, s.collapseRepliesOnly, ctrl::setCollapseRepliesOnly,
+        )
+        switch(
+            "Profile pictures in comments",
+            "With the website sign-in: one more request per thread brings its commenters' pictures",
+            Icons.Rounded.AccountCircle, s.commentAvatars, ctrl::setCommentAvatars,
         )
         switch(
             "Mark comments you voted on",

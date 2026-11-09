@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import androidx.compose.ui.platform.LocalDensity
+import com.bennybar.luli_for_reddit.state.LocalAuthorIcons
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.graphics.Brush
@@ -694,7 +696,8 @@ private fun CommentList(
     val flat = thread.flat
     // Animated images in the thread pause while it scrolls (see rememberPauseWhileScrolling).
     val scrolling = remember(listState) { { listState.isScrollInProgress } }
-    CompositionLocalProvider(LocalListScrolling provides scrolling) {
+    val icons by app.authorAvatars.icons.collectAsState()
+    CompositionLocalProvider(LocalListScrolling provides scrolling, LocalAuthorIcons provides if (settings.commentAvatars) icons else emptyMap()) {
         LazyColumn(
             Modifier.fillMaxSize(),
             state = listState,
@@ -2097,12 +2100,16 @@ private fun CommentMedia(body: String, extra: List<android.net.Uri>, nav: AppNav
     }
 }
 
-/** Small colored avatar with the author's initial (color derived from name). */
+/**
+ * Small colored avatar with the author's initial (color derived from name), or their
+ * profile picture once it's known (#133), drawn over it.
+ */
 @Composable
 private fun AuthorDot(name: String, size: Int) {
     val clean = name.removePrefix("u/")
     val deleted = clean.isEmpty() || clean.startsWith("[")
     val color = if (deleted) MaterialTheme.colorScheme.outline else avatarColor(clean)
+    val icon = if (deleted) null else LocalAuthorIcons.current[clean.lowercase()]
     Box(Modifier.size(size.dp).clip(CircleShape).background(color), contentAlignment = Alignment.Center) {
         Text(
             if (deleted) "?" else clean.first().uppercase(),
@@ -2111,6 +2118,15 @@ private fun AuthorDot(name: String, size: Int) {
             fontSize = (size * 0.5f).sp,
             lineHeight = (size * 0.5f).sp,
         )
+        if (icon != null) {
+            val px = with(LocalDensity.current) { size.dp.roundToPx() }
+            AsyncImage(
+                model = com.bennybar.luli_for_reddit.feature.feed.rememberSizedRequest(icon, px),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
     }
 }
 
