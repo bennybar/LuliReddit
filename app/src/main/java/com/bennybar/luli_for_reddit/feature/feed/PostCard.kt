@@ -742,9 +742,10 @@ internal fun Flair(flair: UserFlair) {
     val (text, emoji) = rememberFlairText(flair)
     Text(
         text,
-        Modifier.background(cs.surfaceContainerHighest, RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 4.dp),
+        // A light tint, as on the selected filter chips: white flair emoji and text stay readable (#131).
+        Modifier.background(cs.secondaryContainer, RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 4.dp),
         fontSize = 12.sp,
-        color = cs.onSurfaceVariant,
+        color = cs.onSecondaryContainer,
         inlineContent = emoji,
     )
 }
@@ -1526,7 +1527,7 @@ private fun flairIcon(text: String): ImageVector {
     }
 }
 
-/** Calm flair pill: 26dp, surfaceContainerHigh, the flair's own images, or a matching icon when it has none. */
+/** Calm flair pill: 26dp, lightly tinted (#131), the flair's own images, or a matching icon when it has none. */
 @Composable
 fun CalmFlair(flair: UserFlair, modifier: Modifier = Modifier) {
     val cs = MaterialTheme.colorScheme
@@ -1534,7 +1535,7 @@ fun CalmFlair(flair: UserFlair, modifier: Modifier = Modifier) {
     Row(
         modifier
             .height(26.dp)
-            .background(calmControlColor(), RoundedCornerShape(13.dp))
+            .background(cs.secondaryContainer, RoundedCornerShape(13.dp))
             .padding(start = 8.dp, end = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -1542,7 +1543,7 @@ fun CalmFlair(flair: UserFlair, modifier: Modifier = Modifier) {
             Icon(flairIcon(flair.text), null, Modifier.size(14.dp), tint = cs.primary)
             Spacer(Modifier.width(5.dp))
         }
-        Text(text, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, inlineContent = emoji)
+        Text(text, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = cs.onSecondaryContainer, maxLines = 1, overflow = TextOverflow.Ellipsis, inlineContent = emoji)
     }
 }
 

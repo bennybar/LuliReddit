@@ -499,7 +499,7 @@ struct FlairChip: View {
         .foregroundStyle(.secondary)
         .padding(.horizontal, 5)
         .padding(.vertical, 1)
-        .background(Color(.tertiarySystemFill), in: .rect(cornerRadius: 4))
+        .background(.tint.opacity(0.16), in: .rect(cornerRadius: 4)) // tinted, as post flairs (#131)
         .frame(maxWidth: 140, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
     }

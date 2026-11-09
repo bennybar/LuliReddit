@@ -486,7 +486,8 @@ struct FlairView: View {
         .foregroundStyle(.secondary)
         .padding(.horizontal, 8)
         .padding(.vertical, 3)
-        .background(Color(.tertiarySystemFill), in: .capsule)
+        // A light tint of the accent: white flair emoji and text stay readable (#131).
+        .background(.tint.opacity(0.16), in: .capsule)
     }
 }
 

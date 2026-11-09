@@ -1591,9 +1591,10 @@ private fun FlairChip(flair: UserFlair, modifier: Modifier = Modifier) {
     val (text, emoji) = com.bennybar.luli_for_reddit.feature.feed.rememberFlairText(flair)
     Text(
         text,
-        modifier.widthIn(max = 160.dp).clip(RoundedCornerShape(6.dp)).background(cs.surfaceContainerHighest).padding(horizontal = 6.dp, vertical = 1.dp),
+        // Lightly tinted, as post flairs are (#131).
+        modifier.widthIn(max = 160.dp).clip(RoundedCornerShape(6.dp)).background(cs.secondaryContainer).padding(horizontal = 6.dp, vertical = 1.dp),
         fontSize = 11.sp,
-        color = cs.onSurfaceVariant,
+        color = cs.onSecondaryContainer,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         inlineContent = emoji,
