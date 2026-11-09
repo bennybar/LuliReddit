@@ -1330,6 +1330,26 @@ private fun PostMedia(p: Post, nav: AppNavigator, radius: androidx.compose.ui.un
         return
     }
     if (p.type == PostType.LINK) {
+        // The link's own picture (a news article's), as its card in the list has it (#130).
+        val preview = p.previewUrl
+        if (preview != null) {
+            val w = p.previewWidth
+            val h = p.previewHeight
+            val aspect = if (w != null && h != null && h > 0) (w.toFloat() / h).coerceIn(0.5f, 2f) else 16f / 9f
+            NsfwBlur(blur, Modifier.padding(bottom = 8.dp), blurredImageUrl = p.blurredPreviewUrl, label = label) {
+                AsyncImage(
+                    model = preview,
+                    contentDescription = p.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(aspect)
+                        .clip(RoundedCornerShape(radius))
+                        .background(cs.surfaceContainerHighest)
+                        .clickable { openMedia(p, nav) },
+                )
+            }
+        }
         val inApp = remember(p.url) { redditLinkLabel(p) }
         OutlinedButton(onClick = { openMedia(p, nav) }, modifier = Modifier.padding(bottom = 12.dp)) {
             Icon(if (inApp != null) Icons.Rounded.Link else Icons.AutoMirrored.Rounded.OpenInNew, null, Modifier.size(18.dp))

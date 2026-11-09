@@ -291,6 +291,28 @@ private struct PostMediaView: View {
             }
             .padding(.bottom, 12)
         } else if p.type == .link {
+            // The link's own picture (a news article's), as its card in the list has it (#130).
+            if let preview = p.previewUrl {
+                let aspect: CGFloat = {
+                    guard let w = p.previewWidth, let h = p.previewHeight, h > 0 else { return 16.0 / 9.0 }
+                    return min(max(CGFloat(w) / CGFloat(h), 0.5), 2)
+                }()
+                NsfwBlur(blur: blur, blurredImageUrl: p.blurredPreviewUrl, label: label) {
+                    Button {
+                        openMedia(p)
+                    } label: {
+                        ZStack {
+                            Color(.secondarySystemFill)
+                            RemoteImage(url: URL(string: preview))
+                        }
+                        .aspectRatio(aspect, contentMode: .fit)
+                        .clipShape(.rect(cornerRadius: 16))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Open link")
+                }
+                .padding(.bottom, 8)
+            }
             Button {
                 openMedia(p)
             } label: {
