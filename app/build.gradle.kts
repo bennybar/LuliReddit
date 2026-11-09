@@ -25,8 +25,8 @@ android {
         // Must exceed every Flutter build's code: its per-ABI APKs were
         // abi*1000 + build (arm64 v1.0.51 = 2051, x86_64 = 4051). Scheme:
         // 20000 + build, the same for every ABI.
-        versionCode = 20105
-        versionName = "2.0.65"
+        versionCode = 20106
+        versionName = "2.0.66"
     }
 
     dependenciesInfo {

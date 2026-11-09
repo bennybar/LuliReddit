@@ -45,6 +45,17 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.66", "Nov 9, 2026",
+        listOf(
+            "Comments you voted on glow softly in the vote's colour instead of a line down the side",
+            "Threads: put the floating buttons left, middle or right; jump between OP's or your own comments (long-press goes back); hide the next-comment button; link posts show their picture at the top",
+            "Unread inbox items stand out with a coloured card, and flairs sit on a light tint so they're easier to read",
+            "Explore: a softer fade under the status bar, a search bar that lines up with Search, and long-press a Recently visited subreddit to remove it",
+            "The side bar's pages open without a slide and their icons fill in; the floating buttons move down with the bottom bar as it hides",
+            "Backups go to a folder you pick once; the History note can be closed; new search icon; no pop on Calm vote arrows",
+        ),
+    ),
+    Release(
         "2.0.65", "Nov 5, 2026",
         listOf(
             "Reposts made with a Reddit share link now show the original post's photo or video instead of a reddit.com link",
