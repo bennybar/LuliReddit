@@ -137,6 +137,14 @@ struct ExploreTab: View {
                             ForEach(section.subs, id: \.name) { sub in
                                 // No star on ones you aren't subscribed to.
                                 SubredditRow(sub: sub, starred: joined.contains(sub.name.lowercased()), visits: section.key == "recent" ? visits[sub.name.lowercased()] : nil) { toggleFavorite(sub) }
+                                    .contextMenu {
+                                        // Long-press: just this one out of Recently visited (#123).
+                                        if section.key == "recent" {
+                                            Button("Remove from Recently visited", systemImage: "minus.circle", role: .destructive) {
+                                                app.recentSubreddits.remove(sub.name)
+                                            }
+                                        }
+                                    }
                             }
                         } header: {
                             HStack {

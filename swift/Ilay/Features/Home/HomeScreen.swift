@@ -258,7 +258,8 @@ private struct SideBar: View {
                 SideBarSubs(
                     title: "Recently visited", subs: recent, onPick: onPick,
                     empty: app.settings.value.trackHistory ? "Subreddits you open will show here" : nil,
-                    visits: app.recentSubreddits.state.map(\.visits)
+                    visits: app.recentSubreddits.state.map(\.visits),
+                    onRemove: { app.recentSubreddits.remove($0.name) }
                 )
             }
             SideBarSubs(title: "Favorites", subs: favorites, onPick: onPick)
@@ -287,6 +288,8 @@ private struct SideBarSubs: View {
     let onPick: (@escaping () -> Void) -> Void
     var empty: String? = nil
     var visits: [Int]? = nil
+    /// Long-press: remove it from the list (Recently visited, #123).
+    var onRemove: ((Subreddit) -> Void)? = nil
 
     var body: some View {
         if !subs.isEmpty || empty != nil {
@@ -312,6 +315,11 @@ private struct SideBarSubs: View {
                     }
                     // Recently visited: how often you opened it (#92).
                     .badge(visits.map { i < $0.count ? $0[i] : 0 } ?? 0)
+                    .contextMenu {
+                        if let onRemove {
+                            Button("Remove from \(title)", systemImage: "minus.circle", role: .destructive) { onRemove(sub) }
+                        }
+                    }
                 }
             }
         }

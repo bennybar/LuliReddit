@@ -71,6 +71,9 @@ final class RecentSubreddits: UserScoped {
 
     func clear() { publish([]) }
 
+    /// Drops one subreddit from the list (#123).
+    func remove(_ name: String) { publish(all.filter { $0.name.lowercased() != name.lowercased() }) }
+
     private func publish(_ list: [RecentSubreddit]) {
         all = list
         refresh()
