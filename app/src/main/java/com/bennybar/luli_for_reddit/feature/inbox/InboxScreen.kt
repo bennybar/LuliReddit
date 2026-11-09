@@ -49,7 +49,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Login
@@ -389,7 +388,8 @@ private fun InboxCard(item: InboxItem, onTap: () -> Unit) {
     val heading = if (item.isMessage) item.subject.ifEmpty { "(no subject)" } else item.linkTitle ?: label
     val snippet = remember(item.body) { item.body.replace('\n', ' ') }
 
-    BloomCard(Modifier.fillMaxWidth(), onClick = onTap) {
+    // Unread: the whole card in the selected side-bar entry's colour, not just a dot (#120).
+    BloomCard(Modifier.fillMaxWidth(), onClick = onTap, color = if (item.isNew) cs.secondaryContainer else cs.surfaceContainerLow) {
         Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(icon, null, Modifier.size(16.dp), tint = cs.primary)
@@ -404,7 +404,6 @@ private fun InboxCard(item: InboxItem, onTap: () -> Unit) {
                     fontSize = 12.sp,
                     color = cs.onSurfaceVariant,
                 )
-                if (item.isNew) Box(Modifier.size(9.dp).background(cs.primary, CircleShape))
             }
             Spacer(Modifier.height(8.dp))
             Text(heading, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -533,7 +532,7 @@ private fun RedditNotificationCard(n: RedditNotification, onTap: () -> Unit) {
         n.type.startsWith("UPVOTE") -> Icons.Rounded.ArrowUpward to "Upvotes"
         else -> Icons.Outlined.Notifications to "Reddit"
     }
-    BloomCard(Modifier.fillMaxWidth(), onClick = onTap) {
+    BloomCard(Modifier.fillMaxWidth(), onClick = onTap, color = if (n.unread) cs.secondaryContainer else cs.surfaceContainerLow) {
         Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(icon, null, Modifier.size(16.dp), tint = cs.primary)
@@ -543,8 +542,6 @@ private fun RedditNotificationCard(n: RedditNotification, onTap: () -> Unit) {
                     Spacer(Modifier.width(8.dp))
                     Text(timeAgo(n.at), fontSize = 12.sp, color = cs.onSurfaceVariant)
                 }
-                Spacer(Modifier.weight(1f))
-                if (n.unread) Box(Modifier.size(9.dp).background(cs.primary, CircleShape))
             }
             Spacer(Modifier.height(8.dp))
             Text(n.title, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)

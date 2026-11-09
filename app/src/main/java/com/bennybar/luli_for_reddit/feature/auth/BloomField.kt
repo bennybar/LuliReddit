@@ -109,8 +109,13 @@ internal fun BloomTextField(
 
 /** Bloom card: surfaceContainerLow, radius 28, flat. */
 @Composable
-internal fun BloomCard(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content: @Composable () -> Unit) {
-    val colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+internal fun BloomCard(
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    color: Color = MaterialTheme.colorScheme.surfaceContainerLow,
+    content: @Composable () -> Unit,
+) {
+    val colors = CardDefaults.cardColors(containerColor = color)
     val shape = RoundedCornerShape(28.dp)
     if (onClick != null) {
         Card(onClick = onClick, modifier = modifier, shape = shape, colors = colors) { content() }

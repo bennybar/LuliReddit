@@ -176,6 +176,8 @@ private struct InboxList: View {
                 ForEach(items) { item in
                     Button { open(item) } label: { InboxRow(item: item) }
                         .buttonStyle(.plain)
+                        // Unread: the row tinted too, not just its dot (#120).
+                        .listRowBackground(item.isNew ? Color.accentColor.opacity(0.12) : nil)
                         // Messages: swipe right = read/unread, swipe left = delete.
                         // Comment replies/mentions: read/unread only (they can't be deleted).
                         .swipeActions(edge: .leading, allowsFullSwipe: true) {
@@ -307,6 +309,7 @@ private struct RedditNotificationsList: View {
                         RedditNotificationRow(n: n)
                     }
                     .buttonStyle(.plain)
+                    .listRowBackground(n.unread ? Color.accentColor.opacity(0.12) : nil) // as unread inbox rows (#120)
                     .onAppear {
                         visible.ids.insert(n.id)
                         if items.suffix(4).contains(where: { $0.id == n.id }) { app.redditNotifications.loadMore() }
