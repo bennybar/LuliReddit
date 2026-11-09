@@ -441,7 +441,8 @@ fun PostListView(
                     .then(if (settings.floatingChipsSolid) Modifier.drawBehind { drawRect(barColor, alpha = floatingOutline) } else Modifier)
                     // The list's own side padding, so it's right over the list's row (#83).
                     .padding(horizontal = 7.dp),
-            ) { chipsIn(floatingChipsState, floatingOutline) }
+                // On the solid background the chips need no outline to stand out (#132).
+            ) { chipsIn(floatingChipsState, if (settings.floatingChipsSolid) 0f else floatingOutline) }
         }
         val pending = (ui as? FeedUi.Data)?.state?.hasPending == true
         if (pending) {

@@ -2,6 +2,7 @@ package com.bennybar.luli_for_reddit.feature.feed
 
 import com.bennybar.luli_for_reddit.ui.subredditName
 import android.net.Uri
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -120,12 +121,22 @@ fun HistoryScreen() {
         containerColor = cs.surface,
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
-            Text(
-                "Recently viewed posts are stored only on this device — Reddit does not sync viewing history to third-party apps.",
-                Modifier.fillMaxWidth().background(cs.surfaceContainerHigh).padding(12.dp),
-                fontSize = 12.sp,
-                color = cs.onSurfaceVariant,
-            )
+            // Closed once, gone for good (#119).
+            var noteShown by remember { mutableStateOf(app.prefs.getBool("historyNoteDismissed") != true) }
+            if (noteShown) Row(
+                Modifier.fillMaxWidth().background(cs.surfaceContainerHigh).padding(start = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Recently viewed posts are stored only on this device — Reddit does not sync viewing history to third-party apps.",
+                    Modifier.weight(1f).padding(vertical = 12.dp),
+                    fontSize = 12.sp,
+                    color = cs.onSurfaceVariant,
+                )
+                IconButton(onClick = { noteShown = false; app.prefs.setBool("historyNoteDismissed", true) }) {
+                    Icon(Icons.Rounded.Close, "Close", tint = cs.onSurfaceVariant)
+                }
+            }
             if (visible.isNotEmpty()) {
                 PillTextField(
                     value = query,

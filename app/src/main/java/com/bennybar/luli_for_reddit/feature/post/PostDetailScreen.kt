@@ -1895,7 +1895,7 @@ private fun CalmCommentRow(
                 val upFill by animateColorAsState(if (up) votes.up else Color.Transparent, MaterialTheme.motionScheme.fastEffectsSpec())
                 val downFill by animateColorAsState(if (down) votes.down else Color.Transparent, MaterialTheme.motionScheme.fastEffectsSpec())
                 Box(Modifier.size(32.dp).clip(CircleShape).background(upFill).clickable { actions.vote(comment, 1) }, contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.ArrowUpward, "Upvote", Modifier.size(16.dp).popOn(up), tint = if (up) onVoteColor(votes.up) else muted)
+                    Icon(Icons.Rounded.ArrowUpward, "Upvote", Modifier.size(16.dp), tint = if (up) onVoteColor(votes.up) else muted)
                 }
                 Text(
                     if (comment.scoreHidden) "–" else compactNumber(comment.score),
@@ -1904,7 +1904,7 @@ private fun CalmCommentRow(
                     color = if (up) votes.up else if (down) votes.down else muted,
                 )
                 Box(Modifier.size(32.dp).clip(CircleShape).background(downFill).clickable { actions.vote(comment, -1) }, contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.ArrowDownward, "Downvote", Modifier.size(16.dp).popOn(down), tint = if (down) onVoteColor(votes.down) else muted)
+                    Icon(Icons.Rounded.ArrowDownward, "Downvote", Modifier.size(16.dp), tint = if (down) onVoteColor(votes.down) else muted)
                 }
                 Spacer(Modifier.width(6.dp))
                 Row(

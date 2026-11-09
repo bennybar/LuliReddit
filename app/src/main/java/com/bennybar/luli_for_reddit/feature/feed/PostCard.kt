@@ -1549,6 +1549,7 @@ fun CalmFlair(flair: UserFlair, modifier: Modifier = Modifier) {
 /**
  * Calm's connected vote group: [↑ score][↓] segments (outer corners
  * [height]/2, inner 6, 2dp gap); the active segment takes the vote colour.
+ * No pop on the arrow: the segment's fill is the feedback (#117).
  */
 @Composable
 fun CalmVoteGroup(
@@ -1574,7 +1575,7 @@ fun CalmVoteGroup(
             "Upvote",
             onUp,
         ) { fg ->
-            Icon(Icons.Rounded.ArrowUpward, null, Modifier.size(iconSize).popOn(up), tint = fg)
+            Icon(Icons.Rounded.ArrowUpward, null, Modifier.size(iconSize), tint = fg)
             Spacer(Modifier.width(4.dp))
             Text(compactNumber(score), fontSize = 13.sp, fontWeight = FontWeight.Medium, color = if (down) votes.down else fg)
         }
@@ -1586,7 +1587,7 @@ fun CalmVoteGroup(
             hPad,
             "Downvote",
             onDown,
-        ) { fg -> Icon(Icons.Rounded.ArrowDownward, null, Modifier.size(iconSize).popOn(down), tint = fg) }
+        ) { fg -> Icon(Icons.Rounded.ArrowDownward, null, Modifier.size(iconSize), tint = fg) }
     }
 }
 

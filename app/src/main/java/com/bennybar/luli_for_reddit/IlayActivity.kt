@@ -316,20 +316,24 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
                 // right over a slight parallax of the old one. The back gesture
                 // scrubs the reverse (linear, so the page stays under the finger).
                 // Search instead fades in over the page, from the top, like Gmail's (#77).
+                // The side bar's pages switch in place, as its tabs do (#118).
                 enterTransition = {
-                    if (targetState.destination.hasRoute<Route.Search>()) searchIn(Emphasized)
+                    if (targetState.isSideBarPage()) EnterTransition.None
+                    else if (targetState.destination.hasRoute<Route.Search>()) searchIn(Emphasized)
                     else slideInHorizontally(tween(300, easing = Emphasized)) { it }
                 },
                 exitTransition = {
-                    if (targetState.destination.hasRoute<Route.Search>()) ExitTransition.KeepUntilTransitionsFinished
+                    if (targetState.isSideBarPage()) ExitTransition.None
+                    else if (targetState.destination.hasRoute<Route.Search>()) ExitTransition.KeepUntilTransitionsFinished
                     else slideOutHorizontally(tween(300, easing = Emphasized)) { -it / 4 }
                 },
                 popEnterTransition = {
-                    if (initialState.destination.hasRoute<Route.Search>()) EnterTransition.None
+                    if (initialState.isSideBarPage() || initialState.destination.hasRoute<Route.Search>()) EnterTransition.None
                     else slideInHorizontally(tween(300, easing = Emphasized)) { -it / 4 }
                 },
                 popExitTransition = {
-                    if (initialState.destination.hasRoute<Route.Search>()) searchOut(Emphasized)
+                    if (initialState.isSideBarPage()) ExitTransition.None
+                    else if (initialState.destination.hasRoute<Route.Search>()) searchOut(Emphasized)
                     else slideOutHorizontally(tween(300, easing = Emphasized)) { it }
                 },
                 predictivePopEnterTransition = {
@@ -387,13 +391,16 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
 
 private val Emphasized = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 
-/** A destination drawn on an opaque surface, so sliding pages never show through. */
+/** Opened from the side bar (AppNavigator.openFromSideBar). */
+private fun NavBackStackEntry.isSideBarPage() = savedStateHandle.get<Boolean>(SIDE_BAR_PAGE) == true
+
 private fun searchIn(easing: Easing) =
     fadeIn(tween(200)) + expandVertically(tween(300, easing = easing), Alignment.Top) { it / 6 }
 
 private fun searchOut(easing: Easing) =
     fadeOut(tween(200)) + shrinkVertically(tween(300, easing = easing), Alignment.Top) { it / 6 }
 
+/** A destination drawn on an opaque surface, so sliding pages never show through. */
 private inline fun <reified T : Route> NavGraphBuilder.screen(
     noinline content: @Composable AnimatedContentScope.(NavBackStackEntry) -> Unit,
 ) = composable<T> { entry ->
