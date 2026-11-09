@@ -317,17 +317,20 @@ fun PillTextField(
     )
 }
 
-/** A tappable pill that looks like a search box ("Search Reddit"). */
+/**
+ * A tappable pill that looks like a search box ("Search Reddit"): the search screen's
+ * field, 60dp tall with its icon and text where the field has them (#115).
+ */
 @Composable
 fun SearchPill(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector = SearchIcon) {
     val cs = MaterialTheme.colorScheme
     GlassSurface(modifier) {
         Row(
-            Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 18.dp, vertical = 16.dp),
+            Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 18.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(icon, null, tint = cs.onSurfaceVariant)
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(16.dp))
             Text(label, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }

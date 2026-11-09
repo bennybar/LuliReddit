@@ -328,15 +328,15 @@ fun HomeScreen() {
             when (i) {
                 // Its feed runs under the status bar; it pads its own top bar.
                 0 -> FrontpageTab(selected = index == 0)
-                1 -> Box(Modifier.statusBarsPadding()) { ExploreTab() }
+                1 -> ExploreTab() // runs under the status bar, with its own fade (#127)
                 2 -> Box(Modifier.statusBarsPadding()) { InboxScreen(reselect = inboxReselect) }
                 else -> Box(Modifier.statusBarsPadding()) { ProfileTab() }
             }
         }
         // Content fades out just below the status bar, rather than being cut off (#74).
-        // (Posts has its own, under its top bar.)
+        // (Posts and Explore have their own, softer one.)
         val fade = MaterialTheme.colorScheme.surface
-        if (index != 0) Box(
+        if (index >= 2) Box(
             Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
