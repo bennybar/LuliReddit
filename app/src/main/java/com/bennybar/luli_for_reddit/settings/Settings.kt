@@ -119,6 +119,13 @@ enum class ThreadFab(val label: String) {
     OFF("Off"),
 }
 
+/** Horizontal position of the floating toolbar in a thread. Persisted by index (`threadFabPosition`). */
+enum class ThreadFabPosition(val label: String) {
+    LEFT("Left"),
+    MIDDLE("Middle"),
+    RIGHT("Right"),
+}
+
 /** How posts are laid out in feeds. Persisted by index (`postDisplay`). */
 enum class PostDisplay(val label: String, val icon: ImageVector) {
     LARGE("Default", Icons.Outlined.ViewAgenda),
@@ -237,6 +244,9 @@ data class Settings(
     val redditAppNotifications: Boolean = false, // take over the Reddit app's notifications (needs notification access)
     val homeFab: HomeFab = HomeFab.NEW_POST, // floating button on Home and in subreddits (#90)
     val threadFab: ThreadFab = ThreadFab.NEW_COMMENT, // floating button in a thread (#90)
+    val threadFabPosition: ThreadFabPosition = ThreadFabPosition.RIGHT, // horizontal position of the thread toolbar
+    val threadJumpOp: Boolean = true, // show OP comments jump button in thread toolbar
+    val threadJumpMine: Boolean = true, // show your comments jump button in thread toolbar
     val topBarMode: TopBarMode = TopBarMode.EXPANDABLE, // Posts-screen action layout
     // The top bar menu panel's buttons and order, per mode (#108).
     val topBarMenuExpandable: List<TopBarMenuEntry> = TopBarMenuItem.parse(null, TopBarMode.EXPANDABLE),
