@@ -165,4 +165,17 @@ class GqlCommentsTest {
         val md = gqlMarkdown(richtext("""[{"e":"par","c":[{"e":"text","t":"😀 wow ok","f":[[1,1,7]]}]}]"""), "c1")
         assertEquals("😀 **wow ok**", md.trimEnd())
     }
+
+    @Test
+    fun authorIconsComeFromTheForestByLowercasedName() {
+        val forest = AppJson.parseToJsonElement(
+            """[
+              {"depth":0,"node":{"authorInfo":{"name":"Alice","iconSmall":{"url":"https://a/1.png"}}}},
+              {"depth":1,"node":{"authorInfo":{"name":"bob","iconSmall":null}}},
+              {"depth":1,"more":{"count":3,"cursor":"c"}},
+              {"depth":0,"node":{"__typename":"DeletedComment"}}
+            ]""",
+        ).jsonArray
+        assertEquals(mapOf("alice" to "https://a/1.png"), gqlAuthorIcons(forest))
+    }
 }

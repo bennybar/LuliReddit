@@ -148,6 +148,7 @@ struct Settings: Equatable, Sendable {
     var tapToCollapse = false // tap a comment to collapse it (else long-press)
     var collapseRepliesOnly = false // collapsing keeps the comment's own text, hides its replies
     var voteEdge = true // comments you voted on get an edge in the vote's color
+    var commentAvatars = true // commenters' profile pictures (website sign-in, #133)
     var autoTranslate = false // posts in neither translation language open translated into the phone's
     var translateSecondLanguage = "" // language code Translate also offers ("" = none)
     var translateService = "openai" // for what the phone can't translate: "openai" (the AI key) or "azure"

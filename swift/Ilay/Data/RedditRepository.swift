@@ -295,6 +295,13 @@ final class RedditRepository: Sendable {
         }
     }
 
+    /// Commenters' profile pictures (#133), lowercased name → url, from the first page of
+    /// the thread's GraphQL comment forest (the .json comments carry none). Website sign-in only.
+    func getCommentAvatars(postId: String, sort: String) async throws -> [String: String] {
+        let data = try await client.gql("PostComments", GQL_POST_COMMENTS, postCommentsVariables("t3_\(postId)", sort, nil, nil))
+        return gqlAuthorIcons(data["postInfoById"]["commentForest"]["trees"].arr() ?? [])
+    }
+
     /// Parses a comments response (live or saved offline).
     func parseThread(_ body: JsonElement) throws -> RedditThread {
         guard let postData = body[0]["data"]["children"][0]["data"] else { throw AppException("This post isn't available") }

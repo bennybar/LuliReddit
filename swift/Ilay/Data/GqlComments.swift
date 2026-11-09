@@ -59,6 +59,17 @@ func postCommentsVariables(_ postFullname: String, _ sort: String, _ focusCommen
 /// shape /api/morechildren returns. Depths are relative (a loaded "more"
 /// starts deeper, a focused thread's parents are negative), so the shallowest
 /// entries hang off the forest's own parent, else [linkFullname].
+/// Each comment author's picture in a GraphQL comment forest: lowercased name → its iconSmall url.
+func gqlAuthorIcons(_ trees: [JsonElement]) -> [String: String] {
+    var out: [String: String] = [:]
+    for tree in trees {
+        let info = tree["node"]["authorInfo"]
+        guard let name = info["name"].str(), let url = info["iconSmall"]["url"].str() else { continue }
+        out[name.lowercased()] = url
+    }
+    return out
+}
+
 func gqlCommentThings(_ trees: [JsonElement], _ linkFullname: String, moreParent: String? = nil) -> [JsonElement] {
     let base = trees.compactMap { $0["depth"].int() }.min() ?? 0
     // ancestors[d]: the latest comment at relative depth d.

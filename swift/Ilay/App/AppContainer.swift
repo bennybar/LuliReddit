@@ -22,6 +22,7 @@ final class AppContainer {
     // Shared, per-account local state.
     let postOverrides: PostOverrides
     let commentVotes: CommentVotes
+    let authorAvatars: AuthorAvatars
     /// Posts hidden with Hide (also hidden on Reddit). Kept on the device too —
     /// Home's id-fetched posts and saved first pages don't honour Reddit's
     /// hidden flag, so a session-only set let them reappear after a restart.
@@ -82,6 +83,7 @@ final class AppContainer {
         self.repository = repository
         postOverrides = PostOverrides()
         commentVotes = CommentVotes()
+        authorAvatars = AuthorAvatars()
         hiddenPosts = ExpiringIds(prefs: prefs, baseKey: "hiddenPostIds") { settings.value.hiddenPostDays * 24 * 60 * 60_000 }
         dismissedPosts = ExpiringIds(prefs: prefs, baseKey: "dismissedPosts") { 24 * 60 * 60_000 }
         hiddenHomeSubs = ExpiringIds(prefs: prefs, baseKey: "hiddenHomeSubs") { 7 * 24 * 60 * 60_000 }

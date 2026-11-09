@@ -147,6 +147,9 @@ final class CommentsViewModel {
             ui.sort = sort
             t = try await repo.getComments(subreddit: subreddit, postId: postId, sort: sort, focusCommentId: focusCommentId, limit: limit)
         }
+        // Commenters' pictures come after, on their own request (#133).
+        let (avatarPost, avatarSort) = (postId, sort)
+        Task { await app.authorAvatars.loadFor(postId: avatarPost, sort: avatarSort) }
         let comments = app.commentVotes.apply(t.comments)
         let collapsed = startCollapsed(t.comments)
         let (post, raw) = (t.post, t.comments)
