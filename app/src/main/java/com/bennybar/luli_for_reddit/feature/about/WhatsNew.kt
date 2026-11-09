@@ -45,6 +45,13 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.68", "Nov 9, 2026",
+        listOf(
+            "New Theme & colours page: preview presets, enter any hex colour, and pick a Material palette style (Expressive, Vibrant, Rainbow and more), with a live preview",
+            "A short setup on a fresh install: restore a backup, pick your look, navigation and front page, then sign in. Every step can be skipped",
+        ),
+    ),
+    Release(
         "2.0.67", "Nov 9, 2026",
         listOf(
             "Comments show their authors' profile pictures (with the website sign-in), in place of the letter dot. Settings → Posts & comments can turn it off",
