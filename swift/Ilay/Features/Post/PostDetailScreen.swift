@@ -105,35 +105,32 @@ struct PostDetailScreen: View {
         if let error = ui.error, !ui.loading, thread == nil {
             ErrorView(message: "Could not load this post.\n\(friendlyError(error))") { vm.refresh() }
         } else {
-            ZStack(alignment: .bottomTrailing) {
+            let position = app.settings.value.threadFabPosition
+            ZStack(alignment: position == .left ? .bottomLeading : position == .middle ? .bottom : .bottomTrailing) {
                 list.ignoresSafeArea()
                     if !searchOpen, let thread {
+                        let settings = app.settings.value
+                        let opAuthor = thread.post.author
+                        let hasOp = settings.threadJumpOp && !opAuthor.isEmpty && opAuthor != "[deleted]" && flat.contains { !$0.isMore && $0.author == opAuthor }
                         ThreadToolbar(
                             expanded: toolbarScroll.expanded,
+                            position: position,
                             newCount: flat.lazy.filter { isNew($0) }.count,
-                            hasMine: !username.isEmpty && flat.contains { $0.author == username },
-                            hasComments: !thread.comments.isEmpty,
+                            hasOp: hasOp,
+                            hasMine: settings.threadJumpMine && !username.isEmpty && flat.contains { !$0.isMore && $0.author == username },
+                            hasNext: settings.threadJumpNext && !thread.comments.isEmpty,
                             hasAi: aiKey != nil,
-                            canJumpNew: flat.contains { isNew($0) },
-                            canJumpMine: !username.isEmpty,
                             onPrevNew: { jumpNext(backwards: true, match: isNew) },
                             onNextNew: { jumpNext(match: isNew) },
+                            onOp: { jumpNext { $0.author == opAuthor } },
+                            onPrevOp: { jumpNext(backwards: true) { $0.author == opAuthor } },
                             onMine: { jumpNext { $0.author == username } },
+                            onPrevMine: { jumpNext(backwards: true) { $0.author == username } },
                             onComment: { actions.replyToPost() },
                             onSummarize: { showSummarySheet(thread.post, flat) },
                             onAsk: { showAskSheet(thread.post, flat) { revealId = $0 } },
                             onNext: { jumpNext { $0.depth == 0 } },
-                            onJump: { kind in
-                                let opAuthor = thread.post.author
-                                let found: Bool
-                                switch kind {
-                                case .topLevel: found = jumpNext { $0.depth == 0 }
-                                case .new: found = jumpNext(match: isNew)
-                                case .op: found = jumpNext { $0.author == opAuthor }
-                                case .mine: found = jumpNext { $0.author == username }
-                                }
-                                if !found { app.navigator.showSnackbar("No such comment here") }
-                            }
+                            onPrev: { jumpNext(backwards: true) { $0.depth == 0 } }
                         )
                     }
                 if searchOpen, thread != nil { searchBar }
@@ -357,7 +354,7 @@ struct PostDetailScreen: View {
     }
 
     /// Scrolls to the next comment below the current top that passes [match],
-    /// wrapping to the first. False when none in the thread does.
+    /// wrapping to the first (backwards: the one above, no wrap). False when there's none.
     @discardableResult private func jumpNext(backwards: Bool = false, match: (Comment) -> Bool) -> Bool {
         guard let target = jumpTarget(flat, topIndex: handle.topIndex, backwards: backwards, match: match), target - 1 < flat.count else { return false }
         handle.scroll(to: flat[target - 1].fullname)
@@ -384,51 +381,67 @@ struct PostDetailScreen: View {
     }
 }
 
-/// One row: [↑ N new ↓] [your comment] [summarize] [ask] [next top-level] [new comment].
-/// With the stepper showing there's no room for "your comment": it stays in the
-/// next button's long-press menu. Scrolling down folds it to the new-comment button,
-/// out of the way of what you're reading; scrolling up brings the rest back.
+/// One row: [↑ N new ↓] [OP] [your comment] [summarize] [ask] [next top-level] [new comment].
+/// The OP and your-comments buttons step forward on a tap and back on a long-press, as
+/// does the next button (#126). When the row doesn't fit (the stepper showing), they
+/// drop out first. Scrolling down folds it to the new-comment button, out of the way of
+/// what you're reading; scrolling up brings the rest back. Settings place it left,
+/// middle or right and turn the jump buttons off.
 private struct ThreadToolbar: View {
-    enum Jump { case topLevel, new, op, mine }
-
     let expanded: Bool
+    let position: ThreadFabPosition
     let newCount: Int
+    let hasOp: Bool
     let hasMine: Bool
-    let hasComments: Bool
+    let hasNext: Bool
     let hasAi: Bool
-    let canJumpNew: Bool
-    let canJumpMine: Bool
     let onPrevNew: () -> Void
     let onNextNew: () -> Void
+    let onOp: () -> Void
+    let onPrevOp: () -> Void
     let onMine: () -> Void
+    let onPrevMine: () -> Void
     let onComment: () -> Void
     let onSummarize: () -> Void
     let onAsk: () -> Void
     let onNext: () -> Void
-    let onJump: (Jump) -> Void
+    let onPrev: () -> Void
 
     private let size: CGFloat = 48
 
     var body: some View {
+        let anchor: UnitPoint = position == .left ? .leading : position == .middle ? .center : .trailing
         GlassEffectContainer(spacing: 10) {
-            HStack(spacing: 8) {
-                if expanded {
-                    Group {
-                        if newCount > 0 { stepper } else if hasMine { secondary("person.fill", "Your comments", onMine) }
-                        if hasAi {
-                            secondary("sparkles", "Summarize thread", onSummarize)
-                            secondary("bubble.left.and.text.bubble.right", "Ask about this thread", onAsk)
-                        }
-                        if hasComments { nextButton }
-                    }
-                    .transition(.scale(scale: 0.6, anchor: .trailing).combined(with: .opacity))
-                }
-                newComment
+            ViewThatFits(in: .horizontal) {
+                row(jumps: true, anchor: anchor)
+                row(jumps: false, anchor: anchor)
             }
         }
         .animation(.smooth(duration: 0.25), value: expanded)
-        .padding(.trailing, 16)
+        .padding(.horizontal, 16)
         .padding(.bottom, 8)
+    }
+
+    private func row(jumps: Bool, anchor: UnitPoint) -> some View {
+        HStack(spacing: 8) {
+            if expanded {
+                Group {
+                    if newCount > 0 { stepper }
+                    if jumps || newCount == 0 {
+                        if hasOp { stepButton("person.wave.2.fill", "OP's comments", onOp, back: onPrevOp) }
+                        if hasMine { stepButton("person.fill", "Your comments", onMine, back: onPrevMine) }
+                    }
+                    if hasAi {
+                        secondary("sparkles", "Summarize thread", onSummarize)
+                        secondary("bubble.left.and.text.bubble.right", "Ask about this thread", onAsk)
+                    }
+                    if hasNext { nextButton }
+                }
+                .transition(.scale(scale: 0.6, anchor: anchor).combined(with: .opacity))
+            }
+            newComment
+        }
+        .fixedSize()
     }
 
     private func secondary(_ symbol: String, _ label: String, _ action: @escaping () -> Void) -> some View {
@@ -438,6 +451,24 @@ private struct ThreadToolbar: View {
         .buttonStyle(.plain)
         .glassEffect(.regular.interactive(), in: .circle)
         .accessibilityLabel(label)
+    }
+
+    /// Tap: the next one; long-press: the previous one.
+    private func stepButton(_ symbol: String, _ label: String, _ forward: @escaping () -> Void, back: @escaping () -> Void) -> some View {
+        Image(systemName: symbol)
+            .frame(width: size, height: size)
+            .contentShape(.circle)
+            .onTapGesture(perform: forward)
+            .onLongPressGesture {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                back()
+            }
+            .glassEffect(.regular.interactive(), in: .circle)
+            .accessibilityElement()
+            .accessibilityLabel(label)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { forward() }
+            .accessibilityAction(named: "Previous") { back() }
     }
 
     /// The new-comments stepper, on its own segment.
@@ -457,24 +488,23 @@ private struct ThreadToolbar: View {
         .glassEffect(.regular.interactive(), in: .capsule)
     }
 
-    /// Next top-level comment; long-press for the jump menu (OP / yours / new).
+    /// Next top-level comment; long-press for the previous one.
     private var nextButton: some View {
-        Menu {
-            Button { onJump(.topLevel) } label: { Label("Next top-level comment", systemImage: "chevron.down") }
-            if canJumpNew { Button { onJump(.new) } label: { Label("Next new comment", systemImage: "sparkle") } }
-            Button { onJump(.op) } label: { Label("Next comment by OP", systemImage: "person.wave.2") }
-            if canJumpMine { Button { onJump(.mine) } label: { Label("Next of your comments", systemImage: "person") } }
-        } label: {
-            Image(systemName: "chevron.down")
-                .fontWeight(.semibold)
-                .frame(width: size, height: size)
-        } primaryAction: {
-            onNext()
-        }
-        .tint(.primary)
-        .glassEffect(.regular.interactive(), in: .circle)
-        .accessibilityLabel("Next top-level comment")
-        .accessibilityHint("Long-press for more")
+        Image(systemName: "chevron.down")
+            .fontWeight(.semibold)
+            .frame(width: size, height: size)
+            .contentShape(.circle)
+            .onTapGesture(perform: onNext)
+            .onLongPressGesture {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                onPrev()
+            }
+            .glassEffect(.regular.interactive(), in: .circle)
+            .accessibilityElement()
+            .accessibilityLabel("Next top-level comment")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { onNext() }
+            .accessibilityAction(named: "Previous top-level comment") { onPrev() }
     }
 
     private var newComment: some View {

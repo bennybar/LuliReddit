@@ -233,6 +233,10 @@ struct SettingsCatalog {
             "Default comment sort", value: s.defaultCommentSort,
             options: COMMENT_SORTS.map { PickOption(value: $0.id, label: $0.label) }, set: ctrl.setDefaultCommentSort
         )
+        b.picker("Thread buttons position", value: s.threadFabPosition, options: ThreadFabPosition.allCases.map { PickOption(value: $0, label: $0.label) }, set: ctrl.setThreadFabPosition)
+        b.toggle("Next comment button", "Jump to the next top-level comment in threads (long-press: the previous one)", s.threadJumpNext, set: ctrl.setThreadJumpNext)
+        b.toggle("OP's comments button", "Jump between comments by the original poster in threads", s.threadJumpOp, set: ctrl.setThreadJumpOp)
+        b.toggle("Your comments button", "Jump between your own comments in threads", s.threadJumpMine, set: ctrl.setThreadJumpMine)
         b.toggle("Tap a comment to collapse it", "Otherwise long-press. Comment text can't be selected while this is on", s.tapToCollapse, set: ctrl.setTapToCollapse)
         b.toggle("Collapse only the replies", "Collapsing a comment keeps its own text and hides its replies", s.collapseRepliesOnly, set: ctrl.setCollapseRepliesOnly)
         b.toggle("Mark comments you voted on", "An edge in the vote's color on comments you upvoted or downvoted", s.voteEdge, set: ctrl.setVoteEdge)

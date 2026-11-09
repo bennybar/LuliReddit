@@ -619,5 +619,6 @@ func isNewComment(_ c: Comment, since: Int?, me: String) -> Bool {
 func jumpTarget(_ flat: [Comment], topIndex: Int, backwards: Bool = false, match: (Comment) -> Bool) -> Int? {
     let hits = flat.indices.filter { !flat[$0].isMore && match(flat[$0]) }.map { $0 + 1 }
     if hits.isEmpty { return nil }
-    return backwards ? hits.last { $0 < topIndex } ?? hits.last : hits.first { $0 > topIndex } ?? hits.first
+    // Forward wraps to the first; backward stops at the top (nothing above: nil).
+    return backwards ? hits.last { $0 < topIndex } : hits.first { $0 > topIndex } ?? hits.first
 }

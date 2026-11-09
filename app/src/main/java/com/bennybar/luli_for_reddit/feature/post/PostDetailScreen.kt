@@ -405,7 +405,7 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
                     newCount = newCount,
                     hasOp = hasOp,
                     hasMine = hasMine,
-                    hasComments = thread.comments.isNotEmpty(),
+                    hasComments = settings.threadJumpNext && thread.comments.isNotEmpty(), // the ↓ button (#121)
                     onPrevNew = { jumpNext(backwards = true, match = ::isNew) },
                     onNextNew = { jumpNext(match = ::isNew) },
                     onOp = { jumpNext { it.author == opAuthor } },

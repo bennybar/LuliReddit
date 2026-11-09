@@ -106,6 +106,19 @@ enum SwipeAction: String, CaseIterable, Sendable {
 }
 
 /// How comments look (#54): only two layouts, so "same as posts" follows Calm or not. Persisted by index.
+/// Where a thread's floating buttons sit (#126). Persisted by index (`threadFabPosition`).
+enum ThreadFabPosition: Int, CaseIterable, Sendable {
+    case left, middle, right
+
+    var label: String {
+        switch self {
+        case .left: return "Left"
+        case .middle: return "Middle"
+        case .right: return "Right"
+        }
+    }
+}
+
 enum CommentStyle: Int, CaseIterable, Sendable {
     case same, cards, calm
 
@@ -194,6 +207,10 @@ struct Settings: Equatable, Sendable {
     var showApiUsage = false // show API usage instead of search on Posts screen
     var notifyInbox = false // background-poll the inbox + local notifications
     var homeFab: HomeFab = .off // floating button on Home
+    var threadFabPosition: ThreadFabPosition = .right // where a thread's floating buttons sit (#126)
+    var threadJumpOp: Bool = true // a thread's button for the original poster's comments (#126)
+    var threadJumpMine: Bool = true // a thread's button for your own comments (#126)
+    var threadJumpNext: Bool = true // a thread's next top-level comment button (#121)
     var topBarMode: TopBarMode = .expandable // Posts-screen action layout
     var navLabels = true // show text labels on the bottom nav bar
     var navStyle = 0 // 0 bottom bar, 1 side bar, 2 both (#25)

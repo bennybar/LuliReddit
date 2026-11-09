@@ -580,6 +580,11 @@ fun SettingsList(
             pickOption(ThreadFabPosition.entries.map { PickOption(it, it.label) }, s.threadFabPosition)?.let(ctrl::setThreadFabPosition)
         })
         switch(
+            "Next comment button",
+            "Jump to the next top-level comment in threads (long-press: the previous one)",
+            Icons.Rounded.KeyboardArrowDown, s.threadJumpNext, ctrl::setThreadJumpNext,
+        )
+        switch(
             "Jump to OP's comments button",
             "Show a button in threads to jump between comments by the original poster",
             Icons.Rounded.RecordVoiceOver, s.threadJumpOp, ctrl::setThreadJumpOp,

@@ -72,7 +72,7 @@ final class PostThreadTests: XCTestCase {
         XCTAssertEqual(jumpTarget(flat, topIndex: 1, match: top), 4)
         XCTAssertEqual(jumpTarget(flat, topIndex: 6, match: top), 1) // wraps
         XCTAssertEqual(jumpTarget(flat, topIndex: 4, backwards: true, match: top), 1)
-        XCTAssertEqual(jumpTarget(flat, topIndex: 1, backwards: true, match: top), 6) // wraps
+        XCTAssertNil(jumpTarget(flat, topIndex: 1, backwards: true, match: top)) // doesn't wrap backwards
         XCTAssertNil(jumpTarget(flat, topIndex: 0) { $0.author == "nobody" })
         // A "more" row is never a target.
         XCTAssertEqual(jumpTarget(flat, topIndex: 2) { $0.depth == 1 }, 5)
