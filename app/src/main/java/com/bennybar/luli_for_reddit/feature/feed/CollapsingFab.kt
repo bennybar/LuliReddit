@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.ui.SearchIcon
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -31,7 +32,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.VerticalAlignTop
 import com.bennybar.luli_for_reddit.settings.HomeFab
 import androidx.compose.material.icons.outlined.VisibilityOff
@@ -97,7 +97,7 @@ fun FeedFab(
     val (icon, onClick) = when (kind) {
         HomeFab.OFF -> return
         HomeFab.NEW_POST -> Icons.Rounded.Edit to onNewPost
-        HomeFab.SEARCH -> Icons.Rounded.Search to onSearch
+        HomeFab.SEARCH -> SearchIcon to onSearch
         HomeFab.SCROLL_TOP -> Icons.Rounded.VerticalAlignTop to onTop
         HomeFab.REFRESH -> Icons.Rounded.Refresh to onRefresh
         HomeFab.HIDE_READ -> Icons.Outlined.VisibilityOff to onHideRead

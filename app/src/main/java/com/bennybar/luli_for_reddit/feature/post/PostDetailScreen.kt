@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import com.bennybar.luli_for_reddit.ui.SearchIcon
 import com.bennybar.luli_for_reddit.ui.subredditName
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -85,7 +86,6 @@ import androidx.compose.material.icons.rounded.PlayCircleFilled
 import androidx.compose.material.icons.rounded.RecordVoiceOver
 import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.Repeat
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.material.icons.rounded.SubdirectoryArrowRight
@@ -377,7 +377,7 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
                         SortMenu(vm.currentSort, vm::changeSort)
                         IconTooltip("Search comments") {
                             IconButton(onClick = ::toggleSearch) {
-                                Icon(if (searchOpen) Icons.Rounded.SearchOff else Icons.Rounded.Search, "Search comments")
+                                Icon(if (searchOpen) Icons.Rounded.SearchOff else SearchIcon, "Search comments")
                             }
                         }
                         IconButton(onClick = { showPostActionsSheet(thread.post) }) { Icon(Icons.Rounded.MoreVert, "More") }
@@ -875,7 +875,7 @@ private fun SearchBar(
     ) {
         Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Spacer(Modifier.width(6.dp))
-            Icon(Icons.Rounded.Search, null, Modifier.size(20.dp), tint = cs.onSurfaceVariant)
+            Icon(SearchIcon, null, Modifier.size(20.dp), tint = cs.onSurfaceVariant)
             TextField(
                 value = query,
                 onValueChange = onQuery,

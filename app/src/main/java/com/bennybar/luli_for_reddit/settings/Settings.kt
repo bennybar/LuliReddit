@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.settings
 
+import com.bennybar.luli_for_reddit.ui.SearchIcon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Reply
 import androidx.compose.material.icons.automirrored.rounded.ViewList
@@ -10,7 +11,6 @@ import androidx.compose.material.icons.outlined.Settings as SettingsIcon // not 
 import androidx.compose.material.icons.outlined.Spa
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.outlined.ViewAgenda
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DoNotDisturbOn
 import androidx.compose.material.icons.rounded.ArrowDownward
@@ -52,7 +52,7 @@ enum class TopBarMode(val label: String, val description: String) {
  * [half]: two in a row share it, like New post / Settings always did.
  */
 enum class TopBarMenuItem(val id: String, val label: String, val icon: ImageVector, val half: Boolean = false) {
-    SEARCH("search", "Search Reddit", Icons.Rounded.Search),
+    SEARCH("search", "Search Reddit", SearchIcon),
     PROFILE("profile", "Your profile", Icons.Outlined.AccountCircle, half = true),
     NEW_POST("newPost", "New post", Icons.Outlined.PostAdd, half = true),
     SETTINGS("settings", "Settings", Icons.Outlined.SettingsIcon, half = true),

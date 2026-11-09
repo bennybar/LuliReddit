@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.ui.SearchIcon
 import androidx.compose.material3.IconButtonDefaults
 import android.view.HapticFeedbackConstants
 import android.view.View
@@ -30,7 +31,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import com.bennybar.luli_for_reddit.feature.home.LocalSideBar
 import com.bennybar.luli_for_reddit.feature.home.SideBarButton
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -288,7 +288,7 @@ fun PillTextField(
     onValueChange: (String) -> Unit,
     placeholder: String,
     modifier: Modifier = Modifier,
-    leading: ImageVector = Icons.Rounded.Search,
+    leading: ImageVector = SearchIcon,
     trailing: (@Composable () -> Unit)? = null,
     onSearch: ((String) -> Unit)? = null,
     singleLine: Boolean = true,
@@ -319,7 +319,7 @@ fun PillTextField(
 
 /** A tappable pill that looks like a search box ("Search Reddit"). */
 @Composable
-fun SearchPill(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector = Icons.Rounded.Search) {
+fun SearchPill(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector = SearchIcon) {
     val cs = MaterialTheme.colorScheme
     GlassSurface(modifier) {
         Row(

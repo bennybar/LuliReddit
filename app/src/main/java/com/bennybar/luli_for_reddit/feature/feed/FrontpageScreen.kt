@@ -1,8 +1,8 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.ui.SearchIcon
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -39,7 +39,7 @@ fun FrontpageScreen() {
             BloomTopBar(
                 "Frontpage",
                 actions = {
-                    IconButton(onClick = { nav.push(Route.Search()) }) { Icon(Icons.Rounded.Search, "Search") }
+                    IconButton(onClick = { nav.push(Route.Search()) }) { Icon(SearchIcon, "Search") }
                 },
             )
         },

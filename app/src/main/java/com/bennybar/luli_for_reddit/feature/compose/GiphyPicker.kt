@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.compose
 
+import com.bennybar.luli_for_reddit.ui.SearchIcon
 import com.bennybar.luli_for_reddit.ui.Loading
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,7 +20,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -132,7 +132,7 @@ private fun GiphySheet(apiKey: String, done: (String?) -> Unit) {
                 onValueChange = { query = it },
                 modifier = Modifier.fillMaxWidth().focusRequester(focus),
                 placeholder = { Text("Search GIFs") },
-                leadingIcon = { Icon(Icons.Rounded.Search, null) },
+                leadingIcon = { Icon(SearchIcon, null) },
                 singleLine = true,
                 shape = RoundedCornerShape(18.dp),
                 colors = TextFieldDefaults.colors(

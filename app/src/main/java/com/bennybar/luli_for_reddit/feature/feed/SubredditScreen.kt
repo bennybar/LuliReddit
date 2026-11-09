@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.ui.SearchIcon
 import com.bennybar.luli_for_reddit.ui.subredditName
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material3.FilledTonalToggleButton
@@ -35,7 +36,6 @@ import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.draw.clipToBounds
@@ -193,7 +193,7 @@ fun SubredditScreen(name: String) {
                     subredditName(name),
                     // Search, and the rest in the ⋯ menu: a row of five cropped the name (#112).
                     actions = {
-                        IconButton(onClick = { nav.push(Route.Search(subreddit = name)) }) { Icon(Icons.Rounded.Search, "Search") }
+                        IconButton(onClick = { nav.push(Route.Search(subreddit = name)) }) { Icon(SearchIcon, "Search") }
                         IconButton(onClick = {
                             showBarMenu(
                                 listOfNotNull(

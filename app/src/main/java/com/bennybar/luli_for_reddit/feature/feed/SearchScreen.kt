@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.ui.SearchIcon
 import com.bennybar.luli_for_reddit.ui.subredditName
 import com.bennybar.luli_for_reddit.ui.ConnectedChoice
 import com.bennybar.luli_for_reddit.ui.RefreshBox
@@ -32,7 +33,6 @@ import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.NorthWest
 import androidx.compose.material.icons.rounded.Schedule
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.DropdownMenu
@@ -419,7 +419,7 @@ private fun EmptySearch(
     val cs = MaterialTheme.colorScheme
     if (recent.isEmpty() && saved.isEmpty()) {
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Rounded.Search, null, Modifier.size(56.dp), tint = cs.onSurfaceVariant)
+            Icon(SearchIcon, null, Modifier.size(56.dp), tint = cs.onSurfaceVariant)
             Spacer(Modifier.height(12.dp))
             Text("Search posts, subreddits and users", color = cs.onSurfaceVariant)
         }

@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import com.bennybar.luli_for_reddit.ui.SearchIcon
 import androidx.compose.material.icons.outlined.VideoLibrary
 import com.bennybar.luli_for_reddit.feature.feed.openMediaBrowser
 import com.bennybar.luli_for_reddit.ui.switchThumb
@@ -47,7 +48,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.PlayCircleOutline
 import androidx.compose.material.icons.rounded.MoreHoriz
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
@@ -185,7 +185,7 @@ internal fun FrontpageTab(selected: Boolean) {
             }
             // Expandable mode: search right here, and one button that floats the toolbar in.
             if (expandable) {
-                IconButton(onClick = { nav.push(Route.Search()) }) { Icon(Icons.Rounded.Search, "Search") }
+                IconButton(onClick = { nav.push(Route.Search()) }) { Icon(SearchIcon, "Search") }
                 IconButton(onClick = { showFloatingToolbar(nav, username, { openMediaBrowser(nav, feedKey, listState) }) }) {
                     Icon(Icons.Rounded.MoreHoriz, "Toolbar")
                 }
@@ -353,7 +353,7 @@ private fun ToolbarPanel(
                             .height(60.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(Icons.Rounded.Search, null, tint = cs.onSurfaceVariant)
+                        Icon(SearchIcon, null, tint = cs.onSurfaceVariant)
                         Spacer(Modifier.width(12.dp))
                         Text("Search Reddit", Modifier.weight(1f), color = cs.onSurfaceVariant, maxLines = 1, fontSize = 16.sp)
                         ProfileAvatar(username, 44.dp, onProfile)
