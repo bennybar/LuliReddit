@@ -78,6 +78,9 @@ class RecentSubreddits(private val prefs: Prefs, private val byVisits: () -> Boo
 
     fun clear() = publish(emptyList())
 
+    /** Drops one subreddit from the list (#123). */
+    fun remove(name: String) = publish(all.filter { !it.name.equals(name, ignoreCase = true) })
+
     private fun publish(list: List<RecentSubreddit>) {
         all = list
         refresh()

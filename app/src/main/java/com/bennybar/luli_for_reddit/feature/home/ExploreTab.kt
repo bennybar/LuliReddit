@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import com.bennybar.luli_for_reddit.feature.settings.confirmDialog
 import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.layout.asPaddingValues
@@ -324,6 +325,14 @@ internal fun ExploreTab() {
                     onOpen = { if (it.name.startsWith("u_")) nav.openUser(it.name.removePrefix("u_")) else nav.openSubreddit(it.name) },
                     onStar = ::toggleFavorite,
                     onClearRecent = { app.recentSubreddits.clear() },
+                    onRemoveRecent = { sub ->
+                        scope.launch {
+                            val name = subredditName(sub.namePrefixed)
+                            if (confirmDialog("Remove $name?", "It leaves Recently visited. Opening it again adds it back.", "Remove")) {
+                                app.recentSubreddits.remove(sub.name)
+                            }
+                        }
+                    },
                 )
             }
         }
@@ -348,6 +357,7 @@ private fun LazyListScope.subscriptionSections(
     onOpen: (Subreddit) -> Unit,
     onStar: (Subreddit) -> Unit,
     onClearRecent: () -> Unit,
+    onRemoveRecent: (Subreddit) -> Unit,
 ) {
     val q = query.trim().lowercase()
     val active = q.isNotEmpty() || favOnly || sort != "default"
@@ -386,9 +396,9 @@ private fun LazyListScope.subscriptionSections(
                 TextButton(onClick = onClearRecent) { Text("Clear") }
             }
         }
-        // No star on ones you aren't subscribed to.
+        // No star on ones you aren't subscribed to. Long-press: remove just this one (#123).
         items(recent, key = { "recent_${it.name}" }, contentType = { "sub" }) {
-            SubredditRow(it, onOpen, if (it.name.lowercase() in byName) onStar else null, visits = visits[it.name.lowercase()])
+            SubredditRow(it, onOpen, if (it.name.lowercase() in byName) onStar else null, visits = visits[it.name.lowercase()]) { onRemoveRecent(it) }
         }
     }
     if (favs.isNotEmpty()) {
@@ -420,7 +430,7 @@ private fun SortMenu(sort: String, onPick: (String) -> Unit) {
 }
 
 @Composable
-internal fun SubredditRow(s: Subreddit, onOpen: (Subreddit) -> Unit, onStar: ((Subreddit) -> Unit)? = null, visits: Int? = null) {
+internal fun SubredditRow(s: Subreddit, onOpen: (Subreddit) -> Unit, onStar: ((Subreddit) -> Unit)? = null, visits: Int? = null, onLongClick: (() -> Unit)? = null) {
     val cs = MaterialTheme.colorScheme
     Tile(
         title = { Text(subredditName(s.namePrefixed)) },
@@ -438,5 +448,6 @@ internal fun SubredditRow(s: Subreddit, onOpen: (Subreddit) -> Unit, onStar: ((S
             }
         },
         onClick = { onOpen(s) },
+        onLongClick = onLongClick,
     )
 }

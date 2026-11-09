@@ -359,12 +359,16 @@ fun Tile(
     leading: (@Composable () -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
     onClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
 ) {
     val cs = MaterialTheme.colorScheme
     Row(
         modifier
             .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .then(
+                if (onLongClick != null) Modifier.combinedClickable(onClick = { onClick?.invoke() }, onLongClick = onLongClick)
+                else if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
+            )
             .heightIn(min = if (subtitle != null) 72.dp else 56.dp)
             .padding(start = 16.dp, end = if (trailing != null) 8.dp else 16.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
