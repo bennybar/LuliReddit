@@ -83,12 +83,10 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Merge
 import androidx.compose.material.icons.rounded.Backup
 import androidx.compose.material.icons.rounded.BlurOn
-import androidx.compose.material.icons.rounded.Brightness6
 import androidx.compose.material.icons.rounded.Cached
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.CreateNewFolder
-import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Dns
@@ -158,12 +156,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.material.icons.rounded.Colorize
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -216,18 +211,6 @@ import com.bennybar.luli_for_reddit.core.AppIcon
 import com.bennybar.luli_for_reddit.ui.AppIconPreview
 import androidx.compose.ui.draw.clip
 
-private val ACCENT_SWATCHES = listOf(
-    0xFF6750A4L, // Bloom lavender (default)
-    0xFFEA4335L, // red
-    0xFFFF7043L, // orange
-    0xFFFFB300L, // amber
-    0xFF34A853L, // green
-    0xFF00897BL, // teal
-    0xFF1E88E5L, // blue
-    0xFF8E24AAL, // purple
-    0xFFD81B60L, // pink
-)
-
 /** Summary languages: the English name (what the AI is told) to its label. "" = the thread's own. */
 private val SUMMARY_LANGUAGES = listOf(
     "" to "Same as the thread",
@@ -258,12 +241,6 @@ private const val CUSTOM_MODEL = "\u0000custom"
 
 // Where saved media goes (same prefs keys as the Flutter build). null = the
 // gallery's "Ilay" album.
-
-private fun themeLabel(m: ThemeMode) = when (m) {
-    ThemeMode.SYSTEM -> "Follow system"
-    ThemeMode.LIGHT -> "Light"
-    ThemeMode.DARK -> "Dark"
-}
 
 /** The main page's categories (#68), in groups: a section of the list, what's in it, its icon. */
 private val SETTINGS_CATEGORIES = listOf(
@@ -513,19 +490,17 @@ fun SettingsList(
 
         // ---------------------------------------------------------------- Appearance
         section("Appearance")
-        tile("Theme", themeLabel(s.themeMode), Icons.Rounded.Brightness6, onClick = launch {
-            pickOption(ThemeMode.entries.map { PickOption(it, themeLabel(it)) }, s.themeMode)?.let(ctrl::setThemeMode)
+        // Light / dark, AMOLED, wallpaper colours, the accent and the palette style: one page (#114).
+        add(Entry("t:Theme & colours", "Theme & colours ${themeSummary(s)} dark light AMOLED black accent color colour wallpaper dynamic palette style hex") {
+            SettingTile("Theme & colours", themeSummary(s), Icons.Rounded.Palette) { nav.push(Route.ThemeColors) }
         })
-        switch("AMOLED black", "Pure black surfaces in dark mode", Icons.Rounded.DarkMode, s.amoled, ctrl::setAmoled)
         tile("App font", s.appFont.label, Icons.Rounded.FontDownload, onClick = launch {
             pickOption(AppFont.entries.map { PickOption(it, it.label, subtitle = it.description) }, s.appFont)?.let(ctrl::setAppFont)
         })
-        switch("Dynamic color", "Use colors from your wallpaper", Icons.Rounded.Palette, s.useDynamicColor, ctrl::setUseDynamicColor)
         switch(
             "r/ before subreddit names", "Show \"r/pics\" on posts and lists. Off: just \"pics\"",
             Icons.Rounded.Tag, s.subredditPrefix, ctrl::setSubredditPrefix,
         )
-        add(Entry("accent", null) { AccentPicker(s) })
         add(Entry("appIcon", "App icon launcher home screen colour") {
             val current = AppIcon.parse(s.appIcon)
             SettingTile("App icon", current.label, onClick = {
@@ -1192,54 +1167,6 @@ private suspend fun pickAppIcon(current: AppIcon): AppIcon? = Overlays.show { do
 }
 
 @OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun AccentPicker(s: Settings) {
-    val cs = MaterialTheme.colorScheme
-    val scope = rememberCoroutineScope()
-    Column(
-        Modifier
-            .alpha(if (s.useDynamicColor) 0.4f else 1f)
-            .padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 16.dp),
-    ) {
-        Text("Accent color", style = MaterialTheme.typography.bodyMedium)
-        Spacer(Modifier.height(10.dp))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            for (c in ACCENT_SWATCHES) {
-                val selected = s.seedColor == c
-                Box(
-                    Modifier
-                        .size(40.dp)
-                        .background(Color(c), CircleShape)
-                        .border(BorderStroke(3.dp, if (selected) cs.onSurface else Color.Transparent), CircleShape)
-                        .clickable(enabled = !s.useDynamicColor) { app.settings.setSeedColor(c) },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (selected) Icon(Icons.Rounded.Check, null, tint = Color.White)
-                }
-            }
-            // Any colour (#84): the last one picked, or a colour wheel until there is one.
-            val custom = s.customSeedColor ?: s.seedColor.takeIf { it !in ACCENT_SWATCHES }
-            val selected = s.seedColor !in ACCENT_SWATCHES
-            Box(
-                Modifier
-                    .size(40.dp)
-                    .background(
-                        if (custom != null) SolidColor(Color(custom)) else Brush.sweepGradient((0..6).map { Color.hsv(it * 60f % 360f, 0.8f, 0.95f) }),
-                        CircleShape,
-                    )
-                    .border(BorderStroke(3.dp, if (selected) cs.onSurface else Color.Transparent), CircleShape)
-                    .clickable(enabled = !s.useDynamicColor) {
-                        scope.launch { pickCustomColor(custom ?: s.seedColor)?.let(app.settings::setCustomSeedColor) }
-                    },
-                contentAlignment = Alignment.Center,
-            ) {
-                val tint = if (custom != null && Color(custom).luminance() > 0.5f) Color.Black else Color.White
-                Icon(if (selected) Icons.Rounded.Check else Icons.Rounded.Colorize, "Custom color", tint = tint)
-            }
-        }
-    }
-}
-
 @Composable
 private fun RateLimitTile() {
     val rl by app.rateLimit.collectAsStateWithLifecycle()

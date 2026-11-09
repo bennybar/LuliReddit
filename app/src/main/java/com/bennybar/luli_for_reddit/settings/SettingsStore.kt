@@ -23,6 +23,7 @@ class SettingsStore(private val p: Prefs) {
             themeMode = idx(ThemeMode.entries.toTypedArray(), "themeMode", d.themeMode),
             amoled = b("amoled", d.amoled),
             useDynamicColor = b("useDynamicColor", d.useDynamicColor),
+            paletteStyle = idx(PaletteStyle.entries.toTypedArray(), "paletteStyle", d.paletteStyle),
             jakartaFont = b("jakartaFont", d.jakartaFont),
             // Before the picker there was only the Jakarta switch (Flutter's too):
             // keep Jakarta for those who chose it; everyone else gets the v2 default.
@@ -134,6 +135,7 @@ class SettingsStore(private val p: Prefs) {
     fun setThemeMode(v: ThemeMode) { p.setInt("themeMode", v.ordinal); set { it.copy(themeMode = v) } }
     fun setAmoled(v: Boolean) { p.setBool("amoled", v); set { it.copy(amoled = v) } }
     fun setUseDynamicColor(v: Boolean) { p.setBool("useDynamicColor", v); set { it.copy(useDynamicColor = v) } }
+    fun setPaletteStyle(v: PaletteStyle) { p.setInt("paletteStyle", v.ordinal); set { it.copy(paletteStyle = v) } }
     fun setSeedColor(argb: Long) { p.setLong("seedColor", argb); set { it.copy(seedColor = argb) } }
     /** A colour from the Custom picker (#84): the accent now, and kept on its swatch. */
     fun setCustomSeedColor(argb: Long) {

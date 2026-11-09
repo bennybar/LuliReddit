@@ -40,6 +40,17 @@ enum class AppFont(val key: String, val label: String, val description: String) 
 /** Order matters: persisted by index (`themeMode`), same as Flutter's ThemeMode. */
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
+/** Material's palette styles: how a colour becomes the app's colours (#114). Persisted by index (`paletteStyle`). */
+enum class PaletteStyle(val label: String) {
+    TONAL_SPOT("Tonal spot"),
+    EXPRESSIVE("Expressive"),
+    VIBRANT("Vibrant"),
+    FRUIT_SALAD("Fruit salad"),
+    RAINBOW("Rainbow"),
+    NEUTRAL("Neutral"),
+    MONOCHROME("Monochrome"),
+}
+
 /** Where the Posts-screen actions (search, new post, profile) live. Persisted by index. */
 enum class TopBarMode(val label: String, val description: String) {
     FULL("Full top bar", "Search, new post and profile across the top (current)"),
@@ -174,6 +185,7 @@ data class Settings(
     val amoled: Boolean = false,
     /** Default off so the Bloom palette shows out of the box. */
     val useDynamicColor: Boolean = false,
+    val paletteStyle: PaletteStyle = PaletteStyle.TONAL_SPOT, // how the accent (or wallpaper) colour becomes the scheme (#114)
     val jakartaFont: Boolean = false, // legacy switch, mirrored from appFont (Flutter backups)
     val appFont: AppFont = AppFont.GOOGLE_SANS, // the app's typeface (Google Sans by default from v2)
     val inAppBrowser: Boolean = false, // open web links in a Custom Tab, not the browser app

@@ -1,5 +1,13 @@
 package com.bennybar.luli_for_reddit.ui.theme
 
+import com.bennybar.luli_for_reddit.settings.PaletteStyle
+import com.materialkolor.scheme.SchemeMonochrome
+import com.materialkolor.scheme.SchemeNeutral
+import com.materialkolor.scheme.SchemeRainbow
+import com.materialkolor.scheme.SchemeFruitSalad
+import com.materialkolor.scheme.SchemeVibrant
+import com.materialkolor.scheme.SchemeExpressive
+import android.app.WallpaperManager
 import androidx.core.view.WindowCompat
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.runtime.SideEffect
@@ -104,9 +112,18 @@ object AppTheme {
     val voteLight = VoteColors(up = Color(0xFFD93900), down = Color(0xFF605BFF))
     val voteDark = VoteColors(up = Color(0xFFFF7E54), down = Color(0xFFBFC0FF))
 
-    /** Flutter's ColorScheme.fromSeed: Material's tonal-spot scheme. */
-    fun fromSeed(seed: Color, dark: Boolean): ColorScheme {
-        val s: DynamicScheme = SchemeTonalSpot(Hct.fromInt(seed.toArgbInt()), dark, 0.0)
+    /** Flutter's ColorScheme.fromSeed (Material's tonal-spot scheme), or another of Material's palette styles (#114). */
+    fun fromSeed(seed: Color, dark: Boolean, style: PaletteStyle = PaletteStyle.TONAL_SPOT): ColorScheme {
+        val hct = Hct.fromInt(seed.toArgbInt())
+        val s: DynamicScheme = when (style) {
+            PaletteStyle.TONAL_SPOT -> SchemeTonalSpot(hct, dark, 0.0)
+            PaletteStyle.EXPRESSIVE -> SchemeExpressive(hct, dark, 0.0)
+            PaletteStyle.VIBRANT -> SchemeVibrant(hct, dark, 0.0)
+            PaletteStyle.FRUIT_SALAD -> SchemeFruitSalad(hct, dark, 0.0)
+            PaletteStyle.RAINBOW -> SchemeRainbow(hct, dark, 0.0)
+            PaletteStyle.NEUTRAL -> SchemeNeutral(hct, dark, 0.0)
+            PaletteStyle.MONOCHROME -> SchemeMonochrome(hct, dark, 0.0)
+        }
         fun c(argb: Int) = Color(argb)
         val base = if (dark) darkColorScheme() else lightColorScheme()
         return base.copy(
@@ -217,12 +234,18 @@ object AppTheme {
 @Composable
 fun rememberColorScheme(settings: Settings, dark: Boolean): ColorScheme {
     val context = LocalContext.current
-    return remember(settings.useDynamicColor, settings.seedColor, settings.amoled, dark) {
+    val style = settings.paletteStyle
+    return remember(settings.useDynamicColor, settings.seedColor, style, settings.amoled, dark) {
+        // Another palette style from the wallpaper: its main colour, through that style.
+        val wallpaper = if (settings.useDynamicColor && style != PaletteStyle.TONAL_SPOT) {
+            runCatching { WallpaperManager.getInstance(context).getWallpaperColors(WallpaperManager.FLAG_SYSTEM)?.primaryColor?.toArgb() }.getOrNull()
+        } else null
         var scheme = when {
+            wallpaper != null -> AppTheme.fromSeed(Color(wallpaper), dark, style)
             settings.useDynamicColor && Build.VERSION.SDK_INT >= 31 ->
                 if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-            settings.seedColor == Settings.DEFAULT_SEED -> if (dark) AppTheme.bloomDark else AppTheme.bloomLight
-            else -> AppTheme.fromSeed(Color(settings.seedColor.toInt()), dark)
+            settings.seedColor == Settings.DEFAULT_SEED && style == PaletteStyle.TONAL_SPOT -> if (dark) AppTheme.bloomDark else AppTheme.bloomLight
+            else -> AppTheme.fromSeed(Color(settings.seedColor.toInt()), dark, style)
         }
         if (dark && settings.amoled) {
             // True-black background with slightly lifted containers so
