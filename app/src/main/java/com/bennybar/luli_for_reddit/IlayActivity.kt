@@ -1,5 +1,8 @@
 package com.bennybar.luli_for_reddit
 
+import com.bennybar.luli_for_reddit.feature.auth.SETUP_DONE
+import com.bennybar.luli_for_reddit.feature.auth.needsSetup
+import com.bennybar.luli_for_reddit.feature.auth.SetupScreen
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.fadeOut
@@ -279,10 +282,14 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
     // A transient keystore read failure can momentarily read as logged out;
     // don't bounce a known account to the login screen.
     val showHome = loggedIn || app.session.hasAccount
-    val start: Route = remember { if (showHome) Route.Home else Route.Login }
+    // A fresh install starts with the setup (#114), then sign-in.
+    val start: Route = remember { if (showHome) Route.Home else if (needsSetup()) Route.Setup else Route.Login }
 
     LaunchedEffect(showHome) {
-        val atLogin = controller.currentDestination?.route?.contains("Login") == true
+        val route = controller.currentDestination?.route.orEmpty()
+        val atLogin = route.contains("Login") || route.contains("Setup")
+        // Someone who already has an account never sees the setup, even after signing out.
+        if (showHome && needsSetup()) app.prefs.setBool(SETUP_DONE, true)
         if (showHome && atLogin) navigator.resetTo(Route.Home)
         if (!showHome && !atLogin) navigator.resetTo(Route.Login)
     }
@@ -346,6 +353,7 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
                 },
             ) {
                 screen<Route.Login> { LoginScreen() }
+                screen<Route.Setup> { SetupScreen() }
                 screen<Route.WebLogin> { WebLoginScreen(it.toRoute<Route.WebLogin>().clearFirst) }
                 screen<Route.Home> { HomeScreen() }
                 screen<Route.Settings> { SettingsScreen() }

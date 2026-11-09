@@ -10,6 +10,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 sealed interface Route {
     @Serializable data object Login : Route
+    @Serializable data object Setup : Route
     /** Website-session sign-in. [clearFirst] wipes existing cookies so you can sign into a *different* account (add account). */
     @Serializable data class WebLogin(val clearFirst: Boolean = false) : Route
     @Serializable data object Home : Route

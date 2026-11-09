@@ -232,7 +232,7 @@ private val SUMMARY_LANGUAGES = listOf(
 private val SUMMARY_STYLE_LABELS = listOf("TL;DR", "Key points", "Consensus & disagreements", "Explain like I'm 5")
 
 private val AI_MODELS = listOf("gpt-6.1-sol", "gpt-5.5", "gpt-5.4-mini", "gpt-5.4-nano")
-private val NAV_STYLES = listOf(
+internal val NAV_STYLES = listOf(
     "Bottom bar" to "The floating bar at the bottom",
     "Side bar" to "The ☰ at the top of each tab opens it, or swipe back from the top of Posts",
     "Both" to "The bottom bar, plus the side bar (☰, or swipe back from the top of Posts)",
@@ -1280,11 +1280,11 @@ private fun showSwipeSettings() {
 
 /** Amber for Reddit Home's caution (readable on light and dark surfaces). */
 @Composable
-private fun homeAmber(): Color =
+internal fun homeAmber(): Color =
     if (MaterialTheme.colorScheme.surface.luminance() > 0.5f) Color(0xFF9A6700) else Color(0xFFFFC94D)
 
 /** What Reddit Home is (unofficial, can break) before turning it on. True to turn it on. */
-private suspend fun confirmRedditHome(): Boolean = Overlays.show<Boolean> { done ->
+internal suspend fun confirmRedditHome(): Boolean = Overlays.show<Boolean> { done ->
     val amber = homeAmber()
     AlertDialog(
         onDismissRequest = { done(false) },
@@ -1432,7 +1432,7 @@ private suspend fun backupData(context: Context, folder: Uri?) {
     }
 }
 
-private suspend fun restoreData(context: Context, uri: Uri) {
+internal suspend fun restoreData(context: Context, uri: Uri) {
     try {
         val text = withContext(Dispatchers.IO) {
             context.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
