@@ -660,7 +660,7 @@ fun SettingsList(
         )
         switch(
             "Mark comments you voted on",
-            "An edge in the vote's color on comments you upvoted or downvoted",
+            "A soft glow in the vote's color on comments you upvoted or downvoted",
             Icons.Rounded.ThumbsUpDown, s.voteEdge, ctrl::setVoteEdge,
         )
         tile(

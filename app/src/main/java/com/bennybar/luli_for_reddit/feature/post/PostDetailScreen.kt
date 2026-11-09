@@ -1,5 +1,8 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.graphics.Brush
 import com.bennybar.luli_for_reddit.ui.SearchIcon
 import com.bennybar.luli_for_reddit.ui.subredditName
 import androidx.compose.foundation.layout.Arrangement
@@ -1498,12 +1501,12 @@ private fun CommentTile(
                 .clip(shape)
                 .background(if (highlighted) cs.primaryContainer else cs.surfaceContainerLow)
                 .then(if (highlighted) Modifier.border(1.5.dp, cs.primary, shape) else Modifier)
+                .voteGlow(voteEdge, rtl)
                 // Colored depth edge (only on replies), full height — drawn,
                 // not laid out, so it costs no extra layout pass.
                 .drawBehind {
                     val w = 4.dp.toPx()
                     if (depth > 0) drawRect(edge, Offset(if (rtl) size.width - w else 0f, 0f), Size(w, size.height))
-                    if (voteEdge != null) drawRect(voteEdge, Offset(if (rtl) 0f else size.width - w, 0f), Size(w, size.height))
                 }
                 .padding(start = if (depth > 0) 4.dp else 0.dp),
         ) {
@@ -1602,6 +1605,30 @@ private fun Badge(text: String, bg: Color, fg: Color, size: androidx.compose.ui.
         color = fg,
         maxLines = 1,
     )
+}
+
+/**
+ * Settings → Mark comments you voted on (#122): the vote's colour glows softly from
+ * the comment's top corner (the end side), fading in and out with the vote. A still
+ * gradient, drawn: nothing to lay out or animate while scrolling.
+ */
+@Composable
+private fun Modifier.voteGlow(color: Color?, rtl: Boolean): Modifier {
+    var last by remember { mutableStateOf(color ?: Color.Transparent) }
+    if (color != null) last = color
+    val shown by animateFloatAsState(if (color != null) 1f else 0f, tween(350), label = "voteGlow")
+    if (shown == 0f) return this
+    return drawBehind {
+        // Gone by the comment's bottom edge, so it never stops in a line against the next one.
+        val radius = minOf(size.height, size.width * 0.9f).coerceAtLeast(1f)
+        drawRect(
+            Brush.radialGradient(
+                listOf(last.copy(alpha = 0.34f * shown), last.copy(alpha = 0.10f * shown), Color.Transparent),
+                center = Offset(if (rtl) 0f else size.width, 0f),
+                radius = radius,
+            ),
+        )
+    }
 }
 
 /** A user's flair in this community, next to their name (#31): its text, with its emoji drawn inline. */
@@ -1830,11 +1857,8 @@ private fun CalmCommentRow(
                         val color = if (isOp && l == depth - 1) opRail else rail
                         drawRect(color, Offset(if (rtl) size.width - x - w else x, top), Size(w, (bottom - top).coerceAtLeast(0f)))
                     }
-                    if (voteEdge != null) {
-                        val x = 6.dp.toPx() + w
-                        drawRect(voteEdge, Offset(if (rtl) x - w else size.width - x, top), Size(w, (bottom - top).coerceAtLeast(0f)))
-                    }
                 }
+                .voteGlow(voteEdge, rtl)
                 .padding(start = (16 + depth * 10).dp, top = 10.dp, end = 16.dp, bottom = 8.dp),
         ) {
             Row(

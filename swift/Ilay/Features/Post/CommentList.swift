@@ -92,7 +92,9 @@ private final class CommentCell: UICollectionViewListCell {
     private var first = false
     private var last = false
     private var guides: [CALayer] = []
-    private let voteEdge = CALayer()
+    /// Settings → Mark comments you voted on (#122): the vote's colour glowing softly
+    /// from the row's top corner on the end side, gone by its bottom edge.
+    private let voteEdge = CAGradientLayer()
     private var depth = 0
     private var opLevel: Int?
     /// Where the row's name line ends (`CommentRowView` reports it).
@@ -107,6 +109,10 @@ private final class CommentCell: UICollectionViewListCell {
         backdrop.layer.addSublayer(card)
         backdrop.addSubview(highlight)
         backdrop.layer.addSublayer(voteEdge)
+        voteEdge.type = .radial
+        voteEdge.locations = [0, 0.45, 1]
+        voteEdge.masksToBounds = true
+        voteEdge.cornerCurve = .continuous
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -140,7 +146,9 @@ private final class CommentCell: UICollectionViewListCell {
             }
         }
         voteEdge.isHidden = voteColor == nil
-        voteEdge.backgroundColor = voteColor?.resolvedColor(with: traitCollection).cgColor
+        if let c = voteColor?.resolvedColor(with: traitCollection) {
+            voteEdge.colors = [c.withAlphaComponent(0.34).cgColor, c.withAlphaComponent(0.10).cgColor, c.withAlphaComponent(0).cgColor]
+        }
         CATransaction.commit()
         depth = shown
         setNeedsLayout()
@@ -252,10 +260,18 @@ private final class CommentCell: UICollectionViewListCell {
             let x = 12 + 12 + CGFloat(i) * 10 + 4
             guides[i].frame = CGRect(x: rtl ? bounds.width - x - width : x, y: top, width: width, height: max(bottom - top, 0))
         }
-        if calm {
-            voteEdge.frame = CGRect(x: rtl ? 12 + 6 : bounds.width - 12 - 6 - width, y: top, width: width, height: max(bottom - top, 0))
-        } else {
-            voteEdge.frame = CGRect(x: rtl ? 5 : bounds.width - 5 - 2, y: 8, width: 2, height: max(bounds.height - 16, 0))
+        // The glow fills the row's card (the whole row outside Calm), rounded where the card is.
+        let glow = calm ? cardFrame : bounds
+        voteEdge.frame = glow
+        voteEdge.cornerRadius = calm ? Self.radius : 0
+        var glowCorners: CACornerMask = []
+        if first { glowCorners.formUnion([.layerMinXMinYCorner, .layerMaxXMinYCorner]) }
+        if last { glowCorners.formUnion([.layerMinXMaxYCorner, .layerMaxXMaxYCorner]) }
+        voteEdge.maskedCorners = glowCorners
+        if glow.width > 0, glow.height > 0 {
+            let r = max(min(glow.height, glow.width * 0.9), 1)
+            voteEdge.startPoint = CGPoint(x: rtl ? 0 : 1, y: 0)
+            voteEdge.endPoint = CGPoint(x: rtl ? r / glow.width : 1 - r / glow.width, y: r / glow.height)
         }
         CATransaction.commit()
     }
