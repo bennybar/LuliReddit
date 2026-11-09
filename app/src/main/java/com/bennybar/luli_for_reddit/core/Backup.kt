@@ -17,7 +17,8 @@ import kotlinx.serialization.json.put
  * secure storage and are intentionally NOT included.
  */
 object Backup {
-    private fun skip(key: String) = key.startsWith("draft_") || key.startsWith("__")
+    // The backup folder (#116) is a permission on this device only.
+    private fun skip(key: String) = key.startsWith("draft_") || key.startsWith("__") || key == "backupFolderUri"
 
     fun export(p: Prefs): String {
         val data = buildJsonObject {
