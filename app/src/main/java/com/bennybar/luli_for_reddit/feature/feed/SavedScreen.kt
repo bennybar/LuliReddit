@@ -2,8 +2,23 @@ package com.bennybar.luli_for_reddit.feature.feed
 
 import com.bennybar.luli_for_reddit.ui.subredditName
 import com.bennybar.luli_for_reddit.ui.Loading
+import com.bennybar.luli_for_reddit.ui.SearchIcon
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.rounded.BookmarkRemove
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.offset
+import androidx.compose.material3.IconButton
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,7 +32,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -27,7 +41,6 @@ import androidx.compose.material.icons.outlined.ModeComment
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -107,26 +120,58 @@ fun SavedScreen() {
         }
     }
 
-    Scaffold(topBar = { BloomTopBar("Saved") }, containerColor = cs.surface) { padding ->
-        Column(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
-            PillTextField(
-                value = query,
-                onValueChange = { query = it },
-                placeholder = "Search saved",
-                modifier = Modifier.fillMaxWidth().padding(start = 12.dp, top = 10.dp, end = 12.dp, bottom = 4.dp),
-            )
-            LazyRow(contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(listOf("all" to "All", "posts" to "Posts", "comments" to "Comments"), key = { it.first }) { (k, label) ->
-                    FeedChip(label, type == k) { type = k }
-                }
+    // Laid out like a subreddit (#143): the top bar hides as you scroll and comes
+    // back as you scroll up, the feed runs under a faded status bar, and the
+    // filter chips float under the bar (Settings › Floating chips). The search
+    // field scrolls away with the list; the bar's 🔍 brings it back.
+    val settings by app.settings.state.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
+    val bar = rememberHidingBar(listState)
+    val focus = remember { FocusRequester() }
+    val searchGone by remember(listState) { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
+    val chipsRow = @Composable { modifier: Modifier ->
+        Row(modifier.padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            for ((k, label) in listOf("all" to "All", "posts" to "Posts", "comments" to "Comments")) {
+                FeedChip(label, type == k) { type = k }
             }
-            Box(Modifier.weight(1f)) {
-                when {
-                    state.loading && state.items.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Loading()
-                    }
-                    state.error != null -> Column(
-                        Modifier.fillMaxSize().padding(32.dp),
+        }
+    }
+    // The list's chips are past the floating row's spot: the floating row takes over.
+    val floatChips = settings.floatingChips
+    val past by remember(listState) {
+        derivedStateOf {
+            val info = listState.layoutInfo
+            val row = info.visibleItemsInfo.firstOrNull { it.key == "chips" }
+            if (row == null) listState.firstVisibleItemIndex > 1 else row.offset - info.viewportStartOffset < bar.chipsY(row.size)
+        }
+    }
+    LoadMoreNearEnd(listState, 4, page = state.items.size to state.after) { source.loadMore() }
+
+    Box(Modifier.fillMaxSize().background(cs.surface).clipToBounds().nestedScroll(bar)) {
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            state = listState,
+            contentPadding = PaddingValues(top = with(LocalDensity.current) { bar.height.toDp() }, bottom = 32.dp),
+        ) {
+            item(key = "search") {
+                PillTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = "Search saved",
+                    modifier = Modifier.fillMaxWidth().padding(start = 12.dp, top = 4.dp, end = 12.dp).focusRequester(focus),
+                )
+            }
+            item(key = "chips") {
+                chipsRow(Modifier.graphicsLayer { alpha = if (floatChips && past) 0f else 1f })
+            }
+            when {
+                state.loading && state.items.isEmpty() -> item(key = "state") {
+                    Box(Modifier.fillParentMaxWidth().fillParentMaxHeight(0.6f), contentAlignment = Alignment.Center) { Loading() }
+                }
+                state.error != null -> item(key = "state") {
+                    Column(
+                        Modifier.fillParentMaxWidth().fillParentMaxHeight(0.6f).padding(32.dp),
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
@@ -134,7 +179,9 @@ fun SavedScreen() {
                         Spacer(Modifier.height(12.dp))
                         Button(onClick = { source.load() }) { Text("Retry") }
                     }
-                    filtered.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                }
+                filtered.isEmpty() -> item(key = "state") {
+                    Box(Modifier.fillParentMaxWidth().fillParentMaxHeight(0.6f), contentAlignment = Alignment.Center) {
                         Text(
                             when {
                                 state.items.isEmpty() -> "Nothing saved"
@@ -144,40 +191,57 @@ fun SavedScreen() {
                             },
                         )
                     }
-                    else -> {
-                        val listState = rememberLazyListState()
-                        LoadMoreNearEnd(listState, 4, page = state.items.size to state.after) { source.loadMore() }
-                        LazyColumn(
-                            Modifier.fillMaxSize(),
-                            state = listState,
-                            contentPadding = PaddingValues(start = 10.dp, top = 8.dp, end = 10.dp, bottom = 32.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            items(
-                                filtered,
-                                key = { if (it is Post) it.fullname else (it as Comment).fullname },
-                                contentType = { if (it is Post) "post" else "comment" },
-                            ) { item ->
-                                if (item is Post) {
-                                    val spec = remember(item.fullname) { SwipeSpec(Icons.Rounded.BookmarkRemove, unsaveColor) { unsave(item.fullname, item) } }
-                                    PostCard(item, swipeOverride = spec to spec)
-                                } else {
-                                    val c = item as Comment
-                                    val spec = remember(c.fullname) { SwipeSpec(Icons.Rounded.BookmarkRemove, unsaveColor) { unsave(c.fullname, null) } }
-                                    SwipeActions(start = spec, end = spec) { SavedComment(c) }
-                                }
+                }
+                else -> {
+                    items(
+                        filtered,
+                        key = { if (it is Post) it.fullname else (it as Comment).fullname },
+                        contentType = { if (it is Post) "post" else "comment" },
+                    ) { item ->
+                        Box(Modifier.padding(start = 10.dp, end = 10.dp, bottom = 8.dp)) {
+                            if (item is Post) {
+                                val spec = remember(item.fullname) { SwipeSpec(Icons.Rounded.BookmarkRemove, unsaveColor) { unsave(item.fullname, item) } }
+                                PostCard(item, swipeOverride = spec to spec)
+                            } else {
+                                val c = item as Comment
+                                val spec = remember(c.fullname) { SwipeSpec(Icons.Rounded.BookmarkRemove, unsaveColor) { unsave(c.fullname, null) } }
+                                SwipeActions(start = spec, end = spec) { SavedComment(c) }
                             }
-                            item(key = "__footer") {
-                                if (state.loadingMore) {
-                                    Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                                        Loading()
-                                    }
-                                }
+                        }
+                    }
+                    item(key = "__footer") {
+                        if (state.loadingMore) {
+                            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                Loading()
                             }
                         }
                     }
                 }
             }
+        }
+        if (floatChips && past) {
+            var height by remember { mutableIntStateOf(0) }
+            chipsRow(
+                Modifier
+                    .fillMaxWidth()
+                    .onSizeChanged { height = it.height }
+                    .offset { IntOffset(0, bar.chipsY(height)) }
+                    .then(if (settings.floatingChipsSolid) Modifier.background(cs.surface) else Modifier),
+            )
+        }
+        HidingTopBar(bar) {
+            BloomTopBar(
+                "Saved",
+                actions = {
+                    if (searchGone) IconButton(onClick = {
+                        scope.launch {
+                            listState.animateScrollToItem(0)
+                            bar.slide(0f)
+                            focus.requestFocus()
+                        }
+                    }) { Icon(SearchIcon, "Search saved") }
+                },
+            )
         }
     }
 }

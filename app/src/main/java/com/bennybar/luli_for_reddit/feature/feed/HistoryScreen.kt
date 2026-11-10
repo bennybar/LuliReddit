@@ -2,6 +2,25 @@ package com.bennybar.luli_for_reddit.feature.feed
 
 import com.bennybar.luli_for_reddit.ui.subredditName
 import android.net.Uri
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
+import com.bennybar.luli_for_reddit.core.timeAgo
+import com.bennybar.luli_for_reddit.state.HistoryEntry
+import com.bennybar.luli_for_reddit.ui.SearchIcon
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -10,9 +29,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
@@ -23,7 +40,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -68,109 +84,173 @@ fun HistoryScreen() {
         }
     }
 
-    Scaffold(
-        topBar = {
-            BloomTopBar(
-                "History",
-                actions = {
-                    if (subs.isNotEmpty()) {
-                        Box {
-                            IconButton(onClick = { filterOpen = true }) {
-                                Icon(if (subFilter == null) Icons.Rounded.FilterList else Icons.Rounded.FilterAlt, "Filter by subreddit")
-                            }
-                            DropdownMenu(filterOpen, onDismissRequest = { filterOpen = false }) {
-                                DropdownMenuItem(text = { Text("All subreddits") }, onClick = {
-                                    filterOpen = false
-                                    subFilterRaw = null
-                                })
-                                for (s in subs) {
-                                    DropdownMenuItem(text = { Text(subredditName(s)) }, onClick = {
-                                        filterOpen = false
-                                        subFilterRaw = s
-                                    })
-                                }
-                            }
-                        }
+    // Laid out like Saved and a subreddit (#142, #143): the top bar hides as you
+    // scroll, the list runs under a faded status bar, and the search field
+    // scrolls away (the bar's 🔍 brings it back). Rows sit in one connected
+    // container, Gmail-like (#142); swipe one to the left to remove it.
+    val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
+    val bar = rememberHidingBar(listState)
+    val focus = remember { FocusRequester() }
+    var noteShown by remember { mutableStateOf(app.prefs.getBool("historyNoteDismissed") != true) } // closed once, gone for good (#119)
+    val searchGone by remember(listState) { derivedStateOf { listState.layoutInfo.visibleItemsInfo.none { it.key == "search" } && listState.layoutInfo.totalItemsCount > 0 } }
+    val removeColor = cs.error
+
+    Box(Modifier.fillMaxSize().background(cs.surface).clipToBounds().nestedScroll(bar)) {
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            state = listState,
+            contentPadding = PaddingValues(top = with(LocalDensity.current) { bar.height.toDp() }, bottom = 32.dp),
+        ) {
+            if (noteShown) item(key = "note") {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 4.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(cs.surfaceContainerHigh)
+                        .padding(start = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "Recently viewed posts are stored only on this device — Reddit does not sync viewing history to third-party apps.",
+                        Modifier.weight(1f).padding(vertical = 12.dp),
+                        fontSize = 12.sp,
+                        color = cs.onSurfaceVariant,
+                    )
+                    IconButton(onClick = { noteShown = false; app.prefs.setBool("historyNoteDismissed", true) }) {
+                        Icon(Icons.Rounded.Close, "Close", tint = cs.onSurfaceVariant)
                     }
-                    if (history.isNotEmpty()) {
-                        Box {
-                            IconButton(onClick = { clearOpen = true }) { Icon(Icons.Rounded.DeleteOutline, "Clear history") }
-                            DropdownMenu(clearOpen, onDismissRequest = { clearOpen = false }) {
-                                DropdownMenuItem(text = { Text("Clear older than 7 days") }, onClick = {
-                                    clearOpen = false
-                                    app.history.clearOlderThan(7 * DAY)
-                                    app.recentSubreddits.clearOlderThan(7 * DAY)
-                                })
-                                DropdownMenuItem(text = { Text("Clear older than 30 days") }, onClick = {
-                                    clearOpen = false
-                                    app.history.clearOlderThan(30 * DAY)
-                                    app.recentSubreddits.clearOlderThan(30 * DAY)
-                                })
-                                DropdownMenuItem(text = { Text("Clear all history") }, onClick = {
-                                    clearOpen = false
-                                    app.history.clear()
-                                    app.recentSubreddits.clear()
-                                    app.threadVisits.clear()
-                                })
-                            }
-                        }
-                    }
-                },
-            )
-        },
-        containerColor = cs.surface,
-    ) { padding ->
-        Column(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
-            // Closed once, gone for good (#119).
-            var noteShown by remember { mutableStateOf(app.prefs.getBool("historyNoteDismissed") != true) }
-            if (noteShown) Row(
-                Modifier.fillMaxWidth().background(cs.surfaceContainerHigh).padding(start = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    "Recently viewed posts are stored only on this device — Reddit does not sync viewing history to third-party apps.",
-                    Modifier.weight(1f).padding(vertical = 12.dp),
-                    fontSize = 12.sp,
-                    color = cs.onSurfaceVariant,
-                )
-                IconButton(onClick = { noteShown = false; app.prefs.setBool("historyNoteDismissed", true) }) {
-                    Icon(Icons.Rounded.Close, "Close", tint = cs.onSurfaceVariant)
                 }
             }
-            if (visible.isNotEmpty()) {
+            if (visible.isNotEmpty()) item(key = "search") {
                 PillTextField(
                     value = query,
                     onValueChange = { query = it },
                     placeholder = "Search history",
-                    modifier = Modifier.fillMaxWidth().padding(start = 12.dp, top = 10.dp, end = 12.dp, bottom = 4.dp),
+                    modifier = Modifier.fillMaxWidth().padding(start = 12.dp, top = 4.dp, end = 12.dp, bottom = 12.dp).focusRequester(focus),
                 )
             }
-            when {
-                history.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No history yet") }
-                visible.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("NSFW posts are hidden") }
-                filtered.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No matches") }
-                else -> LazyColumn(Modifier.fillMaxSize()) {
-                    items(filtered, key = { it.id }) { e ->
-                        Tile(
-                            title = { Text(e.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-                            subtitle = { Text(subredditName(e.subreddit)) },
-                            trailing = {
-                                IconButton(onClick = { app.history.removeViewed(e.id) }) {
-                                    Icon(Icons.Rounded.Close, "Remove", Modifier.size(18.dp))
-                                }
-                            },
-                            modifier = Modifier.clickable {
-                                val route = if (e.permalink.isNotEmpty()) {
-                                    routeForRedditUrl(Uri.parse("https://reddit.com${e.permalink}"))
-                                } else {
-                                    Route.Post(e.subreddit.ifEmpty { "_" }, e.id)
-                                }
-                                route?.let(nav::push)
-                            },
-                        )
+            val empty = when {
+                history.isEmpty() -> "No history yet"
+                visible.isEmpty() -> "NSFW posts are hidden"
+                filtered.isEmpty() -> "No matches"
+                else -> null
+            }
+            if (empty != null) item(key = "empty") {
+                Box(Modifier.fillParentMaxWidth().fillParentMaxHeight(0.6f), contentAlignment = Alignment.Center) { Text(empty) }
+            }
+            itemsIndexed(filtered, key = { _, e -> e.id }) { i, e ->
+                // A row's outer corners are round only where the container starts or ends, as in Settings.
+                val top = if (i == 0) 24.dp else 4.dp
+                val bottom = if (i == filtered.lastIndex) 24.dp else 4.dp
+                val spec = remember(e.id) { SwipeSpec(Icons.Rounded.DeleteOutline, removeColor) { app.history.removeViewed(e.id) } }
+                Box(
+                    Modifier
+                        .animateItem()
+                        .padding(start = 16.dp, end = 16.dp, bottom = 2.dp)
+                        .clip(RoundedCornerShape(top, top, bottom, bottom)),
+                ) {
+                    SwipeActions(start = null, end = spec) {
+                        HistoryRow(e) {
+                            val route = if (e.permalink.isNotEmpty()) {
+                                routeForRedditUrl(Uri.parse("https://reddit.com${e.permalink}"))
+                            } else {
+                                Route.Post(e.subreddit.ifEmpty { "_" }, e.id)
+                            }
+                            route?.let(nav::push)
+                        }
                     }
                 }
             }
+        }
+        HidingTopBar(bar) {
+            BloomTopBar(
+                "History",
+                actions = {
+                    if (searchGone && visible.isNotEmpty()) IconButton(onClick = {
+                        scope.launch {
+                            listState.animateScrollToItem(0)
+                            bar.slide(0f)
+                            focus.requestFocus()
+                        }
+                    }) { Icon(SearchIcon, "Search history") }
+                        if (subs.isNotEmpty()) {
+                            Box {
+                                IconButton(onClick = { filterOpen = true }) {
+                                    Icon(if (subFilter == null) Icons.Rounded.FilterList else Icons.Rounded.FilterAlt, "Filter by subreddit")
+                                }
+                                DropdownMenu(filterOpen, onDismissRequest = { filterOpen = false }) {
+                                    DropdownMenuItem(text = { Text("All subreddits") }, onClick = {
+                                        filterOpen = false
+                                        subFilterRaw = null
+                                    })
+                                    for (s in subs) {
+                                        DropdownMenuItem(text = { Text(subredditName(s)) }, onClick = {
+                                            filterOpen = false
+                                            subFilterRaw = s
+                                        })
+                                    }
+                                }
+                            }
+                        }
+                        if (history.isNotEmpty()) {
+                            Box {
+                                IconButton(onClick = { clearOpen = true }) { Icon(Icons.Rounded.DeleteOutline, "Clear history") }
+                                DropdownMenu(clearOpen, onDismissRequest = { clearOpen = false }) {
+                                    DropdownMenuItem(text = { Text("Clear older than 7 days") }, onClick = {
+                                        clearOpen = false
+                                        app.history.clearOlderThan(7 * DAY)
+                                        app.recentSubreddits.clearOlderThan(7 * DAY)
+                                    })
+                                    DropdownMenuItem(text = { Text("Clear older than 30 days") }, onClick = {
+                                        clearOpen = false
+                                        app.history.clearOlderThan(30 * DAY)
+                                        app.recentSubreddits.clearOlderThan(30 * DAY)
+                                    })
+                                    DropdownMenuItem(text = { Text("Clear all history") }, onClick = {
+                                        clearOpen = false
+                                        app.history.clear()
+                                        app.recentSubreddits.clear()
+                                        app.threadVisits.clear()
+                                    })
+                                }
+                            }
+                        }
+                },
+            )
+        }
+    }
+}
+
+/** A History row, Gmail-like: the subreddit's letter, then the subreddit and when, over the title. */
+@Composable
+private fun HistoryRow(e: HistoryEntry, onClick: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(cs.surfaceContainerLow)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        LetterAvatar(e.subreddit.ifEmpty { "?" }, 40.dp, cs.secondaryContainer, cs.onSecondaryContainer)
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    subredditName(e.subreddit),
+                    Modifier.weight(1f),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = cs.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (e.viewedAt > 0) Text(timeAgo(e.viewedAt), style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant)
+            }
+            Spacer(Modifier.height(2.dp))
+            Text(e.title, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }
