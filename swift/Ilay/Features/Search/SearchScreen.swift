@@ -90,6 +90,24 @@ struct SearchFetcher {
         recent = list
     }
 
+    func removeRecent(_ entry: String) {
+        recent.removeAll { $0 == entry }
+        prefs.setStringList(recentKey, recent)
+    }
+
+    /// A community or user opened from the results (#149): it takes the place of the
+    /// search that found it in Recent, with its picture.
+    func rememberOpened(kind: String, name: String, icon: String?) {
+        if !trackHistory() { return }
+        let rest = recent.filter { e in
+            let r = RecentSearch(e)
+            return e != query && (r.kind != kind || r.name.lowercased() != name.lowercased())
+        }
+        let list = Array(([RecentSearch.result(kind: kind, name: name, icon: icon)] + rest).prefix(12))
+        prefs.setStringList(recentKey, list)
+        recent = list
+    }
+
     func clearRecent() {
         prefs.remove(recentKey)
         recent = []
@@ -290,13 +308,17 @@ struct SearchScreen: View {
                 let subs = app.contentFilters.value.hideNsfw ? vm.subs.filter { !$0.over18 } : vm.subs
                 tabResults(error: vm.subsError, empty: subs.isEmpty) {
                     ForEach(subs, id: \.name) { s in
-                        ResultRow(name: s.name, iconUrl: s.iconUrl, title: s.namePrefixed, subtitle: "\(compactNumber(s.subscribers)) members", route: .subreddit(name: s.name))
+                        ResultRow(name: s.name, iconUrl: s.iconUrl, title: s.namePrefixed, subtitle: "\(compactNumber(s.subscribers)) members", route: .subreddit(name: s.name)) {
+                            vm.rememberOpened(kind: "r", name: s.name, icon: s.iconUrl)
+                        }
                     }
                 }
             default:
                 tabResults(error: vm.usersError, empty: vm.users.isEmpty) {
                     ForEach(vm.users, id: \.name) { u in
-                        ResultRow(name: u.name, iconUrl: u.iconUrl, title: "u/\(u.name)", subtitle: "\(compactNumber(u.linkKarma + u.commentKarma)) karma", route: .user(username: u.name))
+                        ResultRow(name: u.name, iconUrl: u.iconUrl, title: "u/\(u.name)", subtitle: "\(compactNumber(u.linkKarma + u.commentKarma)) karma", route: .user(username: u.name)) {
+                            vm.rememberOpened(kind: "u", name: u.name, icon: u.iconUrl)
+                        }
                     }
                 }
             }
@@ -368,23 +390,60 @@ struct SearchScreen: View {
     }
 }
 
+/// A Recent entry: what you searched for (`kind` nil), or a community ("r") or user
+/// ("u") you opened from the results (#149), stored as a little JSON object in the
+/// same list (the same as Android).
+struct RecentSearch {
+    let kind: String?
+    let name: String
+    let icon: String?
+
+    init(_ raw: String) {
+        if raw.hasPrefix("{"), let j = parseJsonOrNull(raw), let kind = j["t"].str(), let name = j["n"].str() {
+            self.kind = kind
+            self.name = name
+            icon = j["i"].str()
+        } else {
+            kind = nil
+            name = raw
+            icon = nil
+        }
+    }
+
+    var label: String { kind == "u" ? "u/\(name)" : "r/\(name)" }
+    var route: Route { kind == "u" ? .user(username: name) : .subreddit(name: name) }
+
+    static func result(kind: String, name: String, icon: String?) -> String {
+        var o: JsonObject = ["t": .string(kind), "n": .string(name)]
+        if let icon { o["i"] = .string(icon) }
+        return JsonElement.object(o).encoded()
+    }
+}
+
 private struct ResultRow: View {
     let name: String
     let iconUrl: String?
     let title: String
     let subtitle: String
     let route: Route
+    let onOpen: () -> Void
 
     var body: some View {
-        NavigationLink(value: route) {
+        Button {
+            onOpen()
+            app.navigator.push(route)
+        } label: {
             HStack(spacing: 12) {
                 LetterAvatar(name: name, size: 40, imageUrl: iconUrl)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(title).lineLimit(1)
+                    Text(title).lineLimit(1).foregroundStyle(.primary)
                     Text(subtitle).font(.footnote).foregroundStyle(.secondary)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(.rect)
         }
+        .buttonStyle(.plain)
     }
 }
 
@@ -428,20 +487,41 @@ private struct EmptySearch: View {
                 }
                 if !vm.recent.isEmpty {
                     Section {
-                        ForEach(vm.recent, id: \.self) { q in
-                            HStack(spacing: 12) {
-                                Button { onPick(q) } label: {
-                                    Label(q, systemImage: "clock.arrow.circlepath")
-                                        .foregroundStyle(.primary)
+                        // Swipe or long-press one to remove it (#149).
+                        ForEach(vm.recent, id: \.self) { e in
+                            let r = RecentSearch(e)
+                            Group {
+                                if r.kind == nil {
+                                    HStack(spacing: 12) {
+                                        Button { onPick(r.name) } label: {
+                                            Label(r.name, systemImage: "clock.arrow.circlepath")
+                                                .foregroundStyle(.primary)
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                                .contentShape(.rect)
+                                        }
+                                        .buttonStyle(.plain)
+                                        Button("Search again", systemImage: "arrow.up.left") { onRerun(r.name) }
+                                            .labelStyle(.iconOnly)
+                                            .buttonStyle(.borderless)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                } else {
+                                    Button {
+                                        vm.rememberOpened(kind: r.kind!, name: r.name, icon: r.icon)
+                                        app.navigator.push(r.route)
+                                    } label: {
+                                        HStack(spacing: 12) {
+                                            LetterAvatar(name: r.name, size: 28, imageUrl: r.icon)
+                                            Text(r.label).foregroundStyle(.primary)
+                                        }
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                         .contentShape(.rect)
+                                    }
+                                    .buttonStyle(.plain)
                                 }
-                                .buttonStyle(.plain)
-                                Button("Search again", systemImage: "arrow.up.left") { onRerun(q) }
-                                    .labelStyle(.iconOnly)
-                                    .buttonStyle(.borderless)
-                                    .foregroundStyle(.secondary)
                             }
+                            .swipeActions { Button("Remove", systemImage: "trash", role: .destructive) { vm.removeRecent(e) } }
+                            .contextMenu { Button("Remove", systemImage: "trash", role: .destructive) { vm.removeRecent(e) } }
                         }
                     } header: {
                         HStack {

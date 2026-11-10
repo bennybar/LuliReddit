@@ -261,6 +261,26 @@ final class HistoryFilterTests: XCTestCase {
         XCTAssertFalse(prefs.contains("recent_searches_me"))
     }
 
+    // #149: a community or user opened from the results takes its search's place in
+    // Recent, once, with its picture; one entry can be removed.
+    func testAnOpenedResultReplacesItsSearchInRecent() async {
+        let vm = model(Stub())
+        vm.search("dogs")
+        vm.search("samsung")
+        await settle(vm)
+        vm.rememberOpened(kind: "r", name: "samsunggalaxy", icon: "https://i/x.png")
+        vm.rememberOpened(kind: "r", name: "SamsungGalaxy", icon: nil)
+        XCTAssertEqual(vm.recent.count, 2)
+        let top = RecentSearch(vm.recent[0])
+        XCTAssertEqual(top.kind, "r")
+        XCTAssertEqual(top.name, "SamsungGalaxy")
+        XCTAssertEqual(top.label, "r/SamsungGalaxy")
+        XCTAssertEqual(RecentSearch(vm.recent[1]).name, "dogs")
+        XCTAssertNil(RecentSearch(vm.recent[1]).kind)
+        vm.removeRecent(vm.recent[0])
+        XCTAssertEqual(vm.recent, ["dogs"])
+    }
+
     func testClearRecent() {
         let prefs = testPrefs()
         let vm = model(Stub(), prefs: prefs)

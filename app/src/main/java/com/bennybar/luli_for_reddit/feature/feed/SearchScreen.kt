@@ -83,6 +83,18 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import com.bennybar.luli_for_reddit.core.AppJson
+import com.bennybar.luli_for_reddit.core.get
+import com.bennybar.luli_for_reddit.core.str
+import com.bennybar.luli_for_reddit.feature.settings.confirmDialog
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 private val SEARCH_SORTS = linkedMapOf(
     "relevance" to "Relevance",
@@ -148,6 +160,27 @@ class SearchViewModel(private val subreddit: String?) : ViewModel() {
         // Recent searches are history: none kept while tracking is off.
         if (!app.settings.value.trackHistory) return
         val list = (listOf(q) + _state.value.recent.filter { it != q }).take(12)
+        app.prefs.setStringList(recentKey, list)
+        _state.update { it.copy(recent = list) }
+    }
+
+    fun removeRecent(entry: String) {
+        val list = _state.value.recent - entry
+        app.prefs.setStringList(recentKey, list)
+        _state.update { it.copy(recent = list) }
+    }
+
+    /**
+     * A community or user opened from the results (#149): it takes the place of
+     * the search that found it in Recent, with its picture.
+     */
+    fun rememberOpened(kind: String, name: String, icon: String?) {
+        if (!app.settings.value.trackHistory) return
+        val q = _state.value.query
+        val rest = _state.value.recent.filter { e ->
+            e != q && parseRecent(e).let { it.kind != kind || !it.name.equals(name, ignoreCase = true) }
+        }
+        val list = (listOf(recentResult(kind, name, icon)) + rest).take(12)
         app.prefs.setStringList(recentKey, list)
         _state.update { it.copy(recent = list) }
     }
@@ -372,6 +405,17 @@ fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time:
                     saved = saved,
                     recent = state.recent,
                     onClear = vm::clearRecent,
+                    onRemove = { e ->
+                        scope.launch {
+                            val r = parseRecent(e)
+                            val label = if (r.kind == null) "“${r.name}”" else recentLabel(r)
+                            if (confirmDialog("Remove $label?", "It leaves Recent.", "Remove")) vm.removeRecent(e)
+                        }
+                    },
+                    onOpen = { r ->
+                        vm.rememberOpened(r.kind!!, r.name, r.icon)
+                        if (r.kind == "u") nav.openUser(r.name) else nav.openSubreddit(r.name)
+                    },
                     onPick = { doSearch(it) },
                     onRerun = { doSearch(it, save = false) },
                     onSaved = ::runSaved,
@@ -394,7 +438,10 @@ fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time:
                                         s.iconUrl,
                                         subredditName(s.namePrefixed),
                                         "${compactNumber(s.subscribers)} members",
-                                    ) { nav.openSubreddit(s.name) }
+                                    ) {
+                                        vm.rememberOpened("r", s.name, s.iconUrl)
+                                        nav.openSubreddit(s.name)
+                                    }
                                 }
                             }
                         }
@@ -407,7 +454,10 @@ fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time:
                                     u.iconUrl,
                                     "u/${u.name}",
                                     "${compactNumber(u.linkKarma + u.commentKarma)} karma",
-                                ) { nav.openUser(u.name) }
+                                ) {
+                                    vm.rememberOpened("u", u.name, u.iconUrl)
+                                    nav.openUser(u.name)
+                                }
                             }
                         }
                     }
@@ -417,11 +467,47 @@ fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time:
     }
 }
 
+/**
+ * A Recent entry: what you searched for ([kind] null), or a community ("r") or
+ * user ("u") you opened from the results (#149), stored as a little JSON object
+ * in the same list.
+ */
+private data class RecentSearch(val kind: String?, val name: String, val icon: String?)
+
+private fun parseRecent(raw: String): RecentSearch {
+    if (raw.startsWith("{")) {
+        runCatching {
+            val j = AppJson.parseToJsonElement(raw)
+            val kind = j["t"].str()
+            val name = j["n"].str()
+            if (kind != null && name != null) return RecentSearch(kind, name, j["i"].str())
+        }
+    }
+    return RecentSearch(null, raw, null)
+}
+
+private fun recentResult(kind: String, name: String, icon: String?): String = buildJsonObject {
+    put("t", kind)
+    put("n", name)
+    if (icon != null) put("i", icon)
+}.toString()
+
+private fun recentLabel(r: RecentSearch): String = if (r.kind == "u") "u/${r.name}" else subredditName("r/${r.name}")
+
+/** A row's place in a connected container, as in Settings: round only where the container starts or ends. */
+private fun Modifier.inGroup(i: Int, count: Int, color: Color): Modifier {
+    val top = if (i == 0) 24.dp else 4.dp
+    val bottom = if (i == count - 1) 24.dp else 4.dp
+    return padding(start = 16.dp, end = 16.dp, bottom = 2.dp).clip(RoundedCornerShape(top, top, bottom, bottom)).background(color)
+}
+
 @Composable
 private fun EmptySearch(
     saved: List<SavedSearch>,
     recent: List<String>,
     onClear: () -> Unit,
+    onRemove: (String) -> Unit,
+    onOpen: (RecentSearch) -> Unit,
     onPick: (String) -> Unit,
     onRerun: (String) -> Unit,
     onSaved: (SavedSearch) -> Unit,
@@ -441,14 +527,15 @@ private fun EmptySearch(
             item(key = "h_saved") {
                 Text(
                     "Saved",
-                    Modifier.padding(start = 16.dp, top = 16.dp, end = 8.dp, bottom = 8.dp),
+                    Modifier.padding(start = 20.dp, top = 16.dp, end = 8.dp, bottom = 8.dp),
                     color = cs.onSurfaceVariant,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
-            items(saved, key = { "s_" + it.key }) { s ->
+            itemsIndexed(saved, key = { _, it -> "s_" + it.key }) { i, s ->
                 Tile(
                     title = { Text(s.query) },
+                    modifier = Modifier.inGroup(i, saved.size, cs.surfaceContainerLow),
                     subtitle = {
                         Text(
                             listOfNotNull(
@@ -467,20 +554,35 @@ private fun EmptySearch(
             }
         }
         if (recent.isNotEmpty()) item(key = "h_recent") {
-            Row(Modifier.padding(start = 16.dp, top = 8.dp, end = 8.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.padding(start = 20.dp, top = 8.dp, end = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Recent", Modifier.weight(1f), color = cs.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
                 TextButton(onClick = onClear) { Text("Clear") }
             }
         }
-        items(recent, key = { it }) { q ->
-            Tile(
-                title = { Text(q) },
-                leading = { Icon(Icons.Rounded.History, null) },
-                trailing = {
-                    IconButton(onClick = { onRerun(q) }) { Icon(Icons.Rounded.NorthWest, null, Modifier.size(18.dp)) }
-                },
-                onClick = { onPick(q) },
-            )
+        // Long-press one to remove it (#149), as in Explore's Recently visited.
+        itemsIndexed(recent, key = { _, it -> it }) { i, e ->
+            val r = remember(e) { parseRecent(e) }
+            if (r.kind == null) {
+                Tile(
+                    title = { Text(r.name) },
+                    modifier = Modifier.inGroup(i, recent.size, cs.surfaceContainerLow),
+                    leading = { Icon(Icons.Rounded.History, null) },
+                    trailing = {
+                        IconButton(onClick = { onRerun(r.name) }) { Icon(Icons.Rounded.NorthWest, null, Modifier.size(18.dp)) }
+                    },
+                    onClick = { onPick(r.name) },
+                    onLongClick = { onRemove(e) },
+                )
+            } else {
+                Tile(
+                    title = { Text(recentLabel(r)) },
+                    // As tall as a search's row, which has its ↖ button.
+                    modifier = Modifier.inGroup(i, recent.size, cs.surfaceContainerLow).heightIn(min = 64.dp),
+                    leading = { LetterAvatar(r.name, 28.dp, cs.secondaryContainer, cs.onSecondaryContainer, imageUrl = r.icon) },
+                    onClick = { onOpen(r) },
+                    onLongClick = { onRemove(e) },
+                )
+            }
         }
     }
 }
