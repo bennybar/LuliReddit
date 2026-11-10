@@ -17,11 +17,15 @@ struct SideBarButton: View {
     }
 }
 
-/// The ⚙ at the top of a tab's main screen: straight to Settings.
+/// The ⚙ at the top of a tab's main screen: straight to Settings. Left out when
+/// the side bar is on, which always has Settings (#138, #145).
 struct SettingsButton: View {
     @Environment(AppNavigator.self) private var nav
+    @Environment(\.sideBar) private var sideBar
 
     var body: some View {
-        Button("Settings", systemImage: "gearshape") { nav.push(.settings) }
+        if sideBar == nil {
+            Button("Settings", systemImage: "gearshape") { nav.push(.settings) }
+        }
     }
 }

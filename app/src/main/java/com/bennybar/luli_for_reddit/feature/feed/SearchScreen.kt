@@ -48,6 +48,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -298,6 +299,12 @@ fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time:
 
     val tabs = if (restricted) listOf("Posts") else listOf("Posts", "Subreddits", "Users")
     val pager = rememberPagerState { tabs.size }
+    // The tab picked before searching (#149): the pager isn't on screen until
+    // there are results, so it can't scroll yet; the results open on this tab.
+    var picked by rememberSaveable { mutableIntStateOf(pager.currentPage) }
+    val results = state.query.isNotEmpty() && state.error == null
+    LaunchedEffect(results) { if (results && pager.currentPage != picked) pager.scrollToPage(picked) }
+    LaunchedEffect(pager.settledPage) { if (results) picked = pager.settledPage }
 
     Scaffold(
         topBar = {
@@ -340,11 +347,15 @@ fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time:
                     },
                 )
                 if (!restricted) {
-                    PrimaryTabRow(selectedTabIndex = pager.currentPage, containerColor = cs.surface) {
+                    val selected = if (results) pager.currentPage else picked
+                    PrimaryTabRow(selectedTabIndex = selected, containerColor = cs.surface) {
                         tabs.forEachIndexed { i, t ->
                             Tab(
-                                selected = pager.currentPage == i,
-                                onClick = { scope.launch { pager.animateScrollToPage(i) } },
+                                selected = selected == i,
+                                onClick = {
+                                    picked = i
+                                    if (results) scope.launch { pager.animateScrollToPage(i) }
+                                },
                                 text = { Text(t) },
                             )
                         }

@@ -166,7 +166,8 @@ fun InboxScreen(reselect: Int) {
                                 }
                             }
                         }) { Icon(Icons.Outlined.MarkEmailRead, "Mark all read") }
-                        SettingsButton()
+                        // The side bar always has Settings (#145).
+                        if (openSideBar == null) SettingsButton()
                     },
                 )
                 PrimaryScrollableTabRow(

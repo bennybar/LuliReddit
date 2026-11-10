@@ -281,7 +281,8 @@ internal fun ExploreTab() {
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.ExtraBold,
                     )
-                    SettingsButton()
+                    // The side bar always has Settings (#145).
+                    if (LocalSideBar.current == null) SettingsButton()
                 }
             }
             item(key = "filter") {
