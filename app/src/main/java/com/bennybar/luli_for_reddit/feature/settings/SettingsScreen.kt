@@ -639,11 +639,19 @@ fun SettingsList(
             "With the website sign-in: one more request per thread brings its commenters' pictures",
             Icons.Rounded.AccountCircle, s.commentAvatars, ctrl::setCommentAvatars,
         )
-        switch(
-            "Mark comments you voted on",
-            "A soft glow in the vote's color on comments you upvoted or downvoted",
-            Icons.Rounded.ThumbsUpDown, s.voteEdge, ctrl::setVoteEdge,
+        // Glow (and on the thread's post too), the edge line it replaced, or nothing (#141).
+        val voteMarks = listOf(
+            PickOption(1, "Glow", subtitle = "A soft glow in the vote's color, on the post too"),
+            PickOption(2, "Edge line", subtitle = "A line in the vote's color down the comment's side"),
+            PickOption(0, "Off"),
         )
+        val voteMark = if (!s.voteEdge) 0 else if (s.voteGlow) 1 else 2
+        tile("Mark what you voted on", voteMarks.first { it.value == voteMark }.label, Icons.Rounded.ThumbsUpDown, onClick = launch {
+            pickOption(voteMarks, voteMark)?.let {
+                ctrl.setVoteEdge(it != 0)
+                if (it != 0) ctrl.setVoteGlow(it == 1)
+            }
+        })
         tile(
             "Collapse low-scoring comments",
             s.collapseBelowScore?.let { "Comments below $it points start collapsed" } ?: "Off",

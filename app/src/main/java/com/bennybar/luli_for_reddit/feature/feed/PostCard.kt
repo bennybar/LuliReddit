@@ -1062,7 +1062,7 @@ private fun MiniButton(icon: ImageVector, tint: Color, label: String, onClick: (
     Box(
         Modifier.size(40.dp).clip(CircleShape).toggleable(value = on, role = Role.Switch) { onClick() },
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, label, Modifier.size(20.dp).popOn(on), tint = tint) }
+    ) { Icon(icon, label, Modifier.size(20.dp), tint = tint) }
 }
 
 @Composable
@@ -1337,7 +1337,7 @@ private fun CalmButtonGroup(buttons: List<CalmButton>) {
                     .padding(start = if (i == 0) 14.dp else 12.dp, end = if (i == buttons.lastIndex) 14.dp else 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(b.icon, null, Modifier.size(19.dp).popOn(b.tint != null), tint = fg)
+                Icon(b.icon, null, Modifier.size(19.dp), tint = fg)
                 if (b.label != null) {
                     Spacer(Modifier.width(6.dp))
                     Text(b.label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = b.labelTint ?: fg)

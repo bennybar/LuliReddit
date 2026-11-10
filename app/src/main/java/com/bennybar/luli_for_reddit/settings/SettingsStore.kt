@@ -32,6 +32,7 @@ class SettingsStore(private val p: Prefs) {
             tapToCollapse = b("tapToCollapse", d.tapToCollapse),
             collapseRepliesOnly = b("collapseRepliesOnly", d.collapseRepliesOnly),
             voteEdge = b("voteEdge", d.voteEdge),
+            voteGlow = b("voteGlow", d.voteGlow),
             commentAvatars = b("commentAvatars", d.commentAvatars),
             autoTranslate = b("autoTranslate", d.autoTranslate),
             translateSecondLanguage = p.getString("translateSecondLanguage") ?: d.translateSecondLanguage,
@@ -229,6 +230,7 @@ class SettingsStore(private val p: Prefs) {
     fun setTapToCollapse(v: Boolean) { p.setBool("tapToCollapse", v); set { it.copy(tapToCollapse = v) } }
     fun setCollapseRepliesOnly(v: Boolean) { p.setBool("collapseRepliesOnly", v); set { it.copy(collapseRepliesOnly = v) } }
     fun setVoteEdge(v: Boolean) { p.setBool("voteEdge", v); set { it.copy(voteEdge = v) } }
+    fun setVoteGlow(v: Boolean) { p.setBool("voteGlow", v); set { it.copy(voteGlow = v) } }
     fun setCommentAvatars(v: Boolean) { p.setBool("commentAvatars", v); set { it.copy(commentAvatars = v) } }
     fun setAutoTranslate(v: Boolean) { p.setBool("autoTranslate", v); set { it.copy(autoTranslate = v) } }
     fun setTranslateSecondLanguage(v: String) { p.setString("translateSecondLanguage", v); set { it.copy(translateSecondLanguage = v) } }

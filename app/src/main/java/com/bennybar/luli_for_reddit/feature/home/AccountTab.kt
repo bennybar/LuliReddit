@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import com.bennybar.luli_for_reddit.settings.SideBarItem
+
 import com.bennybar.luli_for_reddit.feature.feed.UserProfileBody
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.AssistChip
@@ -103,7 +105,8 @@ internal fun ProfileTab() {
                     Icon(Icons.Rounded.PeopleAlt, "Switch / add account")
                 }
             }
-            SettingsButton()
+            // The side bar always has Settings (#138).
+            if (LocalSideBar.current == null) SettingsButton()
         }
         if (anonymous || username.isEmpty()) {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 130.dp)) {
@@ -129,20 +132,25 @@ internal fun ProfileTab() {
     }
 }
 
-/** History, Read later, Drafts, Summaries and saved search, as one row of chips. */
+/**
+ * History, Read later, Drafts, Summaries and saved search, as one row of chips.
+ * With the side bar on, the ones it already shows are left out (#139).
+ */
 @Composable
 private fun YourStuffRow() {
     val nav = LocalNavigator.current
     val cs = MaterialTheme.colorScheme
     val changes by app.drafts.changes.collectAsStateWithLifecycle()
     val drafts = remember(changes) { app.drafts.list().size }
+    val settings by app.settings.state.collectAsStateWithLifecycle()
+    val inSideBar = if (LocalSideBar.current == null) emptySet() else settings.sideBarItems.filter { it.shown }.map { it.item }.toSet()
     val chips = listOf(
-        Triple(Icons.Rounded.History, "History", Route.History),
-        Triple(Icons.Rounded.OfflinePin, "Read later", Route.Offline),
-        Triple(Icons.Rounded.EditNote, if (drafts == 0) "Drafts" else "Drafts · $drafts", Route.Drafts),
-        Triple(Icons.Rounded.AutoAwesome, "Summaries", Route.Summaries),
-        Triple(Icons.Outlined.BookmarkBorder, "Search saved", Route.Saved),
-    )
+        Triple(Icons.Rounded.History, "History", Route.History) to SideBarItem.HISTORY,
+        Triple(Icons.Rounded.OfflinePin, "Read later", Route.Offline) to SideBarItem.OFFLINE,
+        Triple(Icons.Rounded.EditNote, if (drafts == 0) "Drafts" else "Drafts · $drafts", Route.Drafts) to SideBarItem.DRAFTS,
+        Triple(Icons.Rounded.AutoAwesome, "Summaries", Route.Summaries) to null,
+        Triple(Icons.Outlined.BookmarkBorder, "Search saved", Route.Saved) to SideBarItem.SAVED,
+    ).filter { it.second !in inSideBar }.map { it.first }
     LazyRow(
         Modifier.padding(bottom = 4.dp),
         contentPadding = PaddingValues(horizontal = 12.dp),

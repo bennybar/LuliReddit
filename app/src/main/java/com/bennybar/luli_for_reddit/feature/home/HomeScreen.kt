@@ -421,10 +421,21 @@ private fun SideBarDrawer(
                     // the page's own Back handlers run.
                     BackHandler(drawer.isOpen) { scope.launch { drawer.close() } }
                     MaterialTheme(motionScheme = motion) {
-                        SideBar(selected, current, unread, open = drawer.targetValue == DrawerValue.Open, onTab = onTab) { pick ->
-                            scope.launch { drawer.close() }
-                            pick()
-                        }
+                        // A tab on the home shell switches in place, under the closing bar.
+                        // Anything that opens another page waits for the bar to finish
+                        // closing: those pages appear with no transition (#118), which
+                        // would cut its slide short (#140).
+                        SideBar(
+                            selected, current, unread, open = drawer.targetValue == DrawerValue.Open,
+                            onTab = { i ->
+                                if (current == null) {
+                                    scope.launch { drawer.close() }
+                                    onTab(i)
+                                } else {
+                                    scope.launch { drawer.close(); onTab(i) }
+                                }
+                            },
+                        ) { pick -> scope.launch { drawer.close(); pick() } }
                     }
                 }
             },
@@ -465,7 +476,7 @@ internal val SideBarItem.selectedIcon: ImageVector
 /**
  * The side bar (Settings › Navigation): the four tabs, then your stuff,
  * Settings and subreddits, as Settings › Side bar entries orders them (#109).
- * [onPick] closes it, then runs the choice.
+ * [onTab] and [onPick] close it and run the choice.
  */
 @Composable
 private fun SideBar(selected: Int, current: Route?, unread: Int, open: Boolean, onTab: (Int) -> Unit, onPick: (() -> Unit) -> Unit) {
@@ -502,7 +513,7 @@ private fun SideBar(selected: Int, current: Route?, unread: Int, open: Boolean, 
                         .clip(RoundedCornerShape(28.dp))
                         .background(if (selected == 3) cs.secondaryContainer else Color.Transparent)
                         // Stands in for the Profile row (#64).
-                        .clickable { onPick { onTab(3) } }
+                        .clickable { onTab(3) }
                         .padding(16.dp),
                 ) {
                     LetterAvatar(username, 64.dp, cs.primaryContainer, cs.onPrimaryContainer, imageUrl = me?.iconUrl, fontSize = 26.sp)
@@ -524,7 +535,7 @@ private fun SideBar(selected: Int, current: Route?, unread: Int, open: Boolean, 
                     icon = { Icon(if (i == selected) item.on else item.off, null) },
                     badge = if (i == 2 && unread > 0) ({ Text(if (unread > 99) "99+" else "$unread") }) else null,
                     selected = i == selected,
-                    onClick = { onPick { onTab(i) } },
+                    onClick = { onTab(i) },
                 )
             }
             HorizontalDivider(Modifier.padding(vertical = 12.dp, horizontal = 16.dp))

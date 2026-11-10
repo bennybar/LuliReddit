@@ -200,7 +200,11 @@ fun SwipeActions(
                     if (tracker.update(amount, rtl, startSpec != null, endSpec != null)) Haptics.selection(view)
                     armed = if (tracker.armed) 1f else 0f
                     change.consume()
-                    scope.launch { offset.snapTo(tracker.dx) }
+                    // The value now, not when the launch runs: a quick flick's last
+                    // move and the lift can arrive together, and release() zeroes
+                    // tracker.dx first, which jumped the card home with no spring (#137).
+                    val to = tracker.dx
+                    scope.launch { offset.snapTo(to) }
                 },
             )
         },

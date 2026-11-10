@@ -17,7 +17,6 @@ import androidx.compose.material3.FabPosition
 import androidx.compose.material.icons.rounded.VerticalAlignTop
 import com.bennybar.luli_for_reddit.settings.calmComments
 import com.bennybar.luli_for_reddit.ui.ToggleIcon
-import com.bennybar.luli_for_reddit.ui.popOn
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.DropdownMenuGroup
@@ -138,6 +137,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -195,8 +197,6 @@ import com.bennybar.luli_for_reddit.nav.Route
 import com.bennybar.luli_for_reddit.feature.feed.CalmFlair
 import com.bennybar.luli_for_reddit.feature.feed.CalmGhost
 import com.bennybar.luli_for_reddit.feature.feed.CalmPill
-import com.bennybar.luli_for_reddit.feature.feed.onVoteColor
-import androidx.compose.animation.animateColorAsState
 import com.bennybar.luli_for_reddit.feature.feed.CalmVoteGroup
 import com.bennybar.luli_for_reddit.feature.feed.LetterAvatar
 import com.bennybar.luli_for_reddit.feature.feed.avatarColor
@@ -1076,12 +1076,20 @@ private fun PostHeader(post: Post, fresh: Boolean, translate: (@Composable (Dp) 
     }
 
     val settings by app.settings.state.collectAsState()
+    // Settings → Mark what you voted on: the comments' glow on the post too (#141).
+    val votes = LocalVoteColors.current
+    val glow = if (!settings.voteEdge || !settings.voteGlow) null else when (likes) {
+        true -> votes.up
+        false -> votes.down
+        null -> null
+    }
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     if (settings.postDisplay.isCalm) {
-        CalmPostHeader(p, fresh, score, likes, saved, numComments, ::vote, ::toggleSave, translate)
+        CalmPostHeader(p, fresh, score, likes, saved, numComments, ::vote, ::toggleSave, translate, Modifier.voteGlow(glow, rtl, fadeTop = true))
         return
     }
 
-    Column(Modifier.fillMaxWidth().padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 8.dp)) {
+    Column(Modifier.fillMaxWidth().voteGlow(glow, rtl, fadeTop = true).padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 8.dp)) {
         Text(
             subredditName(p.subredditPrefixed),
             Modifier.clickable { nav.openSubreddit(p.subreddit) },
@@ -1171,6 +1179,7 @@ private fun CalmPostHeader(
     vote: (Int) -> Unit,
     toggleSave: () -> Unit,
     translate: (@Composable (Dp) -> Unit)?,
+    glow: Modifier,
 ) {
     val cs = MaterialTheme.colorScheme
     val nav = LocalNavigator.current
@@ -1183,7 +1192,7 @@ private fun CalmPostHeader(
     var joinedOverride by remember(p.subreddit) { mutableStateOf<Boolean?>(null) }
     val joined = joinedOverride ?: about?.userIsSubscriber
 
-    Column(Modifier.fillMaxWidth().padding(start = 20.dp, top = 4.dp, end = 20.dp)) {
+    Column(Modifier.fillMaxWidth().then(glow).padding(start = 20.dp, top = 4.dp, end = 20.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             LetterAvatar(
                 p.subreddit,
@@ -1409,7 +1418,7 @@ private fun VotePill(score: Int, likes: Boolean?, onUp: () -> Unit, onDown: () -
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onUp, modifier = Modifier.size(40.dp)) {
-            Icon(Icons.Rounded.ArrowUpward, "Upvote", Modifier.size(20.dp).popOn(up), tint = if (up) votes.up else cs.onSurfaceVariant)
+            Icon(Icons.Rounded.ArrowUpward, "Upvote", Modifier.size(20.dp), tint = if (up) votes.up else cs.onSurfaceVariant)
         }
         Text(
             compactNumber(score),
@@ -1417,7 +1426,7 @@ private fun VotePill(score: Int, likes: Boolean?, onUp: () -> Unit, onDown: () -
             color = if (up) votes.up else if (down) votes.down else cs.onSurfaceVariant,
         )
         IconButton(onClick = onDown, modifier = Modifier.size(40.dp)) {
-            Icon(Icons.Rounded.ArrowDownward, "Downvote", Modifier.size(20.dp).popOn(down), tint = if (down) votes.down else cs.onSurfaceVariant)
+            Icon(Icons.Rounded.ArrowDownward, "Downvote", Modifier.size(20.dp), tint = if (down) votes.down else cs.onSurfaceVariant)
         }
     }
 }
@@ -1470,7 +1479,7 @@ private fun CommentTile(
         else -> cs.onSurface
     }
     val edge = railColors[(depth - 1).coerceIn(0, railColors.size - 1)].copy(alpha = 0.9f)
-    // Settings → Mark comments you voted on: an edge on the other side.
+    // Settings → Mark what you voted on: a glow, or an edge on the other side.
     val voteEdge = if (!settings.voteEdge) null else when (comment.likes) {
         true -> votes.up
         false -> votes.down
@@ -1504,12 +1513,13 @@ private fun CommentTile(
                 .clip(shape)
                 .background(if (highlighted) cs.primaryContainer else cs.surfaceContainerLow)
                 .then(if (highlighted) Modifier.border(1.5.dp, cs.primary, shape) else Modifier)
-                .voteGlow(voteEdge, rtl)
+                .voteGlow(voteEdge.takeIf { settings.voteGlow }, rtl)
                 // Colored depth edge (only on replies), full height — drawn,
                 // not laid out, so it costs no extra layout pass.
                 .drawBehind {
                     val w = 4.dp.toPx()
                     if (depth > 0) drawRect(edge, Offset(if (rtl) size.width - w else 0f, 0f), Size(w, size.height))
+                    if (voteEdge != null && !settings.voteGlow) drawRect(voteEdge, Offset(if (rtl) 0f else size.width - w, 0f), Size(w, size.height))
                 }
                 .padding(start = if (depth > 0) 4.dp else 0.dp),
         ) {
@@ -1616,7 +1626,7 @@ private fun Badge(text: String, bg: Color, fg: Color, size: androidx.compose.ui.
  * gradient, drawn: nothing to lay out or animate while scrolling.
  */
 @Composable
-private fun Modifier.voteGlow(color: Color?, rtl: Boolean): Modifier {
+private fun Modifier.voteGlow(color: Color?, rtl: Boolean, fadeTop: Boolean = false): Modifier {
     var last by remember { mutableStateOf(color ?: Color.Transparent) }
     if (color != null) last = color
     val shown by animateFloatAsState(if (color != null) 1f else 0f, tween(350), label = "voteGlow")
@@ -1624,13 +1634,22 @@ private fun Modifier.voteGlow(color: Color?, rtl: Boolean): Modifier {
     return drawBehind {
         // Gone by the comment's bottom edge, so it never stops in a line against the next one.
         val radius = minOf(size.height, size.width * 0.9f).coerceAtLeast(1f)
-        drawRect(
-            Brush.radialGradient(
-                listOf(last.copy(alpha = 0.34f * shown), last.copy(alpha = 0.10f * shown), Color.Transparent),
-                center = Offset(if (rtl) 0f else size.width, 0f),
-                radius = radius,
-            ),
+        val glow = Brush.radialGradient(
+            listOf(last.copy(alpha = 0.34f * shown), last.copy(alpha = 0.10f * shown), Color.Transparent),
+            center = Offset(if (rtl) 0f else size.width, 0f),
+            radius = radius,
         )
+        if (!fadeTop) {
+            drawRect(glow)
+            return@drawBehind
+        }
+        // Calm's rows have no card: fade in from the row's top too, so it doesn't stop
+        // in a line against the comment above (#141). Only voted rows pay for the layer.
+        val fade = minOf(32.dp.toPx(), size.height * 0.45f)
+        drawContext.canvas.saveLayer(Rect(Offset.Zero, size), Paint())
+        drawRect(glow)
+        drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color.Black), startY = 0f, endY = fade), blendMode = BlendMode.DstIn)
+        drawContext.canvas.restore()
     }
 }
 
@@ -1661,7 +1680,7 @@ private fun CommentActionsRow(c: Comment, isOwn: Boolean, actions: ThreadActions
 
     @Composable
     fun small(icon: ImageVector, desc: String, tint: Color, on: Boolean = false, onClick: () -> Unit) {
-        IconButton(onClick = onClick, modifier = Modifier.size(36.dp)) { Icon(icon, desc, Modifier.size(18.dp).popOn(on), tint = tint) }
+        IconButton(onClick = onClick, modifier = Modifier.size(36.dp)) { Icon(icon, desc, Modifier.size(18.dp), tint = tint) }
     }
 
     Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1860,8 +1879,12 @@ private fun CalmCommentRow(
                         val color = if (isOp && l == depth - 1) opRail else rail
                         drawRect(color, Offset(if (rtl) size.width - x - w else x, top), Size(w, (bottom - top).coerceAtLeast(0f)))
                     }
+                    if (voteEdge != null && !settings.voteGlow) {
+                        val x = 6.dp.toPx() + w
+                        drawRect(voteEdge, Offset(if (rtl) x - w else size.width - x, top), Size(w, (bottom - top).coerceAtLeast(0f)))
+                    }
                 }
-                .voteGlow(voteEdge, rtl)
+                .voteGlow(voteEdge.takeIf { settings.voteGlow }, rtl, fadeTop = true)
                 .padding(start = (16 + depth * 10).dp, top = 10.dp, end = 16.dp, bottom = 8.dp),
         ) {
             Row(
@@ -1939,11 +1962,9 @@ private fun CalmCommentRow(
             // ↑ score ↓ · Reply · Collapse · ⋯ — small, 32dp targets.
             Row(Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 val muted = cs.onSurfaceVariant
-                // A vote fills its arrow's circle with the deep vote colour, as the vote swipe and the Calm cards do (#93).
-                val upFill by animateColorAsState(if (up) votes.up else Color.Transparent, MaterialTheme.motionScheme.fastEffectsSpec())
-                val downFill by animateColorAsState(if (down) votes.down else Color.Transparent, MaterialTheme.motionScheme.fastEffectsSpec())
-                Box(Modifier.size(32.dp).clip(CircleShape).background(upFill).clickable { actions.vote(comment, 1) }, contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.ArrowUpward, "Upvote", Modifier.size(16.dp), tint = if (up) onVoteColor(votes.up) else muted)
+                // A vote colours its arrow and the score, with no circle behind it (#141).
+                Box(Modifier.size(32.dp).clip(CircleShape).clickable { actions.vote(comment, 1) }, contentAlignment = Alignment.Center) {
+                    Icon(Icons.Rounded.ArrowUpward, "Upvote", Modifier.size(16.dp), tint = if (up) votes.up else muted)
                 }
                 Text(
                     if (comment.scoreHidden) "–" else compactNumber(comment.score),
@@ -1951,8 +1972,8 @@ private fun CalmCommentRow(
                     fontWeight = FontWeight.Medium,
                     color = if (up) votes.up else if (down) votes.down else muted,
                 )
-                Box(Modifier.size(32.dp).clip(CircleShape).background(downFill).clickable { actions.vote(comment, -1) }, contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.ArrowDownward, "Downvote", Modifier.size(16.dp), tint = if (down) onVoteColor(votes.down) else muted)
+                Box(Modifier.size(32.dp).clip(CircleShape).clickable { actions.vote(comment, -1) }, contentAlignment = Alignment.Center) {
+                    Icon(Icons.Rounded.ArrowDownward, "Downvote", Modifier.size(16.dp), tint = if (down) votes.down else muted)
                 }
                 Spacer(Modifier.width(6.dp))
                 Row(
