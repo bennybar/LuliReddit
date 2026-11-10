@@ -191,12 +191,13 @@ private let restoredPage = "restored"
 
     /// "Hide read posts": drops posts already in history as each page arrives.
     /// Filtering when fetched rather than live keeps a post you've just read (or
-    /// scrolled past) from vanishing under you; the next load skips it. For You has its
-    /// own live auto-hide option. Feeds only (front page, custom feeds) unless "Also in
+    /// scrolled past) from vanishing under you; the next load skips it. It covers For You
+    /// too (#148); For You's own option also hides them live, as you read. Reddit Home
+    /// is left as Reddit sends it. Feeds only (front page, custom feeds) unless "Also in
     /// subreddits" is on: browsing one subreddit you often want to see what you've read.
     private func dropRead(_ listing: Listing<Post>) -> Listing<Post> {
         let s = app.settings.value
-        if forYou || !s.hideReadPosts { return listing }
+        if redditHome || !s.hideReadPosts { return listing }
         // The feed the Posts tab shows (r/all with that setting) counts as the front page here.
         let subreddit = !key.isEmpty && !key.hasPrefix("m::") && key != s.postsTabKey
         if subreddit && !s.hideReadInSubreddits { return listing }
@@ -206,7 +207,15 @@ private let restoredPage = "restored"
     }
 
     private func fetch(after: String? = nil) async throws -> Listing<Post> {
-        dropRead(try await fetchRaw(after))
+        // A page that was all read comes back empty, and an empty page never asks
+        // for the next one: try a few more before giving up.
+        var page = dropRead(try await fetchRaw(after))
+        var tries = 0
+        while page.items.isEmpty, let next = page.after, tries < 3 {
+            tries += 1
+            page = dropRead(try await fetchRaw(next))
+        }
+        return page
     }
 
     private func fetchRaw(_ after: String?) async throws -> Listing<Post> {
@@ -222,7 +231,7 @@ private let restoredPage = "restored"
         // The last Home / For You page, minus posts opened since, while the
         // fresh one loads.
         if redditHome { return (try? await engines?.homeCachedFirstPage()) ?? nil }
-        if forYou { return (try? await engines?.forYouCachedFirstPage()) ?? nil }
+        if forYou { return ((try? await engines?.forYouCachedFirstPage()) ?? nil).map(dropRead) }
         return await source.cached(sort, time).map(dropRead)
     }
 

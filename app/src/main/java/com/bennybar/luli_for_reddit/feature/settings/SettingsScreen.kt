@@ -455,7 +455,7 @@ fun SettingsList(
                 ?.let(ctrl::setFeedKeepMinutes)
         })
         switch(
-            "Hide read posts", "Skip posts you've already read when your front page and custom feeds load or refresh",
+            "Hide read posts", "Skip posts you've already read when your front page, For You and custom feeds load or refresh",
             Icons.Outlined.VisibilityOff, s.hideReadPosts, ctrl::setHideReadPosts,
         )
         if (s.hideReadPosts) {

@@ -179,7 +179,7 @@ struct SettingsCatalog {
             "Keep feed for", "Home / For You, then a new feed (pull down to refresh anytime)", value: s.feedKeepMinutes,
             options: [10, 30, 60, 180].map { PickOption(value: $0, label: keepLabel($0)) }, set: ctrl.setFeedKeepMinutes
         )
-        b.toggle("Hide read posts", "Skip posts you've already read when your front page and custom feeds load or refresh", s.hideReadPosts, set: ctrl.setHideReadPosts)
+        b.toggle("Hide read posts", "Skip posts you've already read when your front page, For You and custom feeds load or refresh", s.hideReadPosts, set: ctrl.setHideReadPosts)
         if s.hideReadPosts {
             b.toggle("Also in subreddits", "Hide read posts when browsing a single subreddit too", s.hideReadInSubreddits, set: ctrl.setHideReadInSubreddits)
         }

@@ -172,13 +172,14 @@ class FeedController(val key: String) {
      * "Hide read posts": drops posts already in history as each page arrives.
      * Filtering when fetched rather than live keeps a post you've just read
      * (or scrolled past) from vanishing under you; the next load skips it.
-     * For You has its own live auto-hide option. Feeds only (front page,
+     * It covers For You too (#148); For You's own option also hides them live,
+     * as you read. Reddit Home is left as Reddit sends it. Feeds only (front page,
      * custom feeds) unless "Also in subreddits" is on: browsing one subreddit
      * you often want to see what you've read.
      */
     private fun dropRead(listing: Listing<Post>): Listing<Post> {
         val s = app.settings.value
-        if (forYou || !s.hideReadPosts) return listing
+        if (redditHome || !s.hideReadPosts) return listing
         // The feed the Posts tab shows (r/all with that setting) counts as the front page here.
         val subreddit = key.isNotEmpty() && !key.startsWith("m::") && key != s.postsTabKey
         if (subreddit && !s.hideReadInSubreddits) return listing
@@ -208,7 +209,14 @@ class FeedController(val key: String) {
         _ui.value = FeedUi.Data(cur.copy(posts = before + cur.posts.filter { it.id !in had }))
     }
 
-    private suspend fun fetch(after: String? = null): Listing<Post> = dropRead(fetchRaw(after))
+    private suspend fun fetch(after: String? = null): Listing<Post> {
+        // A page that was all read comes back empty, and an empty page never
+        // asks for the next one: try a few more before giving up.
+        var page = dropRead(fetchRaw(after))
+        var tries = 0
+        while (page.items.isEmpty() && page.after != null && tries++ < 3) page = dropRead(fetchRaw(page.after))
+        return page
+    }
 
     private suspend fun fetchRaw(after: String?): Listing<Post> {
         val loaded = current?.posts ?: emptyList()
@@ -225,7 +233,7 @@ class FeedController(val key: String) {
         // The last Home / For You page, minus posts opened since, while the
         // fresh one loads.
         if (redditHome) return runCatching { app.forYou.redditHome.cachedFirstPage() }.getOrNull()
-        if (forYou) return runCatching { app.forYou.engine.cachedFirstPage() }.getOrNull()
+        if (forYou) return runCatching { app.forYou.engine.cachedFirstPage() }.getOrNull()?.let(::dropRead)
         if (multi != null) return null
         return try {
             repo.cachedPosts(subreddit = subreddit, sort = sort, time = time)?.let(::dropRead)

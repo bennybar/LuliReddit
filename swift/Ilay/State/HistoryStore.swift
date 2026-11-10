@@ -12,14 +12,24 @@ struct HistoryEntry: Equatable, Sendable {
     var nsfw: Bool = false
 }
 
-/// Viewed posts, newest first, per account (prefs `history_<user>`, a JSON string list).
+/// Viewed posts, newest first, per account (prefs `history_<user>`, a JSON
+/// string list). The History page shows the newest `cap`; which posts were read
+/// is kept much longer in a compact id list (`readIds_<user>`, "id:secs"
+/// comma-joined, newest first, the same as Android) so "Hide read posts" and the
+/// read dimming don't forget a post after a few days of marking read as you
+/// scroll (#148).
 @MainActor @Observable
 final class HistoryStore: UserScoped {
     private static let base = "history"
     private static let cap = 500
+    private static let readBase = "readIds"
+    private static let readCap = 5000
 
     @ObservationIgnored private let prefs: Prefs
     @ObservationIgnored private var key = HistoryStore.base
+    @ObservationIgnored private var readKey = HistoryStore.readBase
+    // (id, viewed at in seconds), newest first.
+    @ObservationIgnored private var read: [(id: String, at: Int)] = []
     private(set) var state: [HistoryEntry] = []
 
     /// Ids for O(1) "seen?" checks (feeds dim read posts).
@@ -29,7 +39,7 @@ final class HistoryStore: UserScoped {
 
     func onUserChanged(_ username: String) {
         key = userScopedKey(prefs, username, HistoryStore.base)
-        publish((prefs.getStringList(key) ?? []).compactMap { s in
+        let list: [HistoryEntry] = (prefs.getStringList(key) ?? []).compactMap { s in
             guard let j = parseJsonOrNull(s) else { return nil }
             return HistoryEntry(
                 id: j["id"].str() ?? "",
@@ -39,18 +49,31 @@ final class HistoryStore: UserScoped {
                 viewedAt: j["ts"].long() ?? 0,
                 nsfw: j["nsfw"].isTrue()
             )
-        })
+        }
+        readKey = userScopedKey(prefs, username, HistoryStore.readBase)
+        if let stored = prefs.getString(readKey) {
+            read = stored.split(separator: ",").compactMap { pair in
+                guard let i = pair.firstIndex(of: ":"), i > pair.startIndex else { return nil }
+                return (String(pair[..<i]), Int(pair[pair.index(after: i)...]) ?? 0)
+            }
+        } else {
+            // First run with the long list: start it from history.
+            read = list.map { ($0.id, $0.viewedAt / 1000) }
+        }
+        publish(list)
     }
 
     func contains(_ id: String) -> Bool { ids.contains(id) }
 
     func markViewed(_ p: Post) {
         let entry = HistoryEntry(id: p.id, subreddit: p.subreddit, title: p.title, permalink: p.permalink, viewedAt: nowMillis(), nsfw: p.over18)
+        read = [(p.id, entry.viewedAt / 1000)] + read.lazy.filter { $0.id != p.id }.prefix(HistoryStore.readCap - 1)
         publish(Array(([entry] + state.filter { $0.id != p.id }).prefix(HistoryStore.cap)))
         persist()
     }
 
     func removeViewed(_ id: String) {
+        read.removeAll { $0.id == id }
         publish(state.filter { $0.id != id })
         persist()
     }
@@ -58,21 +81,24 @@ final class HistoryStore: UserScoped {
     /// Removes entries older than [ageMillis]; legacy entries (no timestamp) count as old.
     func clearOlderThan(_ ageMillis: Int) {
         let cutoff = nowMillis() - ageMillis
+        read.removeAll { $0.at * 1000 < cutoff }
         publish(state.filter { $0.viewedAt >= cutoff })
         persist()
     }
 
     func clear() {
+        read = []
         publish([])
         persist()
     }
 
     private func publish(_ list: [HistoryEntry]) {
         state = list
-        ids = Set(list.map(\.id))
+        ids = Set(read.map(\.id)).union(list.map(\.id))
     }
 
     private func persist() {
+        prefs.setString(readKey, read.map { "\($0.id):\($0.at)" }.joined(separator: ","))
         prefs.setStringList(key, state.map { e in
             var o: JsonObject = [
                 "id": .string(e.id), "sub": .string(e.subreddit), "title": .string(e.title),

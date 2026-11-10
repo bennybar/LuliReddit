@@ -290,6 +290,31 @@ final class FlutterPrefsCompatTests: XCTestCase {
         XCTAssertEqual(muted.value, ["pics", "news"])
     }
 
+    // #148: History shows the newest 500, but posts read longer ago still count as
+    // read, across restarts; removing or clearing forgets them too.
+    @MainActor
+    func testReadIdsOutliveTheHistoryCap() {
+        let p = Prefs(defaults: defaults)
+        p.setStringList("history_bob", [#"{"id":"old","sub":"pics","title":"T","permalink":"/p","ts":1}"#])
+        let h = HistoryStore(prefs: p)
+        h.onUserChanged("bob")
+        XCTAssertTrue(h.contains("old"), "seeded from history")
+        for i in 0..<700 { h.markViewed(post("p\(i)", title: "T")) }
+        XCTAssertEqual(h.state.count, 500)
+        XCTAssertTrue(h.contains("p0") && h.contains("old"))
+        XCTAssertTrue(p.getString("readIds_bob")!.hasPrefix("p699:"), "same format as Android")
+        let again = HistoryStore(prefs: p)
+        again.onUserChanged("bob")
+        XCTAssertTrue(again.contains("p0") && again.contains("p699"))
+        again.removeViewed("p0")
+        XCTAssertFalse(again.contains("p0"))
+        again.clearOlderThan(60_000)
+        XCTAssertFalse(again.contains("old"), "legacy entries count as old")
+        XCTAssertTrue(again.contains("p1"))
+        again.clear()
+        XCTAssertFalse(again.contains("p1"))
+    }
+
     @MainActor
     func testStoresWriteFlutterFormats() {
         let p = Prefs(defaults: defaults)
