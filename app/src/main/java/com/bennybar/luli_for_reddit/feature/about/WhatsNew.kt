@@ -45,6 +45,16 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.70", "Nov 10, 2026",
+        listOf(
+            "The side bar slides fully closed before the next page opens",
+            "Swiping a post to vote springs back smoothly, even after a quick flick",
+            "Votes: no circle or pop on the arrows, just their colour; the glow fades in softly in Calm and shows on the thread's post too",
+            "Settings › Posts & comments › Mark what you voted on: Glow, the old edge line, or Off",
+            "With the side bar on, Profile leaves out the Settings button and the shortcuts the side bar already has",
+        ),
+    ),
+    Release(
         "2.0.69", "Nov 9, 2026",
         listOf(
             "Settings › Appearance opens normally again (it jumped straight into Theme & colours, and Back couldn't leave)",
