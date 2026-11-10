@@ -26,6 +26,7 @@ struct ThreadRowEnv: Equatable {
     var calm = true
     var tapToCollapse = false
     var voteEdge = true
+    var voteGlow = true
     var dark = false
     var textScale = 1.0
     var accent = Color.accentColor
@@ -248,9 +249,9 @@ private struct CommentActionsRow: View {
                 HStack(spacing: 3) {
                     GlassPill(symbol: "arrow.up", value: c.scoreHidden ? "–" : compactNumber(c.score),
                               valueTint: down ? votes.down : nil, label: "Upvote", on: up, tint: votes.up,
-                              leading: 16, trailing: 5, haptic: true) { actions.vote(c, 1) }
+                              leading: 16, trailing: 5, haptic: true, bounces: false) { actions.vote(c, 1) }
                     GlassPill(symbol: "arrow.down", label: "Downvote", on: down, tint: votes.down,
-                              leading: 5, trailing: 16, haptic: true) { actions.vote(c, -1) }
+                              leading: 5, trailing: 16, haptic: true, bounces: false) { actions.vote(c, -1) }
                 }
                 // Deep rows have no width for the word: it broke into "Re-ply".
                 GlassPill(symbol: "arrowshape.turn.up.left", value: c.depth < 3 ? "Reply" : nil, label: "Reply") { actions.reply(c) }
@@ -330,6 +331,8 @@ struct GlassPill: View {
     var font: Font = .footnote.weight(.medium)
     /// A light tap felt on press: for votes, save and collapse, not for buttons that open something.
     var haptic = false
+    /// Votes don't pop (#141).
+    var bounces = true
     let action: () -> Void
     @State private var taps = 0
 
@@ -341,7 +344,7 @@ struct GlassPill: View {
             action()
         } label: {
             HStack(spacing: 5) {
-                Image(systemName: symbol).symbolEffect(.bounce, value: taps)
+                Image(systemName: symbol).symbolEffect(.bounce, value: bounces ? taps : 0)
                 if let value {
                     Text(verbatim: value).monospacedDigit().lineLimit(1).fixedSize()
                         .foregroundStyle(valueTint ?? (on ? tint : .primary))
@@ -411,24 +414,19 @@ private struct AuthorDot: View {
     }
 }
 
-/// One vote symbol. It pops on your tap only: never when a reused cell changes comment.
+/// One vote symbol: coloured when on, with no pop (#141).
 private struct VoteArrow: View {
     let symbol: String
     let label: String
     let on: Bool
     let tint: Color
     let action: () -> Void
-    @State private var taps = 0
 
     var body: some View {
-        Button {
-            taps += 1
-            action()
-        } label: {
+        Button(action: action) {
             Image(systemName: symbol)
                 .font(.footnote.weight(.medium))
                 .foregroundStyle(on ? tint : .secondary)
-                .symbolEffect(.bounce, value: taps)
                 .frame(width: 36, height: 34)
                 .contentShape(.rect)
         }

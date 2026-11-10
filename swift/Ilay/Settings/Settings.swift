@@ -147,7 +147,8 @@ struct Settings: Equatable, Sendable {
     var inAppBrowser = false // open web links in an in-app browser, not the browser app
     var tapToCollapse = false // tap a comment to collapse it (else long-press)
     var collapseRepliesOnly = false // collapsing keeps the comment's own text, hides its replies
-    var voteEdge = true // comments you voted on get an edge in the vote's color
+    var voteEdge = true // comments you voted on are marked in the vote's color
+    var voteGlow = true // ...with a soft glow (and the thread's post too); false: the edge line (#141)
     var commentAvatars = true // commenters' profile pictures (website sign-in, #133)
     var autoTranslate = false // posts in neither translation language open translated into the phone's
     var translateSecondLanguage = "" // language code Translate also offers ("" = none)

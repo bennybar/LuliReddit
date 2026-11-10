@@ -87,23 +87,6 @@ struct ToggleIcon: View {
     }
 }
 
-extension View {
-    /// A quick springy pop each time `on` turns true: vote arrows and save icons
-    /// (#47). Not on first appearance: a post that's already upvoted doesn't pop as it scrolls in.
-    func popOn(_ on: Bool) -> some View {
-        keyframeAnimator(initialValue: 1.0, trigger: on) { content, scale in
-            content.scaleEffect(scale)
-        } keyframes: { _ in
-            if on {
-                LinearKeyframe(1.35, duration: 0.09)
-                SpringKeyframe(1.0, duration: 0.3, spring: .bouncy)
-            } else {
-                LinearKeyframe(1.0, duration: 0)
-            }
-        }
-    }
-}
-
 /// A colour picked from `name` by a stable hash, so a name keeps its colour everywhere: the
 /// comment author dots' palette, mid tones that carry white text in light and dark.
 func avatarColor(_ name: String) -> Color {

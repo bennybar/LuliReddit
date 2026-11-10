@@ -38,6 +38,7 @@ struct PostHeaderView: View {
     let model: PostHeaderModel
 
     @Environment(\.voteColors) private var votes
+    @Environment(\.layoutDirection) private var direction
     @ScaledMetric(relativeTo: .title2) private var titleSize: CGFloat = 24
     private var nav: AppNavigator { app.navigator }
 
@@ -86,10 +87,31 @@ struct PostHeaderView: View {
         }
         .padding(.horizontal, 12)
         .padding(.top, 4)
+        .background { voteGlow(likes) }
         .task(id: fresh) {
             // Icon + membership come from the subreddit's about (fetched once the
             // thread is in; the feed's copy shown while loading skips it).
             if fresh { await model.load(post.subreddit) }
+        }
+    }
+
+    /// Settings → Mark what you voted on: the comments' glow on the post too (#141), from
+    /// its top corner on the end side, fading in from the top so it has no edge under the bar.
+    @ViewBuilder private func voteGlow(_ likes: Bool?) -> some View {
+        let s = app.settings.value
+        if s.voteEdge, s.voteGlow, let likes {
+            let c = likes ? votes.up : votes.down
+            GeometryReader { g in
+                let r = max(min(g.size.height, g.size.width * 0.9), 1)
+                RadialGradient(stops: [.init(color: c.opacity(0.34), location: 0), .init(color: c.opacity(0.10), location: 0.45), .init(color: c.opacity(0), location: 1)],
+                               center: direction == .rightToLeft ? .topLeading : .topTrailing, startRadius: 0, endRadius: r)
+                    .mask {
+                        LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: min(32 / max(g.size.height, 1), 1))],
+                                       startPoint: .top, endPoint: .bottom)
+                    }
+            }
+            .allowsHitTesting(false)
+            .transition(.opacity)
         }
     }
 
@@ -201,7 +223,7 @@ struct PostHeaderView: View {
         let shape = UnevenRoundedRectangle(topLeadingRadius: leading, bottomLeadingRadius: leading, bottomTrailingRadius: trailing, topTrailingRadius: trailing)
         return Button(action: action) {
             HStack(spacing: 6) {
-                Image(systemName: symbol).popOn(on)
+                Image(systemName: symbol) // no pop on a vote (#141)
                 if let value { Text(verbatim: value).monospacedDigit().foregroundStyle(valueTint ?? (on ? tint : .primary)) }
             }
             .font(.subheadline.weight(.medium))

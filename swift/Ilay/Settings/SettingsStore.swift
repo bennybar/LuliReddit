@@ -27,6 +27,7 @@ final class SettingsStore {
         s.tapToCollapse = b("tapToCollapse", s.tapToCollapse)
         s.collapseRepliesOnly = b("collapseRepliesOnly", s.collapseRepliesOnly)
         s.voteEdge = b("voteEdge", s.voteEdge)
+        s.voteGlow = b("voteGlow", s.voteGlow)
         s.commentAvatars = b("commentAvatars", s.commentAvatars)
         s.autoTranslate = b("autoTranslate", s.autoTranslate)
         s.translateSecondLanguage = p.getString("translateSecondLanguage") ?? s.translateSecondLanguage
@@ -216,6 +217,7 @@ final class SettingsStore {
     func setTapToCollapse(_ v: Bool) { p.setBool("tapToCollapse", v); set { $0.tapToCollapse = v } }
     func setCollapseRepliesOnly(_ v: Bool) { p.setBool("collapseRepliesOnly", v); set { $0.collapseRepliesOnly = v } }
     func setVoteEdge(_ v: Bool) { p.setBool("voteEdge", v); set { $0.voteEdge = v } }
+    func setVoteGlow(_ v: Bool) { p.setBool("voteGlow", v); set { $0.voteGlow = v } }
     func setCommentAvatars(_ v: Bool) { p.setBool("commentAvatars", v); set { $0.commentAvatars = v } }
     func setAutoTranslate(_ v: Bool) { p.setBool("autoTranslate", v); set { $0.autoTranslate = v } }
     func setTranslateSecondLanguage(_ v: String) { p.setString("translateSecondLanguage", v); set { $0.translateSecondLanguage = v } }

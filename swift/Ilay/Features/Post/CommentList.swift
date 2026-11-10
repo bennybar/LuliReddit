@@ -92,9 +92,13 @@ private final class CommentCell: UICollectionViewListCell {
     private var first = false
     private var last = false
     private var guides: [CALayer] = []
-    /// Settings → Mark comments you voted on (#122): the vote's colour glowing softly
-    /// from the row's top corner on the end side, gone by its bottom edge.
+    /// Settings → Mark what you voted on (#122): the vote's colour glowing softly
+    /// from the row's top corner on the end side, gone by its bottom edge...
     private let voteEdge = CAGradientLayer()
+    /// ...fading in from the row's top too, so it doesn't stop in a line against the row above (#141).
+    private let voteFade = CAGradientLayer()
+    /// ...or the edge line it replaced (#141).
+    private let voteLine = CALayer()
     private var depth = 0
     private var opLevel: Int?
     /// Where the row's name line ends (`CommentRowView` reports it).
@@ -113,6 +117,9 @@ private final class CommentCell: UICollectionViewListCell {
         voteEdge.locations = [0, 0.45, 1]
         voteEdge.masksToBounds = true
         voteEdge.cornerCurve = .continuous
+        voteFade.colors = [UIColor.clear.cgColor, UIColor.black.cgColor]
+        voteEdge.mask = voteFade
+        backdrop.layer.addSublayer(voteLine)
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -145,9 +152,11 @@ private final class CommentCell: UICollectionViewListCell {
                 l.backgroundColor = color.resolvedColor(with: traitCollection).cgColor
             }
         }
-        voteEdge.isHidden = voteColor == nil
+        voteEdge.isHidden = voteColor == nil || !env.voteGlow
+        voteLine.isHidden = voteColor == nil || env.voteGlow
         if let c = voteColor?.resolvedColor(with: traitCollection) {
             voteEdge.colors = [c.withAlphaComponent(0.34).cgColor, c.withAlphaComponent(0.10).cgColor, c.withAlphaComponent(0).cgColor]
+            voteLine.backgroundColor = c.cgColor
         }
         CATransaction.commit()
         depth = shown
@@ -272,6 +281,13 @@ private final class CommentCell: UICollectionViewListCell {
             let r = max(min(glow.height, glow.width * 0.9), 1)
             voteEdge.startPoint = CGPoint(x: rtl ? 0 : 1, y: 0)
             voteEdge.endPoint = CGPoint(x: rtl ? r / glow.width : 1 - r / glow.width, y: r / glow.height)
+            voteFade.frame = CGRect(origin: .zero, size: glow.size)
+            voteFade.locations = [0, NSNumber(value: Double(min(32, glow.height * 0.45) / glow.height))]
+        }
+        if calm {
+            voteLine.frame = CGRect(x: rtl ? 12 + 6 : bounds.width - 12 - 6 - width, y: top, width: width, height: max(bottom - top, 0))
+        } else {
+            voteLine.frame = CGRect(x: rtl ? 5 : bounds.width - 5 - 2, y: 8, width: 2, height: max(bounds.height - 16, 0))
         }
         CATransaction.commit()
     }
@@ -435,7 +451,7 @@ final class CommentListController: UIViewController, UICollectionViewDelegate {
 
         let s = content.settings
         let newEnv = ThreadRowEnv(
-            calm: s.calmComments, tapToCollapse: s.tapToCollapse, voteEdge: s.voteEdge,
+            calm: s.calmComments, tapToCollapse: s.tapToCollapse, voteEdge: s.voteEdge, voteGlow: s.voteGlow,
             dark: traitCollection.userInterfaceStyle == .dark, textScale: s.textScale, accent: IlayTheme.accent
         )
         let envChanged = newEnv != env

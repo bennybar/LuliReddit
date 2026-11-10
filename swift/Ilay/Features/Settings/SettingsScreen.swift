@@ -240,7 +240,18 @@ struct SettingsCatalog {
         b.toggle("Tap a comment to collapse it", "Otherwise long-press. Comment text can't be selected while this is on", s.tapToCollapse, set: ctrl.setTapToCollapse)
         b.toggle("Collapse only the replies", "Collapsing a comment keeps its own text and hides its replies", s.collapseRepliesOnly, set: ctrl.setCollapseRepliesOnly)
         b.toggle("Profile pictures in comments", "With the website sign-in: one more request per thread brings its commenters' pictures", s.commentAvatars, set: ctrl.setCommentAvatars)
-        b.toggle("Mark comments you voted on", "A soft glow in the vote's color on comments you upvoted or downvoted", s.voteEdge, set: ctrl.setVoteEdge)
+        // Glow (and on the thread's post too), the edge line it replaced, or nothing (#141).
+        b.picker(
+            "Mark what you voted on", value: !s.voteEdge ? 0 : s.voteGlow ? 1 : 2,
+            options: [
+                PickOption(value: 1, label: "Glow", subtitle: "A soft glow in the vote's color, on the post too"),
+                PickOption(value: 2, label: "Edge line", subtitle: "A line in the vote's color down the comment's side"),
+                PickOption(value: 0, label: "Off"),
+            ]
+        ) { v in
+            ctrl.setVoteEdge(v != 0)
+            if v != 0 { ctrl.setVoteGlow(v == 1) }
+        }
         let off = Int.min
         let collapseChoices = [off, 1, 0, -5, -10]
         b.picker(

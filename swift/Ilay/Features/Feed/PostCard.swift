@@ -689,13 +689,13 @@ struct VoteCluster: View {
         let up = o.likes == true
         let down = o.likes == false
         HStack(spacing: 0) {
-            SymbolButton(on: up, onSymbol: "arrowshape.up.fill", offSymbol: "arrowshape.up", onColor: votes.up, label: "Upvote") { a.vote(1) }
+            SymbolButton(on: up, onSymbol: "arrowshape.up.fill", offSymbol: "arrowshape.up", onColor: votes.up, label: "Upvote", bounces: false) { a.vote(1) }
             Text(compactNumber(o.score))
                 .font(.subheadline.weight(.semibold).monospacedDigit())
                 .foregroundStyle(up ? votes.up : down ? votes.down : .secondary)
                 .lineLimit(1)
                 .fixedSize()
-            SymbolButton(on: down, onSymbol: "arrowshape.down.fill", offSymbol: "arrowshape.down", onColor: votes.down, label: "Downvote") { a.vote(-1) }
+            SymbolButton(on: down, onSymbol: "arrowshape.down.fill", offSymbol: "arrowshape.down", onColor: votes.down, label: "Downvote", bounces: false) { a.vote(-1) }
         }
     }
 }
@@ -709,6 +709,8 @@ private struct SymbolButton: View {
     /// Nil: the accent.
     var onColor: Color? = nil
     let label: String
+    /// Votes don't pop (#141).
+    var bounces = true
     let action: () -> Void
 
     @State private var taps = 0
@@ -721,7 +723,7 @@ private struct SymbolButton: View {
             Image(systemName: on ? onSymbol : offSymbol)
                 .font(.system(size: 17, weight: .regular))
                 .foregroundStyle(on ? onColor.map(AnyShapeStyle.init) ?? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
-                .symbolEffect(.bounce, value: taps)
+                .symbolEffect(.bounce, value: bounces ? taps : 0)
                 .frame(width: 40, height: 36)
                 .contentShape(Rectangle())
         }
@@ -841,9 +843,9 @@ private struct CalmVotePills: View {
         let up = o.likes == true, down = o.likes == false
         HStack(spacing: 3) {
             GlassPill(symbol: "arrow.up", value: compactNumber(o.score), valueTint: down ? votes.down : nil,
-                      label: "Upvote", on: up, tint: votes.up, leading: 18, trailing: 5, height: 36, font: font, haptic: true) { a.vote(1) }
+                      label: "Upvote", on: up, tint: votes.up, leading: 18, trailing: 5, height: 36, font: font, haptic: true, bounces: false) { a.vote(1) }
             GlassPill(symbol: "arrow.down", label: "Downvote", on: down, tint: votes.down,
-                      leading: 5, trailing: 18, height: 36, font: font, haptic: true) { a.vote(-1) }
+                      leading: 5, trailing: 18, height: 36, font: font, haptic: true, bounces: false) { a.vote(-1) }
         }
     }
 }
