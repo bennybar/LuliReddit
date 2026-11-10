@@ -96,11 +96,15 @@ private enum AccountAction {
     }
 }
 
+/// The accounts' pictures for the sheet, by name (nil: none set), fetched once a run.
+@MainActor private var accountIcons: [String: String?] = [:]
+
 private struct AccountSheet: View {
     let current: String
     let onAction: (AccountAction?) -> Void
 
     @State private var accounts: [String]
+    @State private var icons = accountIcons
 
     init(current: String, onAction: @escaping (AccountAction?) -> Void) {
         self.current = current
@@ -118,7 +122,7 @@ private struct AccountSheet: View {
                                 if account != current { onAction(.switchTo(account)) }
                             } label: {
                                 HStack(spacing: 12) {
-                                    LetterAvatar(name: account, size: 40)
+                                    LetterAvatar(name: account, size: 40, imageUrl: icons[account] ?? nil)
                                     Text("u/\(account)")
                                         .foregroundStyle(account == current ? Color.accentColor : Color.primary)
                                     Spacer(minLength: 0)
@@ -154,6 +158,11 @@ private struct AccountSheet: View {
         .task(id: app.session.accountsVersion) {
             let list = await app.session.accounts()
             accounts = list.isEmpty ? [current] : list
+            // Each account's picture (#144); a failed one is tried next time.
+            for a in accounts where accountIcons[a] == nil {
+                if let user = try? await app.repository.getUserAbout(a) { accountIcons[a] = .some(user.iconUrl) }
+            }
+            icons = accountIcons
         }
     }
 }

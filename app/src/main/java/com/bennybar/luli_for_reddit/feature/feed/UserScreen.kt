@@ -19,6 +19,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.rounded.MailOutline
@@ -134,14 +138,15 @@ fun UserScreen(username: String) {
 
 /**
  * A profile's header and its Posts / Comments (and your own Saved / Upvoted / Downvoted)
- * lists: the user screen, and the Profile tab ([belowHeader]: its "Your stuff" row).
+ * lists: the user screen, and the Profile tab ([onSwitchAccount]: a ▾ after your
+ * name opens the accounts, #144).
  */
 @Composable
 fun UserProfileBody(
     username: String,
     modifier: Modifier = Modifier,
     scrollTop: Flow<Int>? = null, // each new value: the list and header back to the top
-    belowHeader: @Composable () -> Unit = {},
+    onSwitchAccount: (() -> Unit)? = null,
 ) {
     val scope = rememberCoroutineScope()
     val vm = viewModel(key = "user_$username") { UserAboutViewModel(username) }
@@ -212,9 +217,8 @@ fun UserProfileBody(
                     Loading()
                 }
                 is Async.Error -> Text("Could not load profile: ${friendlyError(a.error)}", Modifier.padding(16.dp))
-                is Async.Data -> ProfileHeader(a.value, canFollow = !isSelf && me.isNotEmpty())
+                is Async.Data -> ProfileHeader(a.value, canFollow = !isSelf && me.isNotEmpty(), onSwitchAccount)
             }
-            belowHeader()
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             PrimaryScrollableTabRow(
@@ -314,7 +318,7 @@ internal fun currentSessionUsername(): String {
 }
 
 @Composable
-private fun ProfileHeader(user: RedditUser, canFollow: Boolean) {
+private fun ProfileHeader(user: RedditUser, canFollow: Boolean, onSwitchAccount: (() -> Unit)? = null) {
     val cs = MaterialTheme.colorScheme
     val nav = LocalNavigator.current
     val scope = rememberCoroutineScope()
@@ -326,7 +330,20 @@ private fun ProfileHeader(user: RedditUser, canFollow: Boolean) {
         LetterAvatar(user.name, 60.dp, cs.primaryContainer, cs.onPrimaryContainer, imageUrl = user.iconUrl)
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
-            Text("u/${user.name}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+            if (onSwitchAccount == null) {
+                Text("u/${user.name}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+            } else {
+                // Your name, with a ▾: the accounts (#144), as WhatsApp's.
+                Row(
+                    Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClickLabel = "Switch or add account", onClick = onSwitchAccount),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("u/${user.name}", Modifier.weight(1f, fill = false), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Icon(Icons.Rounded.KeyboardArrowDown, null, tint = cs.onSurfaceVariant)
+                }
+            }
             Spacer(Modifier.height(4.dp))
             Text(
                 "${compactNumber(user.linkKarma)} post · ${compactNumber(user.commentKarma)} comment karma",
