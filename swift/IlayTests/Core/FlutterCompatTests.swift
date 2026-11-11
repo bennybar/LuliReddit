@@ -330,6 +330,29 @@ final class FlutterPrefsCompatTests: XCTestCase {
         XCTAssertTrue(h.contains("b"))
     }
 
+    // #159: History's day headers and grouping.
+    func testHistoryDayLabelsAndGroups() {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        let now = cal.date(from: DateComponents(year: 2026, month: 11, day: 11, hour: 15))!
+        func day(_ back: Int) -> Date { cal.startOfDay(for: cal.date(byAdding: .day, value: -back, to: now)!) }
+        let us = Locale(identifier: "en_US")
+        XCTAssertEqual(historyDayLabel(day(0), now: now, calendar: cal, locale: us), "Today")
+        XCTAssertEqual(historyDayLabel(day(1), now: now, calendar: cal, locale: us), "Yesterday")
+        XCTAssertEqual(historyDayLabel(day(2), now: now, calendar: cal, locale: us), "Monday")
+        XCTAssertEqual(historyDayLabel(day(7), now: now, calendar: cal, locale: us), "Wed, Nov 4")
+        XCTAssertEqual(historyDayLabel(cal.date(from: DateComponents(year: 2025, month: 12, day: 31))!, now: now, calendar: cal, locale: us), "Dec 31, 2025")
+        XCTAssertEqual(historyDayLabel(nil, now: now, calendar: cal, locale: us), "Earlier")
+        let ms = { (d: Date) in Int(d.timeIntervalSince1970 * 1000) + 3_600_000 }
+        let entries = [
+            HistoryEntry(id: "a", subreddit: "s", title: "", permalink: "", viewedAt: ms(day(0))),
+            HistoryEntry(id: "b", subreddit: "s", title: "", permalink: "", viewedAt: ms(day(0))),
+            HistoryEntry(id: "c", subreddit: "s", title: "", permalink: "", viewedAt: ms(day(3))),
+            HistoryEntry(id: "d", subreddit: "s", title: "", permalink: "", viewedAt: 0),
+        ]
+        XCTAssertEqual(historyDays(entries, calendar: cal).map { $0.entries.map(\.id) }, [["a", "b"], ["c"], ["d"]])
+    }
+
     @MainActor
     func testStoresWriteFlutterFormats() {
         let p = Prefs(defaults: defaults)

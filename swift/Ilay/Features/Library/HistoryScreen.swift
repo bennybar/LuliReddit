@@ -10,6 +10,36 @@ func filterHistory(_ history: [HistoryEntry], query: String, subreddit: String?)
     }
 }
 
+/// History grouped by the day each entry was read, in order (#159); entries with no
+/// time (from old versions) come last.
+func historyDays(_ entries: [HistoryEntry], calendar: Calendar = .current) -> [(date: Date?, entries: [HistoryEntry])] {
+    var out: [(date: Date?, entries: [HistoryEntry])] = []
+    for e in entries {
+        let day = e.viewedAt > 0 ? calendar.startOfDay(for: Date(timeIntervalSince1970: Double(e.viewedAt) / 1000)) : nil
+        if let last = out.last, last.date == day { out[out.count - 1].entries.append(e) } else { out.append((day, [e])) }
+    }
+    return out
+}
+
+/// A History day's header (#159): Today, Yesterday, the weekday within a week, then the date.
+func historyDayLabel(_ day: Date?, now: Date = Date(), calendar: Calendar = .current, locale: Locale = .current) -> String {
+    guard let day else { return "Earlier" }
+    let today = calendar.startOfDay(for: now)
+    let days = calendar.dateComponents([.day], from: day, to: today).day ?? 0
+    let f = DateFormatter()
+    f.locale = locale
+    f.calendar = calendar
+    f.timeZone = calendar.timeZone
+    switch days {
+    case 0: return "Today"
+    case 1: return "Yesterday"
+    case 2..<7: f.setLocalizedDateFormatFromTemplate("EEEE")
+    default:
+        f.setLocalizedDateFormatFromTemplate(calendar.component(.year, from: day) == calendar.component(.year, from: today) ? "EEEMMMd" : "MMMdyyyy")
+    }
+    return f.string(from: day)
+}
+
 /// Recently viewed posts (on-device only), searchable and filterable by subreddit.
 struct HistoryScreen: View {
     @State private var query = ""
@@ -45,11 +75,17 @@ struct HistoryScreen: View {
                 // Each community's picture (#155): saved with what's read since this version;
                 // older entries borrow it from a newer one, or from Recently visited.
                 let icons = historyIcons(history)
+                // A section a day, under its date (#159).
+                let days = historyDays(filtered)
                 List(selection: $selection) {
-                    Section {
-                        ForEach(filtered, id: \.id) { row($0, icon: icons[$0.subreddit.lowercased()]) }
-                    } footer: {
-                        Text(note)
+                    ForEach(Array(days.enumerated()), id: \.offset) { i, day in
+                        Section {
+                            ForEach(day.entries, id: \.id) { row($0, icon: icons[$0.subreddit.lowercased()]) }
+                        } header: {
+                            Text(historyDayLabel(day.date))
+                        } footer: {
+                            if i == days.count - 1 { Text(note) }
+                        }
                     }
                 }
                 .listStyle(.insetGrouped)

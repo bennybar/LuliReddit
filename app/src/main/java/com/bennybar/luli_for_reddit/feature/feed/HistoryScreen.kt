@@ -2,6 +2,11 @@ package com.bennybar.luli_for_reddit.feature.feed
 
 import com.bennybar.luli_for_reddit.ui.subredditName
 import android.net.Uri
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -100,6 +105,11 @@ fun HistoryScreen() {
     var noteShown by remember { mutableStateOf(app.prefs.getBool("historyNoteDismissed") != true) } // closed once, gone for good (#119)
     val searchGone by remember(listState) { derivedStateOf { listState.layoutInfo.visibleItemsInfo.none { it.key == "search" } && listState.layoutInfo.totalItemsCount > 0 } }
     val removeColor = cs.error
+    // The day each entry was read, in order (#159); legacy entries with no time come last.
+    val today = remember { LocalDate.now() }
+    val days = remember(filtered) {
+        filtered.groupBy { e -> if (e.viewedAt > 0) Instant.ofEpochMilli(e.viewedAt).atZone(ZoneId.systemDefault()).toLocalDate() else null }
+    }
     // Gmail's selection (#155): tapping a row's picture selects it, then a tap on a row
     // adds or drops it, and the bar deletes them all (Undo puts them back).
     var selected by remember { mutableStateOf(emptySet<String>()) }
@@ -161,39 +171,50 @@ fun HistoryScreen() {
             if (empty != null) item(key = "empty") {
                 Box(Modifier.fillParentMaxWidth().fillParentMaxHeight(0.6f), contentAlignment = Alignment.Center) { Text(empty) }
             }
-            itemsIndexed(filtered, key = { _, e -> e.id }) { i, e ->
-                // A row's outer corners are round only where the container starts or ends, as in Settings.
-                val top = if (i == 0) 24.dp else 4.dp
-                val bottom = if (i == filtered.lastIndex) 24.dp else 4.dp
-                val spec = remember(e.id) { SwipeSpec(Icons.Rounded.DeleteOutline, removeColor) {
-                    app.history.removeViewed(e.id)
-                    // Swiped by accident: Undo puts it back (#154).
-                    nav.showSnackbar("Removed from History", actionLabel = "Undo") { app.history.restore(e) }
-                } }
-                Box(
-                    Modifier
-                        .animateItem()
-                        .padding(start = 16.dp, end = 16.dp, bottom = 2.dp)
-                        .clip(RoundedCornerShape(top, top, bottom, bottom)),
-                ) {
-                    SwipeActions(start = null, end = spec, enabled = !selecting) {
-                        HistoryRow(
-                            e,
-                            icon = icons[e.subreddit.lowercase()],
-                            selected = e.id in selected,
-                            onSelect = { toggle(e.id) },
-                            onSubreddit = { if (selecting) toggle(e.id) else if (e.subreddit.isNotEmpty()) nav.openSubreddit(e.subreddit) },
-                        ) {
-                            if (selecting) {
-                                toggle(e.id)
-                                return@HistoryRow
+            // A connected container a day, under its date (#159).
+            for ((day, entries) in days) {
+                item(key = "day_$day", contentType = "day") {
+                    Text(
+                        historyDayLabel(day, today),
+                        Modifier.animateItem().padding(start = 28.dp, top = 12.dp, end = 16.dp, bottom = 8.dp),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = cs.primary,
+                    )
+                }
+                itemsIndexed(entries, key = { _, e -> e.id }) { i, e ->
+                    // A row's outer corners are round only where the container starts or ends, as in Settings.
+                    val top = if (i == 0) 24.dp else 4.dp
+                    val bottom = if (i == entries.lastIndex) 24.dp else 4.dp
+                    val spec = remember(e.id) { SwipeSpec(Icons.Rounded.DeleteOutline, removeColor) {
+                        app.history.removeViewed(e.id)
+                        // Swiped by accident: Undo puts it back (#154).
+                        nav.showSnackbar("Removed from History", actionLabel = "Undo") { app.history.restore(e) }
+                    } }
+                    Box(
+                        Modifier
+                            .animateItem()
+                            .padding(start = 16.dp, end = 16.dp, bottom = 2.dp)
+                            .clip(RoundedCornerShape(top, top, bottom, bottom)),
+                    ) {
+                        SwipeActions(start = null, end = spec, enabled = !selecting) {
+                            HistoryRow(
+                                e,
+                                icon = icons[e.subreddit.lowercase()],
+                                selected = e.id in selected,
+                                onSelect = { toggle(e.id) },
+                                onSubreddit = { if (selecting) toggle(e.id) else if (e.subreddit.isNotEmpty()) nav.openSubreddit(e.subreddit) },
+                            ) {
+                                if (selecting) {
+                                    toggle(e.id)
+                                    return@HistoryRow
+                                }
+                                val route = if (e.permalink.isNotEmpty()) {
+                                    routeForRedditUrl(Uri.parse("https://reddit.com${e.permalink}"))
+                                } else {
+                                    Route.Post(e.subreddit.ifEmpty { "_" }, e.id)
+                                }
+                                route?.let(nav::push)
                             }
-                            val route = if (e.permalink.isNotEmpty()) {
-                                routeForRedditUrl(Uri.parse("https://reddit.com${e.permalink}"))
-                            } else {
-                                Route.Post(e.subreddit.ifEmpty { "_" }, e.id)
-                            }
-                            route?.let(nav::push)
                         }
                     }
                 }
@@ -333,6 +354,16 @@ private fun HistoryRow(
             Text(e.title, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
+}
+
+/** A History day's header (#159): Today, Yesterday, the weekday within a week, then the date. */
+internal fun historyDayLabel(day: LocalDate?, today: LocalDate, locale: Locale = Locale.getDefault()): String = when {
+    day == null -> "Earlier"
+    day == today -> "Today"
+    day == today.minusDays(1) -> "Yesterday"
+    day.isAfter(today.minusDays(7)) && !day.isAfter(today) -> day.format(DateTimeFormatter.ofPattern("EEEE", locale))
+    day.year == today.year -> day.format(DateTimeFormatter.ofPattern("EEE, MMM d", locale))
+    else -> day.format(DateTimeFormatter.ofPattern("MMM d, yyyy", locale))
 }
 
 private const val DAY = 24 * 60 * 60 * 1000L
