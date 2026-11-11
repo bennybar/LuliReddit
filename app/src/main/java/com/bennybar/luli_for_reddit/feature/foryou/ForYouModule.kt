@@ -51,6 +51,24 @@ class ForYouModule(private val c: AppContainer) : UserScoped {
     val engine = ForYouEngine(c, this)
     val redditHome = RedditHomeEngine(c, this)
 
+    /**
+     * Explore's "Recommended for you" (#157): communities you asked For You for more
+     * of, then the ones you engage with most, that you haven't joined, muted or
+     * asked for less of. Built on the phone from what For You learned.
+     */
+    fun recommendedCommunities(subscribed: Set<String>, limit: Int = 5): List<String> {
+        val asked = explicit.value.subs
+        val engaged = interest.value.entries.filter { it.value >= 0.5 }.sortedByDescending { it.value }.map { it.key }
+        val skip = muted.value
+        return LinkedHashSet<String>().apply {
+            addAll(asked.filter { it.value > 0 }.keys)
+            addAll(engaged)
+        }.filter { name ->
+            name !in subscribed && name !in skip && (asked[name] ?: 0) >= 0 &&
+                !name.startsWith("u_") && name != "all" && name != "popular"
+        }.take(limit)
+    }
+
     override fun onUserChanged(username: String) {
         interest.load(username)
         muted.load(username)

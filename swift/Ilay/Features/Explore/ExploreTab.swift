@@ -51,6 +51,9 @@ struct ExploreTab: View {
     @State private var query = ""
     @State private var favOnly = false
     @State private var sort = "default" // default | name | subscribers
+    /// "Recommended for you" (#157), and the ones joined from it since it loaded.
+    @State private var recommended: [Subreddit] = []
+    @State private var joinedNow: Set<String> = []
 
     var body: some View {
         let nav = app.navigator
@@ -129,7 +132,12 @@ struct ExploreTab: View {
                 case let .data(list):
                     let visits = Dictionary(app.recentSubreddits.state.map { ($0.name.lowercased(), $0.visits) }, uniquingKeysWith: { first, _ in first })
                     let joined = Set(list.map { $0.name.lowercased() })
-                    ForEach(subscriptionSections(list: list, query: query, favOnly: favOnly, sort: sort, visited: app.settings.value.showRecentlyVisited ? app.recentSubreddits.state : []), id: \.key) { section in
+                    let sections = subscriptionSections(list: list, query: query, favOnly: favOnly, sort: sort, visited: app.settings.value.showRecentlyVisited ? app.recentSubreddits.state : [])
+                    // Right after Recently visited, in the default view only.
+                    let shownRecs = sections.first?.key == "all" ? [] : recommended.filter { !joinedNow.contains($0.name.lowercased()) }
+                    let recsAt = sections.firstIndex { $0.key != "recent" } ?? sections.count
+                    ForEach(Array(sections.enumerated()), id: \.element.key) { i, section in
+                        if i == recsAt { recommendedSection(shownRecs) }
                         Section {
                             if section.subs.isEmpty {
                                 Text(section.empty ?? "").foregroundStyle(.secondary)
@@ -159,6 +167,7 @@ struct ExploreTab: View {
                             }
                         }
                     }
+                    if recsAt == sections.count { recommendedSection(shownRecs) }
                 }
             }
             .listStyle(.insetGrouped)
@@ -189,6 +198,63 @@ struct ExploreTab: View {
         .task(id: app.feed.version) {
             vm.loadIfNeeded()
             app.feed.loadMultireddits()
+        }
+        // Picked on the phone from what For You learned, then each one's icon and members
+        // (/api/info is refused); again whenever the subscriptions reload (a Join takes one off).
+        .task(id: recommendKey) { await loadRecommended() }
+    }
+
+    private var recommendKey: String {
+        if case let .data(list) = SubscriptionsViewModel.shared.subs { return "\(app.feed.version)|\(list.count)|\(app.contentFilters.value.hideNsfw)" }
+        return ""
+    }
+
+    private func loadRecommended() async {
+        guard case let .data(list) = SubscriptionsViewModel.shared.subs, app.session.session?.anonymous != true else { recommended = []; return }
+        let names = app.forYou.recommendedCommunities(subscribed: Set(list.map { $0.name.lowercased() }))
+        let hideNsfw = app.contentFilters.value.hideNsfw
+        var found: [String: Subreddit] = [:]
+        await withTaskGroup(of: Subreddit?.self) { group in
+            for n in names { group.addTask { try? await app.repository.getSubredditAbout(n) } }
+            for await s in group { if let s { found[s.name.lowercased()] = s } }
+        }
+        recommended = names.compactMap { found[$0] }.filter { $0.userIsSubscriber != true && !(hideNsfw && $0.over18) }
+    }
+
+    @ViewBuilder private func recommendedSection(_ subs: [Subreddit]) -> some View {
+        if !subs.isEmpty {
+            Section("Recommended for you") {
+                ForEach(subs, id: \.name) { sub in
+                    HStack(spacing: 12) {
+                        NavigationLink(value: Route.subreddit(name: sub.name)) {
+                            HStack(spacing: 12) {
+                                LetterAvatar(name: sub.name, size: 40, imageUrl: sub.iconUrl)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(sub.namePrefixed).lineLimit(1)
+                                    Text("\(compactNumber(sub.subscribers)) members").font(.footnote).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        Button("Join") { join(sub) }
+                            .buttonStyle(.bordered)
+                            .buttonBorderShape(.capsule)
+                    }
+                }
+            }
+        }
+    }
+
+    private func join(_ sub: Subreddit) {
+        let key = sub.name.lowercased()
+        joinedNow.insert(key)
+        Task {
+            do {
+                try await app.repository.setSubscribed(sub.name, subscribe: true)
+                SubscriptionsViewModel.shared.load(force: true)
+            } catch {
+                joinedNow.remove(key)
+                app.navigator.showActionError("join", error)
+            }
         }
     }
 

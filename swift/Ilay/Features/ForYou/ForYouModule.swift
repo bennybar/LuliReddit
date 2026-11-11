@@ -41,6 +41,18 @@ final class ForYouModule: UserScoped, FeedEngines {
         metrics = ForYouMetrics(prefs: c.prefs, trackHistory: track)
     }
 
+    /// Explore's "Recommended for you" (#157): communities you asked For You for more of,
+    /// then the ones you engage with most, that you haven't joined, muted or asked for
+    /// less of. Built on the phone from what For You learned.
+    func recommendedCommunities(subscribed: Set<String>, limit: Int = 5) -> [String] {
+        let asked = explicit.value.subs
+        let engaged = interest.value.filter { $0.value >= 0.5 }.sorted { $0.value > $1.value }.map(\.key)
+        return (asked.filter { $0.value > 0 }.map(\.key) + engaged).uniqued().filter { name in
+            !subscribed.contains(name) && !muted.contains(name) && (asked[name] ?? 0) >= 0 &&
+                !name.hasPrefix("u_") && name != "all" && name != "popular"
+        }.prefix(limit).map { $0 }
+    }
+
     func onUserChanged(_ username: String) {
         interest.load(username)
         muted.load(username)

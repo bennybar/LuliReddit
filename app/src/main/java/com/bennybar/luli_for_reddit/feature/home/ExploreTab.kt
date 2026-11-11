@@ -1,5 +1,10 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.async
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.runtime.produceState
 import com.bennybar.luli_for_reddit.feature.settings.confirmDialog
 import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.Brush
@@ -133,6 +138,23 @@ internal fun ExploreTab() {
     val anonymous = (session as? SessionState.LoggedIn)?.session?.anonymous == true
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    // "Recommended for you" (#157): picked on the phone from what For You learned, then
+    // each one's icon and members (/api/info is refused, 403); again whenever the
+    // subscriptions reload (a Join takes one off).
+    var joined by remember { mutableStateOf(emptySet<String>()) }
+    val hideNsfw = app.contentFilters.state.collectAsStateWithLifecycle().value.hideNsfw
+    val recommended by produceState(emptyList<Subreddit>(), subs, anonymous, hideNsfw) {
+        val list = (subs as? Async.Data)?.value
+        if (list == null || anonymous) {
+            value = emptyList()
+            return@produceState
+        }
+        val names = app.forYou.recommendedCommunities(list.mapTo(HashSet()) { it.name.lowercase() })
+        val info = coroutineScope {
+            names.map { async { runCatching { app.repository.getSubredditAbout(it) }.getOrNull() } }.awaitAll()
+        }
+        value = info.filterNotNull().filter { it.userIsSubscriber != true && !(hideNsfw && it.over18) }
+    }
     val statusBar = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     var query by rememberSaveable { mutableStateOf("") }
     var favOnly by rememberSaveable { mutableStateOf(false) }
@@ -317,6 +339,19 @@ internal fun ExploreTab() {
                 }
                 is Async.Data -> subscriptionSections(
                     list = s.value,
+                    recommended = recommended.filter { it.name.lowercase() !in joined },
+                    onJoin = { sub ->
+                        joined = joined + sub.name.lowercase()
+                        scope.launch {
+                            try {
+                                app.repository.setSubscribed(sub.name, true)
+                                vm.load(force = true)
+                            } catch (e: Exception) {
+                                joined = joined - sub.name.lowercase()
+                                nav.showActionError("join", e)
+                            }
+                        }
+                    },
                     query = query,
                     favOnly = favOnly,
                     sort = sort,
@@ -351,6 +386,8 @@ private fun currentUser(): String = app.session.username
 
 private fun LazyListScope.subscriptionSections(
     list: List<Subreddit>,
+    recommended: List<Subreddit>,
+    onJoin: (Subreddit) -> Unit,
     query: String,
     favOnly: Boolean,
     sort: String,
@@ -400,6 +437,22 @@ private fun LazyListScope.subscriptionSections(
         // No star on ones you aren't subscribed to. Long-press: remove just this one (#123).
         items(recent, key = { "recent_${it.name}" }, contentType = { "sub" }) {
             SubredditRow(it, onOpen, if (it.name.lowercase() in byName) onStar else null, visits = visits[it.name.lowercase()]) { onRemoveRecent(it) }
+        }
+    }
+    // Communities you engage with in For You but haven't joined (#157).
+    if (recommended.isNotEmpty()) {
+        header("recommended", "Recommended for you")
+        items(recommended, key = { "rec_${it.name}" }, contentType = { "sub" }) { sub ->
+            Tile(
+                title = { Text(subredditName(sub.namePrefixed)) },
+                subtitle = { Text("${compactNumber(sub.subscribers)} members") },
+                leading = {
+                    val cs = MaterialTheme.colorScheme
+                    LetterAvatar(sub.name, 40.dp, cs.secondaryContainer, cs.onSecondaryContainer, imageUrl = sub.iconUrl)
+                },
+                trailing = { FilledTonalButton(onClick = { onJoin(sub) }) { Text("Join") } },
+                onClick = { onOpen(sub) },
+            )
         }
     }
     if (favs.isNotEmpty()) {
