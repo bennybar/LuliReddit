@@ -45,6 +45,16 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.76", "Nov 11, 2026",
+        listOf(
+            "Drafts gets the new look: a top bar that hides as you scroll and rounded containers",
+            "Selecting in History flips the picture over to a tick",
+            "Softer placeholder pictures, and people's profile pictures in search",
+            "The side bar shows your name and karma beside your picture, with an option to hide the u/",
+            "The full top bar keeps the ☰ and your picture outside the search bar; calm posts show round community pictures",
+        ),
+    ),
+    Release(
         "2.0.75", "Nov 11, 2026",
         listOf(
             "Explore: Recommended for you, communities you enjoy in For You but haven't joined, with a Join button",
