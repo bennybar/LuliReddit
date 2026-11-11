@@ -7,6 +7,7 @@ import com.bennybar.luli_for_reddit.ui.SearchIcon
 import androidx.compose.material.icons.outlined.PostAdd
 import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material.icons.rounded.Tag
+import androidx.compose.material.icons.rounded.Vibration
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.PermMedia
@@ -606,6 +607,10 @@ fun SettingsList(
         switch(
             "Back scrolls Posts to top", "On the Posts tab, back scrolls the feed to the top. Back never leaves the app",
             Icons.Rounded.VerticalAlignTop, s.backScrollsToTop, ctrl::setBackScrollsToTop,
+        )
+        switch(
+            "Button haptics", "A light tap you can feel on buttons, switches and the bottom bar",
+            Icons.Rounded.Vibration, s.buttonHaptics, ctrl::setButtonHaptics,
         )
         divider("appearance")
 

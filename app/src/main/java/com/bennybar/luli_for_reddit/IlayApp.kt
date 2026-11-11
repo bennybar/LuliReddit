@@ -13,6 +13,7 @@ import coil3.video.VideoFrameDecoder
 import com.bennybar.luli_for_reddit.core.Analytics
 import com.bennybar.luli_for_reddit.core.net.Http
 import com.bennybar.luli_for_reddit.core.storage.FlutterMigration
+import com.bennybar.luli_for_reddit.ui.ButtonHaptics
 
 class IlayApp : Application(), SingletonImageLoader.Factory {
     override fun onCreate() {
@@ -24,6 +25,9 @@ class IlayApp : Application(), SingletonImageLoader.Factory {
         app.settings.reload()
         app.start()
         app.session.reload()
+
+        // Before the first Compose view exists, so every window gets hooked.
+        ButtonHaptics.install()
 
         Analytics.init(this)
         // Background inbox notifications (opt-in).

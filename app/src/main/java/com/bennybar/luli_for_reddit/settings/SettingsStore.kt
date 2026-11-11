@@ -115,6 +115,7 @@ class SettingsStore(private val p: Prefs) {
             navStyle = (p.getInt("navStyle") ?: d.navStyle).coerceIn(0, 2),
             sideBarItems = SideBarItem.parse(p.getStringList(SideBarItem.PREFS_KEY)),
             navOutline = b("navOutline", d.navOutline),
+            buttonHaptics = b("buttonHaptics", d.buttonHaptics),
             backScrollsToTop = b("backScrollsToTop", d.backScrollsToTop),
             aiModel = p.getString("aiModel") ?: d.aiModel,
             aiSummaryStyle = p.getInt("aiSummaryStyle") ?: d.aiSummaryStyle,
@@ -280,6 +281,7 @@ class SettingsStore(private val p: Prefs) {
         set { it.copy(sideBarItems = SideBarItem.parse(entries?.let(SideBarItem::toPrefs))) }
     }
     fun setNavOutline(v: Boolean) { p.setBool("navOutline", v); set { it.copy(navOutline = v) } }
+    fun setButtonHaptics(v: Boolean) { p.setBool("buttonHaptics", v); set { it.copy(buttonHaptics = v) } }
     fun setBackScrollsToTop(v: Boolean) { p.setBool("backScrollsToTop", v); set { it.copy(backScrollsToTop = v) } }
     fun setAiModel(v: String) { p.setString("aiModel", v); set { it.copy(aiModel = v) } }
     fun setAiSummaryStyle(v: Int) { p.setInt("aiSummaryStyle", v); set { it.copy(aiSummaryStyle = v) } }
