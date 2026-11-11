@@ -23,6 +23,8 @@ data class HistoryEntry(
     val viewedAt: Long = 0, // millis since epoch; 0 = legacy/unknown
     // For "Hide NSFW posts"; absent in older entries (unknown: shown).
     val nsfw: Boolean = false,
+    // The community's picture (#155); absent in older entries.
+    val icon: String? = null,
 )
 
 /**
@@ -56,6 +58,7 @@ class HistoryStore(private val prefs: Prefs) : UserScoped {
                     permalink = j["permalink"].str() ?: "",
                     viewedAt = j["ts"].long() ?: 0,
                     nsfw = j["nsfw"].isTrue(),
+                    icon = j["icon"].str(),
                 )
             }.getOrNull()
         }
@@ -77,7 +80,7 @@ class HistoryStore(private val prefs: Prefs) : UserScoped {
     fun contains(id: String): Boolean = id in _ids.value
 
     fun markViewed(p: Post) {
-        val entry = HistoryEntry(p.id, p.subreddit, p.title, p.permalink, System.currentTimeMillis(), p.over18)
+        val entry = HistoryEntry(p.id, p.subreddit, p.title, p.permalink, System.currentTimeMillis(), p.over18, p.subredditIcon)
         val next = LinkedHashMap<String, Long>(read.size + 1)
         next[p.id] = entry.viewedAt / 1000
         for ((id, t) in read) if (id != p.id && next.size < READ_CAP) next[id] = t
@@ -89,6 +92,22 @@ class HistoryStore(private val prefs: Prefs) : UserScoped {
     fun removeViewed(id: String) {
         read.remove(id)
         publish(_state.value.filter { it.id != id })
+        persist()
+    }
+
+    /** Undo of [removeViewed] (#154): the entry back in its place, by when it was read. */
+    fun restore(e: HistoryEntry) {
+        if (e.id in _ids.value) return
+        val at = e.viewedAt / 1000
+        val next = LinkedHashMap<String, Long>(read.size + 1)
+        var placed = false
+        for ((id, t) in read) {
+            if (!placed && t <= at) { next[e.id] = at; placed = true }
+            next[id] = t
+        }
+        if (!placed) next[e.id] = at
+        read = next
+        publish((_state.value + e).sortedByDescending { it.viewedAt }.take(CAP))
         persist()
     }
 
@@ -121,6 +140,7 @@ class HistoryStore(private val prefs: Prefs) : UserScoped {
                     put("permalink", e.permalink); put("ts", e.viewedAt)
                     // Only when set: SFW entries keep the shape older versions wrote.
                     if (e.nsfw) put("nsfw", true)
+                    if (e.icon != null) put("icon", e.icon)
                 }.toString()
             },
         )

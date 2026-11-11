@@ -315,6 +315,21 @@ final class FlutterPrefsCompatTests: XCTestCase {
         XCTAssertFalse(again.contains("p1"))
     }
 
+    // #154: Undo puts a removed entry back where it was, read again.
+    @MainActor
+    func testRestorePutsAHistoryEntryBackInPlace() {
+        let h = HistoryStore(prefs: Prefs(defaults: defaults))
+        h.onUserChanged("bob")
+        for id in ["a", "b", "c"] { h.markViewed(post(id, title: "T")); usleep(2000) }
+        let b = h.state.first { $0.id == "b" }!
+        h.removeViewed("b")
+        XCTAssertFalse(h.contains("b"))
+        h.restore(b)
+        h.restore(b)
+        XCTAssertEqual(h.state.map(\.id), ["c", "b", "a"])
+        XCTAssertTrue(h.contains("b"))
+    }
+
     @MainActor
     func testStoresWriteFlutterFormats() {
         let p = Prefs(defaults: defaults)

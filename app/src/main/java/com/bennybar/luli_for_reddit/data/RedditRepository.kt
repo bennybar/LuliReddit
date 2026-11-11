@@ -475,6 +475,9 @@ class RedditRepository(val client: RedditClient) {
         subsCacheAt = 0
     }
 
+    /** The subscriptions loaded last (Explore loads them), without asking Reddit; null before. */
+    val loadedSubscriptions: List<Subreddit>? get() = subsCache
+
     /** Subscriptions: favourites first, then alphabetical. */
     suspend fun getSubscribedSubreddits(force: Boolean = false): List<Subreddit> {
         val cached = subsCache

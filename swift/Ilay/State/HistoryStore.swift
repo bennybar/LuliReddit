@@ -10,6 +10,8 @@ struct HistoryEntry: Equatable, Sendable {
     var viewedAt: Int = 0 // millis since epoch; 0 = legacy/unknown
     // For "Hide NSFW posts"; absent in older entries (unknown: shown).
     var nsfw: Bool = false
+    // The community's picture (#155); absent in older entries.
+    var icon: String? = nil
 }
 
 /// Viewed posts, newest first, per account (prefs `history_<user>`, a JSON
@@ -47,7 +49,8 @@ final class HistoryStore: UserScoped {
                 title: j["title"].str() ?? "",
                 permalink: j["permalink"].str() ?? "",
                 viewedAt: j["ts"].long() ?? 0,
-                nsfw: j["nsfw"].isTrue()
+                nsfw: j["nsfw"].isTrue(),
+                icon: j["icon"].str()
             )
         }
         readKey = userScopedKey(prefs, username, HistoryStore.readBase)
@@ -66,7 +69,7 @@ final class HistoryStore: UserScoped {
     func contains(_ id: String) -> Bool { ids.contains(id) }
 
     func markViewed(_ p: Post) {
-        let entry = HistoryEntry(id: p.id, subreddit: p.subreddit, title: p.title, permalink: p.permalink, viewedAt: nowMillis(), nsfw: p.over18)
+        let entry = HistoryEntry(id: p.id, subreddit: p.subreddit, title: p.title, permalink: p.permalink, viewedAt: nowMillis(), nsfw: p.over18, icon: p.subredditIcon)
         read = [(p.id, entry.viewedAt / 1000)] + read.lazy.filter { $0.id != p.id }.prefix(HistoryStore.readCap - 1)
         publish(Array(([entry] + state.filter { $0.id != p.id }).prefix(HistoryStore.cap)))
         persist()
@@ -75,6 +78,16 @@ final class HistoryStore: UserScoped {
     func removeViewed(_ id: String) {
         read.removeAll { $0.id == id }
         publish(state.filter { $0.id != id })
+        persist()
+    }
+
+    /// Undo of `removeViewed` (#154): the entry back in its place, by when it was read.
+    func restore(_ e: HistoryEntry) {
+        if ids.contains(e.id) { return }
+        let at = e.viewedAt / 1000
+        let i = read.firstIndex { $0.at <= at } ?? read.endIndex
+        read.insert((e.id, at), at: i)
+        publish(Array((state + [e]).sorted { $0.viewedAt > $1.viewedAt }.prefix(HistoryStore.cap)))
         persist()
     }
 
@@ -106,6 +119,7 @@ final class HistoryStore: UserScoped {
             ]
             // Only when set: SFW entries keep the shape older versions wrote.
             if e.nsfw { o["nsfw"] = .bool(true) }
+            if let icon = e.icon { o["icon"] = .string(icon) }
             return JsonElement.object(o).encoded()
         })
     }

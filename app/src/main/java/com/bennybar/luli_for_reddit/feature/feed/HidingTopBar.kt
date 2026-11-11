@@ -192,21 +192,36 @@ fun showTopPanel(panel: @Composable (close: (then: () -> Unit) -> Unit) -> Unit)
     }
 }
 
-/** A button in a [showTopPanel] menu. */
-class MenuAction(val icon: ImageVector, val label: String, val onClick: () -> Unit)
+/** A button in a [showTopPanel] menu; [half]: a short one, which shares its row with the next short one (#152). */
+class MenuAction(val icon: ImageVector, val label: String, val half: Boolean = false, val onClick: () -> Unit)
 
 /**
  * A top bar's ⋯ menu (#112): its [actions] in the Expandable top bar's panel,
- * one a row, connected segments 3dp apart.
+ * one a row (two short ones side by side), connected segments 3dp apart.
  */
 fun showBarMenu(actions: List<MenuAction>) = showTopPanel { close ->
+    val rows = mutableListOf<MutableList<MenuAction>>()
+    for (a in actions) {
+        val last = rows.lastOrNull()
+        if (a.half && last != null && last.size == 1 && last[0].half) last += a else rows += mutableListOf(a)
+    }
     Surface(shape = RoundedCornerShape(32.dp), color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 8.dp) {
         Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            actions.forEachIndexed { i, a ->
+            rows.forEachIndexed { r, row ->
                 // The first and last rows round off the panel's outer corners.
-                val top = if (i == 0) PanelOuter else PanelInner
-                val bottom = if (i == actions.lastIndex) PanelOuter else PanelInner
-                PanelButton(a.icon, a.label, Modifier.fillMaxWidth(), { close(a.onClick) }, RoundedCornerShape(top, top, bottom, bottom))
+                val top = if (r == 0) PanelOuter else PanelInner
+                val bottom = if (r == rows.lastIndex) PanelOuter else PanelInner
+                Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    row.forEachIndexed { j, a ->
+                        val shape = RoundedCornerShape(
+                            topStart = if (j == 0) top else PanelInner,
+                            topEnd = if (j == row.lastIndex) top else PanelInner,
+                            bottomStart = if (j == 0) bottom else PanelInner,
+                            bottomEnd = if (j == row.lastIndex) bottom else PanelInner,
+                        )
+                        PanelButton(a.icon, a.label, Modifier.weight(1f), { close(a.onClick) }, shape)
+                    }
+                }
             }
         }
     }

@@ -96,4 +96,18 @@ class HistoryStoreTest {
         other.onUserChanged("alice")
         assertTrue(other.ids.value.isEmpty())
     }
+
+    // #154: Undo puts a removed entry back where it was, read again.
+    @Test fun restorePutsAnEntryBackInPlace() {
+        val h = HistoryStore(prefs())
+        h.onUserChanged("bob")
+        for (id in listOf("a", "b", "c")) { h.markViewed(post(id)); Thread.sleep(2) }
+        val b = h.state.value.first { it.id == "b" }
+        h.removeViewed("b")
+        assertFalse(h.contains("b"))
+        h.restore(b)
+        h.restore(b)
+        assertEquals(listOf("c", "b", "a"), h.state.value.map { it.id })
+        assertTrue(h.contains("b"))
+    }
 }

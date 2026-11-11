@@ -2,6 +2,11 @@ package com.bennybar.luli_for_reddit.feature.feed
 
 import com.bennybar.luli_for_reddit.ui.subredditName
 import android.net.Uri
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -95,6 +100,22 @@ fun HistoryScreen() {
     var noteShown by remember { mutableStateOf(app.prefs.getBool("historyNoteDismissed") != true) } // closed once, gone for good (#119)
     val searchGone by remember(listState) { derivedStateOf { listState.layoutInfo.visibleItemsInfo.none { it.key == "search" } && listState.layoutInfo.totalItemsCount > 0 } }
     val removeColor = cs.error
+    // Gmail's selection (#155): tapping a row's picture selects it, then a tap on a row
+    // adds or drops it, and the bar deletes them all (Undo puts them back).
+    var selected by remember { mutableStateOf(emptySet<String>()) }
+    val selecting = selected.isNotEmpty()
+    BackHandler(selecting) { selected = emptySet() }
+    fun toggle(id: String) { selected = if (id in selected) selected - id else selected + id }
+    // Each community's picture (#155): saved with what's read since this version;
+    // older entries borrow it from a newer one, Recently visited or your subscriptions.
+    val recentSubs by app.recentSubreddits.state.collectAsStateWithLifecycle()
+    val icons = remember(history, recentSubs) {
+        buildMap {
+            for (s in app.repository.loadedSubscriptions.orEmpty()) s.iconUrl?.let { put(s.name.lowercase(), it) }
+            for (r in recentSubs) r.iconUrl?.let { put(r.name.lowercase(), it) }
+            for (h in history.asReversed()) h.icon?.let { put(h.subreddit.lowercase(), it) }
+        }
+    }
 
     Box(Modifier.fillMaxSize().background(cs.surface).clipToBounds().nestedScroll(bar)) {
         LazyColumn(
@@ -144,15 +165,29 @@ fun HistoryScreen() {
                 // A row's outer corners are round only where the container starts or ends, as in Settings.
                 val top = if (i == 0) 24.dp else 4.dp
                 val bottom = if (i == filtered.lastIndex) 24.dp else 4.dp
-                val spec = remember(e.id) { SwipeSpec(Icons.Rounded.DeleteOutline, removeColor) { app.history.removeViewed(e.id) } }
+                val spec = remember(e.id) { SwipeSpec(Icons.Rounded.DeleteOutline, removeColor) {
+                    app.history.removeViewed(e.id)
+                    // Swiped by accident: Undo puts it back (#154).
+                    nav.showSnackbar("Removed from History", actionLabel = "Undo") { app.history.restore(e) }
+                } }
                 Box(
                     Modifier
                         .animateItem()
                         .padding(start = 16.dp, end = 16.dp, bottom = 2.dp)
                         .clip(RoundedCornerShape(top, top, bottom, bottom)),
                 ) {
-                    SwipeActions(start = null, end = spec) {
-                        HistoryRow(e) {
+                    SwipeActions(start = null, end = spec, enabled = !selecting) {
+                        HistoryRow(
+                            e,
+                            icon = icons[e.subreddit.lowercase()],
+                            selected = e.id in selected,
+                            onSelect = { toggle(e.id) },
+                            onSubreddit = { if (selecting) toggle(e.id) else if (e.subreddit.isNotEmpty()) nav.openSubreddit(e.subreddit) },
+                        ) {
+                            if (selecting) {
+                                toggle(e.id)
+                                return@HistoryRow
+                            }
                             val route = if (e.permalink.isNotEmpty()) {
                                 routeForRedditUrl(Uri.parse("https://reddit.com${e.permalink}"))
                             } else {
@@ -165,7 +200,25 @@ fun HistoryScreen() {
             }
         }
         HidingTopBar(bar) {
-            BloomTopBar(
+            if (selecting) BloomTopBar(
+                "",
+                showBack = false,
+                titleContent = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { selected = emptySet() }) { Icon(Icons.Rounded.Close, "Cancel selection") }
+                        Spacer(Modifier.width(4.dp))
+                        Text("${selected.size} selected")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = {
+                        val gone = history.filter { it.id in selected }
+                        selected = emptySet()
+                        gone.forEach { app.history.removeViewed(it.id) }
+                        nav.showSnackbar("Removed ${gone.size} from History", actionLabel = "Undo") { gone.forEach(app.history::restore) }
+                    }) { Icon(Icons.Rounded.DeleteOutline, "Remove from History") }
+                },
+            ) else BloomTopBar(
                 "History",
                 actions = {
                     if (searchGone && visible.isNotEmpty()) IconButton(onClick = {
@@ -223,30 +276,57 @@ fun HistoryScreen() {
     }
 }
 
-/** A History row, Gmail-like: the subreddit's letter, then the subreddit and when, over the title. */
+/**
+ * A History row, Gmail-like: the community's picture (a tap selects the row, #155),
+ * then the community (a tap opens it) and when, over the title.
+ */
 @Composable
-private fun HistoryRow(e: HistoryEntry, onClick: () -> Unit) {
+private fun HistoryRow(
+    e: HistoryEntry,
+    icon: String?,
+    selected: Boolean,
+    onSelect: () -> Unit,
+    onSubreddit: () -> Unit,
+    onClick: () -> Unit,
+) {
     val cs = MaterialTheme.colorScheme
     Row(
         Modifier
             .fillMaxWidth()
-            .background(cs.surfaceContainerLow)
+            .background(if (selected) cs.secondaryContainer else cs.surfaceContainerLow)
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        LetterAvatar(e.subreddit.ifEmpty { "?" }, 40.dp, cs.secondaryContainer, cs.onSecondaryContainer)
+        Box(
+            Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .clickable(onClickLabel = if (selected) "Unselect" else "Select", onClick = onSelect),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (selected) {
+                Box(Modifier.fillMaxSize().background(cs.primary), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Rounded.Check, null, tint = cs.onPrimary)
+                }
+            } else {
+                LetterAvatar(e.subreddit.ifEmpty { "?" }, 40.dp, cs.secondaryContainer, cs.onSecondaryContainer, imageUrl = icon)
+            }
+        }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    subredditName(e.subreddit),
-                    Modifier.weight(1f),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = cs.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Box(Modifier.weight(1f)) {
+                    Text(
+                        subredditName(e.subreddit),
+                        Modifier.clip(RoundedCornerShape(6.dp)).clickable(onClickLabel = "Open community", onClick = onSubreddit),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = cs.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 if (e.viewedAt > 0) Text(timeAgo(e.viewedAt), style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant)
             }
             Spacer(Modifier.height(2.dp))

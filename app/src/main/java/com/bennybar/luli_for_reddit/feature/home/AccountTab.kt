@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -91,11 +92,14 @@ internal fun ProfileTab() {
     val anonymous = s?.anonymous ?: false
 
     Column(Modifier.fillMaxSize()) {
+        // Lined up with Home's title row (#153): it sits in the feed's 7dp inset, its ☰
+        // nudged 3dp out, 10dp down without the side bar.
+        val sideBar = LocalSideBar.current != null
         Row(
-            Modifier.fillMaxWidth().padding(start = if (LocalSideBar.current != null) 4.dp else 16.dp, top = 8.dp, end = 4.dp),
+            Modifier.fillMaxWidth().padding(start = if (sideBar) 7.dp else 23.dp, top = if (sideBar) 8.dp else 10.dp, end = 11.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            SideBarButton()
+            SideBarButton(Modifier.offset(x = (-3).dp))
             Text("Profile", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
             if (anonymous || username.isEmpty()) {
                 // The side bar always has Settings (#138).
@@ -142,12 +146,12 @@ private fun YourStuffMenu() {
     val sideBar = LocalSideBar.current != null
     val inSideBar = if (!sideBar) emptySet() else settings.sideBarItems.filter { it.shown }.map { it.item }.toSet()
     val actions = listOfNotNull(
-        MenuAction(Icons.Rounded.History, "History") { nav.push(Route.History) }.takeIf { SideBarItem.HISTORY !in inSideBar },
-        MenuAction(Icons.Rounded.OfflinePin, "Read later") { nav.push(Route.Offline) }.takeIf { SideBarItem.OFFLINE !in inSideBar },
-        MenuAction(Icons.Rounded.EditNote, if (drafts == 0) "Drafts" else "Drafts · $drafts") { nav.push(Route.Drafts) }.takeIf { SideBarItem.DRAFTS !in inSideBar },
-        MenuAction(Icons.Rounded.AutoAwesome, "Summaries") { nav.push(Route.Summaries) },
-        MenuAction(Icons.Outlined.BookmarkBorder, "Search saved") { nav.push(Route.Saved) }.takeIf { SideBarItem.SAVED !in inSideBar },
-        MenuAction(Icons.Outlined.Settings, "Settings") { nav.push(Route.Settings) }.takeIf { !sideBar },
+        MenuAction(Icons.Rounded.History, "History", half = true) { nav.push(Route.History) }.takeIf { SideBarItem.HISTORY !in inSideBar },
+        MenuAction(Icons.Rounded.OfflinePin, "Read later", half = true) { nav.push(Route.Offline) }.takeIf { SideBarItem.OFFLINE !in inSideBar },
+        MenuAction(Icons.Rounded.EditNote, if (drafts == 0) "Drafts" else "Drafts · $drafts", half = true) { nav.push(Route.Drafts) }.takeIf { SideBarItem.DRAFTS !in inSideBar },
+        MenuAction(Icons.Rounded.AutoAwesome, "Summaries", half = true) { nav.push(Route.Summaries) },
+        MenuAction(Icons.Outlined.BookmarkBorder, "Search saved", half = true) { nav.push(Route.Saved) }.takeIf { SideBarItem.SAVED !in inSideBar },
+        MenuAction(Icons.Outlined.Settings, "Settings", half = true) { nav.push(Route.Settings) }.takeIf { !sideBar },
     )
     IconButton(onClick = { showBarMenu(actions) }) { Icon(Icons.Rounded.MoreHoriz, "More") }
 }
