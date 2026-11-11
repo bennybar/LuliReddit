@@ -45,6 +45,14 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.75", "Nov 11, 2026",
+        listOf(
+            "Explore: Recommended for you, communities you enjoy in For You but haven't joined, with a Join button",
+            "History is split by day: Today, Yesterday, then the date",
+            "Swiping from the edge on Inbox and Profile drags the side bar out with your finger",
+        ),
+    ),
+    Release(
         "2.0.74", "Nov 11, 2026",
         listOf(
             "Settings › Media › Loop videos: turn it off and full-screen videos stop at the end, with a replay button (GIFs still loop)",
