@@ -45,6 +45,19 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.71", "Nov 11, 2026",
+        listOf(
+            "Read posts stay read: Hide read posts remembers far more of them, covers For You too, and a page of only read posts loads the next",
+            "Saved and History: the top bar hides as you scroll, with a 🔍 to bring the search back; Saved's chips have room and float under the bar",
+            "History looks like Gmail: one connected list with each community's letter and when you read it; swipe a row left to remove it",
+            "Search: Recent in connected cards; a community or user you open from the results takes its search's place, with its picture; long-press one to remove it",
+            "Profile: tap your name (▾) to switch accounts, now with their pictures; History, Read later, Drafts and more are in the ⋯ menu",
+            "Full top bar without New post: one round bar, Search Reddit in the middle, a smaller picture",
+            "With the side bar on, Inbox and Explore leave out the Settings button too",
+            "The search tab you pick before searching shows as picked",
+        ),
+    ),
+    Release(
         "2.0.70", "Nov 10, 2026",
         listOf(
             "The side bar slides fully closed before the next page opens",
