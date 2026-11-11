@@ -6,6 +6,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Settings
@@ -17,6 +28,39 @@ import com.bennybar.luli_for_reddit.nav.Route
 
 /** Opens the side bar (Settings › Navigation: side bar / both); null when it's off. */
 val LocalSideBar = staticCompositionLocalOf<(() -> Unit)?> { null }
+
+/**
+ * True while a touch that went down at the start edge is held (#158): that drag is the
+ * side bar's, whose own gesture follows the finger. A tab's pager and swipe rows leave
+ * it alone, or they take it first (Inbox snapped the bar open; Profile switched tabs).
+ */
+val LocalEdgeDrag = staticCompositionLocalOf<State<Boolean>> { mutableStateOf(false) }
+
+/**
+ * Watches for touches at the start edge (48dp) and flags them in [LocalEdgeDrag] for
+ * [content]; only with the side bar on. Nothing is consumed: the drawer gets the drag.
+ */
+@Composable
+fun SideBarEdge(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    val edgeDrag = remember { mutableStateOf(false) }
+    val on = LocalSideBar.current != null
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    Box(
+        if (!on) modifier else modifier.pointerInput(rtl) {
+            val edge = 48.dp.toPx()
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                if (if (rtl) down.position.x < size.width - edge else down.position.x > edge) return@awaitEachGesture
+                edgeDrag.value = true
+                try {
+                    while (awaitPointerEvent(PointerEventPass.Initial).changes.any { it.pressed }) Unit
+                } finally {
+                    edgeDrag.value = false
+                }
+            }
+        },
+    ) { CompositionLocalProvider(LocalEdgeDrag provides edgeDrag, content = content) }
+}
 
 /**
  * How far the home shell's floating nav has slid away, 0 (shown) to 1 (gone), as it

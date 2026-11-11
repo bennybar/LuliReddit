@@ -174,13 +174,17 @@ fun SwipeActions(
     var armed by remember { mutableFloatStateOf(0f) } // 1 = past the threshold
     val startSpec by rememberUpdatedState(start)
     val endSpec by rememberUpdatedState(end)
+    // A drag from the start edge is the side bar's (#158).
+    val edgeDrag = com.bennybar.luli_for_reddit.feature.home.LocalEdgeDrag.current
 
     Box(
         modifier.pointerInput(rtl, tracker) {
             detectSwipeDrags(
                 // A side with no action leaves the drag alone: taking it froze
                 // the row and kept the Inbox from paging past it (#113).
-                claims = { dx -> if (tracker.sideFor(dx, rtl) == SwipeTracker.Side.START) startSpec != null else endSpec != null },
+                claims = { dx ->
+                    if (tracker.sideFor(dx, rtl) == SwipeTracker.Side.START) startSpec != null && !edgeDrag.value else endSpec != null
+                },
                 onDragEnd = {
                     val side = tracker.release(rtl)
                     armed = 0f

@@ -247,7 +247,8 @@ fun UserProfileBody(
                 )
             }
         }
-        HorizontalPager(pager, Modifier.weight(1f), beyondViewportPageCount = 0, key = { tabs[it] }) { page ->
+        // A drag from the start edge is the side bar's on the Profile tab (#158).
+        HorizontalPager(pager, Modifier.weight(1f), beyondViewportPageCount = 0, userScrollEnabled = !com.bennybar.luli_for_reddit.feature.home.LocalEdgeDrag.current.value, key = { tabs[it] }) { page ->
             when (tabs[page]) {
                 "Posts" -> PagedList(
                     // "Hide NSFW posts" (Content filters) applies to profiles too (#94), and to

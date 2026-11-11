@@ -127,7 +127,10 @@ internal fun ProfileTab() {
                 }
             }
         } else {
-            UserProfileBody(username, Modifier.weight(1f), app.feed.tabReselect(3)) { scope.launch { showAccountSheet(username, context) } }
+            // A drag from the start edge opens the side bar, following the finger, not the next list (#158).
+            SideBarEdge(Modifier.weight(1f)) {
+                UserProfileBody(username, Modifier.fillMaxSize(), app.feed.tabReselect(3)) { scope.launch { showAccountSheet(username, context) } }
+            }
         }
     }
 }

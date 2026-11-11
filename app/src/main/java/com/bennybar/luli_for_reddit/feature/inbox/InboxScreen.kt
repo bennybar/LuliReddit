@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.inbox
 
+import com.bennybar.luli_for_reddit.feature.home.LocalEdgeDrag
+import com.bennybar.luli_for_reddit.feature.home.SideBarEdge
 import com.bennybar.luli_for_reddit.feature.feed.FabScroll
 import com.bennybar.luli_for_reddit.feature.feed.CollapsingFab
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -214,25 +216,29 @@ fun InboxScreen(reselect: Int, selected: Boolean = true) {
             )
         },
     ) { padding ->
+        // A drag from the start edge goes to the side bar, which follows the finger (#158).
+        SideBarEdge(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
         HorizontalPager(
             pager,
-            Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()).nestedScroll(fab),
+            Modifier.fillMaxSize().nestedScroll(fab),
             beyondViewportPageCount = 1,
+            userScrollEnabled = !LocalEdgeDrag.current.value,
         ) { page ->
             Box(if (openSideBar == null) Modifier else Modifier.pointerInput(rtl) {
                 // The side bar's own drag sits above the pager, which takes every
                 // sideways drag first, even on the first section where it can only
-                // stretch (#113). So a drag toward the side bar opens it: from the
-                // start edge before the rows see it (they'd mark read), and on the
-                // first section after them, so a row's swipe still wins there.
+                // stretch (#113). From the start edge the pager and rows step aside
+                // and the side bar's own drag follows the finger (SideBarEdge, #158);
+                // elsewhere on the first section, a drag toward it opens it after the
+                // rows have seen it, so a row's swipe still wins there.
                 val edge = 48.dp.toPx()
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
                     val fromEdge = if (rtl) down.position.x > size.width - edge else down.position.x < edge
-                    if (!fromEdge && pager.canScrollBackward) return@awaitEachGesture
-                    val pass = if (fromEdge) PointerEventPass.Initial else PointerEventPass.Main
+                    if (fromEdge || pager.canScrollBackward) return@awaitEachGesture
+                    val pass = PointerEventPass.Main
                     // The down's own Main pass: a row's tap has consumed it by then.
-                    if (pass == PointerEventPass.Main) awaitPointerEvent(pass)
+                    awaitPointerEvent(pass)
                     val slop = viewConfiguration.touchSlop
                     var total = Offset.Zero
                     var change: PointerInputChange
@@ -255,6 +261,7 @@ fun InboxScreen(reselect: Int, selected: Boolean = true) {
                 if (tabs[page].second == REDDIT_TAB) RedditNotificationsList(active = pager.currentPage == page, lists[page])
                 else InboxList(tabs[page].second, lists[page])
             }
+        }
         }
     }
 }
