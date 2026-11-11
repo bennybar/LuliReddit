@@ -82,10 +82,10 @@ struct DraftsScreen: View {
                         }
                     }
                 }
-                .listStyle(.plain)
+                // Grouped like History (#160), under a large title that folds away as you scroll.
+                .listStyle(.insetGrouped)
             }
         }
         .navigationTitle("Drafts")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

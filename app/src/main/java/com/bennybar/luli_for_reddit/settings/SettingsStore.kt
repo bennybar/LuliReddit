@@ -48,6 +48,7 @@ class SettingsStore(private val p: Prefs) {
             dimRead = b("dimRead", d.dimRead),
             subredditIcons = b("subredditIcons", d.subredditIcons),
             subredditPrefix = b("subredditPrefix", d.subredditPrefix),
+            sideBarUserPrefix = b("sideBarUserPrefix", d.sideBarUserPrefix),
             markReadOnScroll = b("markReadOnScroll", d.markReadOnScroll),
             swipePostStart = SwipeAction.parse(p.getString("swipePostStart"), SwipeAction.UPVOTE),
             swipePostEnd = SwipeAction.parse(p.getString("swipePostEnd"), SwipeAction.DOWNVOTE),
@@ -213,6 +214,7 @@ class SettingsStore(private val p: Prefs) {
     }
     fun setSubredditIcons(v: Boolean) { p.setBool("subredditIcons", v); set { it.copy(subredditIcons = v) } }
     fun setSubredditPrefix(v: Boolean) { p.setBool("subredditPrefix", v); set { it.copy(subredditPrefix = v) } }
+    fun setSideBarUserPrefix(v: Boolean) { p.setBool("sideBarUserPrefix", v); set { it.copy(sideBarUserPrefix = v) } }
     fun setMarkReadOnScroll(v: Boolean) { p.setBool("markReadOnScroll", v); set { it.copy(markReadOnScroll = v) } }
 
     /** [key] is one of swipePostStart / swipePostEnd / swipeCommentStart / swipeCommentEnd. */

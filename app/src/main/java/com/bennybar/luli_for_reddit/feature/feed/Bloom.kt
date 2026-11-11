@@ -51,6 +51,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -185,9 +187,20 @@ fun avatarColor(name: String): Color {
 }
 
 /**
+ * A placeholder's colours (#168), like WhatsApp's: [name]'s colour faint behind its
+ * letter in a deeper shade, and in a dark theme deep behind a lighter letter.
+ */
+@Composable
+fun avatarTones(name: String): Pair<Color, Color> {
+    val c = avatarColor(name)
+    return if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) lerp(c, Color.Black, 0.6f) to lerp(c, Color.White, 0.55f)
+    else lerp(c, Color.White, 0.8f) to lerp(c, Color.Black, 0.3f)
+}
+
+/**
  * Circle avatar showing [imageUrl] or the first letter of [name]. The letter sits
- * on a colour picked from the name (#105), so subreddits and users without an
- * icon still stand apart; [container] backs the image while it loads.
+ * on a colour picked from the name (#105, softened in #168), so subreddits and users
+ * without an icon still stand apart; [container] backs the image while it loads.
  */
 @Composable
 fun LetterAvatar(
@@ -201,8 +214,9 @@ fun LetterAvatar(
     shape: androidx.compose.ui.graphics.Shape = CircleShape,
 ) {
     val letter = imageUrl == null && name.isNotEmpty()
+    val (tone, onTone) = avatarTones(name)
     Box(
-        modifier.size(size).clip(shape).background(if (letter) avatarColor(name) else container),
+        modifier.size(size).clip(shape).background(if (letter) tone else container),
         contentAlignment = Alignment.Center,
     ) {
         if (imageUrl != null) {
@@ -227,7 +241,7 @@ fun LetterAvatar(
         } else {
             Text(
                 if (name.isNotEmpty()) name.first().uppercase() else "?",
-                color = if (letter) Color.White else content,
+                color = if (letter) onTone else content,
                 fontWeight = FontWeight.Bold,
                 fontSize = fontSize,
             )

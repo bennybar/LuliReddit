@@ -41,6 +41,7 @@ final class SettingsStore {
         s.dimReadTextOnly = b("dimReadTextOnly", s.dimReadTextOnly)
         s.dimRead = b("dimRead", s.dimRead)
         s.subredditIcons = b("subredditIcons", s.subredditIcons)
+        s.sideBarUserPrefix = b("sideBarUserPrefix", s.sideBarUserPrefix)
         s.markReadOnScroll = b("markReadOnScroll", s.markReadOnScroll)
         s.swipePostStart = SwipeAction.parse(p.getString("swipePostStart"), .upvote)
         s.swipePostEnd = SwipeAction.parse(p.getString("swipePostEnd"), .downvote)
@@ -200,6 +201,7 @@ final class SettingsStore {
         }
     }
     func setSubredditIcons(_ v: Bool) { p.setBool("subredditIcons", v); set { $0.subredditIcons = v } }
+    func setSideBarUserPrefix(_ v: Bool) { p.setBool("sideBarUserPrefix", v); set { $0.sideBarUserPrefix = v } }
     func setMarkReadOnScroll(_ v: Bool) { p.setBool("markReadOnScroll", v); set { $0.markReadOnScroll = v } }
 
     /// [key] is one of swipePostStart / swipePostEnd / swipeCommentStart / swipeCommentEnd.

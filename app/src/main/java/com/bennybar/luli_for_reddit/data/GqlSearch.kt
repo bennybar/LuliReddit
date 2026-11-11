@@ -177,8 +177,9 @@ internal fun gqlUserData(n: JsonObject): JsonObject = buildJsonObject {
     put("link_karma", n["karma"]["total"].int() ?: 0)
     put("comment_karma", 0)
     put("created_utc", gqlSeconds(n["profile"]["createdAt"].str()))
-    // The avatar, as Reddit's app reads a Redditor's: its icon, else the Snoovatar, else the profile's styles (#105).
-    put("icon_img", n["icon"]["url"].str() ?: n["snoovatarIcon"]["url"].str() ?: n["profile"]["styles"]["icon"].str())
+    // The avatar, as Reddit's app reads a Redditor's: its icon, else the Snoovatar, else the profile's styles (#105);
+    // SearchPeople sends it only in sizes, icon_24…icon_288 (#168).
+    put("icon_img", n["icon"]["url"].str() ?: n["snoovatarIcon"]["url"].str() ?: n["profile"]["styles"]["icon"].str() ?: n["icon_128"]["url"].str())
 }
 
 /**

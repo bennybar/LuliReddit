@@ -1353,8 +1353,8 @@ private fun CalmHeader(p: Post, a: PostActions, s: Settings) {
     // The subreddit is already the line above: drop a trailing " · r/sub" from the reason.
     val reason = p.feedReason?.removeSuffix(" · r/${p.subreddit}")?.removeSuffix(" · ${p.subredditPrefixed}")
     Row(verticalAlignment = Alignment.CenterVertically) {
-        // Expressive: a rounded-square avatar in one of three tonal pairs,
-        // picked per subreddit so a sub keeps its colour.
+        // Expressive: a circle avatar (#169) in one of three tonal pairs while its
+        // picture loads, picked per subreddit so a sub keeps its colour.
         val (bg, fg) = when (Math.floorMod(p.subreddit.lowercase().hashCode(), 3)) {
             0 -> cs.primaryContainer to cs.onPrimaryContainer
             1 -> cs.secondaryContainer to cs.onSecondaryContainer
@@ -1367,7 +1367,6 @@ private fun CalmHeader(p: Post, a: PostActions, s: Settings) {
             container = bg,
             content = fg,
             modifier = Modifier.clickable(onClick = a::openSubreddit),
-            shape = RoundedCornerShape(12.dp),
         )
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {

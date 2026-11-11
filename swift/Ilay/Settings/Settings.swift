@@ -162,6 +162,7 @@ struct Settings: Equatable, Sendable {
     var dimReadTextOnly = false // read posts: dim only title / text (images stay bright), else the whole card
     var dimRead = true // read posts dim at all (#106); off: history is still kept, nothing fades
     var subredditIcons = true // cards show the subreddit's icon (else its first letter)
+    var sideBarUserPrefix = true // the side bar shows your name as "u/name" (else just "name", #167)
     var markReadOnScroll = false // a post scrolled past counts as read
     // What swiping does: "start" = from the start edge (rightward in LTR).
     var swipePostStart: SwipeAction = .upvote

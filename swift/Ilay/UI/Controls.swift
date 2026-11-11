@@ -87,16 +87,34 @@ struct ToggleIcon: View {
     }
 }
 
-/// A colour picked from `name` by a stable hash, so a name keeps its colour everywhere: the
-/// comment author dots' palette, mid tones that carry white text in light and dark.
-func avatarColor(_ name: String) -> Color {
+/// A colour picked from `name` by a stable hash, so a name keeps its colour everywhere:
+/// mid tones, the same picks as Kotlin's.
+private func avatarArgb(_ name: String) -> Int {
     let palette: [Int] = [0xFF7C5CE0, 0xFF4FA89B, 0xFFC77E4A, 0xFFC46A96, 0xFF5B82CE, 0xFF5FA85A]
     let hash = name.utf16.reduce(0) { ($0 * 31 + Int($1)) & 0x7fffffff }
-    return Color(argb: palette[hash % palette.count])
+    return palette[hash % palette.count]
+}
+
+func avatarColor(_ name: String) -> Color { Color(argb: avatarArgb(name)) }
+
+/// A placeholder's colours (#168), like WhatsApp's: `name`'s colour faint behind its letter
+/// in a deeper shade, and in dark mode deep behind a lighter letter.
+func avatarTones(_ name: String) -> (background: Color, letter: Color) {
+    let c = avatarArgb(name)
+    // `c` mixed toward `to` (0: black, 1: white) by `t`.
+    func mix(_ to: CGFloat, _ t: CGFloat) -> UIColor {
+        func ch(_ shift: Int) -> CGFloat { CGFloat((c >> shift) & 0xFF) / 255 * (1 - t) + to * t }
+        return UIColor(red: ch(16), green: ch(8), blue: ch(0), alpha: 1)
+    }
+    let background = mix(1, 0.8), darkBackground = mix(0, 0.6), letter = mix(0, 0.3), darkLetter = mix(1, 0.55)
+    return (
+        Color(UIColor { $0.userInterfaceStyle == .dark ? darkBackground : background }),
+        Color(UIColor { $0.userInterfaceStyle == .dark ? darkLetter : letter })
+    )
 }
 
 /// Circle avatar showing `imageUrl` or the first letter of `name`. The letter sits on a
-/// colour picked from the name (#105), so subreddits and users without an icon still stand
+/// colour picked from the name (#105, softened in #168), so subreddits and users without an icon still stand
 /// apart; `container` backs the image while it loads.
 struct LetterAvatar: View {
     let name: String
@@ -112,10 +130,11 @@ struct LetterAvatar: View {
             if let url = imageUrl.flatMap(URL.init(string:)) {
                 RemoteImage(url: url) { container }
             } else {
-                if !name.isEmpty { avatarColor(name) }
+                let tones = avatarTones(name)
+                if !name.isEmpty { tones.background }
                 Text(name.first.map { String($0).uppercased() } ?? "?")
                     .font(.system(size: size * 0.42, weight: .bold))
-                    .foregroundStyle(name.isEmpty ? content : .white)
+                    .foregroundStyle(name.isEmpty ? content : tones.letter)
             }
         }
         .frame(width: size, height: size)

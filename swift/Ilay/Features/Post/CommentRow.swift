@@ -400,11 +400,13 @@ private struct AuthorDot: View {
     var body: some View {
         let deleted = name.isEmpty || name.hasPrefix("[")
         let icon = deleted || !app.settings.value.commentAvatars ? nil : app.authorAvatars.icons[name.lowercased()]
+        // Soft tones like the other placeholders (#168).
+        let tones = avatarTones(name)
         Text(verbatim: deleted ? "?" : String(name.prefix(1)).uppercased())
             .font(.system(size: 12, weight: .bold))
-            .foregroundStyle(.white)
+            .foregroundStyle(deleted ? .white : tones.letter)
             .frame(width: 24, height: 24)
-            .background(deleted ? Color(.systemGray) : avatarColor(name), in: .circle)
+            .background(deleted ? Color(.systemGray) : tones.background, in: .circle)
             .overlay {
                 if let icon {
                     RemoteImage(url: URL(string: icon)) { Color.clear }

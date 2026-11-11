@@ -212,13 +212,15 @@ private struct SideBar: View {
                 if let username {
                     // Stands in for the Profile row (#64).
                     Button { onPick { onTab(3) } } label: {
-                        VStack(alignment: .leading, spacing: 10) {
+                        // Your name and karma beside your picture, a size up (#167).
+                        HStack(spacing: 14) {
                             LetterAvatar(name: username, size: 64, imageUrl: me?.iconUrl)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("u/\(username)").font(.headline).foregroundStyle(.primary)
+                                Text(app.settings.value.sideBarUserPrefix ? "u/\(username)" : username)
+                                    .font(.title3.bold()).foregroundStyle(.primary).lineLimit(1)
                                 if let me {
                                     Text("\(compactNumber(me.linkKarma + me.commentKarma)) karma")
-                                        .font(.subheadline)
+                                        .font(.body)
                                         .foregroundStyle(.secondary)
                                 }
                             }

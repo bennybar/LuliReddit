@@ -8,6 +8,7 @@ import com.bennybar.luli_for_reddit.ui.SearchIcon
 import androidx.compose.material.icons.outlined.PostAdd
 import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material.icons.rounded.Tag
+import androidx.compose.material.icons.rounded.AlternateEmail
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.PermMedia
@@ -501,6 +502,10 @@ fun SettingsList(
         switch(
             "r/ before subreddit names", "Show \"r/pics\" on posts and lists. Off: just \"pics\"",
             Icons.Rounded.Tag, s.subredditPrefix, ctrl::setSubredditPrefix,
+        )
+        switch(
+            "u/ before your name in the side bar", "Show \"u/you\" at the top of the side bar. Off: just \"you\"",
+            Icons.Rounded.AlternateEmail, s.sideBarUserPrefix, ctrl::setSideBarUserPrefix,
         )
         add(Entry("appIcon", "App icon launcher home screen colour") {
             val current = AppIcon.parse(s.appIcon)

@@ -210,6 +210,9 @@ final class GqlSearchTests: XCTestCase {
         XCTAssertEqual(user.iconUrl, "https://styles.redditmedia.com/i.png")
         let snoo = RedditUser.fromData(gqlUserData(json(#"{"name":"a","snoovatarIcon":{"url":"https://i.redd.it/snoo.png"}}"#).obj()!))
         XCTAssertEqual(snoo.iconUrl, "https://i.redd.it/snoo.png")
+        // SearchPeople: only the sized icons (#168).
+        let sized = RedditUser.fromData(gqlUserData(json(#"{"name":"c","icon_128":{"url":"https://styles.redditmedia.com/t5_1/styles/profileIcon_x.png?width=128&s=y"}}"#).obj()!))
+        XCTAssertEqual(sized.iconUrl, "https://styles.redditmedia.com/t5_1/styles/profileIcon_x.png")
         XCTAssertNil(RedditUser.fromData(gqlUserData(json(#"{"name":"b"}"#).obj()!)).iconUrl)
     }
 

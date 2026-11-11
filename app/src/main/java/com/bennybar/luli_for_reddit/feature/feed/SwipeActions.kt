@@ -157,10 +157,9 @@ fun SwipeActions(
     enabled: Boolean = true,
     content: @Composable () -> Unit,
 ) {
-    if (!enabled || (start == null && end == null)) {
-        Box(modifier) { content() }
-        return
-    }
+    // Off, only the drag handling goes: [content] stays where it is, so turning swipes
+    // on or off (History's select mode) doesn't rebuild the row and cut its animations (#163).
+    val active = enabled && (start != null || end != null)
     val density = LocalDensity.current
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val view = rememberView()
@@ -178,7 +177,7 @@ fun SwipeActions(
     val edgeDrag = com.bennybar.luli_for_reddit.feature.home.LocalEdgeDrag.current
 
     Box(
-        modifier.pointerInput(rtl, tracker) {
+        if (!active) modifier else modifier.pointerInput(rtl, tracker) {
             detectSwipeDrags(
                 // A side with no action leaves the drag alone: taking it froze
                 // the row and kept the Inbox from paging past it (#113).

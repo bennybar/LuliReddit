@@ -176,7 +176,8 @@ func gqlUserData(_ n: JsonObject) -> JsonElement {
         "comment_karma": 0,
         "created_utc": .double(gqlSeconds(n["profile"]["createdAt"].str())),
         // The avatar, as Reddit's app reads a Redditor's: its icon, else the Snoovatar, else the profile's styles (#105).
-        "icon_img": .of(n["icon"]["url"].str() ?? n["snoovatarIcon"]["url"].str() ?? n["profile"]["styles"]["icon"].str()),
+        // SearchPeople sends the avatar only in sizes, icon_24…icon_288 (#168).
+        "icon_img": .of(n["icon"]["url"].str() ?? n["snoovatarIcon"]["url"].str() ?? n["profile"]["styles"]["icon"].str() ?? n["icon_128"]["url"].str()),
     ]
 }
 

@@ -222,6 +222,7 @@ struct SettingsCatalog {
             "Navigation", value: min(max(s.navStyle, 0), 2),
             options: navStyles.indices.map { PickOption(value: $0, label: navStyles[$0].0, subtitle: navStyles[$0].1) }, set: ctrl.setNavStyle
         )
+        b.toggle("u/ before your name in the side bar", "Show \"u/you\" at the top of the side bar. Off: just \"you\"", s.sideBarUserPrefix, set: ctrl.setSideBarUserPrefix)
     }
 
     // MARK: - Posts & comments

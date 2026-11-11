@@ -1,5 +1,8 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
 import com.bennybar.luli_for_reddit.ui.subredditName
 import android.net.Uri
 import java.time.Instant
@@ -319,20 +322,34 @@ private fun HistoryRow(
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // Selecting flips the picture over to a tick, like Gmail (#163).
+        val flip by animateFloatAsState(if (selected) 180f else 0f, tween(300), label = "flip")
         Box(
             Modifier
                 .size(40.dp)
+                .graphicsLayer {
+                    rotationY = flip
+                    cameraDistance = 12f * density
+                }
                 .clip(CircleShape)
                 .clickable(onClickLabel = if (selected) "Unselect" else "Select", onClick = onSelect),
             contentAlignment = Alignment.Center,
         ) {
-            if (selected) {
-                Box(Modifier.fillMaxSize().background(cs.primary), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.Check, null, tint = cs.onPrimary)
-                }
-            } else {
-                LetterAvatar(e.subreddit.ifEmpty { "?" }, 40.dp, cs.secondaryContainer, cs.onSecondaryContainer, imageUrl = icon)
-            }
+            // Both faces stay put (the picture doesn't reload on the way back); the turn
+            // shows whichever faces you.
+            LetterAvatar(
+                e.subreddit.ifEmpty { "?" }, 40.dp, cs.secondaryContainer, cs.onSecondaryContainer,
+                Modifier.graphicsLayer { alpha = if (flip > 90f) 0f else 1f },
+                imageUrl = icon,
+            )
+            // The back face, turned again so the tick doesn't read mirrored.
+            Box(
+                Modifier.fillMaxSize().graphicsLayer {
+                    rotationY = 180f
+                    alpha = if (flip > 90f) 1f else 0f
+                }.background(cs.primary),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Rounded.Check, null, tint = cs.onPrimary) }
         }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {

@@ -208,6 +208,7 @@ data class Settings(
     val dimRead: Boolean = true, // read posts dim at all (#106); off: history is still kept, nothing fades
     val subredditIcons: Boolean = true, // cards show the subreddit's icon (else its first letter)
     val subredditPrefix: Boolean = true, // subreddit names show as "r/name" (else just "name", #97); display only
+    val sideBarUserPrefix: Boolean = true, // the side bar shows your name as "u/name" (else just "name", #167)
     val markReadOnScroll: Boolean = false, // a post scrolled past counts as read
     // What swiping does: "start" = from the start edge (rightward in LTR).
     val swipePostStart: SwipeAction = SwipeAction.UPVOTE,

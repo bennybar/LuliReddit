@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Reply
 import androidx.compose.material.icons.rounded.DeleteOutline
@@ -15,17 +17,17 @@ import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material.icons.rounded.MailOutline
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -36,7 +38,11 @@ import com.bennybar.luli_for_reddit.core.get
 import com.bennybar.luli_for_reddit.core.str
 import com.bennybar.luli_for_reddit.core.timeAgoPhrase
 import com.bennybar.luli_for_reddit.feature.feed.BloomTopBar
+import com.bennybar.luli_for_reddit.feature.feed.HidingTopBar
+import com.bennybar.luli_for_reddit.feature.feed.SwipeActions
+import com.bennybar.luli_for_reddit.feature.feed.SwipeSpec
 import com.bennybar.luli_for_reddit.feature.feed.Tile
+import com.bennybar.luli_for_reddit.feature.feed.rememberHidingBar
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.Route
 import com.bennybar.luli_for_reddit.state.Draft
@@ -83,28 +89,45 @@ private fun rowOf(d: Draft): DraftRow {
 /**
  * You → Drafts: this account's unfinished replies, messages and posts. Tap to
  * go where it belongs (its composer then restores it); swipe to delete.
+ * Laid out like History (#160): the top bar hides as you scroll, and the rows
+ * sit in one connected container.
  */
 @Composable
 fun DraftsScreen() {
     val cs = MaterialTheme.colorScheme
     val changes by app.drafts.changes.collectAsStateWithLifecycle()
     val drafts = remember(changes) { app.drafts.list() }
-    Scaffold(topBar = { BloomTopBar("Drafts") }, containerColor = cs.surface) { padding ->
-        Box(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
-            if (drafts.isEmpty()) {
-                Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
-                    Text(
-                        "No drafts. Unfinished replies, messages and posts are kept here until you send them.",
-                        textAlign = TextAlign.Center,
-                        color = cs.onSurfaceVariant,
-                    )
-                }
-            } else {
-                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 130.dp)) {
-                    items(drafts, key = { it.key }) { d -> DraftItem(d) }
+    val listState = rememberLazyListState()
+    val bar = rememberHidingBar(listState)
+    Box(Modifier.fillMaxSize().background(cs.surface).clipToBounds().nestedScroll(bar)) {
+        if (drafts.isEmpty()) {
+            Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+                Text(
+                    "No drafts. Unfinished replies, messages and posts are kept here until you send them.",
+                    textAlign = TextAlign.Center,
+                    color = cs.onSurfaceVariant,
+                )
+            }
+        } else {
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                state = listState,
+                contentPadding = PaddingValues(top = with(LocalDensity.current) { bar.height.toDp() } + 4.dp, bottom = 130.dp),
+            ) {
+                itemsIndexed(drafts, key = { _, d -> d.key }) { i, d ->
+                    // A row's outer corners are round only where the container starts or ends, as in Settings.
+                    val top = if (i == 0) 24.dp else 4.dp
+                    val bottom = if (i == drafts.lastIndex) 24.dp else 4.dp
+                    Box(
+                        Modifier
+                            .animateItem()
+                            .padding(start = 16.dp, end = 16.dp, bottom = 2.dp)
+                            .clip(RoundedCornerShape(top, top, bottom, bottom)),
+                    ) { DraftItem(d) }
                 }
             }
         }
+        HidingTopBar(bar) { BloomTopBar("Drafts") }
     }
 }
 
@@ -113,23 +136,11 @@ private fun DraftItem(d: Draft) {
     val cs = MaterialTheme.colorScheme
     val nav = LocalNavigator.current
     val row = remember(d) { rowOf(d) }
-    val dismiss = rememberSwipeToDismissBoxState()
-    SwipeToDismissBox(
-        state = dismiss,
-        enableDismissFromStartToEnd = false,
-        onDismiss = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) {
-                app.drafts.clear(d.key)
-                nav.showSnackbar("Draft deleted")
-            }
-        },
-        backgroundContent = {
-            Box(
-                Modifier.fillMaxSize().background(cs.errorContainer).padding(horizontal = 24.dp),
-                contentAlignment = Alignment.CenterEnd,
-            ) { Icon(Icons.Rounded.DeleteOutline, "Delete", tint = cs.onErrorContainer) }
-        },
-    ) {
+    val delete = remember(d.key) { SwipeSpec(Icons.Rounded.DeleteOutline, cs.error) {
+        app.drafts.clear(d.key)
+        nav.showSnackbar("Draft deleted")
+    } }
+    SwipeActions(start = null, end = delete, enabled = true) {
         Tile(
             title = { Text(row.preview.ifBlank { "(empty)" }, maxLines = 2, overflow = TextOverflow.Ellipsis) },
             subtitle = {
@@ -140,7 +151,7 @@ private fun DraftItem(d: Draft) {
                 )
             },
             leading = { Icon(row.icon, null) },
-            modifier = Modifier.background(cs.surface),
+            modifier = Modifier.background(cs.surfaceContainerLow),
             onClick = row.open?.let { r -> { nav.push(r) } },
         )
     }

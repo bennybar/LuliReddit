@@ -293,7 +293,7 @@ private struct CalmHeader: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Button(action: a.openSubreddit) { FeedAvatar(row: row, size: 36, radius: 10) }
+            Button(action: a.openSubreddit) { FeedAvatar(row: row, size: 36, radius: 18) } // a circle (#169)
                 .buttonStyle(.plain)
                 .accessibilityLabel(row.subredditLabel)
             VStack(alignment: .leading, spacing: 1) {
@@ -353,7 +353,7 @@ private struct HeaderBadges: View {
     }
 }
 
-/// The subreddit's icon, or its first letter on a tone of its own (Calm).
+/// The subreddit's icon, or its first letter on a tone of its own.
 private struct FeedAvatar: View {
     let row: PostRow
     let size: CGFloat
@@ -366,9 +366,12 @@ private struct FeedAvatar: View {
                 // Always a still image: some subreddit icons are animated GIFs (see RemoteImage).
                 SlotImage(url: url, pixels: row.avatarPixels).frame(width: size, height: size)
             } else {
+                // Soft tones like every placeholder (#168).
+                let tones = avatarTones(row.post.subreddit)
+                tones.background
                 Text(row.post.subreddit.first.map { String($0).uppercased() } ?? "?")
                     .font(.system(size: size * 0.42, weight: .bold))
-                    .foregroundStyle(row.config.display.isCalm ? tone : AnyShapeStyle(.secondary))
+                    .foregroundStyle(tones.letter)
             }
         }
         .frame(width: size, height: size)

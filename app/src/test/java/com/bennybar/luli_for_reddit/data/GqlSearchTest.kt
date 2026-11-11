@@ -171,6 +171,11 @@ class GqlSearchTest {
             gqlUserData(AppJson.parseToJsonElement("""{"name":"a","snoovatarIcon":{"url":"https://i.redd.it/snoo.png"}}""").jsonObject),
         )
         assertEquals("https://i.redd.it/snoo.png", snoo.iconUrl)
+        // SearchPeople: only the sized icons (#168).
+        val sized = RedditUser.fromData(
+            gqlUserData(AppJson.parseToJsonElement("""{"name":"c","icon_128":{"url":"https://styles.redditmedia.com/t5_1/styles/profileIcon_x.png?width=128&s=y"}}""").jsonObject),
+        )
+        assertEquals("https://styles.redditmedia.com/t5_1/styles/profileIcon_x.png", sized.iconUrl)
         assertNull(RedditUser.fromData(gqlUserData(AppJson.parseToJsonElement("""{"name":"b"}""").jsonObject)).iconUrl)
     }
 
