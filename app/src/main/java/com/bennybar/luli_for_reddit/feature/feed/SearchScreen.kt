@@ -298,6 +298,7 @@ fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time:
 
     val tabs = if (restricted) listOf("Posts") else listOf("Posts", "Subreddits", "Users")
     val pager = rememberPagerState { tabs.size }
+    val pagerShown = state.error == null && state.query.isNotEmpty()
 
     Scaffold(
         topBar = {
@@ -344,7 +345,13 @@ fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time:
                         tabs.forEachIndexed { i, t ->
                             Tab(
                                 selected = pager.currentPage == i,
-                                onClick = { scope.launch { pager.animateScrollToPage(i) } },
+                                onClick = {
+                                    // Before a search (or on its error) the pager isn't laid
+                                    // out, so an animated scroll does nothing: set the page
+                                    // directly and the results open on that tab.
+                                    if (pagerShown) scope.launch { pager.animateScrollToPage(i) }
+                                    else pager.requestScrollToPage(i)
+                                },
                                 text = { Text(t) },
                             )
                         }
