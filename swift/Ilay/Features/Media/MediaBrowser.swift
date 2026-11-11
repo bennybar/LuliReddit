@@ -77,6 +77,10 @@ struct MediaBrowseFeed: Equatable {
     let dismiss: DismissState
     var muted = app.settings.value.viewerMuted
     private(set) var playing = false
+    /// Stopped at the end (Loop videos off, #156): the play button replays.
+    private(set) var ended = false
+    /// The clip on screen starts over at the end: a GIF, or Loop videos on (#156).
+    @ObservationIgnored private var loops = true
     /// Each gallery's page, so a gallery swiped back to opens where it was left.
     var galleryPages: [String: Int] = [:]
     /// NSFW / spoiler posts tapped to view; like the feed, only while the browser is open.
@@ -118,7 +122,18 @@ struct MediaBrowseFeed: Equatable {
         dismiss = DismissState { closer?() }
         closer = { [weak self] in self?.close() }
         player.actionAtItemEnd = .none
-        observers.append(observeVideoEnd(of: player))
+        observers.append(NotificationCenter.default.addObserver(forName: AVPlayerItem.didPlayToEndTimeNotification, object: nil, queue: .main) { [weak self] note in
+            MainActor.assumeIsolated {
+                guard let self, note.object as? AVPlayerItem === self.player.currentItem else { return }
+                if self.loops {
+                    self.player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
+                } else {
+                    self.wanted = false
+                    self.player.pause()
+                    self.ended = true
+                }
+            }
+        })
         observation = player.observe(\.timeControlStatus, options: [.initial]) { [weak self] player, _ in
             let on = player.timeControlStatus != .paused
             DispatchQueue.main.async { MainActor.assumeIsolated { self?.playing = on } }
@@ -197,6 +212,8 @@ struct MediaBrowseFeed: Equatable {
     }
 
     func play(_ asset: AVURLAsset) {
+        loops = post?.type == .gif || app.settings.value.loopVideos
+        ended = false
         player.replaceCurrentItem(with: AVPlayerItem(asset: asset))
         player.isMuted = muted
         wanted = true
@@ -213,6 +230,13 @@ struct MediaBrowseFeed: Equatable {
     }
 
     func togglePlay() {
+        if ended {
+            ended = false
+            wanted = true
+            player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
+            player.play()
+            return
+        }
         if player.rate != 0 {
             wanted = false
             player.pause()
@@ -623,7 +647,7 @@ private struct MediaBrowserOverlay: View {
                     .frame(maxWidth: .infinity)
                     .accessibilityLabel(counter.map { "Image \($0.replacingOccurrences(of: " / ", with: " of "))" } ?? "")
                 if model.isVideo {
-                    ViewerButton(icon: model.playing ? "pause.fill" : "play.fill", label: model.playing ? "Pause" : "Play", action: model.togglePlay)
+                    ViewerButton(icon: model.ended ? "arrow.counterclockwise" : model.playing ? "pause.fill" : "play.fill", label: model.ended ? "Replay" : model.playing ? "Pause" : "Play", action: model.togglePlay)
                     ViewerButton(icon: model.muted ? "speaker.slash.fill" : "speaker.wave.2.fill", label: model.muted ? "Unmute" : "Mute", action: model.toggleMute)
                 } else {
                     // Keeps the counter centred.

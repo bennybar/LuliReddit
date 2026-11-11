@@ -29,6 +29,7 @@ sealed interface MediaViewer {
         val title: String? = null,
         val downloadUrl: String? = null,
         val externalUrl: String? = null,
+        val gif: Boolean = false, // a GIF's mp4: it always loops (#156)
     ) : MediaViewer
 
     /**

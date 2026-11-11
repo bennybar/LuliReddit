@@ -64,7 +64,7 @@ import UIKit
         // Play reddit's mp4 variant (small, loops); else the animated .gif.
         case .gif:
             if let mp4 = p.gifMp4Url {
-                nav.openVideo(mp4, title: p.title, downloadUrl: mp4, externalUrl: p.url)
+                nav.openVideo(mp4, title: p.title, downloadUrl: mp4, externalUrl: p.url, gif: true)
             } else {
                 nav.openImage(p.url, title: p.title)
             }

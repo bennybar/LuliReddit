@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.media
 
+import androidx.compose.material.icons.rounded.Replay
 import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.progressBarRangeInfo
@@ -174,7 +175,8 @@ internal fun VideoViewer(route: MediaViewer.Video) {
     val context = LocalContext.current
     val player = remember {
         buildPlayer(context, audioFocus = true).apply {
-            repeatMode = Player.REPEAT_MODE_ONE
+            // Settings › Loop videos (#156); a GIF always loops.
+            repeatMode = if (route.gif || app.settings.value.loopVideos) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
             // Carry on from where the feed card was (its chunks are cached).
             setMediaItem(mediaItemFor(route.url), app.media.inlinePlayer.position(route.url) ?: 0L)
             prepare()
@@ -190,6 +192,7 @@ internal fun VideoViewer(route: MediaViewer.Video) {
     var error by remember { mutableStateOf<String?>(null) }
     var ready by remember { mutableStateOf(false) }
     var playing by remember { mutableStateOf(false) }
+    var ended by remember { mutableStateOf(false) } // stopped at the end (Loop videos off)
     var aspect by remember { mutableFloatStateOf(0f) }
     var controls by remember { mutableStateOf(true) }
     var hideTick by remember { mutableIntStateOf(0) }
@@ -200,6 +203,8 @@ internal fun VideoViewer(route: MediaViewer.Video) {
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
+                ended = state == Player.STATE_ENDED
+                if (ended) controls = true
                 if (state == Player.STATE_READY && !ready) {
                     ready = true
                     hideTick++
@@ -325,7 +330,13 @@ internal fun VideoViewer(route: MediaViewer.Video) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     CircleBtn(Icons.Rounded.Replay10, "Back 10 seconds") { seekBy(-10) }
-                    CircleBtn(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, "Play/pause", big = true) {
+                    CircleBtn(
+                        if (ended) Icons.Rounded.Replay else if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                        if (ended) "Replay" else "Play/pause",
+                        big = true,
+                    ) {
+                        // At the end (Loop videos off), from the start again.
+                        if (ended) player.seekTo(0)
                         if (player.isPlaying) player.pause() else player.play()
                         hideTick++
                     }

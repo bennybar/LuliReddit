@@ -6,7 +6,7 @@ import SwiftUI
 enum MediaViewer: Hashable, Codable {
     case image(url: String, title: String? = nil)
     case gallery(urls: [String], widths: [Int] = [], heights: [Int] = [], title: String? = nil, initialIndex: Int = 0)
-    case video(url: String, title: String? = nil, downloadUrl: String? = nil, externalUrl: String? = nil)
+    case video(url: String, title: String? = nil, downloadUrl: String? = nil, externalUrl: String? = nil, gif: Bool = false) // gif: always loops (#156)
 }
 
 /// The open viewers, bottom to top. Each fades in (220ms) and out (180ms) before

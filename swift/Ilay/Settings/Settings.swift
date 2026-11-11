@@ -205,6 +205,7 @@ struct Settings: Equatable, Sendable {
     var autoplayMedia = true // autoplay videos/GIFs in feeds
     var autoplaySound = false // feed videos start unmuted (#23)
     var viewerMuted = false // full-screen videos start muted (#51)
+    var loopVideos = true // full-screen and Browse media videos start over at the end; off: they stop, with a replay button (#156). GIFs always loop
     var feedGalleryCarousel = true // galleries in feeds as a carousel (else one image at a time)
     var showApiUsage = false // show API usage instead of search on Posts screen
     var notifyInbox = false // background-poll the inbox + local notifications

@@ -17,6 +17,8 @@ import SwiftUI
     var error: String?
     var ready = false
     var playing = false
+    /// Stopped at the end (Loop videos off, #156): the play button replays.
+    var ended = false
     var hideTick = 0
     var position = 0.0
     var duration = 0.0
@@ -30,7 +32,7 @@ import SwiftUI
     @ObservationIgnored private var observations: [NSKeyValueObservation] = []
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
 
-    init(url: String, title: String?, downloadUrl: String?, externalUrl: String?, close: @escaping () -> Void) {
+    init(url: String, title: String?, downloadUrl: String?, externalUrl: String?, gif: Bool = false, close: @escaping () -> Void) {
         self.url = url
         self.title = title
         self.downloadUrl = downloadUrl
@@ -48,6 +50,18 @@ import SwiftUI
             borrowed = false
             player.actionAtItemEnd = .none
             observers.append(observeVideoEnd(of: player))
+        }
+        // Settings › Loop videos (#156); a GIF always loops. Off, it stops at the end
+        // (a clip borrowed from the feed is rewound by the feed's loop; it stops there).
+        if !gif && !app.settings.value.loopVideos {
+            observers.append(NotificationCenter.default.addObserver(forName: AVPlayerItem.didPlayToEndTimeNotification, object: nil, queue: .main) { [weak self] note in
+                MainActor.assumeIsolated {
+                    guard let self, note.object as? AVPlayerItem === self.player.currentItem else { return }
+                    self.wanted = false
+                    self.player.pause()
+                    self.ended = true
+                }
+            })
         }
         player.isMuted = muted
         // Muted, it leaves the audio session alone, so the user's music keeps playing.
@@ -131,6 +145,14 @@ import SwiftUI
     }
 
     func togglePlay() {
+        if ended {
+            ended = false
+            wanted = true
+            player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
+            player.play()
+            hideTick += 1
+            return
+        }
         if player.rate != 0 || (wanted && switchingSession) {
             wanted = false
             player.pause()
@@ -267,7 +289,7 @@ struct VideoViewer: View {
         GlassEffectContainer(spacing: 28) {
             HStack(spacing: 28) {
                 ViewerButton(icon: "gobackward.10", label: "Back 10 seconds", size: 56, iconSize: 24) { model.seekBy(-10) }
-                ViewerButton(icon: model.playing ? "pause.fill" : "play.fill", label: "Play/pause", size: 72, iconSize: 32) {
+                ViewerButton(icon: model.ended ? "arrow.counterclockwise" : model.playing ? "pause.fill" : "play.fill", label: model.ended ? "Replay" : "Play/pause", size: 72, iconSize: 32) {
                     model.togglePlay()
                 }
                 ViewerButton(icon: "goforward.10", label: "Forward 10 seconds", size: 56, iconSize: 24) { model.seekBy(10) }

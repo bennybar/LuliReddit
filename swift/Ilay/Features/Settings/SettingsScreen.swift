@@ -284,6 +284,7 @@ struct SettingsCatalog {
             b.toggle("Autoplay with sound", "Feed videos start with sound; tap the speaker to mute one", s.autoplaySound, set: ctrl.setAutoplaySound)
         }
         b.toggle("Open videos muted", "Full-screen videos start muted; tap the speaker for sound", s.viewerMuted, set: ctrl.setViewerMuted)
+        b.toggle("Loop videos", "Full-screen videos start over at the end. Off: they stop, with a replay button. GIFs always loop", s.loopVideos, set: ctrl.setLoopVideos)
         b.toggle("Gallery carousel in feeds", "Galleries show a big image with the next ones beside it. Off: one image at a time", s.feedGalleryCarousel, set: ctrl.setFeedGalleryCarousel)
         b.toggle("Blur NSFW media", "Tap to reveal blurred images", s.blurNsfw, set: ctrl.setBlurNsfw)
         // Content filters' switch, here too: beside the blur is where people look for it (#94).

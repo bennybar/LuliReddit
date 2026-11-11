@@ -280,7 +280,7 @@ struct PostHeaderView: View {
     case .image: nav.openImage(p.previewUrl ?? p.url, title: p.title)
     case .gif:
         if let mp4 = p.gifMp4Url {
-            nav.openVideo(mp4, title: p.title, downloadUrl: mp4, externalUrl: p.url)
+            nav.openVideo(mp4, title: p.title, downloadUrl: mp4, externalUrl: p.url, gif: true)
         } else {
             nav.openImage(p.url, title: p.title)
         }

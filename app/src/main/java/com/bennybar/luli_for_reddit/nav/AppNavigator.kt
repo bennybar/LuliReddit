@@ -116,8 +116,8 @@ class AppNavigator(
         )
     }
 
-    fun openVideo(url: String, title: String? = null, downloadUrl: String? = null, externalUrl: String? = null) =
-        viewers.open(MediaViewer.Video(url, title, downloadUrl, externalUrl))
+    fun openVideo(url: String, title: String? = null, downloadUrl: String? = null, externalUrl: String? = null, gif: Boolean = false) =
+        viewers.open(MediaViewer.Video(url, title, downloadUrl, externalUrl, gif))
 
     /** Opens a video post full-screen (resolving RedGifs to its HD file first). */
     fun openPostVideo(post: Post) {

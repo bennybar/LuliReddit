@@ -309,8 +309,8 @@ final class MediaViewerController: UIHostingController<AnyView> {
             root = urls.isEmpty
                 ? AnyView(Color.clear.onAppear(perform: close))
                 : AnyView(ImageViewer(urls: urls, initialIndex: initialIndex, title: title, isGallery: true, close: close))
-        case let .video(url, title, downloadUrl, externalUrl):
-            let model = VideoViewerModel(url: url, title: title, downloadUrl: downloadUrl, externalUrl: externalUrl, close: close)
+        case let .video(url, title, downloadUrl, externalUrl, gif):
+            let model = VideoViewerModel(url: url, title: title, downloadUrl: downloadUrl, externalUrl: externalUrl, gif: gif, close: close)
             closed = { model.release() }
             root = AnyView(VideoViewer(model: model))
         }

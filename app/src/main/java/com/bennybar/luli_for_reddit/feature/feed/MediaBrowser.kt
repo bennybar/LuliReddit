@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.material.icons.rounded.Replay
 import android.content.Context
 import android.view.TextureView
 import androidx.annotation.OptIn
@@ -194,6 +195,7 @@ private class BrowserVideo(context: Context, muted: Boolean) {
     var firstFrame by mutableStateOf(false)
     var aspect by mutableFloatStateOf(0f)
     var failed by mutableStateOf(false)
+    var ended by mutableStateOf(false) // stopped at the end (Loop videos off, #156)
     var muted by mutableStateOf(muted)
         private set
 
@@ -212,7 +214,17 @@ private class BrowserVideo(context: Context, muted: Boolean) {
             override fun onPlayerError(error: PlaybackException) {
                 failed = true
             }
+
+            override fun onPlaybackStateChanged(state: Int) {
+                ended = state == Player.STATE_ENDED
+            }
         })
+    }
+
+    /** From the start again, after it stopped at the end. */
+    fun replay() {
+        player.seekTo(0)
+        player.play()
     }
 
     fun toggleMute() {
@@ -234,7 +246,10 @@ private class BrowserVideo(context: Context, muted: Boolean) {
         owner = p.id
         firstFrame = false
         failed = false
+        ended = false
         aspect = 0f
+        // Settings › Loop videos (#156); a GIF always loops.
+        player.repeatMode = if (p.type == PostType.GIF || app.settings.value.loopVideos) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
         // Carry on from where the feed card was (its chunks are cached).
         player.setMediaItem(mediaItemFor(url), app.media.inlinePlayer.position(url) ?: 0L)
         player.prepare()
@@ -496,6 +511,14 @@ private fun VideoPage(p: Post, active: Boolean, video: BrowserVideo, decodeWidth
             )
         }
         when {
+            // Stopped at the end (Loop videos off, #156): play it again.
+            mine && video.ended -> Box(
+                Modifier
+                    .size(72.dp)
+                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                    .clickable(onClickLabel = "Replay", onClick = video::replay),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Rounded.Replay, "Replay", Modifier.size(40.dp), tint = Color.White) }
             mine && video.failed -> Text(
                 "This video can't be played in the app",
                 Modifier.background(Color.Black.copy(alpha = 0.6f), CircleShape).padding(horizontal = 16.dp, vertical = 8.dp),

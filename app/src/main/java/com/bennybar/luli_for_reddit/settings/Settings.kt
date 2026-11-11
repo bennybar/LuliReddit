@@ -252,6 +252,7 @@ data class Settings(
     val autoplayMedia: Boolean = true, // autoplay videos/GIFs in feeds
     val autoplaySound: Boolean = false, // feed videos start unmuted (#23)
     val viewerMuted: Boolean = false, // full-screen videos start muted (#51)
+    val loopVideos: Boolean = true, // full-screen and Browse media videos start over at the end; off: they stop, with a replay button (#156). GIFs always loop
     val feedGalleryCarousel: Boolean = true, // galleries in feeds as the M3 carousel (else one image at a time)
     val showApiUsage: Boolean = false, // show API usage instead of search on Posts screen
     val notifyInbox: Boolean = false, // background-poll the inbox + local notifications

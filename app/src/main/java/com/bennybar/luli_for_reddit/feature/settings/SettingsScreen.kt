@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.settings
 
+import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.outlined.Folder
 import android.provider.DocumentsContract
@@ -705,6 +706,10 @@ fun SettingsList(
         switch(
             "Open videos muted", "Full-screen videos start muted; tap the speaker for sound",
             Icons.AutoMirrored.Rounded.VolumeOff, s.viewerMuted, ctrl::setViewerMuted,
+        )
+        switch(
+            "Loop videos", "Full-screen videos start over at the end. Off: they stop, with a replay button. GIFs always loop",
+            Icons.Rounded.Repeat, s.loopVideos, ctrl::setLoopVideos,
         )
         switch(
             "Gallery carousel in feeds", "Galleries show a big image with the next ones beside it. Off: one image at a time",

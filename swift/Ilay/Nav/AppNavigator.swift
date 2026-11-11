@@ -101,8 +101,8 @@ import SwiftUI
         ))
     }
 
-    func openVideo(_ url: String, title: String? = nil, downloadUrl: String? = nil, externalUrl: String? = nil) {
-        viewers.open(.video(url: url, title: title, downloadUrl: downloadUrl, externalUrl: externalUrl))
+    func openVideo(_ url: String, title: String? = nil, downloadUrl: String? = nil, externalUrl: String? = nil, gif: Bool = false) {
+        viewers.open(.video(url: url, title: title, downloadUrl: downloadUrl, externalUrl: externalUrl, gif: gif))
     }
 
     /// Opens a video post full-screen (resolving RedGifs to its HD file first).

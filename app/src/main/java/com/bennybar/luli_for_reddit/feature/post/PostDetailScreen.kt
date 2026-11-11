@@ -1317,7 +1317,7 @@ private fun openMedia(p: Post, nav: AppNavigator) {
     when (p.type) {
         PostType.IMAGE -> nav.openImage(p.previewUrl ?: p.url, p.title)
         PostType.GIF -> if (p.gifMp4Url != null) {
-            nav.openVideo(p.gifMp4Url, p.title, downloadUrl = p.gifMp4Url, externalUrl = p.url)
+            nav.openVideo(p.gifMp4Url, p.title, downloadUrl = p.gifMp4Url, externalUrl = p.url, gif = true)
         } else {
             nav.openImage(p.url, p.title)
         }
