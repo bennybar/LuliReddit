@@ -41,10 +41,17 @@ struct FrontpageTab: View {
                             ApiUsagePill()
                         } else {
                             Button { nav.push(.search()) } label: {
-                                Label("Search Reddit", systemImage: "magnifyingglass")
-                                    .labelStyle(.titleAndIcon)
-                                    .foregroundStyle(.secondary)
-                                    .frame(width: 190, alignment: .leading)
+                                if settings.fullBarNewPost {
+                                    Label("Search Reddit", systemImage: "magnifyingglass")
+                                        .labelStyle(.titleAndIcon)
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 190, alignment: .leading)
+                                } else {
+                                    // Without New post, Gmail's (#146): just the words, in the middle.
+                                    Text("Search Reddit")
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 220, alignment: .center)
+                                }
                             }
                         }
                     }
