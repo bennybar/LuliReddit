@@ -356,6 +356,16 @@ private let restoredPage = "restored"
         rebuild(showLoading: true)
     }
 
+    /// A subreddit or custom feed opened again (#150): its posts are kept in memory
+    /// (FeedModule), so it showed the list from last time until a pull. Older than
+    /// `maxAgeMillis`, it loads anew; the old list stays up meanwhile.
+    func reloadIfOld(maxAgeMillis: Int = 5 * 60_000) {
+        if isBuilding { return }
+        guard let cur = current, !cur.hasPending else { return }
+        if nowMillis() - lastLoaded < maxAgeMillis { return }
+        rebuild(showLoading: false)
+    }
+
     /// When returning to a stale feed, quietly fetch the first page. If it has posts
     /// we're not already showing, stage them behind a "New posts" pill instead of
     /// yanking the list out from under the user.

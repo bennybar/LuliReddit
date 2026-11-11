@@ -314,7 +314,10 @@ fun PostListView(
     var resumedOnce by rememberSaveable { mutableStateOf(false) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         when {
-            !resumedOnce -> resumedOnce = true
+            !resumedOnce -> {
+                resumedOnce = true
+                if (!isFrontpage) controller.reloadIfOld()
+            }
             isFrontpage -> controller.refreshIfExpired()
             else -> controller.refreshIfStale()
         }

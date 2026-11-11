@@ -332,7 +332,7 @@ fun HomeScreen() {
                 // Its feed runs under the status bar; it pads its own top bar.
                 0 -> FrontpageTab(selected = index == 0)
                 1 -> ExploreTab() // runs under the status bar, with its own fade (#127)
-                2 -> Box(Modifier.statusBarsPadding()) { InboxScreen(reselect = inboxReselect) }
+                2 -> Box(Modifier.statusBarsPadding()) { InboxScreen(reselect = inboxReselect, selected = index == 2) }
                 else -> Box(Modifier.statusBarsPadding()) { ProfileTab() }
             }
         }

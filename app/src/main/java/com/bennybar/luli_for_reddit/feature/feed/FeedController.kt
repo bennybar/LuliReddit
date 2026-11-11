@@ -375,6 +375,17 @@ class FeedController(val key: String) {
      * posts we're not already showing, stage them behind a "New posts" pill
      * instead of yanking the list out from under the user.
      */
+    /**
+     * A subreddit or custom feed opened again (#150): its posts are kept in
+     * memory (FeedModule), so it showed the list from last time until a pull.
+     * Older than [maxAgeMillis], it loads anew; the old list stays up meanwhile.
+     */
+    fun reloadIfOld(maxAgeMillis: Long = 5 * 60_000L) {
+        if (isBuilding || current == null || current?.hasPending == true) return
+        if (System.currentTimeMillis() - lastLoaded < maxAgeMillis) return
+        rebuild(showLoading = false)
+    }
+
     fun refreshIfStale(maxAgeMillis: Long = 5 * 60_000L) {
         if (isBuilding) return
         val cur = current ?: return

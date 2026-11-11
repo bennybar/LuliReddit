@@ -91,6 +91,25 @@ class InboxModule(private val c: AppContainer) : UserScoped {
         if (s.items.isEmpty() && s.error == null && loadJobs[where]?.isActive != true) refresh(where)
     }
 
+    // When each tab last loaded, for [refreshStale].
+    private val loadedAt = HashMap<String, Long>()
+
+    /**
+     * Inbox opened, or new mail counted (#150): reloads the tabs already shown
+     * once whose list is older than [maxAgeMillis]. Before, only a pull (or the
+     * app coming back from the background) did.
+     */
+    fun refreshStale(maxAgeMillis: Long) {
+        if (anonymous) return
+        val now = System.currentTimeMillis()
+        for ((where, flow) in tabs) {
+            val s = flow.value
+            if (s.items.isEmpty() && s.error == null) continue // never shown: ensureLoaded loads it
+            if (loadJobs[where]?.isActive == true) continue
+            if (now - (loadedAt[where] ?: 0L) >= maxAgeMillis) refresh(where)
+        }
+    }
+
     /** Reloads one tab from the first page (and the badge). */
     fun refresh(where: String): Job {
         loadJobs[where]?.cancel()
@@ -101,6 +120,7 @@ class InboxModule(private val c: AppContainer) : UserScoped {
                 val listing = c.repository.getInbox(where = where)
                 if (gen != generation) return@launch
                 flow.value = InboxTabState(listing.items, listing.after, loading = false)
+                loadedAt[where] = System.currentTimeMillis()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

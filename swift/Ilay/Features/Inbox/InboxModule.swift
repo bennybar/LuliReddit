@@ -90,6 +90,21 @@ final class InboxModule: UserScoped {
         if s.items.isEmpty, s.error == nil, !activeLoads.contains(place) { refresh(place) }
     }
 
+    // When each tab last loaded, for `refreshStale`.
+    @ObservationIgnored private var loadedAt: [String: Int] = [:]
+
+    /// Inbox opened, or new mail counted (#150): reloads the tabs already shown once
+    /// whose list is older than `maxAgeMillis`. Before, only a pull (or the app coming
+    /// back from the background) did.
+    func refreshStale(maxAgeMillis: Int) {
+        if anonymous { return }
+        let now = nowMillis()
+        for (place, s) in states where !s.items.isEmpty || s.error != nil {
+            if activeLoads.contains(place) { continue }
+            if now - (loadedAt[place] ?? 0) >= maxAgeMillis { refresh(place) }
+        }
+    }
+
     /// Reloads one tab from the first page (and the badge).
     @discardableResult func refresh(_ place: String) -> Task<Void, Never> {
         loadJobs[place]?.cancel()
@@ -100,6 +115,7 @@ final class InboxModule: UserScoped {
                 let listing = try await c.repository.getInbox(where: place)
                 if Task.isCancelled || gen != generation { return }
                 states[place] = InboxTabState(items: listing.items, after: listing.after, loading: false)
+                loadedAt[place] = nowMillis()
             } catch {
                 if Task.isCancelled || gen != generation { return }
                 states[place]?.loading = false

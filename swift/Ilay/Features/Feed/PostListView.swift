@@ -86,7 +86,11 @@ struct PostListView<Header: View>: View {
         // anew; other feeds stage fresh posts behind a "New posts" pill once stale.
         // (The first appearance is this screen opening.)
         .onAppear {
-            if resumedOnce { resume(controller) }
+            if resumedOnce {
+                resume(controller)
+            } else if !feedKey.isEmpty {
+                controller.reloadIfOld()
+            }
             resumedOnce = true
         }
         .onChange(of: scenePhase) { _, phase in

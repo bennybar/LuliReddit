@@ -53,6 +53,12 @@ struct InboxScreen: View {
                 }
             }
         }
+        // Opening Inbox reloads what's a minute old, and new mail (the badge going up)
+        // reloads it at once (#150): it used to wait for a pull.
+        .onAppear { app.inbox.refreshStale(maxAgeMillis: 60_000) }
+        .onChange(of: app.inbox.unreadCount) { old, new in
+            if new > old { app.inbox.refreshStale(maxAgeMillis: 0) }
+        }
         .navigationTitle("Inbox")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) { SideBarButton() }

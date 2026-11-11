@@ -74,6 +74,8 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -106,7 +108,7 @@ import kotlinx.coroutines.launch
 /** The Inbox tab. [reselect] bumps when the tab is re-tapped (scroll to top). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun InboxScreen(reselect: Int) {
+fun InboxScreen(reselect: Int, selected: Boolean = true) {
     val nav = LocalNavigator.current
     val session by app.session.state.collectAsStateWithLifecycle()
     val anonymous = (session as? SessionState.LoggedIn)?.session?.anonymous == true
@@ -133,6 +135,21 @@ fun InboxScreen(reselect: Int) {
     val pager = rememberPagerState { tabs.size }
     val lists = tabs.map { rememberLazyListState() }
     val scope = rememberCoroutineScope()
+
+    // Opening Inbox reloads what's a minute old, and new mail (the badge going
+    // up) reloads it at once (#150): it used to wait for a pull.
+    val unread by app.inbox.unreadCount.collectAsStateWithLifecycle()
+    var lastUnread by remember { mutableIntStateOf(unread) }
+    var newMail by remember { mutableStateOf(false) }
+    LaunchedEffect(unread) {
+        if (unread > lastUnread) newMail = true
+        lastUnread = unread
+    }
+    LaunchedEffect(selected, newMail) {
+        if (!selected) return@LaunchedEffect
+        app.inbox.refreshStale(if (newMail) 0L else 60_000L)
+        newMail = false
+    }
 
     // Re-tapping the Inbox tab scrolls the current list to top.
     val initialReselect = remember { reselect }
@@ -322,7 +339,16 @@ private fun InboxList(where: String, listState: LazyListState) {
                         Text("Nothing here", Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
                     }
                 }
-                else -> LazyColumn(
+                else -> {
+                    // New items land above the first row, and the list kept its row in view, so
+                    // they were off screen (#150): a list at its top stays at its top. Read as the
+                    // new first item arrives, before the list lays it out.
+                    val firstKey = items.first().fullname
+                    val wasAtTop = remember(firstKey) {
+                        Snapshot.withoutReadObservation { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 }
+                    }
+                    LaunchedEffect(firstKey) { if (wasAtTop) listState.scrollToItem(0) }
+                    LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 130.dp),
@@ -338,6 +364,7 @@ private fun InboxList(where: String, listState: LazyListState) {
                             }
                         }
                     }
+                }
                 }
             }
         }
