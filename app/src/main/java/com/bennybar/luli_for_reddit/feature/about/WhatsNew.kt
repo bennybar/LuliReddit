@@ -45,6 +45,13 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.72", "Nov 11, 2026",
+        listOf(
+            "A subreddit or custom feed you open again after a few minutes loads its latest posts, no pull needed",
+            "Inbox reloads when you open it and when new mail arrives, and new items show at the top",
+        ),
+    ),
+    Release(
         "2.0.71", "Nov 11, 2026",
         listOf(
             "Read posts stay read: Hide read posts remembers far more of them, covers For You too, and a page of only read posts loads the next",
