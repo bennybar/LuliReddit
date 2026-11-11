@@ -45,6 +45,15 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.73", "Nov 11, 2026",
+        listOf(
+            "History shows each community's picture; tap the name to open the community",
+            "History: tap a picture to select posts, then remove them together",
+            "Removing from History offers Undo",
+            "Profile: its ⋯ menu puts short entries side by side, and its header lines up with Home's",
+        ),
+    ),
+    Release(
         "2.0.72", "Nov 11, 2026",
         listOf(
             "A subreddit or custom feed you open again after a few minutes loads its latest posts, no pull needed",
