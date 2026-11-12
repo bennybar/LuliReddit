@@ -132,6 +132,49 @@ enum CommentStyle: Int, CaseIterable, Sendable {
 }
 
 /// A subreddit's own default sort (#60). Persisted in `subredditSorts` as "name|sort|time".
+/// A section of the Explore tab (#161). Persisted by `rawValue` (never change one) in
+/// `prefsKey`: their order, a hidden one as "-id". Your communities aren't one: they stay
+/// last, with the filter and sort.
+enum ExploreSection: String, CaseIterable, Sendable {
+    case popular, customFeeds, recentlyVisited, recommended, favorites, following
+
+    static let prefsKey = "exploreSections"
+
+    var label: String {
+        switch self {
+        case .popular: "Popular & All"
+        case .customFeeds: "Custom feeds"
+        case .recentlyVisited: "Recently visited"
+        case .recommended: "Recommended for you"
+        case .favorites: "Favorites"
+        case .following: "Following"
+        }
+    }
+
+    /// A list of your communities: these give way to the filter's results.
+    var isCommunityList: Bool { self == .recentlyVisited || self == .recommended || self == .favorites || self == .following }
+
+    /// The stored order: ids it doesn't know are dropped, and sections missing from it are
+    /// added, shown, in their default order (Explore before #161), so later ones still appear.
+    static func parse(_ stored: [String]?) -> [ExploreEntry] {
+        var out: [ExploreEntry] = []
+        for raw in stored ?? [] {
+            let id = raw.hasPrefix("-") ? String(raw.dropFirst()) : raw
+            guard let section = ExploreSection(rawValue: id), !out.contains(where: { $0.section == section }) else { continue }
+            out.append(ExploreEntry(section: section, shown: !raw.hasPrefix("-")))
+        }
+        for section in allCases where !out.contains(where: { $0.section == section }) { out.append(ExploreEntry(section: section, shown: true)) }
+        return out
+    }
+
+    static func toPrefs(_ entries: [ExploreEntry]) -> [String] { entries.map { $0.shown ? $0.section.rawValue : "-\($0.section.rawValue)" } }
+}
+
+struct ExploreEntry: Equatable, Sendable {
+    var section: ExploreSection
+    var shown: Bool
+}
+
 struct SubredditSort: Equatable, Sendable {
     let sort: PostSort
     let time: TopTime
@@ -181,6 +224,7 @@ struct Settings: Equatable, Sendable {
     var fullBarNewPost = true // Full top bar: a New post button beside your avatar
     var trackHistory = true
     var showRecentlyVisited = true // Explore and the side bar list the subreddits you opened last
+    var exploreSections = ExploreSection.parse(nil) // Explore's sections, and their order (#161)
     var offlineCache = true
     var checkUpdates = true
     var safariAsk = false // the Safari extension asks: Ilay or the Reddit app

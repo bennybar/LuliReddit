@@ -11,6 +11,7 @@ enum Route: Hashable, Codable, Sendable {
     case settings
     case settingsSection(title: String)
     case manageForYou
+    case exploreSections
     case contentFilters
     case policy
     case history

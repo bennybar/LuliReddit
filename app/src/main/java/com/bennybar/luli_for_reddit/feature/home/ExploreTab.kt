@@ -1,5 +1,10 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import com.bennybar.luli_for_reddit.settings.ExploreSection
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.async
@@ -149,9 +154,13 @@ internal fun ExploreTab() {
             value = emptyList()
             return@produceState
         }
-        val names = app.forYou.recommendedCommunities(list.mapTo(HashSet()) { it.name.lowercase() })
+        // Up to 10, as a carousel (#161); each looked up once a session, so coming back to
+        // Explore costs no requests.
+        val names = app.forYou.recommendedCommunities(list.mapTo(HashSet()) { it.name.lowercase() }, limit = 10)
         val info = coroutineScope {
-            names.map { async { runCatching { app.repository.getSubredditAbout(it) }.getOrNull() } }.awaitAll()
+            names.map { n ->
+                async { recommendedInfo[n] ?: runCatching { app.repository.getSubredditAbout(n) }.getOrNull()?.also { recommendedInfo[n] = it } }
+            }.awaitAll()
         }
         value = info.filterNotNull().filter { it.userIsSubscriber != true && !(hideNsfw && it.over18) }
     }
@@ -222,79 +231,95 @@ internal fun ExploreTab() {
                     SearchPill("Search communities & posts", onClick = { nav.push(Route.Search()) }, modifier = Modifier.weight(1f))
                 }
             }
-            item(key = "popular") {
-                // A connected pair (#35): round outer corners, tight inner ones.
-                Row(Modifier.padding(start = 12.dp, top = 8.dp, end = 12.dp)) {
-                    OutlinedButton(
-                        onClick = { nav.openSubreddit("popular") },
-                        modifier = Modifier.weight(1f).defaultMinSize(minHeight = 52.dp),
-                        shape = connectedShapes(0, 2).shape,
-                    ) {
-                        Icon(Icons.Rounded.LocalFireDepartment, null, Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Popular")
-                    }
-                    Spacer(Modifier.width(ConnectedGap))
-                    // With the Posts tab on r/all (Settings), this one opens the frontpage instead.
-                    val postsAll = settings.postsTabAll
-                    OutlinedButton(
-                        onClick = { if (postsAll) nav.push(Route.Frontpage) else nav.openSubreddit("all") },
-                        modifier = Modifier.weight(1f).defaultMinSize(minHeight = 52.dp),
-                        shape = connectedShapes(1, 2).shape,
-                    ) {
-                        Icon(if (postsAll) Icons.Rounded.Home else Icons.Rounded.Public, null, Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (postsAll) "Frontpage" else "All")
+            // The sections in Settings' order (#161). Popular & All and Custom feeds can go
+            // anywhere; the filter sits above the first list of your communities.
+            fun LazyListScope.popular() {
+                item(key = "popular") {
+                    // A connected pair (#35): round outer corners, tight inner ones.
+                    Row(Modifier.padding(start = 12.dp, top = 8.dp, end = 12.dp)) {
+                        OutlinedButton(
+                            onClick = { nav.openSubreddit("popular") },
+                            modifier = Modifier.weight(1f).defaultMinSize(minHeight = 52.dp),
+                            shape = connectedShapes(0, 2).shape,
+                        ) {
+                            Icon(Icons.Rounded.LocalFireDepartment, null, Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Popular")
+                        }
+                        Spacer(Modifier.width(ConnectedGap))
+                        // With the Posts tab on r/all (Settings), this one opens the frontpage instead.
+                        val postsAll = settings.postsTabAll
+                        OutlinedButton(
+                            onClick = { if (postsAll) nav.push(Route.Frontpage) else nav.openSubreddit("all") },
+                            modifier = Modifier.weight(1f).defaultMinSize(minHeight = 52.dp),
+                            shape = connectedShapes(1, 2).shape,
+                        ) {
+                            Icon(if (postsAll) Icons.Rounded.Home else Icons.Rounded.Public, null, Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(if (postsAll) "Frontpage" else "All")
+                        }
                     }
                 }
             }
-            // Custom feeds (multireddits), with "New feed" at the end (signed in).
-            val multiList = (multis as? Async.Data)?.value.orEmpty()
-            if (multiList.isNotEmpty() || !anonymous) {
-                item(key = "multis") {
-                    Column {
-                        Row(Modifier.padding(start = 16.dp, top = 6.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            SectionHeader("Custom feeds", Modifier.weight(1f))
-                            if (!anonymous) TextButton(onClick = { nav.push(Route.CustomFeeds) }) { Text("See all") }
-                        }
-                        LazyRow(
-                            Modifier.height(48.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            items(multiList, key = { it.path.ifEmpty { it.name } }) { m ->
-                                AssistChip(
-                                    onClick = {
-                                        val parts = m.path.split('/').filter { it.isNotEmpty() }
-                                        val user = if (parts.size >= 4) parts[1] else currentUser()
-                                        nav.push(Route.Multireddit(user, m.name))
-                                    },
-                                    label = { Text(m.displayName.ifEmpty { m.name }) },
-                                    leadingIcon = {
-                                        Icon(Icons.Rounded.DynamicFeed, null, Modifier.size(18.dp), tint = cs.onSecondaryContainer)
-                                    },
-                                    shape = CircleShape,
-                                    border = null,
-                                    colors = AssistChipDefaults.assistChipColors(containerColor = cs.surfaceContainerHigh),
-                                )
+            fun LazyListScope.customFeeds() {
+                // Custom feeds (multireddits), with "New feed" at the end (signed in).
+                val multiList = (multis as? Async.Data)?.value.orEmpty()
+                if (multiList.isNotEmpty() || !anonymous) {
+                    item(key = "multis") {
+                        Column {
+                            Row(Modifier.padding(start = 16.dp, top = 6.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                SectionHeader("Custom feeds", Modifier.weight(1f))
+                                if (!anonymous) TextButton(onClick = { nav.push(Route.CustomFeeds) }) { Text("See all") }
                             }
-                            if (!anonymous) {
-                                item(key = "new_multi") {
+                            LazyRow(
+                                Modifier.height(48.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                items(multiList, key = { it.path.ifEmpty { it.name } }) { m ->
                                     AssistChip(
-                                        onClick = { scope.launch { createMulti(currentUser()) } },
-                                        label = { Text("New feed") },
-                                        leadingIcon = { Icon(Icons.Rounded.Add, null, Modifier.size(18.dp), tint = cs.onSecondaryContainer) },
+                                        onClick = {
+                                            val parts = m.path.split('/').filter { it.isNotEmpty() }
+                                            val user = if (parts.size >= 4) parts[1] else currentUser()
+                                            nav.push(Route.Multireddit(user, m.name))
+                                        },
+                                        label = { Text(m.displayName.ifEmpty { m.name }) },
+                                        leadingIcon = {
+                                            Icon(Icons.Rounded.DynamicFeed, null, Modifier.size(18.dp), tint = cs.onSecondaryContainer)
+                                        },
                                         shape = CircleShape,
                                         border = null,
                                         colors = AssistChipDefaults.assistChipColors(containerColor = cs.surfaceContainerHigh),
                                     )
+                                }
+                                if (!anonymous) {
+                                    item(key = "new_multi") {
+                                        AssistChip(
+                                            onClick = { scope.launch { createMulti(currentUser()) } },
+                                            label = { Text("New feed") },
+                                            leadingIcon = { Icon(Icons.Rounded.Add, null, Modifier.size(18.dp), tint = cs.onSecondaryContainer) },
+                                            shape = CircleShape,
+                                            border = null,
+                                            colors = AssistChipDefaults.assistChipColors(containerColor = cs.surfaceContainerHigh),
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
+            fun LazyListScope.place(section: ExploreSection) {
+                when (section) {
+                    ExploreSection.POPULAR -> popular()
+                    ExploreSection.CUSTOM_FEEDS -> customFeeds()
+                    else -> {}
+                }
+            }
+            val order = settings.exploreSections.filter { it.shown }.map { it.section }
+            val filterAt = order.indexOfFirst { it.isCommunityList }.let { if (it < 0) order.size else it }
+            order.take(filterAt).forEach { place(it) }
             item(key = "title") {
                 Row(Modifier.padding(start = 16.dp, top = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -339,6 +364,8 @@ internal fun ExploreTab() {
                 }
                 is Async.Data -> subscriptionSections(
                     list = s.value,
+                    sections = order.drop(filterAt),
+                    place = { place(it) },
                     recommended = recommended.filter { it.name.lowercase() !in joined },
                     onJoin = { sub ->
                         joined = joined + sub.name.lowercase()
@@ -371,6 +398,8 @@ internal fun ExploreTab() {
                     },
                 )
             }
+            // Still loading (or failed): the sections placed after the lists show anyway.
+            if (subs !is Async.Data) order.drop(filterAt).filter { !it.isCommunityList }.forEach { place(it) }
         }
         val fade = cs.surface
         Box(
@@ -384,8 +413,13 @@ internal fun ExploreTab() {
 
 private fun currentUser(): String = app.session.username
 
+/** Recommended communities' details, looked up once a session (#161). */
+private val recommendedInfo = java.util.concurrent.ConcurrentHashMap<String, Subreddit>()
+
 private fun LazyListScope.subscriptionSections(
     list: List<Subreddit>,
+    sections: List<ExploreSection>,
+    place: LazyListScope.(ExploreSection) -> Unit,
     recommended: List<Subreddit>,
     onJoin: (Subreddit) -> Unit,
     query: String,
@@ -419,49 +453,53 @@ private fun LazyListScope.subscriptionSections(
         return
     }
 
-    // Default view: recently visited + favorites + the rest.
+    // Default view: the sections in Settings' order (#161), then the rest.
     val byName = list.associateBy { it.name.lowercase() }
     val recent = visited.map { byName[it.name.lowercase()] ?: it.asSubreddit() }
     val visits = visited.associate { it.name.lowercase() to it.visits }
-    val favs = list.filter { it.userHasFavorited }
+    // A hidden Favorites or Following leaves its communities in the rest, so none goes missing.
+    val showFavs = ExploreSection.FAVORITES in sections
+    val showFollowing = ExploreSection.FOLLOWING in sections
+    val favs = if (showFavs) list.filter { it.userHasFavorited } else emptyList()
     // The users you follow (their profiles, u_<name>) get their own section.
-    val (following, rest) = list.filter { !it.userHasFavorited }.partition { it.name.startsWith("u_") }
-    if (recent.isNotEmpty()) {
-        // "Clear" empties just this list; post history stays (History has its own clear).
-        item(key = "h_recent") {
-            Row(Modifier.padding(start = 16.dp, top = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                SectionHeader("Recently visited", Modifier.weight(1f))
-                TextButton(onClick = onClearRecent) { Text("Clear") }
+    val (following, rest) = list.filter { !(showFavs && it.userHasFavorited) }.partition { showFollowing && it.name.startsWith("u_") }
+    for (section in sections) when (section) {
+        ExploreSection.RECENTLY_VISITED -> if (recent.isNotEmpty()) {
+            // "Clear" empties just this list; post history stays (History has its own clear).
+            item(key = "h_recent") {
+                Row(Modifier.padding(start = 16.dp, top = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    SectionHeader("Recently visited", Modifier.weight(1f))
+                    TextButton(onClick = onClearRecent) { Text("Clear") }
+                }
+            }
+            // No star on ones you aren't subscribed to. Long-press: remove just this one (#123).
+            items(recent, key = { "recent_${it.name}" }, contentType = { "sub" }) {
+                SubredditRow(it, onOpen, if (it.name.lowercase() in byName) onStar else null, visits = visits[it.name.lowercase()]) { onRemoveRecent(it) }
             }
         }
-        // No star on ones you aren't subscribed to. Long-press: remove just this one (#123).
-        items(recent, key = { "recent_${it.name}" }, contentType = { "sub" }) {
-            SubredditRow(it, onOpen, if (it.name.lowercase() in byName) onStar else null, visits = visits[it.name.lowercase()]) { onRemoveRecent(it) }
+        // Communities you engage with in For You but haven't joined (#157), as a carousel (#161).
+        ExploreSection.RECOMMENDED -> if (recommended.isNotEmpty()) {
+            item(key = "recommended", contentType = "carousel") {
+                Column {
+                    SectionHeader("Recommended for you", Modifier.padding(start = 16.dp, top = 18.dp, end = 16.dp, bottom = 8.dp))
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        items(recommended, key = { it.name }) { sub -> RecommendedCard(sub, onOpen, onJoin) }
+                    }
+                }
+            }
         }
-    }
-    // Communities you engage with in For You but haven't joined (#157).
-    if (recommended.isNotEmpty()) {
-        header("recommended", "Recommended for you")
-        items(recommended, key = { "rec_${it.name}" }, contentType = { "sub" }) { sub ->
-            Tile(
-                title = { Text(subredditName(sub.namePrefixed)) },
-                subtitle = { Text("${compactNumber(sub.subscribers)} members") },
-                leading = {
-                    val cs = MaterialTheme.colorScheme
-                    LetterAvatar(sub.name, 40.dp, cs.secondaryContainer, cs.onSecondaryContainer, imageUrl = sub.iconUrl)
-                },
-                trailing = { FilledTonalButton(onClick = { onJoin(sub) }) { Text("Join") } },
-                onClick = { onOpen(sub) },
-            )
+        ExploreSection.FAVORITES -> if (favs.isNotEmpty()) {
+            header("favs", "Favorites")
+            rows("fav", favs)
         }
-    }
-    if (favs.isNotEmpty()) {
-        header("favs", "Favorites")
-        rows("fav", favs)
-    }
-    if (following.isNotEmpty()) {
-        header("following", "Following")
-        rows("following", following)
+        ExploreSection.FOLLOWING -> if (following.isNotEmpty()) {
+            header("following", "Following")
+            rows("following", following)
+        }
+        else -> place(section)
     }
     if (rest.isEmpty() && favs.isEmpty() && following.isEmpty()) {
         header("subs", "Subscriptions")
@@ -471,6 +509,28 @@ private fun LazyListScope.subscriptionSections(
     } else if (rest.isNotEmpty()) {
         header("subs", if (favs.isEmpty() && following.isEmpty()) "Subscriptions" else "Communities")
         rows("rest", rest)
+    }
+}
+
+/** A "Recommended for you" card (#161): the community's picture, name and members, and Join. */
+@Composable
+private fun RecommendedCard(sub: Subreddit, onOpen: (Subreddit) -> Unit, onJoin: (Subreddit) -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    Column(
+        Modifier
+            .width(156.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(cs.surfaceContainerLow)
+            .clickable { onOpen(sub) }
+            .padding(start = 12.dp, top = 16.dp, end = 12.dp, bottom = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        LetterAvatar(sub.name, 64.dp, cs.secondaryContainer, cs.onSecondaryContainer, imageUrl = sub.iconUrl)
+        Spacer(Modifier.height(10.dp))
+        Text(subredditName(sub.namePrefixed), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text("${compactNumber(sub.subscribers)} members", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, maxLines = 1)
+        Spacer(Modifier.height(10.dp))
+        FilledTonalButton(onClick = { onJoin(sub) }) { Text("Join") }
     }
 }
 

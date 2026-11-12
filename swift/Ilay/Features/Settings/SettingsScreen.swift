@@ -223,6 +223,7 @@ struct SettingsCatalog {
             options: navStyles.indices.map { PickOption(value: $0, label: navStyles[$0].0, subtitle: navStyles[$0].1) }, set: ctrl.setNavStyle
         )
         b.toggle("u/ before your name in the side bar", "Show \"u/you\" at the top of the side bar. Off: just \"you\"", s.sideBarUserPrefix, set: ctrl.setSideBarUserPrefix)
+        b.link("Explore sections", s.exploreSections.filter(\.shown).map(\.section.label).joined(separator: ", "), .exploreSections)
     }
 
     // MARK: - Posts & comments

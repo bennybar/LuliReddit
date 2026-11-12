@@ -20,7 +20,7 @@ private func recent(_ name: String) -> RecentSubreddit {
 final class ExploreSectionsTests: XCTestCase {
     private let list = [sub("favA", members: 10, fav: true), sub("Bravo", members: 30), sub("u_someone", members: 2), sub("charlie", members: 30)]
 
-    private func sections(query: String = "", favOnly: Bool = false, sort: String = "default", visited: [RecentSubreddit] = [], list: [Subreddit]? = nil) -> [ExploreSection] {
+    private func sections(query: String = "", favOnly: Bool = false, sort: String = "default", visited: [RecentSubreddit] = [], list: [Subreddit]? = nil) -> [ExploreGroup] {
         subscriptionSections(list: list ?? self.list, query: query, favOnly: favOnly, sort: sort, visited: visited)
     }
 
@@ -32,6 +32,21 @@ final class ExploreSectionsTests: XCTestCase {
         XCTAssertEqual(s[1].subs.map(\.name), ["favA"])
         XCTAssertEqual(s[2].subs.map(\.name), ["u_someone"])
         XCTAssertEqual(s[3].subs.map(\.name), ["Bravo", "charlie"])
+    }
+
+    func testHiddenFavoritesAndFollowingStayInTheRest() {
+        // Settings › Explore sections (#161): switched off, they don't go missing.
+        let s = subscriptionSections(list: list, query: "", favOnly: false, sort: "default", visited: [],
+                                     shown: [.popular, .recentlyVisited])
+        XCTAssertEqual(s.map(\.key), ["subs"])
+        XCTAssertEqual(s[0].subs.map(\.name), ["favA", "Bravo", "u_someone", "charlie"])
+    }
+
+    func testExploreSectionsOrder() {
+        XCTAssertEqual(ExploreSection.parse(nil).map(\.section), ExploreSection.allCases, "never set: Explore from before")
+        let parsed = ExploreSection.parse(["recommended", "-customFeeds", "trending", "-recommended"])
+        XCTAssertEqual(ExploreSection.toPrefs(parsed), ["recommended", "-customFeeds", "popular", "recentlyVisited", "favorites", "following"])
+        XCTAssertEqual(ExploreSection.toPrefs(ExploreSection.parse(ExploreSection.toPrefs(parsed))), ExploreSection.toPrefs(parsed))
     }
 
     func testPlainListIsCalledSubscriptions() {

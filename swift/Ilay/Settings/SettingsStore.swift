@@ -65,6 +65,7 @@ final class SettingsStore {
         s.fullBarNewPost = b("fullBarNewPost", s.fullBarNewPost)
         s.trackHistory = b("trackHistory", s.trackHistory)
         s.showRecentlyVisited = b("showRecentlyVisited", s.showRecentlyVisited)
+        s.exploreSections = ExploreSection.parse(p.getStringList(ExploreSection.prefsKey))
         s.offlineCache = b("offlineCache", s.offlineCache)
         s.checkUpdates = b("checkUpdates", s.checkUpdates)
         s.safariAsk = b("safariAsk", s.safariAsk)
@@ -153,6 +154,11 @@ final class SettingsStore {
     func setFullBarNewPost(_ v: Bool) { p.setBool("fullBarNewPost", v); set { $0.fullBarNewPost = v } }
     func setTrackHistory(_ v: Bool) { p.setBool("trackHistory", v); set { $0.trackHistory = v } }
     func setShowRecentlyVisited(_ v: Bool) { p.setBool("showRecentlyVisited", v); set { $0.showRecentlyVisited = v } }
+    /// `entries` nil: back to the default Explore (and whatever sections later versions add to it).
+    func setExploreSections(_ entries: [ExploreEntry]?) {
+        if let entries { p.setStringList(ExploreSection.prefsKey, ExploreSection.toPrefs(entries)) } else { p.remove(ExploreSection.prefsKey) }
+        set { $0.exploreSections = ExploreSection.parse(entries.map(ExploreSection.toPrefs)) }
+    }
     func setOfflineCache(_ v: Bool) { p.setBool("offlineCache", v); set { $0.offlineCache = v } }
     func setCheckUpdates(_ v: Bool) { p.setBool("checkUpdates", v); set { $0.checkUpdates = v } }
     func setSafariAsk(_ v: Bool) { p.setBool("safariAsk", v); set { $0.safariAsk = v }; SharedHandover.shareSafariAsk() }

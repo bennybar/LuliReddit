@@ -116,6 +116,7 @@ class SettingsStore(private val p: Prefs) {
             navLabels = b("navLabels", d.navLabels),
             navStyle = (p.getInt("navStyle") ?: d.navStyle).coerceIn(0, 2),
             sideBarItems = SideBarItem.parse(p.getStringList(SideBarItem.PREFS_KEY)),
+            exploreSections = ExploreSection.parse(p.getStringList(ExploreSection.PREFS_KEY)),
             navOutline = b("navOutline", d.navOutline),
             backScrollsToTop = b("backScrollsToTop", d.backScrollsToTop),
             aiModel = p.getString("aiModel") ?: d.aiModel,
@@ -282,6 +283,11 @@ class SettingsStore(private val p: Prefs) {
     fun setSideBarItems(entries: List<SideBarEntry>?) {
         if (entries == null) p.remove(SideBarItem.PREFS_KEY) else p.setStringList(SideBarItem.PREFS_KEY, SideBarItem.toPrefs(entries))
         set { it.copy(sideBarItems = SideBarItem.parse(entries?.let(SideBarItem::toPrefs))) }
+    }
+    /** [entries] null: back to the default Explore (and whatever sections later versions add to it). */
+    fun setExploreSections(entries: List<ExploreEntry>?) {
+        if (entries == null) p.remove(ExploreSection.PREFS_KEY) else p.setStringList(ExploreSection.PREFS_KEY, ExploreSection.toPrefs(entries))
+        set { it.copy(exploreSections = ExploreSection.parse(entries?.let(ExploreSection::toPrefs))) }
     }
     fun setNavOutline(v: Boolean) { p.setBool("navOutline", v); set { it.copy(navOutline = v) } }
     fun setBackScrollsToTop(v: Boolean) { p.setBool("backScrollsToTop", v); set { it.copy(backScrollsToTop = v) } }

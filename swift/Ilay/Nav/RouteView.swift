@@ -13,6 +13,7 @@ struct RouteView: View {
         case .settings: SettingsScreen()
         case let .settingsSection(title): SettingsScreen(section: title)
         case .manageForYou: ManageForYouScreen()
+        case .exploreSections: ExploreSectionsScreen()
         case .contentFilters: ContentFiltersScreen()
         case .policy: PolicyScreen()
         case .whatsNew: WhatsNewScreen()

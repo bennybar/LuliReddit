@@ -8,6 +8,7 @@ import com.bennybar.luli_for_reddit.ui.SearchIcon
 import androidx.compose.material.icons.outlined.PostAdd
 import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material.icons.rounded.Tag
+import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.AlternateEmail
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.Notifications
@@ -599,6 +600,12 @@ fun SettingsList(
                 onClick = ::showSideBarItems,
             )
         }
+        tile(
+            "Explore sections",
+            s.exploreSections.filter { it.shown }.joinToString { it.section.label },
+            Icons.Rounded.Explore,
+            onClick = ::showExploreSections,
+        )
         if (s.navStyle != 1) {
             switch(
                 "Bottom bar labels", "Show text labels under the navigation icons",
