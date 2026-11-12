@@ -45,6 +45,14 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.77", "Nov 12, 2026",
+        listOf(
+            "Spoiler and NSFW galleries cover each image, so you can still swipe through them; one tap reveals them all",
+            "Spoiler covers have the same rounded corners as the media under them",
+            "Calm comment threads: the lines run unbroken, each depth in its own soft colour, with rounded ends",
+        ),
+    ),
+    Release(
         "2.0.76", "Nov 11, 2026",
         listOf(
             "Drafts gets the new look: a top bar that hides as you scroll and rounded containers",
