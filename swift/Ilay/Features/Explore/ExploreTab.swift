@@ -57,6 +57,8 @@ struct ExploreTab: View {
     /// "Recommended for you" (#157), and the ones joined from it since it loaded.
     @State private var recommended: [Subreddit] = []
     @State private var joinedNow: Set<String> = []
+    /// Recently visited: all of it, not the first few (#162).
+    @State private var recentAll = false
     /// Recommended communities' details, looked up once a session (#161).
     @MainActor private static var recommendedInfo: [String: Subreddit] = [:]
 
@@ -67,11 +69,20 @@ struct ExploreTab: View {
         // Custom feeds row (shared with the You tab), with "New feed" at the end (signed in).
         let multis = app.feed.multireddits.value ?? []
         let filtering = favOnly || sort != "default"
+        // Settings › Appearance › Top bar, like Home's (#162): Expandable, the large title;
+        // Full, a search button across the bar with the title in the list.
+        let expandable = app.settings.value.topBarMode == .expandable
 
         ScrollViewReader { proxy in
             List {
                 // The sections in Settings' order (#161); your communities stay last.
                 let order = app.settings.value.exploreSections.filter(\.shown).map(\.section)
+                if !expandable {
+                    Text("Explore").font(.title2.bold())
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
+                        .id("title")
+                }
                 ForEach(order, id: \.self) { section in
                     switch section {
                     case .popular: popularSection
@@ -105,13 +116,24 @@ struct ExploreTab: View {
             // Re-tapping the Explore tab scrolls back to top.
             .onChange(of: nav.tabReselect[1]) { withAnimation { proxy.scrollTo(firstRowId, anchor: .top) } }
         }
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Filter your communities")
-        .navigationTitle("Explore")
-        .navigationBarTitleDisplayMode(.large)
+        // Hides as you scroll, not a search bar there all the time (#162).
+        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Filter your communities")
+        .navigationTitle(expandable ? "Explore" : "")
+        .navigationBarTitleDisplayMode(expandable ? .large : .inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) { SideBarButton() }
+            if !expandable {
+                ToolbarItem(placement: .principal) {
+                    Button { nav.push(.search()) } label: {
+                        Label("Search communities & posts", systemImage: "magnifyingglass")
+                            .labelStyle(.titleAndIcon)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 220)
+                    }
+                }
+            }
             ToolbarItemGroup(placement: .topBarTrailing) {
-                Button("Search communities & posts", systemImage: "magnifyingglass") { nav.push(.search()) }
+                if expandable { Button("Search communities & posts", systemImage: "magnifyingglass") { nav.push(.search()) } }
                 Menu("Filter and sort", systemImage: filtering ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease") {
                     Toggle("Favorites only", systemImage: "star", isOn: $favOnly)
                     Picker("Sort", selection: $sort) {
@@ -142,9 +164,10 @@ struct ExploreTab: View {
     }
 
     /// The list's first section, where re-tapping the tab scrolls to (each section's id is its
-    /// setting's; your communities' is "subs").
+    /// setting's; your communities' is "subs"; the Full top bar's title comes first).
     private var firstRowId: String {
-        app.settings.value.exploreSections.first(where: \.shown)?.section.rawValue ?? "subs"
+        if app.settings.value.topBarMode != .expandable { return "title" }
+        return app.settings.value.exploreSections.first(where: \.shown)?.section.rawValue ?? "subs"
     }
 
     private var popularSection: some View {
@@ -215,7 +238,7 @@ struct ExploreTab: View {
             case .recentlyVisited:
                 if let g = all.first(where: { $0.key == "recent" }) { groupSection(g).id(section.rawValue) }
             case .favorites:
-                if let g = all.first(where: { $0.key == "favs" }) { groupSection(g).id(section.rawValue) }
+                if let g = all.first(where: { $0.key == "favs" }) { favoritesSection(g.subs).id(section.rawValue) }
             case .following:
                 if let g = all.first(where: { $0.key == "following" }) { groupSection(g).id(section.rawValue) }
             default:
@@ -224,15 +247,48 @@ struct ExploreTab: View {
         }
     }
 
+    /// Your favorites as a row of their pictures (#162); a long press offers to unfavorite.
+    private func favoritesSection(_ subs: [Subreddit]) -> some View {
+        Section("Favorites") {
+            ScrollView(.horizontal) {
+                HStack(spacing: 4) {
+                    ForEach(subs, id: \.name) { sub in
+                        let isUser = sub.name.hasPrefix("u_")
+                        let name = isUser ? String(sub.name.dropFirst(2)) : sub.name
+                        NavigationLink(value: isUser ? Route.user(username: name) : Route.subreddit(name: sub.name)) {
+                            VStack(spacing: 6) {
+                                LetterAvatar(name: name, size: 56, imageUrl: sub.iconUrl)
+                                Text(name).font(.caption).lineLimit(1)
+                            }
+                            .frame(width: 76)
+                            .padding(.vertical, 8)
+                            .contentShape(.rect)
+                        }
+                        .buttonStyle(.plain)
+                        .contextMenu {
+                            Button("Remove from Favorites", systemImage: "star.slash", role: .destructive) { toggleFavorite(sub) }
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
+            }
+            .scrollIndicators(.hidden)
+            .listRowInsets(EdgeInsets())
+        }
+    }
+
     private func groupSection(_ section: ExploreGroup) -> some View {
         let visits = Dictionary(app.recentSubreddits.state.map { ($0.name.lowercased(), $0.visits) }, uniquingKeysWith: { first, _ in first })
         var joined = Set<String>()
         if case let .data(list) = SubscriptionsViewModel.shared.subs { joined = Set(list.map { $0.name.lowercased() }) }
+        // Recently visited: the first few, and Show all (#162); short lists show whole.
+        let folds = section.key == "recent" && section.subs.count > 4
+        let shown = folds && !recentAll ? Array(section.subs.prefix(3)) : section.subs
         return Section {
             if section.subs.isEmpty {
                 Text(section.empty ?? "").foregroundStyle(.secondary)
             }
-            ForEach(section.subs, id: \.name) { sub in
+            ForEach(shown, id: \.name) { sub in
                 // No star on ones you aren't subscribed to.
                 SubredditRow(sub: sub, starred: joined.contains(sub.name.lowercased()), visits: section.key == "recent" ? visits[sub.name.lowercased()] : nil) { toggleFavorite(sub) }
                     .contextMenu {
@@ -243,6 +299,10 @@ struct ExploreTab: View {
                             }
                         }
                     }
+            }
+            if folds {
+                Button(recentAll ? "Show less" : "Show all \(section.subs.count)") { withAnimation { recentAll.toggle() } }
+                    .frame(maxWidth: .infinity)
             }
         } header: {
             HStack {
@@ -286,10 +346,12 @@ struct ExploreTab: View {
                 ScrollView(.horizontal) {
                     HStack(spacing: 8) {
                         ForEach(subs, id: \.name) { sub in
+                            // Its banner (#162; a tint when it has none) with its picture over it.
                             VStack(spacing: 4) {
                                 NavigationLink(value: Route.subreddit(name: sub.name)) {
                                     VStack(spacing: 4) {
-                                        LetterAvatar(name: sub.name, size: 64, imageUrl: sub.iconUrl)
+                                        LetterAvatar(name: sub.name, size: 60, imageUrl: sub.iconUrl)
+                                            .overlay { Circle().strokeBorder(Color(.secondarySystemGroupedBackground), lineWidth: 3) }
                                             .padding(.bottom, 6)
                                         Text(sub.namePrefixed).font(.subheadline.weight(.semibold)).lineLimit(1)
                                         Text("\(compactNumber(sub.subscribers)) members").font(.caption).foregroundStyle(.secondary).lineLimit(1)
@@ -302,9 +364,20 @@ struct ExploreTab: View {
                                     .buttonBorderShape(.capsule)
                                     .padding(.top, 6)
                             }
-                            .padding(12)
+                            .padding(.horizontal, 12)
+                            .padding(.top, 26)
+                            .padding(.bottom, 12)
                             .frame(width: 156)
-                            .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 24))
+                            .background(alignment: .top) {
+                                ZStack {
+                                    Color.accentColor.opacity(0.25)
+                                    if let banner = sub.bannerUrl.flatMap(URL.init(string:)) { RemoteImage(url: banner) }
+                                }
+                                .frame(height: 56)
+                                .clipped()
+                            }
+                            .background(Color(.secondarySystemGroupedBackground))
+                            .clipShape(.rect(cornerRadius: 22))
                         }
                     }
                     .padding(.horizontal, 16)

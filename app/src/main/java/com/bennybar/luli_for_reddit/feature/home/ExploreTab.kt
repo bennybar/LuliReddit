@@ -1,5 +1,21 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import com.bennybar.luli_for_reddit.ui.SearchIcon
+import com.bennybar.luli_for_reddit.settings.TopBarMode
+import com.bennybar.luli_for_reddit.feature.feed.HidingTopBar
+import com.bennybar.luli_for_reddit.feature.feed.rememberHidingBar
+import com.bennybar.luli_for_reddit.feature.feed.rememberSizedRequest
+import coil3.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.foundation.lazy.itemsIndexed
 import com.bennybar.luli_for_reddit.settings.ExploreSection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.clickable
@@ -12,10 +28,6 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.runtime.produceState
 import com.bennybar.luli_for_reddit.feature.settings.confirmDialog
 import androidx.compose.foundation.background
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.WindowInsets
 import com.bennybar.luli_for_reddit.ui.subredditName
 import com.bennybar.luli_for_reddit.state.RecentSubreddit
 import com.bennybar.luli_for_reddit.ui.ToggleIcon
@@ -164,15 +176,24 @@ internal fun ExploreTab() {
         }
         value = info.filterNotNull().filter { it.userIsSubscriber != true && !(hideNsfw && it.over18) }
     }
-    val statusBar = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    // The top bar floats over the list and follows the finger, and follows Settings ›
+    // Appearance › Top bar like Home's (#162): Expandable, a title with search; Full, the
+    // round search bar, with the title scrolling under it.
+    val expandable = settings.topBarMode == TopBarMode.EXPANDABLE
+    val bar = rememberHidingBar(listState)
+    val sideBar = LocalSideBar.current != null
     var query by rememberSaveable { mutableStateOf("") }
+    var recentAll by rememberSaveable { mutableStateOf(false) } // Recently visited: all of it, not the first few (#162)
     var favOnly by rememberSaveable { mutableStateOf(false) }
     var sort by rememberSaveable { mutableStateOf("default") } // default | name | subscribers
     var refreshing by remember { mutableStateOf(false) }
 
     // Re-tapping the Explore tab scrolls back to top.
     LaunchedEffect(listState) {
-        app.feed.tabReselect(1).drop(1).collect { listState.animateScrollToItem(0) }
+        app.feed.tabReselect(1).drop(1).collect {
+            listState.animateScrollToItem(0)
+            bar.slide(0f)
+        }
     }
     // After an account switch: that account's subscriptions and custom feeds.
     val version by app.feed.version.collectAsStateWithLifecycle()
@@ -200,6 +221,8 @@ internal fun ExploreTab() {
         }
     }
 
+    Box(Modifier.fillMaxSize().clipToBounds().nestedScroll(bar)) {
+    val barHeight = with(LocalDensity.current) { bar.height.toDp() }
     RefreshBox(
         isRefreshing = refreshing,
         onRefresh = {
@@ -213,30 +236,16 @@ internal fun ExploreTab() {
             }
         },
         modifier = Modifier.fillMaxSize(),
-        indicatorPadding = statusBar,
+        indicatorPadding = barHeight,
     ) {
-        // Under the status bar, softly faded there like Home and subreddits (#127).
-        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(top = statusBar, bottom = 130.dp)) {
-            // Search entry
-            item(key = "search") {
-                // Exactly where the search screen's field is (#115): as tall, as far down,
-                // as far from either edge (after the ☰, where its ← is).
-                val sideBar = LocalSideBar.current != null
-                Row(
-                    Modifier.padding(start = if (sideBar) 4.dp else 16.dp, top = 2.dp, end = 24.dp, bottom = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    SideBarButton()
-                    if (sideBar) Spacer(Modifier.width(4.dp))
-                    SearchPill("Search communities & posts", onClick = { nav.push(Route.Search()) }, modifier = Modifier.weight(1f))
-                }
-            }
+        // Under the bar; with it away, under a softly faded status bar (#127).
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(top = barHeight, bottom = 130.dp)) {
             // The sections in Settings' order (#161). Popular & All and Custom feeds can go
             // anywhere; the filter sits above the first list of your communities.
             fun LazyListScope.popular() {
                 item(key = "popular") {
                     // A connected pair (#35): round outer corners, tight inner ones.
-                    Row(Modifier.padding(start = 12.dp, top = 8.dp, end = 12.dp)) {
+                    Row(Modifier.padding(start = 12.dp, top = 12.dp, end = 12.dp)) {
                         OutlinedButton(
                             onClick = { nav.openSubreddit("popular") },
                             modifier = Modifier.weight(1f).defaultMinSize(minHeight = 52.dp),
@@ -266,7 +275,7 @@ internal fun ExploreTab() {
                 val multiList = (multis as? Async.Data)?.value.orEmpty()
                 if (multiList.isNotEmpty() || !anonymous) {
                     item(key = "multis") {
-                        Column {
+                        Column(Modifier.inSection(first = true, last = true)) {
                             Row(Modifier.padding(start = 16.dp, top = 6.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                                 SectionHeader("Custom feeds", Modifier.weight(1f))
                                 if (!anonymous) TextButton(onClick = { nav.push(Route.CustomFeeds) }) { Text("See all") }
@@ -320,7 +329,8 @@ internal fun ExploreTab() {
             val order = settings.exploreSections.filter { it.shown }.map { it.section }
             val filterAt = order.indexOfFirst { it.isCommunityList }.let { if (it < 0) order.size else it }
             order.take(filterAt).forEach { place(it) }
-            item(key = "title") {
+            // Full top bar: the title scrolls with the list, as Home's does.
+            if (!expandable) item(key = "title") {
                 Row(Modifier.padding(start = 16.dp, top = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         "Explore",
@@ -333,7 +343,7 @@ internal fun ExploreTab() {
                 }
             }
             item(key = "filter") {
-                Row(Modifier.padding(start = 16.dp, top = 8.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.padding(start = 16.dp, top = 12.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     PillTextField(
                         value = query,
                         onValueChange = { query = it },
@@ -387,6 +397,14 @@ internal fun ExploreTab() {
                     // A followed user is a subscription to their profile, u_<name>.
                     onOpen = { if (it.name.startsWith("u_")) nav.openUser(it.name.removePrefix("u_")) else nav.openSubreddit(it.name) },
                     onStar = ::toggleFavorite,
+                    // A favorite's picture: a long press offers to take it off Favorites.
+                    onUnfavorite = { sub ->
+                        scope.launch {
+                            if (confirmDialog("Remove ${subredditName(sub.namePrefixed)} from Favorites?", "It stays in your communities.", "Remove")) toggleFavorite(sub)
+                        }
+                    },
+                    recentAll = recentAll,
+                    onRecentAll = { recentAll = !recentAll },
                     onClearRecent = { app.recentSubreddits.clear() },
                     onRemoveRecent = { sub ->
                         scope.launch {
@@ -401,14 +419,47 @@ internal fun ExploreTab() {
             // Still loading (or failed): the sections placed after the lists show anyway.
             if (subs !is Async.Data) order.drop(filterAt).filter { !it.isCommunityList }.forEach { place(it) }
         }
-        val fade = cs.surface
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(statusBar + 16.dp)
-                .background(Brush.verticalGradient(listOf(fade.copy(alpha = 0.7f), fade.copy(alpha = 0f)))),
-        )
     }
+    HidingTopBar(bar, Modifier.statusBarsPadding().padding(horizontal = if (expandable) 7.dp else 0.dp)) {
+        if (expandable) {
+            Row(
+                Modifier.fillMaxWidth().padding(start = if (sideBar) 0.dp else 16.dp, top = if (sideBar) 8.dp else 10.dp, end = 4.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SideBarButton(Modifier.offset(x = (-3).dp))
+                Text("Explore", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+                IconButton(onClick = { nav.push(Route.Search()) }) { Icon(SearchIcon, "Search communities & posts") }
+                // The side bar always has Settings (#145).
+                if (!sideBar) SettingsButton()
+            }
+        } else {
+            // Exactly where the search screen's field is (#115): as tall, as far down,
+            // as far from either edge (after the ☰, where its ← is).
+            Row(
+                Modifier.fillMaxWidth().padding(start = if (sideBar) 4.dp else 16.dp, top = 4.dp, end = 24.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SideBarButton()
+                if (sideBar) Spacer(Modifier.width(4.dp))
+                SearchPill("Search communities & posts", onClick = { nav.push(Route.Search()) }, modifier = Modifier.weight(1f))
+            }
+        }
+    }
+    }
+}
+
+/**
+ * One rounded container per section (#162), drawn by its items: the first rounds the
+ * top (with the gap above it), the last the bottom.
+ */
+@Composable
+private fun Modifier.inSection(first: Boolean, last: Boolean): Modifier {
+    val r = 24.dp
+    return padding(start = 12.dp, top = if (first) 12.dp else 0.dp, end = 12.dp)
+        .fillMaxWidth()
+        .clip(RoundedCornerShape(if (first) r else 0.dp, if (first) r else 0.dp, if (last) r else 0.dp, if (last) r else 0.dp))
+        .background(MaterialTheme.colorScheme.surfaceContainerLow)
+        .padding(bottom = if (last) 8.dp else 0.dp)
 }
 
 private fun currentUser(): String = app.session.username
@@ -428,16 +479,25 @@ private fun LazyListScope.subscriptionSections(
     visited: List<RecentSubreddit>,
     onOpen: (Subreddit) -> Unit,
     onStar: (Subreddit) -> Unit,
+    onUnfavorite: (Subreddit) -> Unit,
+    recentAll: Boolean,
+    onRecentAll: () -> Unit,
     onClearRecent: () -> Unit,
     onRemoveRecent: (Subreddit) -> Unit,
 ) {
     val q = query.trim().lowercase()
     val active = q.isNotEmpty() || favOnly || sort != "default"
+    // Each list is a container of its own (#162): its header, then its rows.
     fun header(key: String, title: String) = item(key = "h_$key") {
-        SectionHeader(title, Modifier.padding(start = 16.dp, top = 18.dp, end = 16.dp, bottom = 6.dp))
+        SectionHeader(title, Modifier.inSection(first = true, last = false).padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 6.dp))
     }
     fun rows(section: String, subs: List<Subreddit>) =
-        items(subs, key = { "${section}_${it.name}" }, contentType = { "sub" }) { SubredditRow(it, onOpen, onStar) }
+        itemsIndexed(subs, key = { _, it -> "${section}_${it.name}" }, contentType = { _, _ -> "sub" }) { i, sub ->
+            Box(Modifier.inSection(first = false, last = i == subs.lastIndex)) { SubredditRow(sub, onOpen, onStar) }
+        }
+    fun note(key: String, text: String) = item(key = key) {
+        Box(Modifier.inSection(first = false, last = true).padding(24.dp), contentAlignment = Alignment.Center) { Text(text) }
+    }
 
     if (active) {
         // Filtered/sorted flat view.
@@ -445,11 +505,7 @@ private fun LazyListScope.subscriptionSections(
         if (sort == "name") working = working.sortedBy { it.name.lowercase() }
         else if (sort == "subscribers") working = working.sortedByDescending { it.subscribers }
         header("count", "${working.size} communities")
-        if (working.isEmpty()) {
-            item(key = "nomatch") { Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { Text("No matches") } }
-        } else {
-            rows("all", working)
-        }
+        if (working.isEmpty()) note("nomatch", "No matches") else rows("all", working)
         return
     }
 
@@ -465,35 +521,57 @@ private fun LazyListScope.subscriptionSections(
     val (following, rest) = list.filter { !(showFavs && it.userHasFavorited) }.partition { showFollowing && it.name.startsWith("u_") }
     for (section in sections) when (section) {
         ExploreSection.RECENTLY_VISITED -> if (recent.isNotEmpty()) {
+            // The first few, and Show all (#162); short lists show whole.
+            val folds = recent.size > 4
+            val shown = if (folds && !recentAll) recent.take(3) else recent
             // "Clear" empties just this list; post history stays (History has its own clear).
             item(key = "h_recent") {
-                Row(Modifier.padding(start = 16.dp, top = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.inSection(first = true, last = false).padding(start = 16.dp, top = 6.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     SectionHeader("Recently visited", Modifier.weight(1f))
                     TextButton(onClick = onClearRecent) { Text("Clear") }
                 }
             }
             // No star on ones you aren't subscribed to. Long-press: remove just this one (#123).
-            items(recent, key = { "recent_${it.name}" }, contentType = { "sub" }) {
-                SubredditRow(it, onOpen, if (it.name.lowercase() in byName) onStar else null, visits = visits[it.name.lowercase()]) { onRemoveRecent(it) }
+            itemsIndexed(shown, key = { _, it -> "recent_${it.name}" }, contentType = { _, _ -> "sub" }) { i, sub ->
+                Box(Modifier.inSection(first = false, last = !folds && i == shown.lastIndex)) {
+                    SubredditRow(sub, onOpen, if (sub.name.lowercase() in byName) onStar else null, visits = visits[sub.name.lowercase()]) { onRemoveRecent(sub) }
+                }
+            }
+            if (folds) item(key = "recent_more") {
+                Box(Modifier.inSection(first = false, last = true).padding(horizontal = 8.dp)) {
+                    TextButton(onClick = onRecentAll, Modifier.fillMaxWidth()) { Text(if (recentAll) "Show less" else "Show all ${recent.size}") }
+                }
             }
         }
-        // Communities you engage with in For You but haven't joined (#157), as a carousel (#161).
+        // Communities you engage with in For You but haven't joined (#157), as a carousel (#161)
+        // of cards with their banners (#162).
         ExploreSection.RECOMMENDED -> if (recommended.isNotEmpty()) {
             item(key = "recommended", contentType = "carousel") {
-                Column {
-                    SectionHeader("Recommended for you", Modifier.padding(start = 16.dp, top = 18.dp, end = 16.dp, bottom = 8.dp))
+                Column(Modifier.inSection(first = true, last = true)) {
+                    SectionHeader("Recommended for you", Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 10.dp))
                     LazyRow(
                         contentPadding = PaddingValues(horizontal = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         items(recommended, key = { it.name }) { sub -> RecommendedCard(sub, onOpen, onJoin) }
                     }
+                    Spacer(Modifier.height(4.dp))
                 }
             }
         }
+        // Your favorites as a row of their pictures (#162); a long press offers to unfavorite.
         ExploreSection.FAVORITES -> if (favs.isNotEmpty()) {
-            header("favs", "Favorites")
-            rows("fav", favs)
+            item(key = "favs", contentType = "favorites") {
+                Column(Modifier.inSection(first = true, last = true)) {
+                    SectionHeader("Favorites", Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 6.dp))
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        items(favs, key = { it.name }) { sub -> FavoriteBubble(sub, onOpen, onUnfavorite) }
+                    }
+                }
+            }
         }
         ExploreSection.FOLLOWING -> if (following.isNotEmpty()) {
             header("following", "Following")
@@ -503,34 +581,64 @@ private fun LazyListScope.subscriptionSections(
     }
     if (rest.isEmpty() && favs.isEmpty() && following.isEmpty()) {
         header("subs", "Subscriptions")
-        item(key = "none") {
-            Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { Text("You have no subscriptions yet") }
-        }
+        note("none", "You have no subscriptions yet")
     } else if (rest.isNotEmpty()) {
         header("subs", if (favs.isEmpty() && following.isEmpty()) "Subscriptions" else "Communities")
         rows("rest", rest)
     }
 }
 
-/** A "Recommended for you" card (#161): the community's picture, name and members, and Join. */
+/**
+ * A "Recommended for you" card (#161): the community's banner (#162; a tint when it has
+ * none) with its picture over it, its name and members, and Join.
+ */
 @Composable
 private fun RecommendedCard(sub: Subreddit, onOpen: (Subreddit) -> Unit, onJoin: (Subreddit) -> Unit) {
     val cs = MaterialTheme.colorScheme
-    Column(
+    val card = cs.surfaceContainerHigh
+    Box(
         Modifier
             .width(156.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .background(cs.surfaceContainerLow)
-            .clickable { onOpen(sub) }
-            .padding(start = 12.dp, top = 16.dp, end = 12.dp, bottom = 12.dp),
+            .clip(RoundedCornerShape(20.dp))
+            .background(card)
+            .clickable { onOpen(sub) },
+    ) {
+        Box(Modifier.fillMaxWidth().height(56.dp).background(cs.secondaryContainer)) {
+            val px = with(LocalDensity.current) { 156.dp.roundToPx() }
+            sub.bannerUrl?.let { AsyncImage(rememberSizedRequest(it, px), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+        }
+        Column(Modifier.fillMaxWidth().padding(start = 12.dp, top = 26.dp, end = 12.dp, bottom = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            LetterAvatar(
+                sub.name, 60.dp, cs.secondaryContainer, cs.onSecondaryContainer,
+                // A ring of the card's colour lifts it off the banner.
+                Modifier.border(3.dp, card, CircleShape),
+                imageUrl = sub.iconUrl,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(subredditName(sub.namePrefixed), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("${compactNumber(sub.subscribers)} members", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, maxLines = 1)
+            Spacer(Modifier.height(10.dp))
+            FilledTonalButton(onClick = { onJoin(sub) }) { Text("Join") }
+        }
+    }
+}
+
+/** A favorite in the Favorites row (#162): its picture and name; tap opens, long press offers to unfavorite. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun FavoriteBubble(sub: Subreddit, onOpen: (Subreddit) -> Unit, onUnfavorite: (Subreddit) -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    Column(
+        Modifier
+            .width(76.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .combinedClickable(onClick = { onOpen(sub) }, onLongClick = { onUnfavorite(sub) })
+            .padding(vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        LetterAvatar(sub.name, 64.dp, cs.secondaryContainer, cs.onSecondaryContainer, imageUrl = sub.iconUrl)
-        Spacer(Modifier.height(10.dp))
-        Text(subredditName(sub.namePrefixed), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text("${compactNumber(sub.subscribers)} members", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, maxLines = 1)
-        Spacer(Modifier.height(10.dp))
-        FilledTonalButton(onClick = { onJoin(sub) }) { Text("Join") }
+        LetterAvatar(sub.name.removePrefix("u_"), 56.dp, cs.secondaryContainer, cs.onSecondaryContainer, imageUrl = sub.iconUrl)
+        Spacer(Modifier.height(6.dp))
+        Text(sub.name.removePrefix("u_"), style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
