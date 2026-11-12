@@ -45,6 +45,13 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.78", "Nov 12, 2026",
+        listOf(
+            "Settings › Appearance › Explore sections: show, hide and reorder Explore's sections",
+            "Recommended for you is a carousel of up to 10 communities, each with its picture and a Join button",
+        ),
+    ),
+    Release(
         "2.0.77", "Nov 12, 2026",
         listOf(
             "Spoiler and NSFW galleries cover each image, so you can still swipe through them; one tap reveals them all",
