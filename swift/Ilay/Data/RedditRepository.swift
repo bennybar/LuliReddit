@@ -37,6 +37,13 @@ private let moreLimit = 500
 /// How many hidden comments one tap fetches one by one, when a page doesn't reach them.
 private let moreBatch = 10
 
+private let popularSubsKey = "popularCommunities"
+private let popularSubsAtKey = "popularCommunitiesAt"
+private let popularSubsFields: Set<String> = [
+    "display_name", "display_name_prefixed", "title", "subscribers", "community_icon", "icon_img",
+    "banner_background_image", "banner_img", "over18",
+]
+
 /// An uploaded media asset: its public S3 url and Reddit asset id (= media_id).
 struct MediaAsset: Sendable {
     let url: String
@@ -359,6 +366,31 @@ final class RedditRepository: Sendable {
     func getSubredditAbout(_ name: String) async throws -> Subreddit {
         guard let d = try await client.get("/r/\(name)/about")["data"] else { throw AppException("r/\(name) wasn't found") }
         return Subreddit.fromData(d)
+    }
+
+    /// Explore's "Popular communities": Reddit's list of them, loaded at most once a day and
+    /// kept in prefs (it changes slowly; Reddit usage stays light). A failed load keeps the
+    /// last list. Only the fields the cards show are stored.
+    func getPopularSubreddits() async -> [Subreddit] {
+        let prefs = app.prefs
+        let cached = prefs.getString(popularSubsKey).flatMap(parseJsonOrNull)?.arr()
+        let fresh = Int(Date().timeIntervalSince1970 * 1000) - (prefs.getLong(popularSubsAtKey) ?? 0) < 24 * 3_600_000
+        if let cached, fresh { return cached.map(Subreddit.fromData) }
+        let loaded: [JsonElement]
+        do {
+            let json = try await client.get("/subreddits/popular", [("limit", "25")])
+            loaded = (json["data"]["children"].arr() ?? []).compactMap { c in
+                guard let d = c["data"].obj() else { return nil }
+                var kept = JsonObject()
+                for k in d.keys where popularSubsFields.contains(k) { kept[k] = d[k] }
+                return .object(kept)
+            }
+        } catch {
+            return (cached ?? []).map(Subreddit.fromData)
+        }
+        prefs.setString(popularSubsKey, JsonElement.array(loaded).encoded())
+        prefs.setLong(popularSubsAtKey, Int(Date().timeIntervalSince1970 * 1000))
+        return loaded.map(Subreddit.fromData)
     }
 
     /// Subreddit rules as (title, description) pairs.

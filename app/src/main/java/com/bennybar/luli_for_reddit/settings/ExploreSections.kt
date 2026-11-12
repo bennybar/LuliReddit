@@ -12,6 +12,7 @@ enum class ExploreSection(val id: String, val label: String) {
     CUSTOM_FEEDS("customFeeds", "Custom feeds"),
     RECENTLY_VISITED("recentlyVisited", "Recently visited"),
     RECOMMENDED("recommended", "Recommended for you"),
+    POPULAR_COMMUNITIES("popularCommunities", "Popular communities"),
     FAVORITES("favorites", "Favorites"),
     FOLLOWING("following", "Following"),
     ;

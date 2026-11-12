@@ -136,7 +136,7 @@ enum CommentStyle: Int, CaseIterable, Sendable {
 /// `prefsKey`: their order, a hidden one as "-id". Your communities aren't one: they stay
 /// last, with the filter and sort.
 enum ExploreSection: String, CaseIterable, Sendable {
-    case popular, customFeeds, recentlyVisited, recommended, favorites, following
+    case popular, customFeeds, recentlyVisited, recommended, popularCommunities, favorites, following
 
     static let prefsKey = "exploreSections"
 
@@ -146,6 +146,7 @@ enum ExploreSection: String, CaseIterable, Sendable {
         case .customFeeds: "Custom feeds"
         case .recentlyVisited: "Recently visited"
         case .recommended: "Recommended for you"
+        case .popularCommunities: "Popular communities"
         case .favorites: "Favorites"
         case .following: "Following"
         }

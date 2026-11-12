@@ -45,7 +45,7 @@ final class ExploreSectionsTests: XCTestCase {
     func testExploreSectionsOrder() {
         XCTAssertEqual(ExploreSection.parse(nil).map(\.section), ExploreSection.allCases, "never set: Explore from before")
         let parsed = ExploreSection.parse(["recommended", "-customFeeds", "trending", "-recommended"])
-        XCTAssertEqual(ExploreSection.toPrefs(parsed), ["recommended", "-customFeeds", "popular", "recentlyVisited", "favorites", "following"])
+        XCTAssertEqual(ExploreSection.toPrefs(parsed), ["recommended", "-customFeeds", "popular", "recentlyVisited", "popularCommunities", "favorites", "following"])
         XCTAssertEqual(ExploreSection.toPrefs(ExploreSection.parse(ExploreSection.toPrefs(parsed))), ExploreSection.toPrefs(parsed))
     }
 

@@ -176,6 +176,24 @@ internal fun ExploreTab() {
         }
         value = info.filterNotNull().filter { it.userIsSubscriber != true && !(hideNsfw && it.over18) }
     }
+    // "Popular communities": Reddit's list, loaded at most once a day; only while the
+    // section is shown. Signed out too (without Join).
+    val showPopularSubs = settings.exploreSections.any { it.section == ExploreSection.POPULAR_COMMUNITIES && it.shown }
+    val popularSubs by produceState(emptyList<Subreddit>(), showPopularSubs) {
+        value = if (showPopularSubs) app.repository.getPopularSubreddits() else emptyList()
+    }
+    val join: (Subreddit) -> Unit = { sub ->
+        joined = joined + sub.name.lowercase()
+        scope.launch {
+            try {
+                app.repository.setSubscribed(sub.name, true)
+                vm.load(force = true)
+            } catch (e: Exception) {
+                joined = joined - sub.name.lowercase()
+                nav.showActionError("join", e)
+            }
+        }
+    }
     // The top bar floats over the list and follows the finger, and follows Settings ›
     // Appearance › Top bar like Home's (#162): Expandable, a title with search; Full, the
     // round search bar, with the title scrolling under it.
@@ -323,6 +341,16 @@ internal fun ExploreTab() {
                 when (section) {
                     ExploreSection.POPULAR -> popular()
                     ExploreSection.CUSTOM_FEEDS -> customFeeds()
+                    // The ones you haven't joined, up to 10.
+                    ExploreSection.POPULAR_COMMUNITIES -> {
+                        val mine = (subs as? Async.Data)?.value?.mapTo(HashSet()) { it.name.lowercase() }.orEmpty() + joined
+                        communityCarousel(
+                            "popularSubs", "Popular communities",
+                            popularSubs.filter { it.name.lowercase() !in mine && !(hideNsfw && it.over18) }.take(10),
+                            { nav.openSubreddit(it.name) },
+                            if (anonymous) null else join,
+                        )
+                    }
                     else -> {}
                 }
             }
@@ -377,18 +405,7 @@ internal fun ExploreTab() {
                     sections = order.drop(filterAt),
                     place = { place(it) },
                     recommended = recommended.filter { it.name.lowercase() !in joined },
-                    onJoin = { sub ->
-                        joined = joined + sub.name.lowercase()
-                        scope.launch {
-                            try {
-                                app.repository.setSubscribed(sub.name, true)
-                                vm.load(force = true)
-                            } catch (e: Exception) {
-                                joined = joined - sub.name.lowercase()
-                                nav.showActionError("join", e)
-                            }
-                        }
-                    },
+                    onJoin = join,
                     query = query,
                     favOnly = favOnly,
                     sort = sort,
@@ -545,20 +562,7 @@ private fun LazyListScope.subscriptionSections(
         }
         // Communities you engage with in For You but haven't joined (#157), as a carousel (#161)
         // of cards with their banners (#162).
-        ExploreSection.RECOMMENDED -> if (recommended.isNotEmpty()) {
-            item(key = "recommended", contentType = "carousel") {
-                Column(Modifier.inSection(first = true, last = true)) {
-                    SectionHeader("Recommended for you", Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 10.dp))
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        items(recommended, key = { it.name }) { sub -> RecommendedCard(sub, onOpen, onJoin) }
-                    }
-                    Spacer(Modifier.height(4.dp))
-                }
-            }
-        }
+        ExploreSection.RECOMMENDED -> communityCarousel("recommended", "Recommended for you", recommended, onOpen, onJoin)
         // Your favorites as a row of their pictures (#162); a long press offers to unfavorite.
         ExploreSection.FAVORITES -> if (favs.isNotEmpty()) {
             item(key = "favs", contentType = "favorites") {
@@ -588,12 +592,29 @@ private fun LazyListScope.subscriptionSections(
     }
 }
 
+/** A section of community cards in a sideways row (Recommended for you, Popular communities); none when empty. */
+private fun LazyListScope.communityCarousel(key: String, title: String, subs: List<Subreddit>, onOpen: (Subreddit) -> Unit, onJoin: ((Subreddit) -> Unit)?) {
+    if (subs.isEmpty()) return
+    item(key = key, contentType = "carousel") {
+        Column(Modifier.inSection(first = true, last = true)) {
+            SectionHeader(title, Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 10.dp))
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(subs, key = { it.name }) { sub -> CommunityCard(sub, onOpen, onJoin) }
+            }
+            Spacer(Modifier.height(4.dp))
+        }
+    }
+}
+
 /**
- * A "Recommended for you" card (#161): the community's banner (#162; a tint when it has
- * none) with its picture over it, its name and members, and Join.
+ * A community card (#161): the community's banner (#162; a tint when it has none) with
+ * its picture over it, its name and members, and Join (not when signed out).
  */
 @Composable
-private fun RecommendedCard(sub: Subreddit, onOpen: (Subreddit) -> Unit, onJoin: (Subreddit) -> Unit) {
+private fun CommunityCard(sub: Subreddit, onOpen: (Subreddit) -> Unit, onJoin: ((Subreddit) -> Unit)?) {
     val cs = MaterialTheme.colorScheme
     val card = cs.surfaceContainerHigh
     Box(
@@ -617,8 +638,10 @@ private fun RecommendedCard(sub: Subreddit, onOpen: (Subreddit) -> Unit, onJoin:
             Spacer(Modifier.height(8.dp))
             Text(subredditName(sub.namePrefixed), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text("${compactNumber(sub.subscribers)} members", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, maxLines = 1)
-            Spacer(Modifier.height(10.dp))
-            FilledTonalButton(onClick = { onJoin(sub) }) { Text("Join") }
+            if (onJoin != null) {
+                Spacer(Modifier.height(10.dp))
+                FilledTonalButton(onClick = { onJoin(sub) }) { Text("Join") }
+            }
         }
     }
 }

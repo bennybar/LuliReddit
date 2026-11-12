@@ -10,7 +10,7 @@ class ExploreSectionsTest {
     @Test
     fun `never set it is Explore from before`() {
         assertEquals(
-            listOf("popular", "customFeeds", "recentlyVisited", "recommended", "favorites", "following"),
+            listOf("popular", "customFeeds", "recentlyVisited", "recommended", "popularCommunities", "favorites", "following"),
             ids(ExploreSection.parse(null)),
         )
         assertEquals(ExploreSection.parse(null), Settings().exploreSections)
@@ -19,7 +19,7 @@ class ExploreSectionsTest {
     @Test
     fun `stored order and hidden sections are kept, missing ones appended in default order`() {
         assertEquals(
-            listOf("recommended", "-customFeeds", "popular", "recentlyVisited", "favorites", "following"),
+            listOf("recommended", "-customFeeds", "popular", "recentlyVisited", "popularCommunities", "favorites", "following"),
             ids(ExploreSection.parse(listOf("recommended", "-customFeeds", "popular"))),
         )
     }
@@ -27,14 +27,22 @@ class ExploreSectionsTest {
     @Test
     fun `unknown and repeated ids are dropped`() {
         assertEquals(
-            listOf("favorites", "popular", "customFeeds", "recentlyVisited", "recommended", "following"),
+            listOf("favorites", "popular", "customFeeds", "recentlyVisited", "recommended", "popularCommunities", "following"),
             ids(ExploreSection.parse(listOf("trending", "favorites", "-favorites"))),
         )
     }
 
     @Test
+    fun `a section added later shows up for someone who already reordered`() {
+        assertEquals(
+            listOf("-popular", "following", "favorites", "customFeeds", "recentlyVisited", "recommended", "popularCommunities"),
+            ids(ExploreSection.parse(listOf("-popular", "following", "favorites", "customFeeds", "recentlyVisited", "recommended"))),
+        )
+    }
+
+    @Test
     fun `prefs round trip`() {
-        val stored = listOf("-popular", "recommended", "recentlyVisited", "-customFeeds", "following", "favorites")
+        val stored = listOf("-popular", "recommended", "recentlyVisited", "-customFeeds", "following", "-popularCommunities", "favorites")
         assertEquals(stored, ExploreSection.toPrefs(ExploreSection.parse(stored)))
     }
 }

@@ -61,6 +61,13 @@ private const val MORE_LIMIT = 500
 /** How many hidden comments one tap fetches one by one, when a page doesn't reach them. */
 private const val MORE_BATCH = 10
 
+private const val POPULAR_SUBS_KEY = "popularCommunities"
+private const val POPULAR_SUBS_AT_KEY = "popularCommunitiesAt"
+private val POPULAR_SUBS_FIELDS = setOf(
+    "display_name", "display_name_prefixed", "title", "subscribers", "community_icon", "icon_img",
+    "banner_background_image", "banner_img", "over18",
+)
+
 /** An uploaded media asset: its public S3 url and Reddit asset id (= media_id). */
 data class MediaAsset(val url: String, val assetId: String)
 
@@ -356,6 +363,31 @@ class RedditRepository(val client: RedditClient) {
 
     suspend fun getSubredditAbout(name: String): Subreddit =
         Subreddit.fromData(client.get("/r/$name/about")["data"]!!)
+
+    /**
+     * Explore's "Popular communities": Reddit's list of them, loaded at most once a day
+     * and kept in prefs (it changes slowly; Reddit usage stays light). A failed load keeps
+     * the last list. Only the fields the cards show are stored.
+     */
+    suspend fun getPopularSubreddits(): List<Subreddit> {
+        val prefs = app.prefs
+        val cached = prefs.getString(POPULAR_SUBS_KEY)?.let { runCatching { kotlinx.serialization.json.Json.parseToJsonElement(it).arr() }.getOrNull() }
+        val fresh = System.currentTimeMillis() - (prefs.getLong(POPULAR_SUBS_AT_KEY) ?: 0) < 24 * 3600_000L
+        if (cached != null && fresh) return cached.map(Subreddit::fromData)
+        val loaded = try {
+            val json = client.get("/subreddits/popular", linkedMapOf("limit" to 25))
+            (json["data"]["children"].arr() ?: emptyList()).mapNotNull { c ->
+                c["data"].obj()?.let { d -> kotlinx.serialization.json.JsonObject(d.filterKeys { it in POPULAR_SUBS_FIELDS }) }
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            return cached?.map(Subreddit::fromData).orEmpty()
+        }
+        prefs.setString(POPULAR_SUBS_KEY, JsonArray(loaded).toString())
+        prefs.setLong(POPULAR_SUBS_AT_KEY, System.currentTimeMillis())
+        return loaded.map(Subreddit::fromData)
+    }
 
     /** Subreddit rules as (title, description) pairs. */
     suspend fun getSubredditRules(name: String): List<Pair<String, String>> =

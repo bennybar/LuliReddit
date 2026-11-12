@@ -57,6 +57,8 @@ struct ExploreTab: View {
     /// "Recommended for you" (#157), and the ones joined from it since it loaded.
     @State private var recommended: [Subreddit] = []
     @State private var joinedNow: Set<String> = []
+    /// "Popular communities": Reddit's list, loaded at most once a day.
+    @State private var popularSubs: [Subreddit] = []
     /// Recently visited: all of it, not the first few (#162).
     @State private var recentAll = false
     /// Recommended communities' details, looked up once a session (#161).
@@ -87,6 +89,13 @@ struct ExploreTab: View {
                     switch section {
                     case .popular: popularSection
                     case .customFeeds: customFeedsSection(multis: multis, anonymous: anonymous)
+                    // The ones you haven't joined, up to 10; signed out too (without Join).
+                    // It steps aside while filtering, like the lists of your communities.
+                    case .popularCommunities:
+                        if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !filtering {
+                            communityCarousel("Popular communities", notJoined(popularSubs).prefix(10).map { $0 }, canJoin: !anonymous)
+                                .id(section.rawValue)
+                        }
                     default: communitySection(section, order: order)
                     }
                 }
@@ -154,6 +163,7 @@ struct ExploreTab: View {
         // Picked on the phone from what For You learned, then each one's icon and members
         // (/api/info is refused); again whenever the subscriptions reload (a Join takes one off).
         .task(id: recommendKey) { await loadRecommended() }
+        .task(id: showPopularSubs) { popularSubs = showPopularSubs ? await app.repository.getPopularSubreddits() : [] }
     }
 
     /// The groups of your communities for the current list, filter and sort.
@@ -234,7 +244,7 @@ struct ExploreTab: View {
         } else {
             switch section {
             case .recommended:
-                recommendedSection(recommended.filter { !joinedNow.contains($0.name.lowercased()) }).id(section.rawValue)
+                communityCarousel("Recommended for you", recommended.filter { !joinedNow.contains($0.name.lowercased()) }, canJoin: true).id(section.rawValue)
             case .recentlyVisited:
                 if let g = all.first(where: { $0.key == "recent" }) { groupSection(g).id(section.rawValue) }
             case .favorites:
@@ -338,11 +348,21 @@ struct ExploreTab: View {
         recommended = names.compactMap { found[$0] }.filter { $0.userIsSubscriber != true && !(hideNsfw && $0.over18) }
     }
 
-    /// "Recommended for you" as a carousel (#161): a card per community, with its picture,
-    /// name, members and Join.
-    @ViewBuilder private func recommendedSection(_ subs: [Subreddit]) -> some View {
+    private var showPopularSubs: Bool { app.settings.value.exploreSections.contains { $0.section == .popularCommunities && $0.shown } }
+
+    /// Popular communities you haven't joined (nor hidden as NSFW).
+    private func notJoined(_ subs: [Subreddit]) -> [Subreddit] {
+        var mine = joinedNow
+        if case let .data(list) = SubscriptionsViewModel.shared.subs { mine.formUnion(list.map { $0.name.lowercased() }) }
+        let hideNsfw = app.contentFilters.value.hideNsfw
+        return subs.filter { !mine.contains($0.name.lowercased()) && !(hideNsfw && $0.over18) }
+    }
+
+    /// Community cards in a sideways row (#161: Recommended for you; Popular communities):
+    /// each with its picture, name, members and Join (not when signed out).
+    @ViewBuilder private func communityCarousel(_ title: String, _ subs: [Subreddit], canJoin: Bool) -> some View {
         if !subs.isEmpty {
-            Section("Recommended for you") {
+            Section(title) {
                 ScrollView(.horizontal) {
                     HStack(spacing: 8) {
                         ForEach(subs, id: \.name) { sub in
@@ -359,10 +379,12 @@ struct ExploreTab: View {
                                     .frame(maxWidth: .infinity)
                                 }
                                 .buttonStyle(.plain)
-                                Button("Join") { join(sub) }
-                                    .buttonStyle(.borderedProminent)
-                                    .buttonBorderShape(.capsule)
-                                    .padding(.top, 6)
+                                if canJoin {
+                                    Button("Join") { join(sub) }
+                                        .buttonStyle(.borderedProminent)
+                                        .buttonBorderShape(.capsule)
+                                        .padding(.top, 6)
+                                }
                             }
                             .padding(.horizontal, 12)
                             .padding(.top, 26)
