@@ -45,6 +45,16 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.79", "Nov 12, 2026",
+        listOf(
+            "Explore redesign: each section sits in its own rounded card",
+            "Recommended communities show their banner, with the picture over it",
+            "Favorites is a row of community pictures; long press one to remove it",
+            "Recently visited shows the first three, with Show all for the rest",
+            "Explore's top bar follows Settings › Appearance › Top bar, like Home, and hides as you scroll",
+        ),
+    ),
+    Release(
         "2.0.78", "Nov 12, 2026",
         listOf(
             "Settings › Appearance › Explore sections: show, hide and reorder Explore's sections",
