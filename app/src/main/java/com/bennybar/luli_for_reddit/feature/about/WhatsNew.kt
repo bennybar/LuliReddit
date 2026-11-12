@@ -45,6 +45,13 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.80", "Nov 12, 2026",
+        listOf(
+            "Explore: Popular communities, a row of Reddit's popular communities you haven't joined, with Join",
+            "It's loaded at most once a day, and you can hide or move it in Settings › Appearance › Explore sections",
+        ),
+    ),
+    Release(
         "2.0.79", "Nov 12, 2026",
         listOf(
             "Explore redesign: each section sits in its own rounded card",
