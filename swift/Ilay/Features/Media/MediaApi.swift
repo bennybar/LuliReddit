@@ -63,8 +63,14 @@ struct GalleryM3Carousel: View {
     let images: [GalleryImage]
     var title: String? = nil
     var height: CGFloat = 300
+    /// A spoiler / NSFW gallery's label (#165): each image gets its own cover, so you
+    /// can still swipe through them; revealing one reveals them all.
+    var cover: String? = nil
+
+    @State private var revealed = false
 
     var body: some View {
+        let covered = cover != nil && !revealed
         if !images.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 KeylineCarousel(
@@ -75,12 +81,15 @@ struct GalleryM3Carousel: View {
                         let small: CGFloat = 40, medium = w * 0.2
                         return [w - medium - small - 16, medium, small]
                     },
-                    onTap: { app.navigator.openGallery(images, title: title, initialIndex: $0) },
+                    onTap: { if covered { revealed = true } else { app.navigator.openGallery(images, title: title, initialIndex: $0) } },
                     label: { "Image \($0 + 1) of \(images.count)" }
                 ) { i in
                     RemoteImage(url: URL(string: images[i].url)).zoomSource()
+                        // Just the eye: the carousel lays every image out full size and masks
+                        // the narrow ones, so a label would be cut off; the caption says it.
+                        .overlay { if covered, let cover { MediaCover(label: cover, iconOnly: true) } }
                 }
-                Label("\(images.count) images · tap one to view", systemImage: "photo.on.rectangle")
+                Label(covered ? "\(cover ?? "") · \(images.count) images · tap one to view" : "\(images.count) images · tap one to view", systemImage: "photo.on.rectangle")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.leading, 4)
@@ -96,8 +105,13 @@ struct GalleryCarousel: View {
     let images: [GalleryImage]
     var title: String? = nil
     var height: CGFloat? = nil
+    var radius: CGFloat = 16
+    /// A spoiler / NSFW gallery's label (#165): each image gets its own cover, so you
+    /// can still swipe through them; revealing one reveals them all.
+    var cover: String? = nil
 
     @State private var page: Int? = 0
+    @State private var revealed = false
 
     private var aspect: CGFloat {
         guard let first = images.first, let w = first.width, let h = first.height, h > 0 else { return 16.0 / 9.0 }
@@ -110,7 +124,7 @@ struct GalleryCarousel: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: height)
                 .aspectRatio(height == nil ? aspect : nil, contentMode: .fit)
-                .clipShape(.rect(cornerRadius: 16))
+                .clipShape(.rect(cornerRadius: radius))
                 .overlay(alignment: .topTrailing) {
                     Label("\((page ?? 0) + 1)/\(images.count)", systemImage: "photo.on.rectangle")
                         .labelStyle(.titleAndIcon)
@@ -142,11 +156,12 @@ struct GalleryCarousel: View {
             LazyHStack(spacing: 0) {
                 ForEach(images.indices, id: \.self) { i in
                     Button {
-                        app.navigator.openGallery(images, title: title, initialIndex: i)
+                        if cover != nil && !revealed { revealed = true } else { app.navigator.openGallery(images, title: title, initialIndex: i) }
                     } label: {
                         // Gallery images are full size (often 12MP photos): RemoteImage
                         // decodes them to the slot.
                         RemoteImage(url: URL(string: images[i].url)).zoomSource()
+                            .overlay { if let cover, !revealed { MediaCover(label: cover) } }
                     }
                     .buttonStyle(.plain)
                     .containerRelativeFrame(.horizontal)
@@ -176,6 +191,8 @@ struct NsfwBlur<Content: View>: View {
     var blurredImageUrl: String? = nil
     var label = "NSFW"
     var id = ""
+    /// The media's own corner radius, so the cover's corners match it (#165).
+    var radius: CGFloat = 16
     @ViewBuilder let content: () -> Content
 
     // Not persisted: like Flutter, an item scrolled away and back is blurred again.
@@ -202,17 +219,54 @@ struct NsfwBlur<Content: View>: View {
                         }
                     }
                     Color.black.opacity(0.25)
-                    VStack(spacing: 8) {
-                        Image(systemName: "eye.slash.fill").font(.system(size: 28))
-                        Text("\(label) · tap to view").bold()
-                    }
-                    .foregroundStyle(.white)
+                    CoverLabel(label: label)
                 }
-                .clipShape(.rect(cornerRadius: 16))
+                .clipShape(.rect(cornerRadius: radius))
                 .contentShape(Rectangle())
                 .onTapGesture { revealedId = id }
             }
         }
         .onDisappear { revealedId = nil }
+    }
+}
+
+/// The eye and "NSFW · tap to view" on covered media; just the eye where it doesn't fit.
+private struct CoverLabel: View {
+    let label: String
+    var iconOnly = false
+
+    var body: some View {
+        if iconOnly {
+            Image(systemName: "eye.slash.fill").font(.system(size: 28)).foregroundStyle(.white)
+        } else {
+            full
+        }
+    }
+
+    private var full: some View {
+        ViewThatFits {
+            VStack(spacing: 8) {
+                Image(systemName: "eye.slash.fill").font(.system(size: 28))
+                Text("\(label) · tap to view").bold().multilineTextAlignment(.center)
+            }
+            Image(systemName: "eye.slash.fill").font(.system(size: 22))
+        }
+        .foregroundStyle(.white)
+        .padding(8)
+    }
+}
+
+/// A gallery image's cover (#165): a solid fill (a live blur per image would cost every
+/// scroll frame) with the label.
+private struct MediaCover: View {
+    let label: String
+    var iconOnly = false
+
+    var body: some View {
+        ZStack {
+            Color(.darkGray)
+            Color.black.opacity(0.25)
+            CoverLabel(label: label, iconOnly: iconOnly)
+        }
     }
 }

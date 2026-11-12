@@ -304,11 +304,12 @@ private struct PostMediaView: View {
         if p.type == .selfPost {
             EmptyView()
         } else if p.type == .gallery, !p.gallery.isEmpty {
-            NsfwBlur(blur: blur, label: label) {
+            // A spoiler / NSFW gallery covers each image, so it still swipes (#165).
+            Group {
                 if p.gallery.count > 1 {
-                    GalleryM3Carousel(images: p.gallery, title: p.title)
+                    GalleryM3Carousel(images: p.gallery, title: p.title, cover: blur ? label : nil)
                 } else {
-                    GalleryCarousel(images: p.gallery, title: p.title)
+                    GalleryCarousel(images: p.gallery, title: p.title, cover: blur ? label : nil)
                 }
             }
             .padding(.bottom, 12)

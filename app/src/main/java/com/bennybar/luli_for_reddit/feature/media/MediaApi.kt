@@ -1,5 +1,9 @@
 package com.bennybar.luli_for_reddit.feature.media
 
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.material3.carousel.CarouselDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.carousel.rememberCarouselState
@@ -144,8 +148,12 @@ suspend fun saveMediaToGallery(url: String, isVideo: Boolean) = saveMedia(url, i
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GalleryM3Carousel(images: List<GalleryImage>, modifier: Modifier = Modifier, title: String? = null, height: Dp = 300.dp) {
+fun GalleryM3Carousel(images: List<GalleryImage>, modifier: Modifier = Modifier, title: String? = null, height: Dp = 300.dp, cover: String? = null) {
     if (images.isEmpty()) return
+    // A spoiler / NSFW gallery (#165): each image has its own cover, so you can still
+    // swipe through them; revealing one reveals them all.
+    var revealed by remember { mutableStateOf(false) }
+    val covered = cover != null && !revealed
     val nav = LocalNavigator.current
     val cs = MaterialTheme.colorScheme
     val decodeWidth = feedDecodeWidth()
@@ -172,10 +180,19 @@ fun GalleryM3Carousel(images: List<GalleryImage>, modifier: Modifier = Modifier,
                     model = rememberSizedRequest(images[i].url, decodeWidth),
                     contentDescription = "Image ${i + 1} of ${images.size}",
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().then(if (covered) Modifier.blur(24.dp) else Modifier),
                     onError = { failed = true },
                 )
                 if (failed) Icon(Icons.Outlined.BrokenImage, null, tint = cs.onSurfaceVariant)
+                // The label fades as the image narrows to a peek, where it would be cut off.
+                if (covered) MediaCover(
+                    cover!!,
+                    Modifier.graphicsLayer {
+                        val info = carouselItemDrawInfo
+                        // Gone below three quarters of the full width.
+                        alpha = if (info.maxSize <= 0f) 1f else ((info.size / info.maxSize - 0.75f) * 4f).coerceIn(0f, 1f)
+                    },
+                ) { revealed = true }
             }
         }
         Row(Modifier.padding(start = 4.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -193,8 +210,12 @@ fun GalleryM3Carousel(images: List<GalleryImage>, modifier: Modifier = Modifier,
  * the first image's aspect ratio.
  */
 @Composable
-fun GalleryCarousel(images: List<GalleryImage>, modifier: Modifier = Modifier, title: String? = null, height: Dp? = null) {
+fun GalleryCarousel(images: List<GalleryImage>, modifier: Modifier = Modifier, title: String? = null, height: Dp? = null, shape: Shape = RoundedCornerShape(16.dp), cover: String? = null) {
     if (images.isEmpty()) return
+    // A spoiler / NSFW gallery (#165): each image has its own cover, so you can still
+    // swipe through them; revealing one reveals them all.
+    var revealed by remember { mutableStateOf(false) }
+    val covered = cover != null && !revealed
     val nav = LocalNavigator.current
     val cs = MaterialTheme.colorScheme
     val first = images.first()
@@ -204,7 +225,7 @@ fun GalleryCarousel(images: List<GalleryImage>, modifier: Modifier = Modifier, t
     val pager = rememberPagerState { images.size }
     val decodeWidth = feedDecodeWidth()
     val sized = if (height != null) modifier.fillMaxWidth().height(height) else modifier.fillMaxWidth().aspectRatio(aspect)
-    Box(sized.clip(RoundedCornerShape(16.dp))) {
+    Box(sized.clip(shape)) {
         HorizontalPager(pager, Modifier.fillMaxSize(), key = { it }) { i ->
             var failed by remember { mutableStateOf(false) }
             Box(
@@ -218,10 +239,11 @@ fun GalleryCarousel(images: List<GalleryImage>, modifier: Modifier = Modifier, t
                     model = rememberSizedRequest(images[i].url, decodeWidth),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().then(if (covered) Modifier.blur(24.dp) else Modifier),
                     onError = { failed = true },
                 )
                 if (failed) Icon(Icons.Outlined.BrokenImage, null, tint = cs.onSurfaceVariant)
+                if (covered) MediaCover(cover!!) { revealed = true }
             }
         }
         // Counter badge
@@ -271,7 +293,15 @@ fun GalleryCarousel(images: List<GalleryImage>, modifier: Modifier = Modifier, t
  * inside don't autoplay ([LocalMediaCovered]).
  */
 @Composable
-fun NsfwBlur(blur: Boolean, modifier: Modifier = Modifier, blurredImageUrl: String? = null, label: String = "NSFW", content: @Composable () -> Unit) {
+fun NsfwBlur(
+    blur: Boolean,
+    modifier: Modifier = Modifier,
+    blurredImageUrl: String? = null,
+    label: String = "NSFW",
+    // The media's own shape, so the cover's corners match it (#165).
+    shape: Shape = RoundedCornerShape(16.dp),
+    content: @Composable () -> Unit,
+) {
     // Plain remember (not saveable): like Flutter, an item scrolled away and
     // back is blurred again.
     var revealed by remember { mutableStateOf(false) }
@@ -282,9 +312,9 @@ fun NsfwBlur(blur: Boolean, modifier: Modifier = Modifier, blurredImageUrl: Stri
     Box(modifier) {
         CompositionLocalProvider(LocalMediaCovered provides true) {
             // Without a pre-blurred copy, blur the media itself (RenderEffect).
-            Box(if (blurredImageUrl == null) Modifier.blur(24.dp) else Modifier) { content() }
+            Box(if (blurredImageUrl == null) Modifier.blur(24.dp, BlurredEdgeTreatment(shape)) else Modifier) { content() }
         }
-        Box(Modifier.matchParentSize().clip(RoundedCornerShape(16.dp))) {
+        Box(Modifier.matchParentSize().clip(shape)) {
             if (blurredImageUrl != null) {
                 SubcomposeAsyncImage(
                     model = blurredImageUrl,
@@ -295,19 +325,26 @@ fun NsfwBlur(blur: Boolean, modifier: Modifier = Modifier, blurredImageUrl: Stri
                     error = { Box(Modifier.fillMaxSize().background(Color.Black)) },
                 )
             }
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.25f))
-                    .clickable { revealed = true },
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Icon(Icons.Rounded.VisibilityOff, null, Modifier.size(32.dp), tint = Color.White)
-                Spacer(Modifier.height(8.dp))
-                Text("$label · tap to view", color = Color.White, fontWeight = FontWeight.Bold)
-            }
+            MediaCover(label) { revealed = true }
         }
+    }
+}
+
+/** The "NSFW · tap to view" layer over covered media; a tap reveals it. */
+@Composable
+private fun MediaCover(label: String, labelModifier: Modifier = Modifier, onReveal: () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.25f))
+            .clickable(onClick = onReveal)
+            .padding(horizontal = 8.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(Icons.Rounded.VisibilityOff, null, Modifier.size(32.dp), tint = Color.White)
+        Spacer(Modifier.height(8.dp))
+        Text("$label · tap to view", labelModifier, color = Color.White, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
     }
 }
 

@@ -100,6 +100,8 @@ private final class CommentCell: UICollectionViewListCell {
     /// ...or the edge line it replaced (#141).
     private let voteLine = CALayer()
     private var depth = 0
+    private var prevDepth = 0
+    private var nextDepth = 0
     private var opLevel: Int?
     /// Where the row's name line ends (`CommentRowView` reports it).
     var headerBottom: CGFloat = 34
@@ -147,9 +149,8 @@ private final class CommentCell: UICollectionViewListCell {
         for (i, l) in guides.enumerated() {
             l.isHidden = i >= shown
             if i < shown {
-                // One quiet colour; OP's own rail takes the accent.
-                let color = row.isOp && i == shown - 1 ? accent.withAlphaComponent(0.55) : .systemGray3
-                l.backgroundColor = color.resolvedColor(with: traitCollection).cgColor
+                // A soft colour per depth, as the cards style's edges (#166).
+                l.backgroundColor = railColors[i % railColors.count].resolvedColor(with: traitCollection).cgColor
             }
         }
         voteEdge.isHidden = voteColor == nil || !env.voteGlow
@@ -160,6 +161,8 @@ private final class CommentCell: UICollectionViewListCell {
         }
         CATransaction.commit()
         depth = shown
+        prevDepth = row.prevDepth
+        nextDepth = row.nextDepth
         setNeedsLayout()
     }
 
@@ -265,9 +268,16 @@ private final class CommentCell: UICollectionViewListCell {
             card.frame = CGRect(x: cardFrame.minX - Self.pad, y: first ? -Self.pad : 0, width: cardFrame.width + Self.pad * 2,
                                 height: cardFrame.height + (first ? Self.pad : 0) + (last ? Self.padBottom : 0))
         }
+        // One line per ancestor, joined row to row, with round ends only where it starts (its
+        // first reply) and stops (the last one under it) (#166).
+        let rail: CGFloat = 2.5, inset: CGFloat = 6
         for i in 0..<min(depth, guides.count) {
-            let x = 12 + 12 + CGFloat(i) * 10 + 4
-            guides[i].frame = CGRect(x: rtl ? bounds.width - x - width : x, y: top, width: width, height: max(bottom - top, 0))
+            let x = 12 + calmRailStep * CGFloat(i + 1) - rail / 2
+            // Past the row's edge where it carries on, so its rounded corners don't notch the join.
+            let y0 = prevDepth <= i ? (first ? 5 : 0) + inset : -rail
+            let y1 = nextDepth <= i ? cardFrame.maxY - (last ? 5 : 0) - inset : bounds.height + rail
+            guides[i].frame = CGRect(x: rtl ? bounds.width - x - rail : x, y: y0, width: rail, height: max(y1 - y0, 0))
+            guides[i].cornerRadius = rail / 2
         }
         // The glow fills the row's card (the whole row outside Calm), rounded where the card is.
         let glow = calm ? cardFrame : bounds
@@ -472,6 +482,8 @@ final class CommentListController: UIViewController, UICollectionViewDelegate {
             var row = rowModel(c, thread: thread, content: content)
             row.first = i == 0 || c.depth == 0
             row.last = i == flat.count - 1 || flat[i + 1].depth == 0
+            row.prevDepth = i == 0 ? 0 : flat[i - 1].depth
+            row.nextDepth = i == flat.count - 1 ? 0 : flat[i + 1].depth
             newRows[c.fullname] = row
             newIds.append(c.fullname)
         }

@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.ui.graphics.RectangleShape
 import com.bennybar.luli_for_reddit.ui.subredditName
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
@@ -605,9 +606,7 @@ private fun BannerMedia(p: Post, a: PostActions, s: Settings, height: Dp) {
     }
     val blur = blurOf(p, s)
     if (p.type == PostType.GALLERY && p.gallery.isNotEmpty()) {
-        NsfwBlur(blur, Modifier.padding(bottom = 4.dp), label = blurLabel(p, s)) {
-            FeedGallery(p, s, height = height)
-        }
+        FeedGallery(p, s, Modifier.padding(bottom = 4.dp), height = height)
         return
     }
     val url = feedImageUrl(p, s)
@@ -778,11 +777,13 @@ internal fun rememberFlairText(flair: UserFlair): Pair<AnnotatedString, Map<Stri
  * media height; the carousel keeps it between 220 and 340dp.
  */
 @Composable
-private fun FeedGallery(p: Post, s: Settings, modifier: Modifier = Modifier, height: Dp? = null) {
+private fun FeedGallery(p: Post, s: Settings, modifier: Modifier = Modifier, height: Dp? = null, shape: Shape = RoundedCornerShape(16.dp)) {
+    // A spoiler / NSFW gallery covers each image, not the whole carousel, so it still swipes (#165).
+    val cover = if (blurOf(p, s)) blurLabel(p, s) else null
     if (s.feedGalleryCarousel && p.gallery.size > 1) {
-        GalleryM3Carousel(p.gallery, title = p.title, height = (height ?: 300.dp).coerceIn(220.dp, 340.dp))
+        GalleryM3Carousel(p.gallery, modifier, title = p.title, height = (height ?: 300.dp).coerceIn(220.dp, 340.dp), cover = cover)
     } else {
-        GalleryCarousel(p.gallery, modifier, title = p.title, height = height)
+        GalleryCarousel(p.gallery, modifier, title = p.title, height = height, shape = shape, cover = cover)
     }
 }
 
@@ -886,9 +887,7 @@ private fun Media(p: Post, a: PostActions, s: Settings) {
     val blur = blurOf(p, s)
     when (p.type) {
         PostType.GALLERY -> if (p.gallery.isNotEmpty()) {
-            NsfwBlur(blur, Modifier.padding(bottom = 4.dp), label = blurLabel(p, s)) {
-                FeedGallery(p, s)
-            }
+            FeedGallery(p, s, Modifier.padding(bottom = 4.dp))
         } else {
             NsfwBlur(blur, blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, s)) { MediaPreview(p, a, s) }
         }
@@ -1449,7 +1448,7 @@ private fun CalmMedia(p: Post, a: PostActions, s: Settings, shape: androidx.comp
         val inApp = remember(p.url) { redditLinkLabel(p) }
         Column(top.fillMaxWidth().clip(shape).background(calmControlColor()).clickable(onClick = a::openMedia)) {
             if (img != null) {
-                NsfwBlur(blur, blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, s)) {
+                NsfwBlur(blur, blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, s), shape = RectangleShape) {
                     Box(Modifier.fillMaxWidth().aspectRatio(2f).background(cs.surfaceContainerHighest)) {
                         FeedImage(img, Modifier.fillMaxSize())
                     }
@@ -1473,9 +1472,7 @@ private fun CalmMedia(p: Post, a: PostActions, s: Settings, shape: androidx.comp
         val aspect = if (w != null && h != null && h > 0) (w.toFloat() / h).coerceIn(0.5f, 2f) else 16f / 10f
         val height = maxWidth / aspect
         if (p.type == PostType.GALLERY && p.gallery.isNotEmpty()) {
-            NsfwBlur(blur, label = blurLabel(p, s)) {
-                FeedGallery(p, s, Modifier.clip(shape), height = height)
-            }
+            FeedGallery(p, s, height = height, shape = shape)
             return@BoxWithConstraints
         }
         val url = feedImageUrl(p, s)
@@ -1491,7 +1488,7 @@ private fun CalmMedia(p: Post, a: PostActions, s: Settings, shape: androidx.comp
                 return@BoxWithConstraints
             }
         }
-        NsfwBlur(blur, blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, s)) {
+        NsfwBlur(blur, blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, s), shape = shape) {
             Box(
                 Modifier
                     .fillMaxWidth()

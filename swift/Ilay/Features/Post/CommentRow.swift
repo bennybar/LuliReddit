@@ -3,6 +3,9 @@ import SwiftUI
 /// Depth-guide colours (rotate by nesting level).
 let railColors: [UIColor] = [0xFF9F8BE8, 0xFF62B5AA, 0xFFE0A55C, 0xFFD88FB4, 0xFF7E9BE0].map { UIColor(Color(argb: $0)) }
 
+/// Calm's rails' spacing (#166): each one this far from the last, the first this far from the container's edge.
+let calmRailStep: CGFloat = 12
+
 /// One row of the list as a plain value, without its replies, so comparing two is
 /// cheap and a change to any one row reconfigures that row alone.
 struct CommentRowModel: Equatable {
@@ -19,6 +22,9 @@ struct CommentRowModel: Equatable {
     /// Where it sits in its top-level thread's container (Calm).
     var first = false
     var last = false
+    /// The rows above and below's depths (Calm): where each rail starts and stops (#166).
+    var prevDepth = 0
+    var nextDepth = 0
 }
 
 /// What every row reads from settings and the screen. A change reconfigures all rows on screen.
@@ -33,7 +39,7 @@ struct ThreadRowEnv: Equatable {
 
     /// The flat list's (and the guides') indentation.
     func indent(_ depth: Int) -> CGFloat {
-        calm ? 12 + CGFloat(min(max(depth, 0), 8)) * 10 : 10 + CGFloat(min(max(depth, 0), 6)) * 8
+        calm ? 12 + CGFloat(min(max(depth, 0), 8)) * calmRailStep : 10 + CGFloat(min(max(depth, 0), 6)) * 8
     }
 }
 

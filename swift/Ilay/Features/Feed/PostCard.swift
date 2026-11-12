@@ -528,7 +528,7 @@ private struct CardMedia: View {
         case let .image(url, height, pixels, play, pill):
             // No `.id(row.id)`: it rebuilt the image view on every cell reuse. NsfwBlur
             // keys its reveal by `id` instead.
-            NsfwBlur(blur: row.blur, blurredImageUrl: row.post.blurredPreviewUrl, label: row.blurLabel, id: row.id) {
+            NsfwBlur(blur: row.blur, blurredImageUrl: row.post.blurredPreviewUrl, label: row.blurLabel, id: row.id, radius: radius) {
                 Button(action: a.openMedia) {
                     SlotImage(url: url, pixels: pixels, brokenSymbol: "photo.badge.exclamationmark")
                         .frame(height: height)
@@ -547,12 +547,14 @@ private struct CardMedia: View {
                 .clipShape(.rect(cornerRadius: radius))
                 .zoomSource()
         case let .gallery(carouselHeight, height):
-            // Its own view per post: a reused cell mustn't keep the last post's page.
-            NsfwBlur(blur: row.blur, blurredImageUrl: row.post.blurredPreviewUrl, label: row.blurLabel, id: row.id) {
+            // Its own view per post: a reused cell mustn't keep the last post's page (or
+            // reveal). A spoiler / NSFW gallery covers each image, so it still swipes (#165).
+            let cover = row.blur ? row.blurLabel : nil
+            Group {
                 if let carouselHeight {
-                    GalleryM3Carousel(images: row.post.gallery, title: row.post.title, height: carouselHeight)
+                    GalleryM3Carousel(images: row.post.gallery, title: row.post.title, height: carouselHeight, cover: cover)
                 } else {
-                    GalleryCarousel(images: row.post.gallery, title: row.post.title, height: height)
+                    GalleryCarousel(images: row.post.gallery, title: row.post.title, height: height, radius: radius, cover: cover)
                 }
             }
             .id(row.id)
@@ -601,7 +603,8 @@ private struct CalmLink: View {
     var body: some View {
         VStack(spacing: 0) {
             if let hero {
-                NsfwBlur(blur: row.blur, blurredImageUrl: row.post.blurredPreviewUrl, label: row.blurLabel, id: row.id) {
+                // The card clips it: a square cover, so its corners don't show inside (#165).
+                NsfwBlur(blur: row.blur, blurredImageUrl: row.post.blurredPreviewUrl, label: row.blurLabel, id: row.id, radius: 0) {
                     SlotImage(url: hero, pixels: pixels).frame(height: height).frame(maxWidth: .infinity)
                 }
             }
