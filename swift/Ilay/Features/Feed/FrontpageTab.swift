@@ -17,7 +17,8 @@ struct FrontpageTab: View {
         let blend = forYou && settings.blendHome && settings.redditHomeAllowed
         let expandable = settings.topBarMode == .expandable
         let title = postsAll ? "r/all" : homeOn ? "Home" : blend ? "Blend" : forYou ? "For You" : "Frontpage"
-        let subtitle = !homeOn && forYou ? (blend ? blendSubtitle(engines?.blendState) : "Personalized on your phone") : ""
+        // "On your phone": short, so it fits beside the title (#176).
+        let subtitle = !homeOn && forYou ? (blend ? blendSubtitle(engines?.blendState) : "On your phone") : ""
         let nav = app.navigator
 
         let header: (() -> FrontpageTitle)? = expandable ? nil : { FrontpageTitle(title: title, subtitle: subtitle) }

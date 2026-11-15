@@ -91,14 +91,8 @@ fun SummariesScreen() {
         topBar = {
             if (selecting) {
                 BloomTopBar(
-                    "",
-                    showBack = false,
-                    titleContent = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { selected = null }) { Icon(Icons.Rounded.Close, "Cancel selection") }
-                            Text("${selected.orEmpty().size} selected", style = MaterialTheme.typography.titleLarge)
-                        }
-                    },
+                    "${selected.orEmpty().size} selected",
+                    navigation = { IconButton(onClick = { selected = null }) { Icon(Icons.Rounded.Close, "Cancel selection") } },
                     actions = {
                         TextButton(onClick = { selected = if (allShown) emptyList() else shown.map { it.postId } }) {
                             Text(if (allShown) "Select none" else "Select all")

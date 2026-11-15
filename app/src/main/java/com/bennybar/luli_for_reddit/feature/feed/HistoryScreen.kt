@@ -225,15 +225,8 @@ fun HistoryScreen() {
         }
         HidingTopBar(bar) {
             if (selecting) BloomTopBar(
-                "",
-                showBack = false,
-                titleContent = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { selected = emptySet() }) { Icon(Icons.Rounded.Close, "Cancel selection") }
-                        Spacer(Modifier.width(4.dp))
-                        Text("${selected.size} selected")
-                    }
-                },
+                "${selected.size} selected",
+                navigation = { IconButton(onClick = { selected = emptySet() }) { Icon(Icons.Rounded.Close, "Cancel selection") } },
                 actions = {
                     IconButton(onClick = {
                         val gone = history.filter { it.id in selected }

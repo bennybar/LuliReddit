@@ -198,7 +198,7 @@ internal fun FrontpageTab(selected: Boolean) {
             if (!homeOn && forYou) {
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    if (blend) blendSubtitle(blendState) else "Personalized on your phone",
+                    if (blend) blendSubtitle(blendState) else "On your phone", // short, so it fits beside the title (#176)
                     Modifier.weight(1f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

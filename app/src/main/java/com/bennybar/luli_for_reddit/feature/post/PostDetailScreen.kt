@@ -722,13 +722,18 @@ private fun CommentList(
                     val first = i == 0 || c.depth == 0
                     val last = i == flat.lastIndex || flat[i + 1].depth == 0
                     val rails = CalmRails(c.depth, prev = if (i == 0) 0 else flat[i - 1].depth, next = if (i == flat.lastIndex) 0 else flat[i + 1].depth)
-                    CalmThreadRow(first, last, highlighted = currentMatchId == c.fullname, rails) {
+                    CalmThreadRow(first, last, highlighted = currentMatchId == c.fullname) {
                         if (c.isMore) {
-                            MoreRow(c, loading = c.fullname in thread.loadingMore, onClick = { actions.loadMore(c) }, start = calmIndent(c.depth) - 6.dp)
+                            Box(Modifier.fillMaxWidth().calmRails(rails)) {
+                                MoreRow(c, loading = c.fullname in thread.loadingMore, onClick = { actions.loadMore(c) }, start = calmIndent(c.depth) - 6.dp)
+                            }
                         } else {
+                            val folded = CommentTree.folded(c.id) in thread.collapsed && c.id !in thread.collapsed
                             Column {
                                 CalmCommentRow(
                                     comment = c,
+                                    // Folded replies under it carry the lines on.
+                                    rails = if (folded) CalmRails(rails.depth, rails.prev, next = rails.depth) else rails,
                                     isNew = isNew(c),
                                     isOwn = username.isNotEmpty() && c.author == username,
                                     opAuthor = thread.post.author,
@@ -736,7 +741,9 @@ private fun CommentList(
                                     settings = settings,
                                     actions = actions,
                                 )
-                                if (CommentTree.folded(c.id) in thread.collapsed && c.id !in thread.collapsed) FoldedReplies(c, actions)
+                                if (folded) {
+                                    Box(Modifier.fillMaxWidth().calmRails(CalmRails(rails.depth, prev = rails.depth, rails.next))) { FoldedReplies(c, actions) }
+                                }
                             }
                         }
                     }
@@ -1803,15 +1810,34 @@ private fun calmIndent(depth: Int) = 16.dp + CalmRailStep * depth.coerceIn(0, 8)
 private class CalmRails(val depth: Int, val prev: Int, val next: Int)
 
 /**
+ * Draws a row's [rails]: one line per ancestor, joined row to row (#166). On what the
+ * row's content draws, not the row: a swipe slides the comment over a background that
+ * would hide them, and the lines go with it (#175). Drawn, not laid out (no extra
+ * layout pass per depth).
+ */
+private fun Modifier.calmRails(rails: CalmRails) = drawBehind {
+    val w = 2.5.dp.toPx()
+    val inset = 6.dp.toPx() // where a line starts or stops, so its round end shows
+    for (l in 0 until rails.depth.coerceAtMost(8)) {
+        val x = (CalmRailStep * (l + 1)).toPx()
+        val cx = if (layoutDirection == LayoutDirection.Rtl) size.width - x else x
+        // A line starts on its first reply and stops on the last one under it.
+        val top = if (rails.prev <= l) inset else -w
+        val bottom = if (rails.next <= l) size.height - inset else size.height + w
+        // A soft colour per depth, as the cards style's edges (#166).
+        drawLine(railColors[l % railColors.size], Offset(cx, top), Offset(cx, bottom), w, StrokeCap.Round)
+    }
+}
+
+/**
  * One row of a Calm thread container (surfaceContainerLow, radius 24, 12dp
  * side margin): [first] rounds the top and adds the container's top inset,
- * [last] rounds the bottom and leaves the 10dp gap to the next thread. It
- * draws the row's [rails]: one line per ancestor, joined row to row (#166).
+ * [last] rounds the bottom and leaves the 10dp gap to the next thread. Its
+ * content draws the rails ([calmRails]).
  */
 @Composable
-private fun CalmThreadRow(first: Boolean, last: Boolean, highlighted: Boolean, rails: CalmRails, content: @Composable () -> Unit) {
+private fun CalmThreadRow(first: Boolean, last: Boolean, highlighted: Boolean, content: @Composable () -> Unit) {
     val cs = MaterialTheme.colorScheme
-    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val shape = RoundedCornerShape(
         topStart = if (first) CalmRadius else 0.dp,
         topEnd = if (first) CalmRadius else 0.dp,
@@ -1825,21 +1851,7 @@ private fun CalmThreadRow(first: Boolean, last: Boolean, highlighted: Boolean, r
             .clip(shape)
             .background(com.bennybar.luli_for_reddit.feature.feed.calmCardColor())
             .padding(top = if (first) 6.dp else 0.dp, bottom = if (last) 6.dp else 0.dp)
-            .then(if (highlighted) Modifier.background(cs.primaryContainer) else Modifier)
-            // Drawn, not laid out (no extra layout pass per depth).
-            .drawBehind {
-                val w = 2.5.dp.toPx()
-                val inset = 6.dp.toPx() // where a line starts or stops, so its round end shows
-                for (l in 0 until rails.depth.coerceAtMost(8)) {
-                    val x = (CalmRailStep * (l + 1)).toPx()
-                    val cx = if (rtl) size.width - x else x
-                    // A line starts on its first reply and stops on the last one under it.
-                    val top = if (rails.prev <= l) inset else -w
-                    val bottom = if (rails.next <= l) size.height - inset else size.height + w
-                    // A soft colour per depth, as the cards style's edges (#166).
-                    drawLine(railColors[l % railColors.size], Offset(cx, top), Offset(cx, bottom), w, StrokeCap.Round)
-                }
-            },
+            .then(if (highlighted) Modifier.background(cs.primaryContainer) else Modifier),
     ) { content() }
 }
 
@@ -1852,6 +1864,7 @@ private fun CalmThreadRow(first: Boolean, last: Boolean, highlighted: Boolean, r
 @Composable
 private fun CalmCommentRow(
     comment: Comment,
+    rails: CalmRails,
     isNew: Boolean,
     isOwn: Boolean,
     opAuthor: String,
@@ -1896,7 +1909,8 @@ private fun CalmCommentRow(
         Column(
             Modifier
                 .fillMaxWidth()
-                // The rails are the thread row's (CalmThreadRow); this marks your vote.
+                .calmRails(rails)
+                // This marks your vote.
                 .drawBehind {
                     val w = 2.dp.toPx()
                     val top = 10.dp.toPx()
