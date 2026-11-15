@@ -221,7 +221,7 @@ object PostReminders {
         }
         val tap = PendingIntent.getActivity(context, id, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val n = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_icon_mono)
+            .setSmallIcon(R.drawable.ic_stat_ilay)
             .setContentTitle("Reminder · r/$sub")
             .setContentText(title)
             .setStyle(NotificationCompat.BigTextStyle().bigText(title))

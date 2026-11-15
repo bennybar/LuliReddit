@@ -8,10 +8,18 @@ final class InboxPollerParseTests: XCTestCase {
 
     func testCommentReplyDeepLinksToTheComment() {
         let u = parse(#"{"name":"t1_c1","author":"bob","was_comment":true,"link_title":"A post","body":"hi\nthere","subreddit":"pics","link_id":"t3_p1"}"#)
-        XCTAssertEqual(u.title, "u/bob replied · A post")
+        XCTAssertEqual(u.title, "u/bob replied")
+        XCTAssertEqual(u.context, "A post")
         XCTAssertEqual(u.body, "hi there")
         XCTAssertEqual(u.post, UnreadItem.PostTarget(subreddit: "pics", postId: "p1", commentId: "c1"))
         XCTAssertNil(u.messageFullname)
+    }
+
+    func testAMentionSaysSo() {
+        // #178
+        let u = parse(#"{"name":"t1_c2","author":"eve","was_comment":true,"subject":"username mention","link_title":"A post","body":"hey","subreddit":"pics","link_id":"t3_p1"}"#)
+        XCTAssertEqual(u.title, "u/eve mentioned you")
+        XCTAssertEqual(u.context, "A post")
     }
 
     func testMessageUsesItsSubjectAndOpensTheConversation() {

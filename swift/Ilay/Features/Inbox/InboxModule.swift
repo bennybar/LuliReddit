@@ -29,6 +29,8 @@ struct UnreadItem: Equatable, Sendable {
     let post: PostTarget?
     /// Thread to open for private messages.
     let messageFullname: String?
+    /// The post a reply or mention is on: the notification's subtitle (#178).
+    var context: String? = nil
 }
 
 /// Inbox state (the four tabs), the unread badge, and background polling +
@@ -427,8 +429,10 @@ final class InboxModule: UserScoped {
         let linkTitle = d["link_title"].str()
         let rawBody = (d["body"].str() ?? "").replacingOccurrences(of: "\n", with: " ").trimmed
 
-        let linkSuffix = linkTitle.map { " · \($0)" } ?? ""
-        let title = wasComment ? "u/\(author) replied\(linkSuffix)" : subject.isEmpty ? "Message from u/\(author)" : subject
+        // Short, so it isn't cut off; the post's title goes in the subtitle (#178).
+        let title = wasComment && subject.lowercased() == "username mention" ? "u/\(author) mentioned you"
+            : wasComment ? "u/\(author) replied"
+            : subject.isEmpty ? "Message from u/\(author)" : subject
         let snippet = rawBody.count > 140 ? "\(rawBody.prefix(140))…" : rawBody.isEmpty ? "Open Ilay to read" : rawBody
         // Deep-link target for comment replies/mentions (t1_): jump to the comment.
         var post: UnreadItem.PostTarget?
@@ -438,7 +442,8 @@ final class InboxModule: UserScoped {
         }
         // Messages open their conversation (by its first message when known).
         let message = !wasComment && fullname.hasPrefix("t4_") ? (d["first_message_name"].str() ?? fullname) : nil
-        return UnreadItem(fullname: fullname, title: title, body: snippet, post: post, messageFullname: message)
+        return UnreadItem(fullname: fullname, title: title, body: snippet, post: post, messageFullname: message,
+                          context: wasComment ? linkTitle : nil)
     }
 }
 

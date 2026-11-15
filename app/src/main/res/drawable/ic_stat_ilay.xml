@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The status bar's Ilay mark (#178): the launcher's monochrome icon only fills the middle of
+     its canvas and its ring is a hairline there, so it looked tiny beside other apps'. This one
+     fills the 24dp canvas: the L, its moon, and the front of its ring. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:pathData="M9,4.5 V17 H16.5" android:fillColor="#00000000" android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="3.2" android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <group android:pivotX="12" android:pivotY="14" android:rotation="-20">
+        <path android:pathData="M1.5,14 a10.5,3.4 0 0,0 21,0" android:fillColor="#00000000" android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="1.7" android:strokeLineCap="round" />
+    </group>
+    <path android:pathData="M16.6,7.5 a2.1,2.1 0 1,0 4.2,0 a2.1,2.1 0 1,0 -4.2,0" android:fillColor="#FFFFFFFF" />
+</vector>

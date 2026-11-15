@@ -633,7 +633,7 @@ fun SettingsList(
             COMMENT_SORTS.firstOrNull { it.first == s.defaultCommentSort }?.second ?: s.defaultCommentSort,
             Icons.Outlined.Forum,
             onClick = launch {
-                pickOption(COMMENT_SORTS.map { PickOption(it.first, it.second) }, s.defaultCommentSort, radio = false)
+                pickOption(COMMENT_SORTS.map { PickOption(it.first, it.second) }, s.defaultCommentSort)
                     ?.let(ctrl::setDefaultCommentSort)
             },
         )
@@ -772,7 +772,7 @@ fun SettingsList(
                 val options = listOf(PickOption("", "Off")) +
                     TRANSLATE_LANGUAGES.filter { it != Translate.primary }
                         .map { PickOption(it, Translate.languageName(it)) }.sortedBy { it.label }
-                pickOption(options, s.translateSecondLanguage, radio = false)?.let(ctrl::setTranslateSecondLanguage)
+                pickOption(options, s.translateSecondLanguage)?.let(ctrl::setTranslateSecondLanguage)
             },
         )
         switch(
@@ -845,7 +845,7 @@ fun SettingsList(
         tile("Model", s.aiModel, Icons.Outlined.SmartToy, enabled = aiKeySet, onClick = launch {
             // The presets are OpenAI's; any other provider's model is typed in.
             val presets = (AI_MODELS + listOfNotNull(s.aiModel.takeIf { it !in AI_MODELS })).map { PickOption(it, it) }
-            val picked = pickOption(presets + PickOption(CUSTOM_MODEL, "Custom model…", "Type your provider's model ID"), s.aiModel, radio = false)
+            val picked = pickOption(presets + PickOption(CUSTOM_MODEL, "Custom model…", "Type your provider's model ID"), s.aiModel)
                 ?: return@launch
             if (picked != CUSTOM_MODEL) return@launch ctrl.setAiModel(picked)
             val r = textDialog(
@@ -859,7 +859,7 @@ fun SettingsList(
             SUMMARY_STYLE_LABELS[s.aiSummaryStyle.coerceIn(0, SUMMARY_STYLE_LABELS.size - 1)],
             Icons.Rounded.AutoAwesome, enabled = aiKeySet,
             onClick = launch {
-                pickOption(SUMMARY_STYLE_LABELS.mapIndexed { i, l -> PickOption(i, l) }, s.aiSummaryStyle, radio = false)
+                pickOption(SUMMARY_STYLE_LABELS.mapIndexed { i, l -> PickOption(i, l) }, s.aiSummaryStyle)
                     ?.let(ctrl::setAiSummaryStyle)
             },
         )
@@ -868,7 +868,7 @@ fun SettingsList(
             SUMMARY_LANGUAGES.firstOrNull { it.first == s.aiSummaryLanguage }?.second ?: s.aiSummaryLanguage,
             Icons.Rounded.Translate, enabled = aiKeySet,
             onClick = launch {
-                pickOption(SUMMARY_LANGUAGES.map { PickOption(it.first, it.second) }, s.aiSummaryLanguage, radio = false)
+                pickOption(SUMMARY_LANGUAGES.map { PickOption(it.first, it.second) }, s.aiSummaryLanguage)
                     ?.let(ctrl::setAiSummaryLanguage)
             },
         )
@@ -881,7 +881,7 @@ fun SettingsList(
                     listOf(50_000, 100_000, 200_000, 400_000).map {
                         PickOption(it, "${it / 1000}k characters", "~${(it / 4000.0).roundToInt()}k tokens")
                     },
-                    s.aiMaxChars, radio = false,
+                    s.aiMaxChars,
                 )?.let(ctrl::setAiMaxChars)
             },
         )

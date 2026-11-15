@@ -379,7 +379,7 @@ class InboxModule(private val c: AppContainer) : UserScoped {
         val fresh = items.filter { it.fullname !in seen }
         val shown = if (notify && primed) {
             fresh.filter { item ->
-                InboxNotifications.show(c.context, item).also { ok ->
+                InboxNotifications.show(c.context, item, user).also { ok ->
                     c.notificationLog.add(
                         NotificationEvent(
                             at = System.currentTimeMillis(), account = user, source = NotificationEvent.SOURCE_INBOX,
@@ -463,9 +463,12 @@ class InboxModule(private val c: AppContainer) : UserScoped {
             val linkTitle = d["link_title"].str()
             val rawBody = (d["body"].str() ?: "").replace('\n', ' ').trim()
 
-            val linkSuffix = if (linkTitle != null) " · $linkTitle" else ""
-            val title = if (wasComment) "u/$author replied$linkSuffix"
-            else subject.ifEmpty { "Message from u/$author" }
+            // Short, so it isn't cut off; the post's title goes on the line above it (#178).
+            val title = when {
+                wasComment && subject.equals("username mention", ignoreCase = true) -> "u/$author mentioned you"
+                wasComment -> "u/$author replied"
+                else -> subject.ifEmpty { "Message from u/$author" }
+            }
             val snippet = when {
                 rawBody.length > 140 -> rawBody.take(140) + "…"
                 rawBody.isEmpty() -> "Open Ilay to read"
@@ -479,7 +482,7 @@ class InboxModule(private val c: AppContainer) : UserScoped {
             } else null
             // Messages open their conversation (by its first message when known).
             val message = if (!wasComment && fullname.startsWith("t4_")) (d["first_message_name"].str() ?: fullname) else null
-            return UnreadItem(fullname, title, snippet, post, message)
+            return UnreadItem(fullname, title, snippet, post, message, context = if (wasComment) linkTitle else null)
         }
     }
 }
@@ -493,4 +496,6 @@ internal data class UnreadItem(
     val post: Triple<String, String, String>?,
     /** Thread to open for private messages. */
     val messageFullname: String?,
+    /** The post a reply or mention is on: the notification's top line (#178). */
+    val context: String? = null,
 )

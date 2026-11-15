@@ -193,6 +193,11 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <!-- An inbox notification's Mark as read and Reply buttons (#178). -->
+        <receiver
+            android:name=".feature.inbox.InboxActionReceiver"
+            android:exported="false" />
+
         <!-- Opt-in: takes over the Reddit app's notifications so they open in Ilay. -->
         <service
             android:name=".feature.inbox.RedditNotificationListener"

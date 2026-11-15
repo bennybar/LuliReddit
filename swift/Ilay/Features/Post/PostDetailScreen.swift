@@ -26,6 +26,10 @@ struct PostDetailScreen: View {
     @State private var revealId: String?
     // Your own post's sub's post flairs: "Edit flair" only shows where there are some (#88).
     @State private var ownPostFlairs: [Flair] = []
+    // Where you left this thread (#179): it reopens there once the comments are in. Once a
+    // visit; a link to one comment opens on that comment instead.
+    @State private var resumeAt: (fullname: String, offset: Int)?
+    @State private var resumed: Bool
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -37,6 +41,28 @@ struct PostDetailScreen: View {
         _vm = State(initialValue: vm)
         _dwell = State(initialValue: ThreadDwell(postId: postId))
         _actions = State(initialValue: ThreadActions(vm: vm))
+        let at = focusCommentId == nil ? app.threadVisits.lastPosition(postId) : nil
+        _resumeAt = State(initialValue: at)
+        _resumed = State(initialValue: at == nil)
+    }
+
+    private func resumePosition() {
+        guard !resumed, !flat.isEmpty, let at = resumeAt else { return }
+        resumed = true
+        // Gone, or folded away: the top, as before.
+        guard flat.contains(where: { $0.fullname == at.fullname }) else { return }
+        // After the list has taken the comments.
+        Task {
+            handle.scroll(to: at.fullname, fraction: 0)
+            app.navigator.showSnackbar("Back where you left off", actionLabel: "Top") { [handle] in handle.scrollToTop() }
+        }
+    }
+
+    /// Where you are, as you leave; at the top, it's forgotten. Still loading: the last position stays.
+    private func savePosition() {
+        guard focusCommentId == nil, resumed else { return }
+        let top = handle.topComment
+        app.threadVisits.recordPosition(postId, fullname: top?.id, offset: top?.offset ?? 0)
     }
 
     private var ui: ThreadUiState { vm.ui }
@@ -72,10 +98,13 @@ struct PostDetailScreen: View {
                 // A pushed profile or subreddit covers the thread: learn from what was read so far.
                 dwell.pause()
                 dwell.learn()
+                savePosition()
             }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { dwell.resume() } else { dwell.pause() }
+                if phase == .background { savePosition() }
             }
+            .onChange(of: flat.isEmpty, initial: true) { _, _ in resumePosition() }
             .onChange(of: vm.revision) { _, _ in syncActions() }
             .onChange(of: revealId) { _, id in if let id { reveal(id) } }
             .task(id: thread.flatMap { !username.isEmpty && $0.post.author == username ? $0.post.subreddit : nil }) {

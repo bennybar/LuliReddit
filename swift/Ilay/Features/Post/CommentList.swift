@@ -30,6 +30,12 @@ struct ThreadListContent {
 
     /// Scrolls so the row sits [fraction] of the screen below the top.
     func scroll(to id: String, fraction: CGFloat = 0) { controller?.scroll(to: id, fraction: fraction) }
+
+    /// Back up to the post.
+    func scrollToTop() { controller?.scroll(to: RowId.header, fraction: 0) }
+
+    /// The comment at the top of the screen and how far it's scrolled past; nil at the top (#179).
+    var topComment: (id: String, offset: Int)? { controller?.topComment }
 }
 
 /// The thread's list: `UICollectionView`, a diffable source keyed by comment fullname,
@@ -584,6 +590,15 @@ final class CommentListController: UIViewController, UICollectionViewDelegate {
     func scroll(to id: String, fraction: CGFloat) {
         scrollTarget = (id, fraction, 0)
         runScroll()
+    }
+
+    var topComment: (id: String, offset: Int)? {
+        guard let cv = collectionView else { return nil }
+        let top = cv.contentOffset.y + cv.adjustedContentInset.top
+        guard top > 1, let path = cv.indexPathForItem(at: CGPoint(x: cv.bounds.midX, y: top + 1)),
+              let id = dataSource.itemIdentifier(for: path), id.hasPrefix("t1_"),
+              let frame = cv.layoutAttributesForItem(at: path)?.frame else { return nil }
+        return (id, Int(top - frame.minY))
     }
 
     private func targetOffset(_ id: String, fraction: CGFloat) -> CGFloat? {

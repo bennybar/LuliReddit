@@ -15,10 +15,21 @@ class InboxPollerParseTest {
             """{"name":"t1_c1","author":"bob","was_comment":true,"link_title":"A post","body":"hi\nthere",
                "subreddit":"pics","link_id":"t3_p1"}""",
         )
-        assertEquals("u/bob replied · A post", u.title)
+        assertEquals("u/bob replied", u.title)
+        assertEquals("A post", u.context)
         assertEquals("hi there", u.body)
         assertEquals(Triple("pics", "p1", "c1"), u.post)
         assertNull(u.messageFullname)
+    }
+
+    @Test
+    fun `a mention says so (#178)`() {
+        val u = parse(
+            """{"name":"t1_c2","author":"eve","was_comment":true,"subject":"username mention","link_title":"A post","body":"hey",
+               "subreddit":"pics","link_id":"t3_p1"}""",
+        )
+        assertEquals("u/eve mentioned you", u.title)
+        assertEquals("A post", u.context)
     }
 
     @Test

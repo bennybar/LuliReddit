@@ -74,13 +74,12 @@ object InboxNotifications {
         )
     }
 
-    /** Posts [item]'s notification; false if Ilay can't post notifications. */
-    internal fun show(context: Context, item: UnreadItem): Boolean {
-        val nm = NotificationManagerCompat.from(context)
-        createChannel(context)
-        if (!canPost(nm, CHANNEL_ID)) return false
-        val id = item.fullname.hashCode() and 0x7fffffff
-        val intent = Intent(context, IlayActivity::class.java).apply {
+    /** The notification id for an inbox item. */
+    fun notificationId(fullname: String) = fullname.hashCode() and 0x7fffffff
+
+    /** What tapping [item]'s notification opens. */
+    internal fun openIntent(context: Context, item: UnreadItem): Intent =
+        Intent(context, IlayActivity::class.java).apply {
             // CLEAR_TOP: always the one running Ilay (onNewIntent), never a second copy whose Back leads to the last one.
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             when {
@@ -97,21 +96,35 @@ object InboxNotifications {
                 else -> putExtra(EXTRA_TARGET, TARGET_APP)
             }
         }
+
+    /**
+     * Posts [item]'s notification, for [account]'s inbox; false if Ilay can't post
+     * notifications. Mark as read and Reply work from the notification itself (#178).
+     */
+    internal fun show(context: Context, item: UnreadItem, account: String): Boolean {
+        val nm = NotificationManagerCompat.from(context)
+        createChannel(context)
+        if (!canPost(nm, CHANNEL_ID)) return false
+        val id = notificationId(item.fullname)
+        val open = openIntent(context, item)
         val tap = PendingIntent.getActivity(
             context,
             id,
-            intent,
+            open,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_icon_mono)
+            .setSmallIcon(R.drawable.ic_stat_ilay)
             .setContentTitle(item.title)
             .setContentText(item.body)
+            .setSubText(item.context)
             .setStyle(NotificationCompat.BigTextStyle().bigText(item.body))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setAutoCancel(true)
             .setContentIntent(tap)
+            .addAction(InboxActionReceiver.markReadAction(context, item.fullname, account, id))
+            .addAction(InboxActionReceiver.replyAction(context, item.fullname, account, id, open))
             .build()
         return try {
             nm.notify(id, notification)

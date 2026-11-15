@@ -57,6 +57,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.lazy.layout.LazyLayoutCacheWindow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -263,6 +264,8 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
     @OptIn(ExperimentalFoundationApi::class)
     val listState = rememberLazyListState(cacheWindow = LazyLayoutCacheWindow(ahead = 900.dp, behind = 300.dp))
     val scope = rememberCoroutineScope()
+    // Reopens where you left off (#179); a link to one comment opens on that comment instead.
+    if (focusCommentId == null) ThreadPosition(postId, listState, flat)
     val haptic = LocalHapticFeedback.current
 
     // In-post comment search. Matches by fullname, not list position:
@@ -490,6 +493,40 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
     }
 }
 
+/**
+ * Where you were in a thread (#179): reopening it scrolls back to the comment that was at
+ * the top of the screen, once the comments are in, with "Top" to go back up. Saved as you
+ * leave, or when Android stops the app; at the top, it's forgotten.
+ */
+@Composable
+private fun ThreadPosition(postId: String, listState: LazyListState, flat: List<Comment>) {
+    val nav = LocalNavigator.current
+    val scope = rememberCoroutineScope()
+    val resumeAt = remember(postId) { app.threadVisits.lastPosition(postId) }
+    // Once a visit: not again on coming back from a profile or a link opened from here.
+    var resumed by rememberSaveable(postId) { mutableStateOf(resumeAt == null) }
+    LaunchedEffect(flat.isNotEmpty()) {
+        if (resumed || flat.isEmpty() || resumeAt == null) return@LaunchedEffect
+        resumed = true
+        val i = flat.indexOfFirst { it.fullname == resumeAt.first }
+        if (i < 0) return@LaunchedEffect // gone, or folded away: the top, as before
+        listState.scrollToItem(i + 1, resumeAt.second) // the post's header is item 0
+        nav.showSnackbar("Back where you left off", actionLabel = "Top") { scope.launch { listState.animateScrollToItem(0) } }
+    }
+    fun save() {
+        // Still loading: nothing new to save, and the last position stays.
+        if (!resumed) return
+        val key = listState.layoutInfo.visibleItemsInfo.firstOrNull()?.key as? String
+        if (listState.firstVisibleItemIndex == 0 || key == null || !key.startsWith("t1_")) {
+            app.threadVisits.recordPosition(postId, null, 0)
+        } else {
+            app.threadVisits.recordPosition(postId, key, listState.firstVisibleItemScrollOffset)
+        }
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { save() }
+    DisposableEffect(postId) { onDispose { save() } }
+}
+
 /** Pause/resume reading time with the screen; learn when another screen covers it. */
 @Composable
 private fun ThreadLifecycle(dwell: ThreadDwell, nav: AppNavigator) {
@@ -669,7 +706,7 @@ private class ThreadActions(val vm: CommentsViewModel, val nav: AppNavigator, va
 
     /** ⋯ → Translate / Show original on one comment. */
     fun translate(c: Comment) = vm.translateComment(c.fullname) { targets ->
-        pickOption(targets.map { PickOption(it, "Translate to ${Translate.languageName(it)}") }, null, radio = false)
+        pickOption(targets.map { PickOption(it, "Translate to ${Translate.languageName(it)}") }, null)
     }
 
     fun block(c: Comment) {

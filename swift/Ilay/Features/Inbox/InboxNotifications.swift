@@ -60,6 +60,7 @@ import UserNotifications
         guard await canPost() else { return false }
         let content = UNMutableNotificationContent()
         content.title = item.title
+        if let context = item.context { content.subtitle = context }
         content.body = item.body
         content.sound = .default
         if let post = item.post {

@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import com.bennybar.luli_for_reddit.feature.feed.MenuGroup
+import com.bennybar.luli_for_reddit.feature.feed.MenuLabel
 import com.bennybar.luli_for_reddit.settings.SideBarItem
 
 import com.bennybar.luli_for_reddit.feature.feed.UserProfileBody
@@ -25,7 +27,6 @@ import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.OfflinePin
 import androidx.compose.material.icons.rounded.PersonAddAlt1
@@ -33,7 +34,6 @@ import androidx.compose.material.icons.rounded.TravelExplore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -223,39 +223,28 @@ private suspend fun showAccountSheet(current: String, context: android.content.C
         val sheetScope = rememberCoroutineScope()
         ModalBottomSheet(onDismissRequest = { done(null) }) {
             TapGuard {
+                // As every menu (#181): your accounts in one group, the current one tinted;
+                // adding one and logging out in another.
                 Column(Modifier.navigationBarsPadding()) {
-                    Text(
-                        "Accounts",
-                        Modifier.padding(start = 20.dp, top = 4.dp, end = 20.dp, bottom = 8.dp),
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    for (a in accounts) {
-                        val isCurrent = a == current
-                        Tile(
-                            title = { Text("u/$a", color = if (isCurrent) cs.primary else Color.Unspecified) },
-                            leading = { LetterAvatar(a, 40.dp, cs.primaryContainer, cs.onPrimaryContainer, imageUrl = icons[a]) },
-                            trailing = {
-                                if (isCurrent) {
-                                    Icon(Icons.Rounded.CheckCircle, null, tint = cs.primary)
-                                } else {
+                    MenuLabel("Accounts")
+                    MenuGroup {
+                        for (a in accounts) {
+                            val isCurrent = a == current
+                            item(
+                                "u/$a",
+                                selected = isCurrent,
+                                leading = { LetterAvatar(a, 36.dp, cs.primaryContainer, cs.onPrimaryContainer, imageUrl = icons[a]) },
+                                trailing = if (isCurrent) null else ({
                                     IconButton(onClick = { sheetScope.launch { confirmRemove(a) } }) { Icon(Icons.Rounded.Close, "Remove") }
-                                }
-                            },
-                            onClick = if (isCurrent) null else ({ done(AccountAction.Switch(a)) }),
-                        )
+                                }),
+                                onClick = if (isCurrent) null else ({ done(AccountAction.Switch(a)) }),
+                            )
+                        }
                     }
-                    HorizontalDivider(Modifier.padding(vertical = 4.dp))
-                    Tile(
-                        title = { Text("Add account") },
-                        leading = { Icon(Icons.Rounded.PersonAddAlt1, null) },
-                        onClick = { done(AccountAction.Add) },
-                    )
-                    Tile(
-                        title = { Text("Log out of u/$current", color = cs.error) },
-                        leading = { Icon(Icons.AutoMirrored.Rounded.Logout, null, tint = cs.error) },
-                        onClick = { done(AccountAction.Remove(current)) },
-                    )
+                    MenuGroup {
+                        item("Add account", Icons.Rounded.PersonAddAlt1) { done(AccountAction.Add) }
+                        item("Log out of u/$current", Icons.AutoMirrored.Rounded.Logout, danger = true) { done(AccountAction.Remove(current)) }
+                    }
                     Spacer(Modifier.height(8.dp))
                 }
             }

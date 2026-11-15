@@ -1,5 +1,8 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import com.bennybar.luli_for_reddit.feature.feed.MenuGroup
+import com.bennybar.luli_for_reddit.feature.feed.MenuGroupScope
+import com.bennybar.luli_for_reddit.feature.feed.MenuLabel
 import androidx.compose.material3.LocalContentColor
 import com.bennybar.luli_for_reddit.ui.Loading
 import com.bennybar.luli_for_reddit.feature.feed.showAddToCustomFeed
@@ -36,7 +39,6 @@ import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.GifBox
 import androidx.compose.material.icons.outlined.ReportGmailerrorred
 import androidx.compose.material.icons.outlined.Share
-import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.VisibilityOff
 import com.bennybar.luli_for_reddit.feature.media.shareAsMedia
 import com.bennybar.luli_for_reddit.feature.media.canShareAsMedia
@@ -54,10 +56,7 @@ import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Button
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
@@ -454,125 +453,120 @@ private fun PostActionsSheet(post: Post, done: () -> Unit) {
         }
     }
 
-    @Composable
-    fun item(icon: ImageVector, title: String, subtitle: String? = null, action: suspend () -> Unit) {
-        ListItem(
-            content = { Text(title) },
-            supportingContent = subtitle?.let { { Text(it) } },
-            leadingContent = { Icon(icon, null) },
-            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-            modifier = Modifier.clickable { pick(action) },
-        )
-    }
+    /** A row that closes the sheet, then runs [action]. */
+    fun MenuGroupScope.act(icon: ImageVector, title: String, subtitle: String? = null, action: suspend () -> Unit) =
+        item(title, icon, subtitle) { pick(action) }
 
+    // As every menu (#181): the options in groups by what they do.
+    val seen = app.history.contains(post.id)
     ModalBottomSheet(onDismissRequest = done, sheetState = sheet) {
         Column(Modifier.verticalScroll(rememberScrollState()).navigationBarsPadding()) {
-            item(Icons.Outlined.Share, "Share link") {
-                // Sharing is a strong interest signal.
-                app.forYou.learner.share(post)
-                app.navigator.share(link, subject = post.title)
-            }
-            item(Icons.AutoMirrored.Outlined.TextSnippet, "Share with title", "Includes the post title above the link") {
-                app.forYou.learner.share(post)
-                app.navigator.shareWithTitle(link, post.title)
-            }
-            if (canShareAsMedia(post)) {
-                item(Icons.Outlined.PermMedia, "Share as media", "The image or video itself, not a link") {
+            MenuGroup {
+                act(Icons.Outlined.Share, "Share link") {
+                    // Sharing is a strong interest signal.
                     app.forYou.learner.share(post)
-                    shareAsMedia(post)
+                    app.navigator.share(link, subject = post.title)
                 }
-            }
-            item(Icons.Outlined.VisibilityOff, "Hide") { hidePost(post) }
-            item(Icons.Rounded.DoneAll, "Already seen elsewhere", "Mark as read and drop it from your feeds (e.g. read in the Reddit app)") {
-                alreadySeen(post)
-            }
-            if (post.subreddit.isNotEmpty()) {
-                item(Icons.Rounded.DoNotDisturbOn, "Hide r/${post.subreddit} for 7 days", "From your front page: Home, For You, Best / Hot / New") {
-                    hideSubFromHome(post)
+                act(Icons.AutoMirrored.Outlined.TextSnippet, "Share with title", "Includes the post title above the link") {
+                    app.forYou.learner.share(post)
+                    app.navigator.shareWithTitle(link, post.title)
                 }
-                item(Icons.Outlined.FilterAlt, "Filter out r/${post.subreddit}", "From every feed, for good (Settings → Content filters)") {
-                    filterOutSub(post)
-                }
-            }
-            // Reddit Home's own "Show fewer posts like this" (recommended posts only).
-            if (post.id in showFewerIds) {
-                item(Icons.Outlined.ThumbDown, "Show fewer posts like this", "Tells Reddit, like on reddit.com") {
-                    if (app.forYou.redditHome.showFewer(post)) {
-                        app.dismissedPosts.add(post.id)
-                        app.navigator.showSnackbar("Reddit will show fewer posts like this")
-                    } else {
-                        app.navigator.showSnackbar("Couldn't reach Reddit Home, try again after a refresh")
+                if (canShareAsMedia(post)) {
+                    act(Icons.Outlined.PermMedia, "Share as media", "The image or video itself, not a link") {
+                        app.forYou.learner.share(post)
+                        shareAsMedia(post)
                     }
                 }
             }
-            // The Calm card has no read toggle of its own: it lives here.
-            if (app.settings.value.postDisplay.isCalm) {
-                val seen = app.history.contains(post.id)
-                item(
-                    if (seen) Icons.Rounded.CheckCircle else Icons.Outlined.CheckCircleOutline,
-                    if (seen) "Mark as unread" else "Mark as read",
+            MenuGroup {
+                act(Icons.Outlined.VisibilityOff, "Hide") { hidePost(post) }
+                act(Icons.Rounded.DoneAll, "Already seen elsewhere", "Mark as read and drop it from your feeds (e.g. read in the Reddit app)") {
+                    alreadySeen(post)
+                }
+                if (post.subreddit.isNotEmpty()) {
+                    act(Icons.Rounded.DoNotDisturbOn, "Hide r/${post.subreddit} for 7 days", "From your front page: Home, For You, Best / Hot / New") {
+                        hideSubFromHome(post)
+                    }
+                    act(Icons.Outlined.FilterAlt, "Filter out r/${post.subreddit}", "From every feed, for good (Settings → Content filters)") {
+                        filterOutSub(post)
+                    }
+                }
+                // Reddit Home's own "Show fewer posts like this" (recommended posts only).
+                if (post.id in showFewerIds) {
+                    act(Icons.Outlined.ThumbDown, "Show fewer posts like this", "Tells Reddit, like on reddit.com") {
+                        if (app.forYou.redditHome.showFewer(post)) {
+                            app.dismissedPosts.add(post.id)
+                            app.navigator.showSnackbar("Reddit will show fewer posts like this")
+                        } else {
+                            app.navigator.showSnackbar("Couldn't reach Reddit Home, try again after a refresh")
+                        }
+                    }
+                }
+            }
+            MenuGroup {
+                // The Calm card has no read toggle of its own: it lives here.
+                if (app.settings.value.postDisplay.isCalm) {
+                    act(
+                        if (seen) Icons.Rounded.CheckCircle else Icons.Outlined.CheckCircleOutline,
+                        if (seen) "Mark as unread" else "Mark as read",
+                    ) {
+                        if (seen) app.history.removeViewed(post.id) else app.history.markViewed(post)
+                    }
+                }
+                act(
+                    if (savedOffline) Icons.Rounded.OfflinePin else Icons.Outlined.DownloadForOffline,
+                    if (savedOffline) "Remove offline copy" else "Save for offline",
+                    if (savedOffline) null else "Keep it with its comments in Read later",
                 ) {
-                    if (seen) app.history.removeViewed(post.id) else app.history.markViewed(post)
-                }
-            }
-            item(
-                if (savedOffline) Icons.Rounded.OfflinePin else Icons.Outlined.DownloadForOffline,
-                if (savedOffline) "Remove offline copy" else "Save for offline",
-                if (savedOffline) null else "Keep it with its comments in Read later",
-            ) {
-                if (savedOffline) {
-                    app.offline.remove(post.id)
-                    snack("Removed from Read later")
-                } else {
-                    snack("Saving for offline…")
-                    try {
-                        app.offline.save(post)
-                        snack("Saved to Read later")
-                    } catch (e: Exception) {
-                        snack("Couldn't save: ${friendlyError(e)}")
+                    if (savedOffline) {
+                        app.offline.remove(post.id)
+                        snack("Removed from Read later")
+                    } else {
+                        snack("Saving for offline…")
+                        try {
+                            app.offline.save(post)
+                            snack("Saved to Read later")
+                        } catch (e: Exception) {
+                            snack("Couldn't save: ${friendlyError(e)}")
+                        }
                     }
                 }
+                act(Icons.Outlined.ContentCopy, "Copy text") {
+                    copyToClipboard(if (post.isSelf && post.selftext.isNotEmpty()) post.selftext else post.title)
+                }
+                act(Icons.Rounded.Repeat, "Crosspost") { showCrosspostDialog(post) }
+                if (!anonymousSession()) {
+                    act(Icons.AutoMirrored.Rounded.PlaylistAdd, "Add r/${post.subreddit} to a custom feed") { showAddToCustomFeed(post.subreddit) }
+                }
+                act(Icons.AutoMirrored.Rounded.OpenInNew, "Open in browser") {
+                    runCatching {
+                        app.context.startActivity(externalViewIntent(app.context, Uri.parse(link)))
+                    }.onFailure { snack("No app can open this link.") }
+                }
             }
-            item(Icons.Outlined.ContentCopy, "Copy text") {
-                copyToClipboard(if (post.isSelf && post.selftext.isNotEmpty()) post.selftext else post.title)
-            }
-            item(Icons.Outlined.Flag, "Report") { showReportDialog(post.fullname) }
-            item(Icons.Rounded.Block, "Block u/${post.author}") { confirmBlockUser(post.author) }
-            item(Icons.Rounded.Repeat, "Crosspost") { showCrosspostDialog(post) }
-            if (!anonymousSession()) {
-                item(Icons.AutoMirrored.Rounded.PlaylistAdd, "Add r/${post.subreddit} to a custom feed") { showAddToCustomFeed(post.subreddit) }
-            }
-            item(Icons.AutoMirrored.Rounded.OpenInNew, "Open in browser") {
-                runCatching {
-                    app.context.startActivity(externalViewIntent(app.context, Uri.parse(link)))
-                }.onFailure { snack("No app can open this link.") }
+            MenuGroup {
+                act(Icons.Outlined.Flag, "Report") { showReportDialog(post.fullname) }
+                act(Icons.Rounded.Block, "Block u/${post.author}") { confirmBlockUser(post.author) }
             }
             if (post.canModPost) {
-                HorizontalDivider(Modifier.padding(vertical = 4.dp))
-                ListItem(
-                    content = { Text("Moderate", style = MaterialTheme.typography.labelLarge) },
-                    leadingContent = { Icon(Icons.Outlined.Shield, null) },
-                    colors = ListItemDefaults.colors(
-                        containerColor = Color.Transparent,
-                        headlineColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    ),
-                )
-                item(Icons.Outlined.CheckCircleOutline, "Approve") { modAction("Approved") { it.modApprove(post.fullname) } }
-                item(Icons.Rounded.Block, "Remove") { modAction("Removed") { it.modRemove(post.fullname) } }
-                item(Icons.Outlined.ReportGmailerrorred, "Remove as spam") {
-                    modAction("Removed as spam") { it.modRemove(post.fullname, spam = true) }
+                MenuLabel("Moderate")
+                MenuGroup {
+                    act(Icons.Outlined.CheckCircleOutline, "Approve") { modAction("Approved") { it.modApprove(post.fullname) } }
+                    act(Icons.Rounded.Block, "Remove") { modAction("Removed") { it.modRemove(post.fullname) } }
+                    act(Icons.Outlined.ReportGmailerrorred, "Remove as spam") {
+                        modAction("Removed as spam") { it.modRemove(post.fullname, spam = true) }
+                    }
+                    act(
+                        if (post.locked) Icons.Rounded.LockOpen else Icons.Outlined.Lock,
+                        if (post.locked) "Unlock" else "Lock",
+                    ) { modAction(if (post.locked) "Unlocked" else "Locked") { it.modLock(post.fullname, !post.locked) } }
                 }
-                item(
-                    if (post.locked) Icons.Rounded.LockOpen else Icons.Outlined.Lock,
-                    if (post.locked) "Unlock" else "Lock",
-                ) { modAction(if (post.locked) "Unlocked" else "Locked") { it.modLock(post.fullname, !post.locked) } }
             }
-            HorizontalDivider(Modifier.padding(vertical = 4.dp))
-            item(Icons.Rounded.AutoAwesome, "Tune For You", "Why it's here · more or less like it · mute r/${post.subreddit}") {
-                showTuneSheet(post)
+            MenuGroup {
+                act(Icons.Rounded.AutoAwesome, "Tune For You", "Why it's here · more or less like it · mute r/${post.subreddit}") {
+                    showTuneSheet(post)
+                }
             }
-            Spacer(Modifier.height(8.dp))
         }
     }
 }

@@ -1,5 +1,11 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.material.icons.rounded.HourglassEmpty
+import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.DateRange
+import androidx.compose.material.icons.rounded.Today
+import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.BorderStroke
@@ -676,35 +682,58 @@ fun SortBar(
     }
 }
 
+/**
+ * The sort, with Top's time ranges in the same sheet (#181): New or Hot applies at once,
+ * Top shows the time ranges under the sorts and picking one applies it.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 private suspend fun showSortSheet(sort: PostSort, time: TopTime, onPick: (PostSort, TopTime?) -> Unit, sorts: List<PostSort>) {
-    val pick = Overlays.show<PostSort> { done ->
+    val pick = Overlays.show<Pair<PostSort, TopTime?>> { done ->
+        var chosen by remember { mutableStateOf(sort) }
         ModalBottomSheet(onDismissRequest = { done(null) }) {
             TapGuard {
-                Column(Modifier.navigationBarsPadding()) {
-                    for (s in sorts) {
-                        SheetTile(iconFor(s), s.label, null, checked = s == sort) { done(s) }
+                Column(Modifier.navigationBarsPadding().animateContentSize()) {
+                    MenuLabel("Sort posts by")
+                    MenuGroup {
+                        for (s in sorts) item(s.label, iconFor(s), selected = s == chosen) {
+                            if (s.needsTime) chosen = s else done(s to null)
+                        }
+                    }
+                    if (chosen.needsTime) {
+                        MenuLabel("Time range")
+                        MenuGroup {
+                            for (t in TopTime.entries) item(t.label, iconFor(t), selected = sort.needsTime && t == time) { done(chosen to t) }
+                        }
                     }
                 }
             }
         }
     } ?: return
-    if (pick.needsTime) {
-        onPick(pick, pickTopTime(time) ?: return)
-    } else {
-        onPick(pick, null)
-    }
+    onPick(pick.first, pick.second)
 }
 
+/** Top's time range (#181). */
 @OptIn(ExperimentalMaterial3Api::class)
 internal suspend fun pickTopTime(time: TopTime): TopTime? = Overlays.show<TopTime> { done ->
     ModalBottomSheet(onDismissRequest = { done(null) }) {
         TapGuard {
             Column(Modifier.navigationBarsPadding()) {
-                for (t in TopTime.entries) SheetTile(null, t.label, null, checked = t == time) { done(t) }
+                MenuLabel("Top posts from")
+                MenuGroup {
+                    for (t in TopTime.entries) item(t.label, iconFor(t), selected = t == time) { done(t) }
+                }
             }
         }
     }
+}
+
+private fun iconFor(t: TopTime): ImageVector = when (t) {
+    TopTime.HOUR -> Icons.Rounded.Bolt
+    TopTime.DAY -> Icons.Rounded.Today
+    TopTime.WEEK -> Icons.Rounded.DateRange
+    TopTime.MONTH -> Icons.Rounded.CalendarMonth
+    TopTime.YEAR -> Icons.Rounded.HourglassEmpty
+    TopTime.ALL -> Icons.Rounded.History
 }
 
 private sealed interface FeedChoice {
@@ -854,17 +883,6 @@ internal fun FeedChip(label: String, selected: Boolean, outline: Float = 0f, onC
     )
 }
 
-/** A bottom-sheet row: icon, title (+ subtitle), trailing check when selected. */
-@Composable
-fun SheetTile(icon: ImageVector?, title: String, subtitle: String?, checked: Boolean = false, onClick: () -> Unit) {
-    Tile(
-        title = { Text(title) },
-        subtitle = subtitle?.let { { Text(it) } },
-        leading = icon?.let { { Icon(it, null) } },
-        trailing = if (checked) ({ Icon(Icons.Rounded.Check, "Selected") }) else null,
-                onClick = onClick,
-    )
-}
 
 /** "Saved Home from 2h ago · Refresh" / "Home couldn't load · showing For You · Retry". */
 @Composable
