@@ -1,5 +1,20 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import androidx.compose.material3.LocalContentColor
+import com.bennybar.luli_for_reddit.feature.feed.calmSegmentShape
+import com.bennybar.luli_for_reddit.ui.popOn
+import androidx.compose.ui.semantics.Role
+import androidx.compose.material3.ripple
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TextField
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.IntrinsicSize
 import com.bennybar.luli_for_reddit.ui.SearchIcon
 import com.bennybar.luli_for_reddit.settings.TopBarMode
 import com.bennybar.luli_for_reddit.feature.feed.HidingTopBar
@@ -62,7 +77,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.DynamicFeed
 import androidx.compose.material.icons.rounded.FilterList
@@ -105,7 +119,6 @@ import com.bennybar.luli_for_reddit.core.compactNumber
 import com.bennybar.luli_for_reddit.feature.feed.Async
 import com.bennybar.luli_for_reddit.feature.feed.LetterAvatar
 import com.bennybar.luli_for_reddit.feature.feed.Tile
-import com.bennybar.luli_for_reddit.feature.feed.PillTextField
 import com.bennybar.luli_for_reddit.feature.feed.SectionHeader
 import com.bennybar.luli_for_reddit.model.Subreddit
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
@@ -263,30 +276,40 @@ internal fun ExploreTab() {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(top = barHeight, bottom = 130.dp)) {
             // The sections in Settings' order (#161). Popular & All and Custom feeds can go
             // anywhere; the filter sits above the first list of your communities.
-            fun LazyListScope.popular() {
-                item(key = "popular") {
-                    // A connected pair (#35): round outer corners, tight inner ones.
+            // Popular and All are sections of their own (#171): next to each other they're a
+            // connected pair (#35), round outer corners and tight inner ones; apart, a button each.
+            val shown = settings.exploreSections.filter { it.shown }.map { it.section }
+            val paired = shown.indexOf(ExploreSection.ALL).let { it > 0 && shown[it - 1] == ExploreSection.POPULAR }
+            fun LazyListScope.feeds(popular: Boolean, all: Boolean) {
+                item(key = if (popular) "popular" else "all") {
                     Row(Modifier.padding(start = 12.dp, top = 12.dp, end = 12.dp)) {
-                        OutlinedButton(
-                            onClick = { nav.openSubreddit("popular") },
-                            modifier = Modifier.weight(1f).defaultMinSize(minHeight = 52.dp),
-                            shape = connectedShapes(0, 2).shape,
-                        ) {
-                            Icon(Icons.Rounded.LocalFireDepartment, null, Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("Popular")
+                        val count = if (popular && all) 2 else 1
+                        val first = if (count == 1) CircleShape else connectedShapes(0, 2).shape
+                        val last = if (count == 1) CircleShape else connectedShapes(1, 2).shape
+                        if (popular) {
+                            OutlinedButton(
+                                onClick = { nav.openSubreddit("popular") },
+                                modifier = Modifier.weight(1f).defaultMinSize(minHeight = 52.dp),
+                                shape = first,
+                            ) {
+                                Icon(Icons.Rounded.LocalFireDepartment, null, Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Popular")
+                            }
                         }
-                        Spacer(Modifier.width(ConnectedGap))
-                        // With the Posts tab on r/all (Settings), this one opens the frontpage instead.
-                        val postsAll = settings.postsTabAll
-                        OutlinedButton(
-                            onClick = { if (postsAll) nav.push(Route.Frontpage) else nav.openSubreddit("all") },
-                            modifier = Modifier.weight(1f).defaultMinSize(minHeight = 52.dp),
-                            shape = connectedShapes(1, 2).shape,
-                        ) {
-                            Icon(if (postsAll) Icons.Rounded.Home else Icons.Rounded.Public, null, Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(if (postsAll) "Frontpage" else "All")
+                        if (count == 2) Spacer(Modifier.width(ConnectedGap))
+                        if (all) {
+                            // With the Posts tab on r/all (Settings), this one opens the frontpage instead.
+                            val postsAll = settings.postsTabAll
+                            OutlinedButton(
+                                onClick = { if (postsAll) nav.push(Route.Frontpage) else nav.openSubreddit("all") },
+                                modifier = Modifier.weight(1f).defaultMinSize(minHeight = 52.dp),
+                                shape = last,
+                            ) {
+                                Icon(if (postsAll) Icons.Rounded.Home else Icons.Rounded.Public, null, Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(if (postsAll) "Frontpage" else "All")
+                            }
                         }
                     }
                 }
@@ -342,7 +365,8 @@ internal fun ExploreTab() {
             }
             fun LazyListScope.place(section: ExploreSection) {
                 when (section) {
-                    ExploreSection.POPULAR -> popular()
+                    ExploreSection.POPULAR -> feeds(popular = true, all = paired)
+                    ExploreSection.ALL -> if (!paired) feeds(popular = false, all = true)
                     ExploreSection.CUSTOM_FEEDS -> customFeeds()
                     // The ones you haven't joined, up to 10.
                     ExploreSection.POPULAR_COMMUNITIES -> {
@@ -374,16 +398,42 @@ internal fun ExploreTab() {
                 }
             }
             item(key = "filter") {
-                Row(Modifier.padding(start = 16.dp, top = 12.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    PillTextField(
+                // One connected group, as calm style's votes (#170): the field, whose filter
+                // icon opens the sort (no second, look-alike button), and Favorites only
+                // attached at its end, morphing as the vote buttons do.
+                Row(Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp).height(IntrinsicSize.Min)) {
+                    TextField(
                         value = query,
                         onValueChange = { query = it },
-                        placeholder = "Filter your communities",
-                        leading = Icons.Rounded.FilterList,
                         modifier = Modifier.weight(1f),
+                        placeholder = { Text("Filter your communities", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        leadingIcon = { SortMenu(sort) { sort = it } },
+                        singleLine = true,
+                        shape = RoundedCornerShape(topStart = 28.dp, bottomStart = 28.dp, topEnd = 6.dp, bottomEnd = 6.dp),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = cs.surfaceContainerHigh,
+                            unfocusedContainerColor = cs.surfaceContainerHigh,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent,
+                            disabledIndicatorColor = Color.Transparent,
+                        ),
                     )
-                    ToggleIcon(favOnly, { favOnly = it }, Icons.Rounded.Star, Icons.Rounded.StarBorder, "Favorites only", tonal = true)
-                    SortMenu(sort) { sort = it }
+                    Spacer(Modifier.width(3.dp))
+                    val interaction = remember { MutableInteractionSource() }
+                    val bg by animateColorAsState(if (favOnly) cs.primary else cs.surfaceContainerHigh, label = "favBg")
+                    val fg by animateColorAsState(if (favOnly) cs.onPrimary else cs.onSurfaceVariant, label = "favFg")
+                    Box(
+                        Modifier
+                            .fillMaxHeight()
+                            .width(56.dp)
+                            .clip(calmSegmentShape(6.dp, 28.dp, 28.dp, favOnly, interaction))
+                            .background(bg)
+                            .toggleable(favOnly, interaction, ripple(), role = Role.Switch) { favOnly = it },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(if (favOnly) Icons.Rounded.Star else Icons.Rounded.StarBorder, "Favorites only", Modifier.popOn(favOnly), tint = fg)
+                    }
                 }
             }
             when (val s = subs) {
@@ -526,12 +576,45 @@ private fun LazyListScope.subscriptionSections(
     }
 
     if (active) {
-        // Filtered/sorted flat view.
-        var working = list.filter { (q.isEmpty() || it.name.lowercase().contains(q)) && (!favOnly || it.userHasFavorited) }
-        if (sort == "name") working = working.sortedBy { it.name.lowercase() }
-        else if (sort == "subscribers") working = working.sortedByDescending { it.subscribers }
-        header("count", "${working.size} communities")
-        if (working.isEmpty()) note("nomatch", "No matches") else rows("all", working)
+        // The results under their own headers (#170), as History's days: your favorites,
+        // then (while typing) Recently visited ones, then the rest of your subscriptions.
+        // Each community once, where it's listed first.
+        fun sorted(l: List<Subreddit>) = when (sort) {
+            "name" -> l.sortedBy { it.name.lowercase() }
+            "subscribers" -> l.sortedByDescending { it.subscribers }
+            else -> l
+        }
+        val working = list.filter { (q.isEmpty() || it.name.lowercase().contains(q)) && (!favOnly || it.userHasFavorited) }
+        val favs = sorted(working.filter { it.userHasFavorited })
+        val favNames = favs.mapTo(HashSet()) { it.name.lowercase() }
+        val byName = list.associateBy { it.name.lowercase() }
+        val recent = if (q.isEmpty() || favOnly) emptyList() else sorted(
+            visited.filter { it.name.lowercase().contains(q) && it.name.lowercase() !in favNames }
+                .map { byName[it.name.lowercase()] ?: it.asSubreddit() },
+        )
+        val recentNames = recent.mapTo(HashSet()) { it.name.lowercase() }
+        val rest = sorted(working.filter { it.name.lowercase() !in favNames && it.name.lowercase() !in recentNames })
+        if (favs.isEmpty() && recent.isEmpty() && rest.isEmpty()) {
+            header("count", "No matches")
+            note("nomatch", "Nothing you've joined or visited lately has that name")
+            return
+        }
+        if (favs.isNotEmpty()) {
+            header("favs", "Favorites")
+            rows("favs", favs)
+        }
+        if (recent.isNotEmpty()) {
+            header("recent", "Recently visited")
+            itemsIndexed(recent, key = { _, it -> "recent_${it.name}" }, contentType = { _, _ -> "sub" }) { i, sub ->
+                Box(Modifier.segment(first = i == 0, last = i == recent.lastIndex)) {
+                    SubredditRow(sub, onOpen, if (sub.name.lowercase() in byName) onStar else null)
+                }
+            }
+        }
+        if (rest.isNotEmpty()) {
+            header("subs", "Subscriptions")
+            rows("all", rest)
+        }
         return
     }
 
@@ -691,7 +774,10 @@ private fun FavoriteBubble(sub: Subreddit, onOpen: (Subreddit) -> Unit, onUnfavo
 private fun SortMenu(sort: String, onPick: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { open = true }) { Icon(Icons.AutoMirrored.Rounded.Sort, "Sort") }
+        // Tinted while a sort other than the default is on.
+        IconButton(onClick = { open = true }) {
+            Icon(Icons.Rounded.FilterList, "Sort", tint = if (sort == "default") LocalContentColor.current else MaterialTheme.colorScheme.primary)
+        }
         PickOneMenu(open, { open = false }, listOf("default" to "Default", "name" to "Name A–Z", "subscribers" to "Most subscribers"), sort, onPick)
     }
 }

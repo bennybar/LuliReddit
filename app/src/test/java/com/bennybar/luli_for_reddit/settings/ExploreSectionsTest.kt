@@ -10,7 +10,7 @@ class ExploreSectionsTest {
     @Test
     fun `never set it is Explore from before`() {
         assertEquals(
-            listOf("popular", "customFeeds", "recentlyVisited", "recommended", "popularCommunities", "favorites", "following"),
+            listOf("popular", "all", "customFeeds", "recentlyVisited", "recommended", "popularCommunities", "favorites", "following"),
             ids(ExploreSection.parse(null)),
         )
         assertEquals(ExploreSection.parse(null), Settings().exploreSections)
@@ -19,7 +19,7 @@ class ExploreSectionsTest {
     @Test
     fun `stored order and hidden sections are kept, missing ones appended in default order`() {
         assertEquals(
-            listOf("recommended", "-customFeeds", "popular", "recentlyVisited", "popularCommunities", "favorites", "following"),
+            listOf("recommended", "-customFeeds", "popular", "all", "recentlyVisited", "popularCommunities", "favorites", "following"),
             ids(ExploreSection.parse(listOf("recommended", "-customFeeds", "popular"))),
         )
     }
@@ -27,7 +27,7 @@ class ExploreSectionsTest {
     @Test
     fun `unknown and repeated ids are dropped`() {
         assertEquals(
-            listOf("favorites", "popular", "customFeeds", "recentlyVisited", "recommended", "popularCommunities", "following"),
+            listOf("favorites", "popular", "all", "customFeeds", "recentlyVisited", "recommended", "popularCommunities", "following"),
             ids(ExploreSection.parse(listOf("trending", "favorites", "-favorites"))),
         )
     }
@@ -35,14 +35,23 @@ class ExploreSectionsTest {
     @Test
     fun `a section added later shows up for someone who already reordered`() {
         assertEquals(
-            listOf("-popular", "following", "favorites", "customFeeds", "recentlyVisited", "recommended", "popularCommunities"),
+            listOf("-popular", "-all", "following", "favorites", "customFeeds", "recentlyVisited", "recommended", "popularCommunities"),
             ids(ExploreSection.parse(listOf("-popular", "following", "favorites", "customFeeds", "recentlyVisited", "recommended"))),
         )
     }
 
     @Test
+    fun `All, stored before it was its own section, stays next to Popular (#171)`() {
+        assertEquals(
+            listOf("recommended", "popular", "all", "customFeeds", "recentlyVisited", "popularCommunities", "favorites", "following"),
+            ids(ExploreSection.parse(listOf("recommended", "popular"))),
+        )
+        assertEquals(listOf("-popular", "-all"), ids(ExploreSection.parse(listOf("-popular"))).take(2))
+    }
+
+    @Test
     fun `prefs round trip`() {
-        val stored = listOf("-popular", "recommended", "recentlyVisited", "-customFeeds", "following", "-popularCommunities", "favorites")
+        val stored = listOf("-popular", "recommended", "all", "recentlyVisited", "-customFeeds", "following", "-popularCommunities", "favorites")
         assertEquals(stored, ExploreSection.toPrefs(ExploreSection.parse(stored)))
     }
 }

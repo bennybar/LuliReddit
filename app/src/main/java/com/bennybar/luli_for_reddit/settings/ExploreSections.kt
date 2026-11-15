@@ -8,7 +8,8 @@ import androidx.compose.runtime.Immutable
  * they stay last, with the filter and sort.
  */
 enum class ExploreSection(val id: String, val label: String) {
-    POPULAR("popular", "Popular & All"),
+    POPULAR("popular", "Popular"),
+    ALL("all", "All"), // its own section since #171; "popular" was both before
     CUSTOM_FEEDS("customFeeds", "Custom feeds"),
     RECENTLY_VISITED("recentlyVisited", "Recently visited"),
     RECOMMENDED("recommended", "Recommended for you"),
@@ -34,6 +35,10 @@ enum class ExploreSection(val id: String, val label: String) {
                 val section = ExploreSection.entries.firstOrNull { it.id == raw.removePrefix("-") } ?: continue
                 if (out.none { it.section == section }) out += ExploreEntry(section, !raw.startsWith("-"))
             }
+            // Stored before All had its own section (#171): "popular" was both, so All goes
+            // right after it, shown or hidden as it was, not to the end.
+            val popular = out.indexOfFirst { it.section == POPULAR }
+            if (popular >= 0 && out.none { it.section == ALL }) out.add(popular + 1, ExploreEntry(ALL, out[popular].shown))
             for (section in ExploreSection.entries) if (out.none { it.section == section }) out += ExploreEntry(section, true)
             return out
         }

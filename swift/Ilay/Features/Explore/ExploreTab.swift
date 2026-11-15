@@ -16,15 +16,31 @@ func subscriptionSections(list: [Subreddit], query: String, favOnly: Bool, sort:
                           shown: Set<ExploreSection> = Set(ExploreSection.allCases)) -> [ExploreGroup] {
     let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     if !q.isEmpty || favOnly || sort != "default" {
-        // Filtered/sorted flat view.
-        var working = list.filter { (q.isEmpty || $0.name.lowercased().contains(q)) && (!favOnly || $0.userHasFavorited) }
-        if sort == "name" {
-            working = working.sorted { $0.name.lowercased() < $1.name.lowercased() }
-        } else if sort == "subscribers" {
+        // The results under their own headers (#170), as History's days: your favorites,
+        // then (while typing) Recently visited ones, then the rest of your subscriptions.
+        // Each community once, where it's listed first. Keys start "results".
+        func sorted(_ l: [Subreddit]) -> [Subreddit] {
+            if sort == "name" { return l.sorted { $0.name.lowercased() < $1.name.lowercased() } }
             // Stable, as Kotlin's sortedByDescending: equal counts keep their order.
-            working = working.enumerated().sorted { ($0.element.subscribers, $1.offset) > ($1.element.subscribers, $0.offset) }.map(\.element)
+            if sort == "subscribers" { return l.enumerated().sorted { ($0.element.subscribers, $1.offset) > ($1.element.subscribers, $0.offset) }.map(\.element) }
+            return l
         }
-        return [ExploreGroup(key: "all", title: "\(working.count) communities", subs: working, empty: "No matches")]
+        let working = list.filter { (q.isEmpty || $0.name.lowercased().contains(q)) && (!favOnly || $0.userHasFavorited) }
+        let favs = sorted(working.filter(\.userHasFavorited))
+        let favNames = Set(favs.map { $0.name.lowercased() })
+        let byName = Dictionary(list.map { ($0.name.lowercased(), $0) }, uniquingKeysWith: { first, _ in first })
+        let recent = q.isEmpty || favOnly ? [] : sorted(
+            visited.filter { $0.name.lowercased().contains(q) && !favNames.contains($0.name.lowercased()) }
+                .map { byName[$0.name.lowercased()] ?? $0.asSubreddit() }
+        )
+        let recentNames = Set(recent.map { $0.name.lowercased() })
+        let rest = sorted(working.filter { !favNames.contains($0.name.lowercased()) && !recentNames.contains($0.name.lowercased()) })
+        var out: [ExploreGroup] = []
+        if !favs.isEmpty { out.append(ExploreGroup(key: "results.favs", title: "Favorites", subs: favs)) }
+        if !recent.isEmpty { out.append(ExploreGroup(key: "results.recent", title: "Recently visited", subs: recent)) }
+        if !rest.isEmpty { out.append(ExploreGroup(key: "results.subs", title: "Subscriptions", subs: rest)) }
+        if out.isEmpty { out.append(ExploreGroup(key: "results", title: "No matches", subs: [], empty: "Nothing you've joined or visited lately has that name")) }
+        return out
     }
 
     // Default view: recently visited + favorites + the rest.
@@ -87,7 +103,9 @@ struct ExploreTab: View {
                 }
                 ForEach(order, id: \.self) { section in
                     switch section {
-                    case .popular: popularSection
+                    // Next to each other, Popular and All share a row; apart, a row each (#171).
+                    case .popular: feedsSection(popular: true, all: pairedFeeds(order))
+                    case .all: if !pairedFeeds(order) { feedsSection(popular: false, all: true) }
                     case .customFeeds: customFeedsSection(multis: multis, anonymous: anonymous)
                     // The ones you haven't joined, up to 10; signed out too (without Join).
                     // It steps aside while filtering, like the lists of your communities.
@@ -115,7 +133,10 @@ struct ExploreTab: View {
                     }
                 case .data:
                     // Your communities; while filtering, the results (unless a list section showed them).
-                    if let g = groups(order).first(where: { $0.key == "subs" || ($0.key == "all" && !order.contains(where: \.isCommunityList)) }) {
+                    let all = groups(order)
+                    if isResults(all) {
+                        if !order.contains(where: \.isCommunityList) { ForEach(all, id: \.key) { groupSection($0) } }
+                    } else if let g = all.first(where: { $0.key == "subs" }) {
                         groupSection(g).id("subs")
                     }
                 }
@@ -180,21 +201,28 @@ struct ExploreTab: View {
         return app.settings.value.exploreSections.first(where: \.shown)?.section.rawValue ?? "subs"
     }
 
-    private var popularSection: some View {
+    private func pairedFeeds(_ order: [ExploreSection]) -> Bool {
+        guard let i = order.firstIndex(of: .all), i > 0 else { return false }
+        return order[i - 1] == .popular
+    }
+
+    private func feedsSection(popular: Bool, all: Bool) -> some View {
         Section {
             HStack(spacing: 10) {
-                destinationButton("Popular", "flame") { app.navigator.openSubreddit("popular") }
+                if popular { destinationButton("Popular", "flame") { app.navigator.openSubreddit("popular") } }
                 // With the Posts tab on r/all (Settings), this one opens the frontpage instead.
-                if app.settings.value.postsTabAll {
-                    destinationButton("Frontpage", "house") { app.navigator.push(.frontpage) }
-                } else {
-                    destinationButton("All", "globe") { app.navigator.openSubreddit("all") }
+                if all {
+                    if app.settings.value.postsTabAll {
+                        destinationButton("Frontpage", "house") { app.navigator.push(.frontpage) }
+                    } else {
+                        destinationButton("All", "globe") { app.navigator.openSubreddit("all") }
+                    }
                 }
             }
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets())
         }
-        .id(ExploreSection.popular.rawValue)
+        .id((popular ? ExploreSection.popular : .all).rawValue)
     }
 
     @ViewBuilder private func customFeedsSection(multis: [Multireddit], anonymous: Bool) -> some View {
@@ -235,12 +263,17 @@ struct ExploreTab: View {
         }
     }
 
+    /// Filtering or sorting: the groups are the results.
+    private func isResults(_ groups: [ExploreGroup]) -> Bool { groups.first?.key.hasPrefix("results") == true }
+
     /// A list of your communities. While filtering, the first one in the order shows the
     /// results instead and the rest step aside.
     @ViewBuilder private func communitySection(_ section: ExploreSection, order: [ExploreSection]) -> some View {
         let all = groups(order)
-        if all.first?.key == "all" {
-            if order.first(where: \.isCommunityList) == section, let g = all.first { groupSection(g).id(section.rawValue) }
+        if isResults(all) {
+            if order.first(where: \.isCommunityList) == section {
+                ForEach(all, id: \.key) { groupSection($0) }.id(section.rawValue)
+            }
         } else {
             switch section {
             case .recommended:

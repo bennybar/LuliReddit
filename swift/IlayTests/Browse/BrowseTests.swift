@@ -45,8 +45,13 @@ final class ExploreSectionsTests: XCTestCase {
     func testExploreSectionsOrder() {
         XCTAssertEqual(ExploreSection.parse(nil).map(\.section), ExploreSection.allCases, "never set: Explore from before")
         let parsed = ExploreSection.parse(["recommended", "-customFeeds", "trending", "-recommended"])
-        XCTAssertEqual(ExploreSection.toPrefs(parsed), ["recommended", "-customFeeds", "popular", "recentlyVisited", "popularCommunities", "favorites", "following"])
+        XCTAssertEqual(ExploreSection.toPrefs(parsed), ["recommended", "-customFeeds", "popular", "all", "recentlyVisited", "popularCommunities", "favorites", "following"])
         XCTAssertEqual(ExploreSection.toPrefs(ExploreSection.parse(ExploreSection.toPrefs(parsed))), ExploreSection.toPrefs(parsed))
+    }
+
+    func testAllStoredBeforeItWasItsOwnSectionStaysNextToPopular() {
+        // #171
+        XCTAssertEqual(ExploreSection.toPrefs(ExploreSection.parse(["-popular"])).prefix(2), ["-popular", "-all"])
     }
 
     func testPlainListIsCalledSubscriptions() {
@@ -60,21 +65,28 @@ final class ExploreSectionsTests: XCTestCase {
         XCTAssertEqual(sections(visited: [recent("x")], list: []).map(\.title), ["Recently visited", "Subscriptions"])
     }
 
-    func testFilterIsFlatAndCaseInsensitiveOnTheName() {
+    func testFilterIsCaseInsensitiveOnTheName() {
         let s = sections(query: "  BRA ")
-        XCTAssertEqual(s.map(\.title), ["1 communities"])
+        XCTAssertEqual(s.map(\.title), ["Subscriptions"])
         XCTAssertEqual(s[0].subs.map(\.name), ["Bravo"])
-        XCTAssertEqual(sections(query: "nope")[0].empty, "No matches")
+        XCTAssertEqual(sections(query: "nope").map(\.title), ["No matches"])
         XCTAssertTrue(sections(query: "nope")[0].subs.isEmpty)
     }
 
+    func testFilterAddsRecentlyVisitedUnderItsOwnHeader() {
+        // #170: favorites, then recently visited ones, then the rest; each once.
+        let s = sections(query: "a", visited: [recent("brazil"), recent("favA")])
+        XCTAssertEqual(s.map(\.title), ["Favorites", "Recently visited", "Subscriptions"])
+        XCTAssertEqual(s.map { $0.subs.map(\.name) }, [["favA"], ["brazil"], ["Bravo", "charlie"]])
+    }
+
     func testFavoritesOnly() {
-        XCTAssertEqual(sections(favOnly: true)[0].subs.map(\.name), ["favA"])
+        XCTAssertEqual(sections(favOnly: true).map { $0.subs.map(\.name) }, [["favA"]])
     }
 
     func testSorts() {
-        XCTAssertEqual(sections(sort: "name")[0].subs.map(\.name), ["Bravo", "charlie", "favA", "u_someone"])
-        XCTAssertEqual(sections(sort: "subscribers")[0].subs.map(\.name), ["Bravo", "charlie", "favA", "u_someone"], "equal counts keep their order")
+        XCTAssertEqual(sections(sort: "name").flatMap { $0.subs.map(\.name) }, ["favA", "Bravo", "charlie", "u_someone"])
+        XCTAssertEqual(sections(sort: "subscribers").flatMap { $0.subs.map(\.name) }, ["favA", "Bravo", "charlie", "u_someone"], "equal counts keep their order")
     }
 }
 

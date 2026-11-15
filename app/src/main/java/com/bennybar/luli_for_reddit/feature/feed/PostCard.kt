@@ -1652,7 +1652,7 @@ private fun CalmSegment(
  * its height) marks an outer corner, which stays round.
  */
 @Composable
-private fun calmSegmentShape(start: Dp, end: Dp, full: Dp, on: Boolean, interaction: InteractionSource): Shape {
+internal fun calmSegmentShape(start: Dp, end: Dp, full: Dp, on: Boolean, interaction: InteractionSource): Shape {
     val pressed by interaction.collectIsPressedAsState()
     val spec = MaterialTheme.motionScheme.fastSpatialSpec<Dp>()
     fun corner(c: Dp) = when {

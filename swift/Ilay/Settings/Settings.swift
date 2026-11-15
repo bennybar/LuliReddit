@@ -136,13 +136,15 @@ enum CommentStyle: Int, CaseIterable, Sendable {
 /// `prefsKey`: their order, a hidden one as "-id". Your communities aren't one: they stay
 /// last, with the filter and sort.
 enum ExploreSection: String, CaseIterable, Sendable {
-    case popular, customFeeds, recentlyVisited, recommended, popularCommunities, favorites, following
+    // "all" its own section since #171; "popular" was both before.
+    case popular, all, customFeeds, recentlyVisited, recommended, popularCommunities, favorites, following
 
     static let prefsKey = "exploreSections"
 
     var label: String {
         switch self {
-        case .popular: "Popular & All"
+        case .popular: "Popular"
+        case .all: "All"
         case .customFeeds: "Custom feeds"
         case .recentlyVisited: "Recently visited"
         case .recommended: "Recommended for you"
@@ -163,6 +165,11 @@ enum ExploreSection: String, CaseIterable, Sendable {
             let id = raw.hasPrefix("-") ? String(raw.dropFirst()) : raw
             guard let section = ExploreSection(rawValue: id), !out.contains(where: { $0.section == section }) else { continue }
             out.append(ExploreEntry(section: section, shown: !raw.hasPrefix("-")))
+        }
+        // Stored before All had its own section (#171): "popular" was both, so All goes right
+        // after it, shown or hidden as it was, not to the end.
+        if let popular = out.firstIndex(where: { $0.section == .popular }), !out.contains(where: { $0.section == .all }) {
+            out.insert(ExploreEntry(section: .all, shown: out[popular].shown), at: popular + 1)
         }
         for section in allCases where !out.contains(where: { $0.section == section }) { out.append(ExploreEntry(section: section, shown: true)) }
         return out
