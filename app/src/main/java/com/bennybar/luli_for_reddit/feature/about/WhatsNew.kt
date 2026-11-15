@@ -45,6 +45,15 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.83", "Nov 15, 2026",
+        listOf(
+            "Threads reopen where you left off, with a button to jump back to the top",
+            "Notifications: a clearer app icon, short titles like \"u/name replied\" with the post's title above, and Mark as read and Reply buttons",
+            "Menus have a fresh look: options in rounded groups with icons, and what's picked as a tinted pill",
+            "Profile's sort: Top's time ranges show in the same menu",
+        ),
+    ),
+    Release(
         "2.0.82", "Nov 15, 2026",
         listOf(
             "Posts you voted on glow in the vote's colour, as comments do (Settings › Mark what you voted on › Glow)",
