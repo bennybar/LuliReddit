@@ -45,6 +45,14 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.84", "Nov 15, 2026",
+        listOf(
+            "Explore: Popular and All are separate sections, so you can move or hide each one (side by side, they stay a pair)",
+            "Filtering your communities shows Favorites, Recently visited and Subscriptions under their own headers",
+            "The filter bar is one connected piece: its filter icon opens the sort, and the Favorites star is attached to it",
+        ),
+    ),
+    Release(
         "2.0.83", "Nov 15, 2026",
         listOf(
             "Threads reopen where you left off, with a button to jump back to the top",
