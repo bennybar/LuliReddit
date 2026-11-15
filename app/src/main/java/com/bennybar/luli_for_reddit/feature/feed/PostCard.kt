@@ -419,13 +419,21 @@ fun PostCard(listed: Post, modifier: Modifier = Modifier, swipeOverride: Pair<Sw
                 drawContent()
                 if (veil.alpha > 0f) drawRect(veil)
             }
+            // Settings › Mark what you voted on: Glow marks the card too, as a comment (#173).
+            val ov by rememberOverride(post)
+            val likes = ov.let { if (it != null) it.likes else post.likes }
+            val glow = if (!settings.voteEdge || !settings.voteGlow) null else when (likes) {
+                true -> votes.up
+                false -> votes.down
+                null -> null
+            }
             CompositionLocalProvider(LocalReadTextDim provides (dimRead && settings.dimReadTextOnly)) {
                 when (settings.postDisplay) {
-                    PostDisplay.LARGE -> LargeCard(post, actions, settings, dim)
-                    PostDisplay.CARD -> CardsCard(post, actions, settings, dim)
-                    PostDisplay.MINI -> MiniCard(post, actions, settings, dim)
-                    PostDisplay.CALM -> CalmCard(post, actions, settings, dim)
-                    PostDisplay.CALM_CARDS -> CalmCardsCard(post, actions, settings, dim)
+                    PostDisplay.LARGE -> LargeCard(post, actions, settings, dim, glow)
+                    PostDisplay.CARD -> CardsCard(post, actions, settings, dim, glow)
+                    PostDisplay.MINI -> MiniCard(post, actions, settings, dim, glow)
+                    PostDisplay.CALM -> CalmCard(post, actions, settings, dim, glow)
+                    PostDisplay.CALM_CARDS -> CalmCardsCard(post, actions, settings, dim, glow)
                 }
             }
         }
@@ -469,9 +477,9 @@ private fun ReasonRow(reason: String, onTune: () -> Unit) {
 private val TitleLineHeight = 1.25.em
 
 @Composable
-private fun LargeCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
+private fun LargeCard(p: Post, a: PostActions, s: Settings, dim: Modifier, glow: Color?) {
     val cs = MaterialTheme.colorScheme
-    BloomCard(dim, onClick = a::openDetail, onLongClick = a::tune) {
+    BloomCard(dim, onClick = a::openDetail, onLongClick = a::tune, glow = glow) {
         Column(Modifier.padding(start = 16.dp, top = 14.dp, end = 8.dp, bottom = 6.dp)) {
             Header(p, a, s)
             Spacer(Modifier.height(10.dp))
@@ -510,9 +518,9 @@ private fun LargeCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
  * shorter banner height so cards stay compact and scannable.
  */
 @Composable
-private fun CardsCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
+private fun CardsCard(p: Post, a: PostActions, s: Settings, dim: Modifier, glow: Color?) {
     val cs = MaterialTheme.colorScheme
-    BloomCard(dim, onClick = a::openDetail, onLongClick = a::tune) {
+    BloomCard(dim, onClick = a::openDetail, onLongClick = a::tune, glow = glow) {
         Column(Modifier.padding(start = 16.dp, top = 14.dp, end = 8.dp, bottom = 6.dp)) {
             Header(p, a, s)
             Spacer(Modifier.height(10.dp))
@@ -548,8 +556,8 @@ private fun CardsCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
 
 /** "Mini cards" — compact: header + title with a small side thumbnail, full action row below. */
 @Composable
-private fun MiniCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
-    BloomCard(dim, onClick = a::openDetail, onLongClick = a::tune) {
+private fun MiniCard(p: Post, a: PostActions, s: Settings, dim: Modifier, glow: Color?) {
+    BloomCard(dim, onClick = a::openDetail, onLongClick = a::tune, glow = glow) {
         Column(Modifier.padding(start = 14.dp, top = 12.dp, end = 6.dp, bottom = 4.dp)) {
             Header(p, a, s)
             Spacer(Modifier.height(8.dp))
@@ -1177,10 +1185,10 @@ private fun rememberCalmLive(p: Post): CalmLive {
  * Mark-read lives in the ⋮ sheet.
  */
 @Composable
-private fun CalmCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
+private fun CalmCard(p: Post, a: PostActions, s: Settings, dim: Modifier, glow: Color?) {
     val live = rememberCalmLive(p)
     CompositionLocalProvider(LocalCalmOnCard provides true) {
-        BloomCard(dim, onClick = a::openDetail, onLongClick = a::tune, shape = RoundedCornerShape(CalmOuter), color = calmCardColor()) {
+        BloomCard(dim, onClick = a::openDetail, onLongClick = a::tune, shape = RoundedCornerShape(CalmOuter), color = calmCardColor(), glow = glow) {
             Column(Modifier.padding(start = 16.dp, top = 14.dp, end = 10.dp, bottom = 10.dp)) {
                 Column(Modifier.padding(end = 6.dp)) { CalmBody(p, a, s, CalmExpressiveMedia) }
                 Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1198,7 +1206,7 @@ private fun CalmCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
  * (edge to edge) and the actions as separate segments, 3dp apart.
  */
 @Composable
-private fun CalmCardsCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
+private fun CalmCardsCard(p: Post, a: PostActions, s: Settings, dim: Modifier, glow: Color?) {
     val live = rememberCalmLive(p)
     val color = calmCardColor()
     val hasMedia = p.type != PostType.SELF
@@ -1209,6 +1217,7 @@ private fun CalmCardsCard(p: Post, a: PostActions, s: Settings, dim: Modifier) {
                 onLongClick = a::tune,
                 shape = RoundedCornerShape(topStart = CalmOuter, topEnd = CalmOuter, bottomStart = CalmInner, bottomEnd = CalmInner),
                 color = color,
+                glow = glow, // the top segment's: the corner it glows from
             ) {
                 Column(Modifier.padding(start = 16.dp, top = 14.dp, end = 10.dp, bottom = 14.dp)) {
                     Column(Modifier.padding(end = 6.dp)) { CalmBody(p, a, s, mediaShape = null) }

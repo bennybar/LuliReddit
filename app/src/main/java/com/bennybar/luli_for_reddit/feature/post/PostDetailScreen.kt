@@ -11,7 +11,7 @@ import com.bennybar.luli_for_reddit.ui.SearchIcon
 import com.bennybar.luli_for_reddit.ui.subredditName
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import com.bennybar.luli_for_reddit.feature.feed.FabScroll
+import com.bennybar.luli_for_reddit.feature.feed.rememberFabScroll
 import com.bennybar.luli_for_reddit.feature.feed.CollapsingFab
 import com.bennybar.luli_for_reddit.settings.ThreadFab
 import com.bennybar.luli_for_reddit.settings.ThreadFabPosition
@@ -365,7 +365,7 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
         revealId = null
     }
 
-    val fab = remember { FabScroll() }
+    val fab = rememberFabScroll()
     Scaffold(
         topBar = {
             TopAppBar(
@@ -1632,11 +1632,12 @@ private fun Badge(text: String, bg: Color, fg: Color, size: androidx.compose.ui.
 
 /**
  * Settings → Mark comments you voted on (#122): the vote's colour glows softly from
- * the comment's top corner (the end side), fading in and out with the vote. A still
- * gradient, drawn: nothing to lay out or animate while scrolling.
+ * the comment's top corner (the end side), fading in and out with the vote; post
+ * cards too (#173). A still gradient, drawn: nothing to lay out or animate while
+ * scrolling.
  */
 @Composable
-private fun Modifier.voteGlow(color: Color?, rtl: Boolean, fadeTop: Boolean = false): Modifier {
+internal fun Modifier.voteGlow(color: Color?, rtl: Boolean, fadeTop: Boolean = false): Modifier {
     var last by remember { mutableStateOf(color ?: Color.Transparent) }
     if (color != null) last = color
     val shown by animateFloatAsState(if (color != null) 1f else 0f, tween(350), label = "voteGlow")

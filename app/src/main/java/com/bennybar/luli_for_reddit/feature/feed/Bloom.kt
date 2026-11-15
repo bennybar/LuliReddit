@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.feature.post.voteGlow
 import com.bennybar.luli_for_reddit.ui.SearchIcon
 import androidx.compose.material3.IconButtonDefaults
 import android.view.HapticFeedbackConstants
@@ -90,9 +91,12 @@ fun BloomCard(
     onLongClick: (() -> Unit)? = null,
     shape: RoundedCornerShape = BloomCardShape,
     color: Color = MaterialTheme.colorScheme.surfaceContainerLow,
+    // Your vote's glow from the top end corner (#173), as on comments.
+    glow: Color? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    var m = modifier.clip(shape).background(color)
+    val rtl = androidx.compose.ui.platform.LocalLayoutDirection.current == androidx.compose.ui.unit.LayoutDirection.Rtl
+    var m = modifier.clip(shape).background(color).voteGlow(glow, rtl)
     if (onClick != null || onLongClick != null) {
         m = m.combinedClickable(onClick = { onClick?.invoke() }, onLongClick = onLongClick)
     }

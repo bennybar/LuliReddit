@@ -1,16 +1,21 @@
 import SwiftUI
 
-/// Whether a `CollapsingFab` shows its label: it folds as the finger scrolls down and opens on the way up (#62).
+/// Whether a `CollapsingFab` shows its label: it folds as the finger scrolls down and opens on
+/// the way up (#62), once the finger has gone 48pt that way, not on the first nudge (#177).
 @MainActor @Observable final class FabScroll {
     private(set) var expanded = true
+    /// How far the finger has scrolled since it last turned around (negative: down).
+    @ObservationIgnored private var travel: CGFloat = 0
 
     /// `available`: how far the content moved down this step (negative: scrolled down).
     /// Only a finger counts, not a fling.
     func onScroll(available: CGFloat, userInput: Bool) {
-        guard userInput else { return }
-        if available < -1 {
+        guard userInput, available != 0 else { return }
+        if (available < 0) != (travel < 0) { travel = 0 }
+        travel += available
+        if travel < -48 {
             if expanded { expanded = false }
-        } else if available > 1 {
+        } else if travel > 48 {
             if !expanded { expanded = true }
         }
     }
@@ -37,6 +42,7 @@ struct CollapsingFab: View {
         }
         .buttonStyle(.glassProminent)
         .accessibilityLabel(label)
-        .animation(.smooth(duration: 0.25), value: expanded)
+        // Opens with a little bounce, folds without one (#177).
+        .animation(expanded ? .bouncy(duration: 0.4, extraBounce: 0.05) : .smooth(duration: 0.3), value: expanded)
     }
 }

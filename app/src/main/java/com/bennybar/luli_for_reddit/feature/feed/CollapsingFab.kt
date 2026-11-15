@@ -2,7 +2,10 @@ package com.bennybar.luli_for_reddit.feature.feed
 
 import com.bennybar.luli_for_reddit.ui.SearchIcon
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
@@ -36,23 +39,40 @@ import androidx.compose.material.icons.rounded.VerticalAlignTop
 import com.bennybar.luli_for_reddit.settings.HomeFab
 import androidx.compose.material.icons.outlined.VisibilityOff
 
-/** Whether a [CollapsingFab] shows its label: it folds as the finger scrolls down and opens on the way up (#62). */
-class FabScroll : NestedScrollConnection {
+/**
+ * Whether a [CollapsingFab] shows its label: it folds as the finger scrolls down and opens on
+ * the way up (#62), once the finger has gone [threshold] px that way, not on the first nudge
+ * (#177), as Gmail's.
+ */
+class FabScroll(private val threshold: Float) : NestedScrollConnection {
     var expanded by mutableStateOf(true)
         private set
 
+    /** How far the finger has scrolled since it last turned around (negative: down). */
+    private var travel = 0f
+
     override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-        if (source == NestedScrollSource.UserInput) {
-            if (available.y < -1f) expanded = false else if (available.y > 1f) expanded = true
+        if (source == NestedScrollSource.UserInput && available.y != 0f) {
+            if ((available.y < 0f) != (travel < 0f)) travel = 0f
+            travel += available.y
+            if (travel < -threshold) expanded = false else if (travel > threshold) expanded = true
         }
         return Offset.Zero
     }
 }
 
+@Composable
+fun rememberFabScroll(): FabScroll {
+    val threshold = with(LocalDensity.current) { 48.dp.toPx() }
+    return remember(threshold) { FabScroll(threshold) }
+}
+
 /**
  * A floating button with a label, or just its icon once scrolled, like Gmail's
- * Compose. Its own unbouncy animation, not ExtendedFloatingActionButton's, which
- * looked odd beside Gmail's: it overshot and clipped the label (#65).
+ * Compose. Its own animation, not ExtendedFloatingActionButton's, which looked odd
+ * beside Gmail's: it overshot and clipped the label (#65). Opening springs with a
+ * little bounce, as Material 3 Expressive's motion; folding settles without one, so
+ * the label never clips (#177). Corners as Material 3 Expressive's FAB, 16dp (#177).
  */
 @Composable
 fun CollapsingFab(icon: ImageVector, label: String, expanded: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
@@ -60,7 +80,7 @@ fun CollapsingFab(icon: ImageVector, label: String, expanded: Boolean, onClick: 
     FloatingActionButton(
         onClick = onClick,
         modifier = modifier,
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(16.dp),
         containerColor = cs.primaryContainer,
         contentColor = cs.onPrimaryContainer,
     ) {
@@ -68,10 +88,10 @@ fun CollapsingFab(icon: ImageVector, label: String, expanded: Boolean, onClick: 
             Icon(icon, if (expanded) null else label)
             AnimatedVisibility(
                 expanded,
-                enter = expandHorizontally(tween(250, easing = FastOutSlowInEasing), Alignment.Start) +
-                    fadeIn(tween(200, delayMillis = 50)),
-                exit = shrinkHorizontally(tween(250, easing = FastOutSlowInEasing), Alignment.Start) +
-                    fadeOut(tween(120)),
+                enter = expandHorizontally(spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMediumLow), Alignment.Start) +
+                    fadeIn(tween(220, delayMillis = 60)),
+                exit = shrinkHorizontally(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow), Alignment.Start) +
+                    fadeOut(tween(180)),
             ) {
                 Row {
                     Spacer(Modifier.width(12.dp))

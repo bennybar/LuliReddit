@@ -30,7 +30,7 @@ fun FrontpageScreen() {
     val nav = LocalNavigator.current
     val scope = rememberCoroutineScope()
     val settings by app.settings.state.collectAsStateWithLifecycle()
-    val fab = remember { FabScroll() }
+    val fab = rememberFabScroll()
     val listState = rememberFeedListState()
     var refreshRequests by remember { mutableIntStateOf(0) } // the Refresh floating button
     var hideReadRequests by remember { mutableIntStateOf(0) } // the Hide read posts floating button

@@ -130,7 +130,7 @@ fun SubredditScreen(name: String) {
     val about by vm.about.collectAsStateWithLifecycle()
     val session by app.session.state.collectAsStateWithLifecycle()
     val anonymous = (session as? SessionState.LoggedIn)?.session?.anonymous != false
-    val fab = remember { FabScroll() }
+    val fab = rememberFabScroll()
     val settings by app.settings.state.collectAsStateWithLifecycle()
     val listState = rememberFeedListState()
     var refreshRequests by remember { mutableIntStateOf(0) } // the Refresh floating button

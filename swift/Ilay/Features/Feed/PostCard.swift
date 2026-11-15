@@ -57,6 +57,7 @@ private struct LargeCard: View {
         .padding(.trailing, 8)
         .padding(.top, 12)
         .padding(.bottom, 4)
+        .background { CardVoteGlow(post: row.post, radius: 0, fadeTop: true) }
         .overlay { ReadVeil(row: row) }
     }
 }
@@ -123,6 +124,7 @@ private struct MiniCard: View {
         .padding(.trailing, 6)
         .padding(.top, 10)
         .padding(.bottom, 2)
+        .background { CardVoteGlow(post: row.post, radius: 0, fadeTop: true) }
         .overlay { ReadVeil(row: row) }
     }
 }
@@ -168,6 +170,8 @@ private struct CalmCardsCard: View {
                 .padding(.trailing, 8)
                 .padding(.vertical, 10)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                // The top segment's: the corner it glows from.
+                .background { CardVoteGlow(post: row.post, radius: outer) }
                 .background(Color(.secondarySystemGroupedBackground), in: .rect(topLeadingRadius: outer, bottomLeadingRadius: inner, bottomTrailingRadius: inner, topTrailingRadius: outer))
             if row.kind != .text {
                 CardMedia(row: row, a: a, radius: inner)
@@ -189,6 +193,7 @@ private struct CardSurface: ViewModifier {
     func body(content: Content) -> some View {
         content
             .frame(maxWidth: .infinity, alignment: .leading)
+            .background { CardVoteGlow(post: row.post, radius: 20) }
             .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 20))
             .overlay { ReadVeil(row: row, radius: 20) }
             .padding(.horizontal, row.config.cardInset)
@@ -212,6 +217,42 @@ private struct ReadVeil: View {
                 .fill(Color(row.config.isCarded ? .systemGroupedBackground : .systemBackground).opacity(0.45))
                 .allowsHitTesting(false)
         }
+    }
+}
+
+/// Settings › Mark what you voted on: Glow marks the card too, as a comment (#173): the
+/// vote's colour from the top corner on the end side, gone by the card's bottom. Reads the
+/// shared overrides itself, so a vote re-runs this and not the card. A flat row (no card)
+/// fades in from its top, as the thread's post does, so it doesn't stop in a line.
+private struct CardVoteGlow: View {
+    let post: Post
+    let radius: CGFloat
+    var fadeTop = false
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.layoutDirection) private var direction
+
+    var body: some View {
+        let s = app.settings.value
+        let likes = app.postOverrides.effective(post).likes
+        ZStack {
+            if s.voteEdge, s.voteGlow, let likes {
+                let votes = IlayTheme.voteColors(dark: scheme == .dark)
+                let c = likes ? votes.up : votes.down
+                GeometryReader { g in
+                    let r = max(min(g.size.height, g.size.width * 0.9), 1)
+                    RadialGradient(stops: [.init(color: c.opacity(0.34), location: 0), .init(color: c.opacity(0.10), location: 0.45), .init(color: c.opacity(0), location: 1)],
+                                   center: direction == .rightToLeft ? .topLeading : .topTrailing, startRadius: 0, endRadius: r)
+                        .mask {
+                            LinearGradient(stops: [.init(color: fadeTop ? .clear : .black, location: 0), .init(color: .black, location: min(32 / max(g.size.height, 1), 1))],
+                                           startPoint: .top, endPoint: .bottom)
+                        }
+                }
+                .clipShape(.rect(cornerRadius: radius))
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.35), value: likes)
+        .allowsHitTesting(false)
     }
 }
 

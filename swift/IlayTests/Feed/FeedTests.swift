@@ -29,13 +29,32 @@ private func config(_ display: PostDisplay, width: CGFloat = 402, carousel: Bool
     func testFoldsScrollingDownOpensScrollingUpAndIgnoresFlingsAndJitter() {
         let fab = FabScroll()
         XCTAssertTrue(fab.expanded)
-        fab.onScroll(available: -20, userInput: true)
+        fab.onScroll(available: -60, userInput: true)
         XCTAssertFalse(fab.expanded)
         fab.onScroll(available: 0.5, userInput: true)
         XCTAssertFalse(fab.expanded)
-        fab.onScroll(available: 20, userInput: false)
+        fab.onScroll(available: 60, userInput: false)
         XCTAssertFalse(fab.expanded)
-        fab.onScroll(available: 20, userInput: true)
+        fab.onScroll(available: 60, userInput: true)
+        XCTAssertTrue(fab.expanded)
+    }
+
+    func testANudgeDoesNotFoldItAScrollThatKeepsGoingDoes() {
+        // #177
+        let fab = FabScroll()
+        fab.onScroll(available: -20, userInput: true)
+        XCTAssertTrue(fab.expanded)
+        fab.onScroll(available: -20, userInput: true)
+        XCTAssertTrue(fab.expanded)
+        fab.onScroll(available: -20, userInput: true)
+        XCTAssertFalse(fab.expanded)
+        // Turning around starts the count again.
+        fab.onScroll(available: 30, userInput: true)
+        XCTAssertFalse(fab.expanded)
+        fab.onScroll(available: -10, userInput: true)
+        fab.onScroll(available: 30, userInput: true)
+        XCTAssertFalse(fab.expanded)
+        fab.onScroll(available: 30, userInput: true)
         XCTAssertTrue(fab.expanded)
     }
 }

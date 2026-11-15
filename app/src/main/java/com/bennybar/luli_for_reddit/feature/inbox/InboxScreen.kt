@@ -2,7 +2,7 @@ package com.bennybar.luli_for_reddit.feature.inbox
 
 import com.bennybar.luli_for_reddit.feature.home.LocalEdgeDrag
 import com.bennybar.luli_for_reddit.feature.home.SideBarEdge
-import com.bennybar.luli_for_reddit.feature.feed.FabScroll
+import com.bennybar.luli_for_reddit.feature.feed.rememberFabScroll
 import com.bennybar.luli_for_reddit.feature.feed.CollapsingFab
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.bennybar.luli_for_reddit.ui.ConnectedChoice
@@ -159,7 +159,7 @@ fun InboxScreen(reselect: Int, selected: Boolean = true) {
         if (reselect != initialReselect) lists[pager.currentPage].animateScrollToItem(0)
     }
 
-    val fab = remember { FabScroll() }
+    val fab = rememberFabScroll()
     val openSideBar = LocalSideBar.current
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     Scaffold(

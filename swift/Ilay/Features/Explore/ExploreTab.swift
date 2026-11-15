@@ -133,11 +133,11 @@ struct ExploreTab: View {
             ToolbarItem(placement: .topBarLeading) { SideBarButton() }
             if !expandable {
                 ToolbarItem(placement: .principal) {
+                    // As Home's Full bar (#172): just the words, in the middle.
                     Button { nav.push(.search()) } label: {
-                        Label("Search communities & posts", systemImage: "magnifyingglass")
-                            .labelStyle(.titleAndIcon)
+                        Text("Search Reddit")
                             .foregroundStyle(.secondary)
-                            .frame(width: 220)
+                            .frame(width: 220, alignment: .center)
                     }
                 }
             }
@@ -400,6 +400,10 @@ struct ExploreTab: View {
                             }
                             .background(Color(.secondarySystemGroupedBackground))
                             .clipShape(.rect(cornerRadius: 22))
+                            // Like Android's gallery-style carousel (#170): cards ease down and dim toward the edges.
+                            .scrollTransition(.interactive, axis: .horizontal) { content, phase in
+                                content.scaleEffect(phase.isIdentity ? 1 : 0.9).opacity(phase.isIdentity ? 1 : 0.6)
+                            }
                         }
                     }
                     .padding(.horizontal, 16)
