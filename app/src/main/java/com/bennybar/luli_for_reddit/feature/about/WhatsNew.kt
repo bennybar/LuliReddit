@@ -45,6 +45,15 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.82", "Nov 15, 2026",
+        listOf(
+            "Posts you voted on glow in the vote's colour, as comments do (Settings › Mark what you voted on › Glow)",
+            "Floating buttons fold only once you really scroll, open with a little bounce, and have less rounded corners",
+            "Explore: each community in a list is its own segment, and the community rows move like the gallery carousel",
+            "Explore's Full top bar is the same as Home's; with the side bar on, your picture is smaller and the search bar centred",
+        ),
+    ),
+    Release(
         "2.0.81", "Nov 15, 2026",
         listOf(
             "Calm comments: swiping a comment to vote no longer hides its thread lines; they slide with it",
