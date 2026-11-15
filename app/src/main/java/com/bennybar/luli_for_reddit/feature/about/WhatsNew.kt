@@ -45,6 +45,14 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.81", "Nov 15, 2026",
+        listOf(
+            "Calm comments: swiping a comment to vote no longer hides its thread lines; they slide with it",
+            "History and Summaries: the selection bar's × and count line up with the title",
+            "For You's subtitle is now \"On your phone\", so it fits beside the title",
+        ),
+    ),
+    Release(
         "2.0.80", "Nov 12, 2026",
         listOf(
             "Explore: Popular communities, a row of Reddit's popular communities you haven't joined, with Join",
