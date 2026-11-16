@@ -45,6 +45,14 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.87", "Nov 16, 2026",
+        listOf(
+            "Settings › Feed › Post text in feeds: show 5 or 10 lines of a post's text in feeds",
+            "Your own comments have Edit and Delete at the top of their ⋯ menu",
+            "Removing an entry from History slides it all the way out before it goes",
+        ),
+    ),
+    Release(
         "2.0.86", "Nov 16, 2026",
         listOf(
             "Notifications: choose how often Reddit is checked, from every 15 minutes to every 6 hours",
