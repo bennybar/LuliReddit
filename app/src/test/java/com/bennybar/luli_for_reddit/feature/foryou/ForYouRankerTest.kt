@@ -269,7 +269,7 @@ class ForYouRankerTest {
         val mine = titled("mine", 51)
         val r = rankForYou(c(listOf(mine, engaged)), RankInputs(subscribed = setOf("mine"), interest = mapOf("engaged" to 6.0), now = now))
         assertEquals("base 2.3 × its interest beats a plain subscription (base 0.4 lost)", engaged.id, r.ranked.first().id)
-        assertEquals("Because you engage with r/engaged", r.ranked.first().feedReason)
+        assertEquals("From r/engaged", r.ranked.first().feedReason)
         assertEquals("Because you engage with r/engaged (you don't follow it)", r.meta[engaged.id]!!.why.first())
     }
 

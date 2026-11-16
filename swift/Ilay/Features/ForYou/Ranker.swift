@@ -279,7 +279,7 @@ func rankForYou(_ pool: [Candidate], _ i: RankInputs, pageSize: Int = 50) -> Ran
         if let likedTopic { drivers.append((log(1.6), "You asked for more about “\(likedTopic)”")) }
         if explicitSub > 0 { drivers.append((log(1.6), "You asked for more from r/\(p.subreddit)")) }
         if fav { drivers.append((log(4 / 2.5), "★ Favourite · r/\(p.subreddit)")) }
-        if a >= kEngagedInterest { drivers.append((log(wInterest), "Because you engage with r/\(p.subreddit)")) }
+        if a >= kEngagedInterest { drivers.append((log(wInterest), "From r/\(p.subreddit)")) }
         if let topKw, kw > 0 { drivers.append((log(kwMult), "Because you read about “\(topKw)”")) }
         drivers.sort { $0.0 > $1.0 }
         let reason: String
@@ -288,13 +288,13 @@ func rankForYou(_ pool: [Candidate], _ i: RankInputs, pageSize: Int = 50) -> Ran
         } else if let d = drivers.first, d.0 > log(1.15) {
             reason = d.1
         } else if age < 6, p.score > 1000, vp > 0.8 {
-            reason = "🔥 Trending on Reddit"
+            reason = "Trending on Reddit"
         } else if fromHome, subd { // Blend: say it came from your Reddit Home (yours, or Reddit's pick).
             reason = "In your Reddit Home · r/\(p.subreddit)"
         } else if fromHome {
             reason = "Recommended by Reddit · r/\(p.subreddit)"
         } else if subd {
-            reason = "From r/\(p.subreddit)"
+            reason = "Subscribed · r/\(p.subreddit)"
         } else if c.source == "community" {
             reason = "Discover · r/\(p.subreddit), near communities you visit"
         } else {

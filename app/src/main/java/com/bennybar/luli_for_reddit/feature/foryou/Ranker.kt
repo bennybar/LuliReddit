@@ -265,17 +265,17 @@ fun rankForYou(pool: List<Candidate>, i: RankInputs, pageSize: Int = 50): RankRe
             if (likedTopic != null) add(ln(1.6) to "You asked for more about “$likedTopic”")
             if (explicitSub > 0) add(ln(1.6) to "You asked for more from r/${p.subreddit}")
             if (fav) add(ln(4 / 2.5) to "★ Favourite · r/${p.subreddit}")
-            if (a >= K_ENGAGED_INTEREST) add(ln(wInterest) to "Because you engage with r/${p.subreddit}")
+            if (a >= K_ENGAGED_INTEREST) add(ln(wInterest) to "From r/${p.subreddit}")
             if (topKw != null && kw > 0) add(ln(kwMult) to "Because you read about “$topKw”")
         }.sortedByDescending { it.first }
         val reason = when {
             alreadyRead -> "You read about this already"
             drivers.isNotEmpty() && drivers.first().first > ln(1.15) -> drivers.first().second
-            age < 6 && p.score > 1000 && vp > 0.8 -> "🔥 Trending on Reddit"
+            age < 6 && p.score > 1000 && vp > 0.8 -> "Trending on Reddit"
             // Blend: say it came from your Reddit Home (yours, or Reddit's pick).
             fromHome && subd -> "In your Reddit Home · r/${p.subreddit}"
             fromHome -> "Recommended by Reddit · r/${p.subreddit}"
-            subd -> "From r/${p.subreddit}"
+            subd -> "Subscribed · r/${p.subreddit}"
             c.source == "community" -> "Discover · r/${p.subreddit}, near communities you visit"
             else -> "Discover · r/${p.subreddit}"
         }

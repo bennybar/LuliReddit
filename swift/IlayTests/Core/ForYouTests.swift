@@ -188,7 +188,7 @@ final class ForYouRankerTests: XCTestCase {
         let mine = p("mine", title(51))
         let r = rankForYou(c([mine, engaged]), RankInputs(subscribed: ["mine"], interest: ["engaged": 6.0], now: now))
         XCTAssertEqual(r.ranked.first?.id, engaged.id, "base 2.3 × its interest beats a plain subscription (base 0.4 lost)")
-        XCTAssertEqual(r.ranked.first?.feedReason, "Because you engage with r/engaged")
+        XCTAssertEqual(r.ranked.first?.feedReason, "From r/engaged")
         XCTAssertEqual(r.meta[engaged.id]?.why.first, "Because you engage with r/engaged (you don't follow it)")
     }
 

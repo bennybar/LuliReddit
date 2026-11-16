@@ -73,6 +73,7 @@ import com.bennybar.luli_for_reddit.feature.media.shareAsMedia
 import com.bennybar.luli_for_reddit.feature.media.canShareAsMedia
 import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Icon
@@ -437,6 +438,11 @@ fun PostCard(listed: Post, modifier: Modifier = Modifier, swipeOverride: Pair<Sw
     }
 }
 
+// Trending gets a fire icon instead of an emoji in the text (#208). Posts cached
+// before 2.0.91 still carry "🔥 Trending on Reddit", so the callers drop it.
+private fun reasonIcon(reason: String) =
+    if (reason.endsWith("Trending on Reddit")) Icons.Rounded.LocalFireDepartment else Icons.Outlined.Info
+
 @Composable
 private fun ReasonRow(reason: String, onTune: () -> Unit) {
     val cs = MaterialTheme.colorScheme
@@ -447,10 +453,10 @@ private fun ReasonRow(reason: String, onTune: () -> Unit) {
             .padding(start = 18.dp, top = 2.dp, end = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Outlined.Info, null, Modifier.size(13.dp), tint = cs.primary)
+        Icon(reasonIcon(reason), null, Modifier.size(13.dp), tint = cs.primary)
         Spacer(Modifier.width(6.dp))
         Text(
-            reason,
+            reason.removePrefix("🔥 "),
             Modifier.weight(1f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -1421,10 +1427,10 @@ private fun CalmHeader(p: Post, a: PostActions, s: Settings) {
                 // post's age (kept visible when the reason is long). Tap → the
                 // "why you're seeing this" / tune sheet.
                 Row(Modifier.clickable(onClick = a::tune), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Info, null, Modifier.size(13.dp), tint = cs.primary)
+                    Icon(reasonIcon(reason), null, Modifier.size(13.dp), tint = cs.primary)
                     Spacer(Modifier.width(4.dp))
                     Text(
-                        reason,
+                        reason.removePrefix("🔥 "),
                         Modifier.weight(1f, fill = false),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,

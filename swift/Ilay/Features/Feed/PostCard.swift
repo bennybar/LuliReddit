@@ -274,6 +274,12 @@ private struct ReadDimmed<Content: View>: View {
 
 /// Long-press anywhere on the card tunes For You via its menu; this is the discoverable
 /// entry to the feed-tuning sheet, so "show less from this subreddit" isn't hidden.
+/// Trending gets a flame instead of an emoji in the text (#208). Posts cached
+/// before this still carry "🔥 Trending on Reddit", so the callers drop it.
+private func reasonSymbol(_ reason: String) -> String {
+    reason.hasSuffix("Trending on Reddit") ? "flame" : "info.circle"
+}
+
 private struct ReasonRow: View {
     let reason: String
     let a: PostActions
@@ -281,8 +287,8 @@ private struct ReasonRow: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: "info.circle")
-            Text(reason).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+            Image(systemName: reasonSymbol(reason))
+            Text(reason.replacingOccurrences(of: "🔥 ", with: "")).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
             Button(action: a.tune) {
                 Label("Tune", systemImage: "slider.horizontal.3").padding(.vertical, 2).contentShape(Rectangle())
             }
@@ -348,8 +354,8 @@ private struct CalmHeader: View {
                     // seeing this" / tune sheet.
                     Button(action: a.tune) {
                         HStack(spacing: 4) {
-                            Image(systemName: "info.circle").foregroundStyle(.tint)
-                            Text(reason).fontWeight(.medium).foregroundStyle(.tint).lineLimit(1)
+                            Image(systemName: reasonSymbol(reason)).foregroundStyle(.tint)
+                            Text(reason.replacingOccurrences(of: "🔥 ", with: "")).fontWeight(.medium).foregroundStyle(.tint).lineLimit(1)
                             Text("· \(row.timeLabel)").foregroundStyle(.secondary).lineLimit(1).layoutPriority(1)
                         }
                         .font(.caption)
