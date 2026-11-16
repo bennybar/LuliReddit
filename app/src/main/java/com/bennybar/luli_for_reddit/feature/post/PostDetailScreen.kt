@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -747,8 +748,13 @@ private fun CommentList(
             contentPadding = PaddingValues(top = 6.dp, bottom = 160.dp),
         ) {
             item(key = "header", contentType = "header") {
-                // Translate sits on the post, with its share / save.
-                PostHeader(thread.post, fresh = true, translate = actions.translateButton)
+                Column {
+                    // Translate sits on the post, with its share / save.
+                    PostHeader(thread.post, fresh = true, translate = actions.translateButton)
+                    // Contest mode (#204): why the order looks random and the scores are missing.
+                    // In the header's item, so the comments stay where scrolling expects them.
+                    if (thread.post.contestMode) ContestNotice()
+                }
             }
             if (flat.isEmpty()) {
                 item(key = "empty", contentType = "empty") {
@@ -2135,6 +2141,28 @@ private fun CollapsePill(icon: ImageVector, label: String, onClick: () -> Unit) 
     }
 }
 
+/** Reddit's contest mode note (#204), as reddit.com shows it above the comments. */
+@Composable
+private fun ContestNotice() {
+    val cs = MaterialTheme.colorScheme
+    Row(
+        Modifier
+            .padding(start = 12.dp, end = 12.dp, bottom = 10.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(cs.surfaceContainerHigh)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Outlined.EmojiEvents, null, tint = cs.primary)
+        Spacer(Modifier.width(12.dp))
+        Column {
+            Text("Contest mode is on", style = MaterialTheme.typography.titleSmall)
+            Text("Comments are in random order, and their scores are hidden from everyone but the moderators", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+        }
+    }
+}
+
 /**
  * A post's text with the images / GIFs / videos in it shown inline (uploaded
  * ones via `media_metadata`, and linked i.redd.it / preview.redd.it /
@@ -2143,6 +2171,9 @@ private fun CollapsePill(icon: ImageVector, label: String, onClick: () -> Unit) 
 @Composable
 private fun PostBody(p: Post) {
     if (p.selftext.isEmpty()) return
+    // A spoiler's text stays covered until tapped (#204), as on reddit.com.
+    var shown by rememberSaveable(p.id) { mutableStateOf(!p.spoiler) }
+    if (!shown) return com.bennybar.luli_for_reddit.feature.feed.SpoilerTextCover { shown = true }
     BodyWithMedia(p.selftext, p.bodyMedia, LocalNavigator.current, maxMedia = 10, selectable = true)
 }
 

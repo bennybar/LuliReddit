@@ -491,12 +491,56 @@ struct ReminderLine: View {
     }
 }
 
+/// A spoiler post's text in a feed (#204): "Spoiler · tap to view" until tapped.
+private struct SpoilerSnippet: View {
+    let row: PostRow
+    let lines: Int
+    @State private var shown = false
+
+    var body: some View {
+        Group {
+            if shown {
+                Text(row.snippet)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(row.config.postTextLines > 0 ? row.config.postTextLines : lines)
+                    .multilineTextAlignment(.leading)
+            } else {
+                SpoilerTextCover { shown = true }
+            }
+        }
+        .padding(.top, 6)
+        .padding(.trailing, 8)
+    }
+}
+
+/// Where a spoiler's text would be (#204): "Spoiler · tap to view", in its own rounded box.
+struct SpoilerTextCover: View {
+    let onReveal: () -> Void
+
+    var body: some View {
+        Button(action: onReveal) {
+            Label("Spoiler · tap to view", systemImage: "eye.slash")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(Color(.tertiarySystemFill), in: .rect(cornerRadius: 14))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Show spoiler")
+    }
+}
+
 private struct CardSnippet: View {
     let row: PostRow
     let lines: Int
 
     var body: some View {
-        if !row.snippet.isEmpty {
+        if !row.snippet.isEmpty, row.post.spoiler {
+            // A spoiler's text (#204): covered, as reddit.com's; a tap shows it.
+            SpoilerSnippet(row: row, lines: lines).id(row.id)
+        } else if !row.snippet.isEmpty {
             ReadDimmed(row: row) {
                 Text(row.snippet)
                     .font(.subheadline)

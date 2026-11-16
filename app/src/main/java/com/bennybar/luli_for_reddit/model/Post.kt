@@ -47,6 +47,8 @@ data class Post(
     val selftext: String = "",
     val over18: Boolean = false,
     val spoiler: Boolean = false,
+    /** Contest mode (#204): comments come in random order, scores hidden. */
+    val contestMode: Boolean = false,
     val stickied: Boolean = false,
     val locked: Boolean = false,
     val saved: Boolean = false,
@@ -165,6 +167,7 @@ data class Post(
                 selftext = d["selftext"].str()?.ifEmpty { null } ?: content["selftext"].str() ?: "",
                 over18 = d["over_18"].isTrue(),
                 spoiler = d["spoiler"].isTrue(),
+                contestMode = d["contest_mode"].isTrue(),
                 stickied = d["stickied"].isTrue(),
                 suggestedSort = d["suggested_sort"].str()?.ifEmpty { null },
                 locked = d["locked"].isTrue(),

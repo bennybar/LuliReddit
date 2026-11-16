@@ -31,6 +31,8 @@ struct Post: Identifiable, Equatable, Sendable, Copyable {
     var selftext: String = "" { didSet { parsedSnippet = nil } }
     var over18: Bool = false
     var spoiler: Bool = false
+    /// Contest mode (#204): comments come in random order, scores hidden.
+    var contestMode: Bool = false
     var stickied: Bool = false
     var locked: Bool = false
     var saved: Bool = false
@@ -149,6 +151,7 @@ struct Post: Identifiable, Equatable, Sendable, Copyable {
             selftext: selftext,
             over18: d["over_18"].isTrue(),
             spoiler: d["spoiler"].isTrue(),
+            contestMode: d["contest_mode"].isTrue(),
             stickied: d["stickied"].isTrue(),
             locked: d["locked"].isTrue(),
             saved: d["saved"].isTrue(),
