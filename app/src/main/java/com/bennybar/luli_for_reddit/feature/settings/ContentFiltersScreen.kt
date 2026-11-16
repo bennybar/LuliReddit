@@ -19,7 +19,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.NoAdultContent
 import androidx.compose.material3.Button
@@ -101,12 +100,6 @@ fun ContentFiltersScreen() {
                 SwitchTile(
                     "Hide NSFW posts", "Remove them from feeds and search instead of blurring", Icons.Rounded.NoAdultContent,
                     filters.hideNsfw, onChange = store::setHideNsfw,
-                )
-            }
-            item("automod") {
-                SwitchTile(
-                    "Collapse AutoModerator and bots", "Start AutoModerator's comments, and pinned comments by bots, collapsed", Icons.Outlined.SmartToy,
-                    filters.collapseAutoMod, onChange = store::setCollapseAutoMod,
                 )
             }
         }

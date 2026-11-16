@@ -688,7 +688,8 @@ fun SettingsList(
                 )?.let { ctrl.setCollapseBelowScore(it.takeIf { v -> v != Int.MIN_VALUE }) }
             },
         )
-        // The same switch as Content filters' (#202), where people look for collapsing.
+        // Collapsing AutoModerator and pinned bots (#202): here only, with the other collapse
+        // options (it was also in Content filters, which read as a second, different switch).
         switch(
             "Collapse AutoModerator and bots", "Start AutoModerator's comments, and pinned comments by bots, collapsed",
             Icons.Outlined.SmartToy, filters.collapseAutoMod, app.contentFilters::setCollapseAutoMod,
