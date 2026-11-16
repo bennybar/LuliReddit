@@ -197,8 +197,18 @@ struct PostHeaderView: View {
                 segment("arrow.up", value: compactNumber(score), valueTint: down ? votes.down : nil, label: "Upvote", on: up, tint: votes.up, leading: 20, trailing: 6) { vote(1) }
                 segment("arrow.down", label: "Downvote", on: down, tint: votes.down, leading: 6, trailing: 20) { vote(-1) }
             }
-            segment("bubble.left", value: compactNumber(numComments), label: "Comments", on: false, tint: .primary, leading: 20, trailing: 20) {}
-                .padding(.leading, 8)
+            // The count only, as on Android: a pill that looked tappable but did nothing.
+            HStack(spacing: 6) {
+                Image(systemName: "bubble.left")
+                Text(verbatim: compactNumber(numComments)).monospacedDigit()
+            }
+            .font(.subheadline.weight(.medium))
+            .padding(.horizontal, 13)
+            .frame(height: 40)
+            .glassEffect(.regular, in: .capsule)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(compactNumber(numComments)) comments")
+            .padding(.leading, 8)
             Spacer(minLength: 0)
             if !translate.targets.isEmpty {
                 TranslateButton(targets: translate.targets, shownIn: translate.shownIn, busy: translate.busy, onPick: translate.onPick)

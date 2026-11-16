@@ -7,6 +7,7 @@ struct FeedState: Equatable {
     var time: TopTime
     var after: String? = nil
     var loadingMore = false
+    var moreFailed = false // the last next-page request failed: the footer offers Retry
     var hasPending = false // a fresh page is staged behind a "New posts" pill
 
     var hasMore: Bool { after?.isEmpty == false }
@@ -416,6 +417,7 @@ private let restoredPage = "restored"
         let gen = generation
         let after = cur.after
         cur.loadingMore = true
+        cur.moreFailed = false
         ui = .data(cur)
         moreJob = Task { [self] in
             // A restored page (no cursor): fetch a first page and continue
@@ -435,6 +437,7 @@ private let restoredPage = "restored"
                 guard gen == generation else { return }
                 var latest = current ?? cur
                 latest.loadingMore = false
+                latest.moreFailed = true
                 ui = .data(latest)
             }
         }

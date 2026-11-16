@@ -17,9 +17,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -57,6 +60,7 @@ data class PagedState<T>(
     val after: String? = null,
     val loading: Boolean = true,
     val loadingMore: Boolean = false,
+    val moreFailed: Boolean = false, // the last next-page request failed: the footer offers Retry
     val error: Throwable? = null,
 ) {
     val hasMore: Boolean get() = !after.isNullOrEmpty()
@@ -114,7 +118,7 @@ class PagedSource<T>(private val fetch: suspend (String?) -> Listing<T>) : ViewM
     fun loadMore() {
         val s = _state.value
         if (s.loading || s.loadingMore || !s.hasMore) return
-        _state.update { it.copy(loadingMore = true) }
+        _state.update { it.copy(loadingMore = true, moreFailed = false) }
         moreJob = viewModelScope.launch {
             try {
                 val listing = fetch(s.after)
@@ -123,7 +127,7 @@ class PagedSource<T>(private val fetch: suspend (String?) -> Listing<T>) : ViewM
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
-                _state.update { if (it.after != s.after) it else it.copy(loadingMore = false) }
+                _state.update { if (it.after != s.after) it else it.copy(loadingMore = false, moreFailed = true) }
             }
         }
     }
@@ -216,9 +220,11 @@ fun <T> PagedList(
             ) {
                 items(items, key = itemKey, contentType = contentType) { itemContent(it) }
                 item(key = "__footer") {
-                    if (state.loadingMore) {
-                        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                            Loading()
+                    Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                        when {
+                            state.loadingMore -> Loading()
+                            state.moreFailed -> LoadMoreFailed(source::loadMore)
+                            !state.hasMore && items.isNotEmpty() -> Text("— end —", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -246,5 +252,17 @@ fun LoadMoreNearEnd(listState: LazyListState, fromEnd: Int, page: Any?, onLoadMo
             val last = info.visibleItemsInfo.lastOrNull()?.index ?: return@snapshotFlow null
             if (last < info.totalItemsCount - fromEnd) null else currentPage to listState.isScrollInProgress
         }.distinctUntilChanged().collect { if (it != null) loadMore() }
+    }
+}
+
+/**
+ * A list's footer after its next page failed. Paging otherwise only retries
+ * when a new scroll starts near the end, which nobody guesses.
+ */
+@Composable
+internal fun LoadMoreFailed(onRetry: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("Couldn't load more", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        TextButton(onClick = onRetry) { Text("Retry") }
     }
 }

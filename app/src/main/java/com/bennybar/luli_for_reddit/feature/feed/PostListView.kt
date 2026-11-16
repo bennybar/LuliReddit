@@ -497,7 +497,8 @@ private fun FeedList(
     // can't scroll, so the feed stalled blank. Keep fetching instead, up to a
     // bound in case nothing ever matches.
     LaunchedEffect(posts.size, state.hasMore, state.loadingMore, state.posts.size) {
-        if (posts.size < 10 && state.hasMore && !state.loadingMore && state.posts.size < 250) controller.loadMore()
+        // (Not after a failed page: that would retry in a loop. The footer offers Retry.)
+        if (posts.size < 10 && state.hasMore && !state.loadingMore && !state.moreFailed && state.posts.size < 250) controller.loadMore()
     }
 
     // Page early, 10 cards from the end (a fast flick covers several cards in
@@ -587,6 +588,7 @@ private fun FeedList(
             Column(Modifier.fillMaxWidth().padding(vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 when {
                     state.loadingMore -> Loading()
+                    state.moreFailed -> LoadMoreFailed(controller::loadMore)
                     state.hasMore -> {}
                     else -> Text("— end —", color = muted)
                 }

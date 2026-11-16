@@ -194,7 +194,12 @@ private struct InboxList: View {
                         }
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             if item.isMessage {
-                                Button("Delete", systemImage: "trash", role: .destructive) { app.inbox.deleteMessage(item.fullname) }
+                                // Deleting can't be undone, so the swipe asks first. (Not
+                                // role: .destructive, which slides the row away before the answer.)
+                                Button("Delete", systemImage: "trash") {
+                                    Task { if await confirmDelete("message") { app.inbox.deleteMessage(item.fullname) } }
+                                }
+                                .tint(.red)
                             }
                         }
                         // Load the next page as the end comes into view.

@@ -7,6 +7,7 @@ struct PagedState<T> {
     var after: String? = nil
     var loading = true
     var loadingMore = false
+    var moreFailed = false // the last next-page request failed: the footer offers Retry
     var error: Error? = nil
 
     var hasMore: Bool { after?.isEmpty == false }
@@ -72,6 +73,7 @@ struct PagedState<T> {
         let s = state
         if s.loading || s.loadingMore || !s.hasMore { return }
         state.loadingMore = true
+        state.moreFailed = false
         moreJob = Task { [self] in
             do {
                 let listing = try await fetch(s.after)
@@ -83,6 +85,7 @@ struct PagedState<T> {
             } catch {
                 if Task.isCancelled || state.after != s.after { return }
                 state.loadingMore = false
+                state.moreFailed = true
             }
         }
     }
@@ -253,7 +256,7 @@ private enum PagedItem: Hashable {
 
     private func makeRegistration() -> UICollectionView.CellRegistration<UICollectionViewListCell, T> {
         UICollectionView.CellRegistration { [unowned self] cell, _, value in
-            let typeRange = IlayTheme.typeSize(app.settings.value.textScale).map { $0...$0 } ?? (.xSmall ... .accessibility5)
+            let typeRange = IlayTheme.typeRange(app.settings.value.textScale)
             cell.contentConfiguration = UIHostingConfiguration {
                 itemContent(value)
                     .tint(IlayTheme.accent)
@@ -292,7 +295,9 @@ private enum PagedItem: Hashable {
         keys = nextKeys
         byKey = nextByKey
         footer.loadingMore = source.state.loadingMore
-        footer.hasMore = true
+        footer.hasMore = source.state.hasMore || items.isEmpty
+        footer.failed = source.state.moreFailed
+        footer.retry = { [weak source] in source?.loadMore() }
         if changed {
             var snap = NSDiffableDataSourceSnapshot<Int, PagedItem>()
             snap.appendSections([0])
@@ -303,7 +308,8 @@ private enum PagedItem: Hashable {
             lastScrollTop = scrollTop
             collectionView.setContentOffset(CGPoint(x: 0, y: -collectionView.adjustedContentInset.top), animated: true)
         }
-        loadMoreIfNearEnd()
+        // (Not after a failed page: that would retry in a loop. The footer offers Retry.)
+        if !source.state.moreFailed { loadMoreIfNearEnd() }
     }
 
     private func swipe(_ indexPath: IndexPath, leading: Bool) -> UISwipeActionsConfiguration? {

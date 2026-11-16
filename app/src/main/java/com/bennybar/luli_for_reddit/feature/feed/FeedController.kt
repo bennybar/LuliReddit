@@ -26,6 +26,7 @@ data class FeedState(
     val time: TopTime,
     val after: String? = null,
     val loadingMore: Boolean = false,
+    val moreFailed: Boolean = false, // the last next-page request failed: the footer offers Retry
     val hasPending: Boolean = false, // a fresh page is staged behind a "New posts" pill
 ) {
     val hasMore: Boolean get() = !after.isNullOrEmpty()
@@ -434,7 +435,7 @@ class FeedController(val key: String) {
         // Paging off a cached page would be overwritten by the fresh one.
         if (showingCache) return
         val gen = generation
-        _ui.value = FeedUi.Data(cur.copy(loadingMore = true))
+        _ui.value = FeedUi.Data(cur.copy(loadingMore = true, moreFailed = false))
         scope.launch {
             try {
                 // A restored page (no cursor): fetch a first page and continue
@@ -452,7 +453,7 @@ class FeedController(val key: String) {
             } catch (_: Exception) {
                 if (gen != generation) return@launch
                 val latest = current ?: cur
-                _ui.value = FeedUi.Data(latest.copy(loadingMore = false))
+                _ui.value = FeedUi.Data(latest.copy(loadingMore = false, moreFailed = true))
             }
         }
     }

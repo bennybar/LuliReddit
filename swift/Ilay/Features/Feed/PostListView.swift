@@ -321,7 +321,7 @@ private enum FeedItem: Hashable {
     // MARK: Cells
 
     private func hosted<Content: View>(_ cell: UICollectionViewListCell, @ViewBuilder _ content: () -> Content) {
-        let typeRange = IlayTheme.typeSize(app.settings.value.textScale).map { $0...$0 } ?? (.xSmall ... .accessibility5)
+        let typeRange = IlayTheme.typeRange(app.settings.value.textScale)
         cell.contentConfiguration = UIHostingConfiguration {
             content()
                 .tint(accent)
@@ -437,6 +437,8 @@ private enum FeedItem: Hashable {
 
         footer.loadingMore = new.ui.state?.loadingMore ?? false
         footer.hasMore = new.ui.state?.hasMore ?? false
+        footer.failed = new.ui.state?.moreFailed ?? false
+        footer.retry = { [weak controller = new.controller] in controller?.loadMore() }
         footer.hidden = new.visibility.posts.count - visibleIds.count
 
         // The list being replaced (sort / feed change): the new one starts at the top.
@@ -455,11 +457,12 @@ private enum FeedItem: Hashable {
         // Paging is triggered by reaching rows near the end. If the filters hide (almost)
         // everything loaded, there are no rows to reach and the list can't scroll, so the
         // feed stalled blank. Keep fetching instead, up to a bound in case nothing ever matches.
-        if let s = new.ui.state, visibleIds.count < 10, s.hasMore, !s.loadingMore, s.posts.count < 250 {
+        // (Not after a failed page: that would retry in a loop. The footer offers Retry.)
+        if let s = new.ui.state, visibleIds.count < 10, s.hasMore, !s.loadingMore, !s.moreFailed, s.posts.count < 250 {
             new.controller.loadMore()
         }
         // A new page arrived (or a cursor after an empty page) and the end is still in view.
-        loadMoreIfNearEnd()
+        if new.ui.state?.moreFailed != true { loadMoreIfNearEnd() }
         updateDwellTimer()
     }
 
@@ -527,7 +530,7 @@ private enum FeedItem: Hashable {
 
     private func makeChips() {
         let (controller, state) = (model.controller, chipsState)
-        let typeRange = IlayTheme.typeSize(app.settings.value.textScale).map { $0...$0 } ?? (.xSmall ... .accessibility5)
+        let typeRange = IlayTheme.typeRange(app.settings.value.textScale)
         let configuration = UIHostingConfiguration {
             FeedChips(controller: controller, state: state)
                 .tint(accent)

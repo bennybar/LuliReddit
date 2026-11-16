@@ -50,7 +50,7 @@ private struct CellTheme: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .dynamicTypeSize(IlayTheme.typeSize(env.textScale).map { $0...$0 } ?? (.xSmall ... .accessibility5))
+            .dynamicTypeSize(IlayTheme.typeRange(env.textScale))
             .tint(env.accent)
             .environment(\.voteColors, IlayTheme.voteColors(dark: env.dark))
     }

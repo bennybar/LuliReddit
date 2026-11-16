@@ -105,6 +105,7 @@ import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.NavCache
 import com.bennybar.luli_for_reddit.nav.Route
 import com.bennybar.luli_for_reddit.ui.friendlyError
+import com.bennybar.luli_for_reddit.feature.post.confirmDelete
 import kotlinx.coroutines.launch
 
 /** The Inbox tab. [reselect] bumps when the tab is re-tapped (scroll to top). */
@@ -406,7 +407,12 @@ private fun SwipeableInboxCard(item: InboxItem, onOpen: () -> Unit) {
         }
     }
     val end = remember(item.fullname, item.isMessage, cs.error) {
-        if (item.isMessage) SwipeSpec(Icons.Outlined.DeleteOutline, cs.error) { app.inbox.deleteMessage(item.fullname) } else null
+        // Deleting can't be undone, so the swipe asks first.
+        if (item.isMessage) {
+            SwipeSpec(Icons.Outlined.DeleteOutline, cs.error) {
+                app.scope.launch { if (confirmDelete("message")) app.inbox.deleteMessage(item.fullname) }
+            }
+        } else null
     }
     SwipeActions(start = start, end = end) { InboxCard(item, onOpen) }
 }

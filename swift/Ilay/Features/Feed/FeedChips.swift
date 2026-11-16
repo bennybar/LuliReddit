@@ -281,7 +281,9 @@ struct HomeStatusStrip: View {
 @MainActor @Observable final class FeedFooterModel {
     var loadingMore = false
     var hasMore = false
+    var failed = false // the next page failed to load
     var hidden = 0
+    @ObservationIgnored var retry: () -> Void = {}
 }
 
 struct FeedFooter: View {
@@ -291,6 +293,12 @@ struct FeedFooter: View {
         VStack(spacing: 8) {
             if model.loadingMore {
                 ProgressView()
+            } else if model.failed {
+                // Paging otherwise only retries when a new scroll starts near the end.
+                HStack(spacing: 4) {
+                    Text("Couldn't load more").foregroundStyle(.secondary)
+                    Button("Retry", action: model.retry)
+                }
             } else if !model.hasMore {
                 Text("— end —").foregroundStyle(.secondary)
             }

@@ -799,7 +799,7 @@ private struct FontSizeRow: View {
             )
             Text("The quick brown fox jumps over the lazy dog.")
                 .font(.subheadline)
-                .dynamicTypeSize(IlayTheme.typeSize(shown).map { $0...$0 } ?? (.xSmall ... .accessibility5))
+                .dynamicTypeSize(IlayTheme.typeRange(shown))
         }
         .padding(.vertical, 4)
     }

@@ -32,17 +32,24 @@ enum IlayTheme {
         })
     }
 
-    /// The font size setting (a multiplier, 0.8–1.4), as the Dynamic Type step
-    /// nearest it. At 100% the system's own text size applies.
-    static func typeSize(_ scale: Double) -> DynamicTypeSize? {
-        switch scale {
-        case ..<0.85: .xSmall
-        case ..<0.95: .small
-        case ..<1.05: nil
-        case ..<1.15: .xLarge
-        case ..<1.25: .xxLarge
-        default: .xxxLarge
+    /// The font size setting (a multiplier, 0.8–1.4) as Dynamic Type steps away from
+    /// the system's own text size, which it used to replace: someone on an accessibility
+    /// size who picked 110% got smaller text, not larger. At the default size the steps
+    /// land where they always did (90% small … 130% xxxLarge). At 100% the system's size applies.
+    static func typeRange(_ scale: Double, system: DynamicTypeSize? = nil) -> ClosedRange<DynamicTypeSize> {
+        let steps = switch scale {
+        case ..<0.85: -3
+        case ..<0.95: -2
+        case ..<1.05: 0
+        case ..<1.15: 1
+        case ..<1.25: 2
+        default: 3
         }
+        if steps == 0 { return .xSmall ... .accessibility5 }
+        let base = system ?? DynamicTypeSize(UIApplication.shared.preferredContentSizeCategory) ?? .large
+        let all = DynamicTypeSize.allCases
+        let i = min(max((all.firstIndex(of: base) ?? 3) + steps, 0), all.count - 1)
+        return all[i] ... all[i]
     }
 }
 
@@ -60,6 +67,7 @@ extension Color {
 
 private struct ThemeModifier: ViewModifier {
     @Environment(\.colorScheme) private var systemScheme
+    @Environment(\.dynamicTypeSize) private var systemTypeSize // outside the range set below
 
     func body(content: Content) -> some View {
         let settings = app.settings.value
@@ -70,7 +78,7 @@ private struct ThemeModifier: ViewModifier {
         }
         // A range rather than a branch: a branch would rebuild the whole app when the setting changes.
         content
-            .dynamicTypeSize(IlayTheme.typeSize(settings.textScale).map { $0...$0 } ?? (.xSmall ... .accessibility5))
+            .dynamicTypeSize(IlayTheme.typeRange(settings.textScale, system: systemTypeSize))
             .tint(IlayTheme.accent)
             .environment(\.voteColors, IlayTheme.voteColors(dark: (scheme ?? systemScheme) == .dark))
             .preferredColorScheme(scheme)

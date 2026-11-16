@@ -212,17 +212,26 @@ struct PostDetailScreen: View {
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
-                Menu {
+                // Your own post: a plain menu, so Edit / Edit flair / Delete are a
+                // tap away (they used to need a long-press). Anyone else's: the sheet.
+                if !username.isEmpty, thread.post.author == username {
+                    Menu {
+                        Button {
+                            showPostActionsSheet(thread.post)
+                        } label: {
+                            Label("Post actions", systemImage: "ellipsis.circle")
+                        }
+                        Divider()
+                        ownPostItems(thread.post)
+                    } label: {
+                        Label("More", systemImage: "ellipsis")
+                    }
+                } else {
                     Button {
                         showPostActionsSheet(thread.post)
                     } label: {
-                        Label("Post actions", systemImage: "ellipsis.circle")
+                        Label("More", systemImage: "ellipsis")
                     }
-                    if !username.isEmpty, thread.post.author == username { ownPostItems(thread.post) }
-                } label: {
-                    Label("More", systemImage: "ellipsis")
-                } primaryAction: {
-                    showPostActionsSheet(thread.post)
                 }
             }
         }
