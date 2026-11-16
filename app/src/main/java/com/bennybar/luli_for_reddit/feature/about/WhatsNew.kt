@@ -45,6 +45,14 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.86", "Nov 16, 2026",
+        listOf(
+            "Notifications: choose how often Reddit is checked, from every 15 minutes to every 6 hours",
+            "A comment's ⋯ menu has Select text, to copy just part of it",
+            "Names in comments have their own softer colour, so they stand apart from the text",
+        ),
+    ),
+    Release(
         "2.0.85", "Nov 16, 2026",
         listOf(
             "Tapping the top bar's empty space no longer opens the post under it",
