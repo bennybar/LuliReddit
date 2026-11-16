@@ -99,6 +99,7 @@ class SettingsStore(private val p: Prefs) {
             feedGalleryCarousel = b("feedGalleryCarousel", d.feedGalleryCarousel),
             showApiUsage = b("showApiUsage", d.showApiUsage),
             notifyInbox = b("notifyInbox", d.notifyInbox),
+            inboxCheckMinutes = p.getInt("inboxCheckMinutes") ?: d.inboxCheckMinutes,
             redditAppNotifications = b("redditAppNotifications", d.redditAppNotifications),
             // Old installs may have stored the removed "compact" (1) or the old
             // expandable index (2); clamping maps both safely.
@@ -262,6 +263,7 @@ class SettingsStore(private val p: Prefs) {
     fun setFeedGalleryCarousel(v: Boolean) { p.setBool("feedGalleryCarousel", v); set { it.copy(feedGalleryCarousel = v) } }
     fun setShowApiUsage(v: Boolean) { p.setBool("showApiUsage", v); set { it.copy(showApiUsage = v) } }
     fun setNotifyInbox(v: Boolean) { p.setBool("notifyInbox", v); set { it.copy(notifyInbox = v) } }
+    fun setInboxCheckMinutes(v: Int) { p.setInt("inboxCheckMinutes", v); set { it.copy(inboxCheckMinutes = v) } }
     fun setRedditAppNotifications(v: Boolean) { p.setBool("redditAppNotifications", v); set { it.copy(redditAppNotifications = v) } }
     fun setHomeFab(v: HomeFab) { p.setInt("homeFab", v.ordinal); set { it.copy(homeFab = v) } }
     fun setThreadFab(v: ThreadFab) { p.setInt("threadFab", v.ordinal); set { it.copy(threadFab = v) } }

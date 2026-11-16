@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.settings
 
+import com.bennybar.luli_for_reddit.feature.inbox.InboxNotifications
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.outlined.Folder
@@ -750,9 +752,19 @@ fun SettingsList(
         section("Notifications")
         switch(
             "Inbox notifications",
-            "Check for replies & messages in the background (~every 15 min) and notify you. No Firebase — polling only.",
+            "Check for replies & messages in the background and notify you. No Firebase — polling only.",
             Icons.Outlined.NotificationsActive, s.notifyInbox,
         ) { v -> scope.launch { toggleInboxNotifications(v) } }
+        // How often (#188): less often saves battery and Reddit requests.
+        if (s.notifyInbox) {
+            val every = listOf(15, 30, 60, 180, 360).map { PickOption(it, InboxNotifications.intervalLabel(it)) }
+            tile("Check every", InboxNotifications.intervalLabel(s.inboxCheckMinutes), Icons.Outlined.Schedule, onClick = launch {
+                pickOption(every, s.inboxCheckMinutes)?.let {
+                    ctrl.setInboxCheckMinutes(it)
+                    app.inbox.registerPolling()
+                }
+            })
+        }
         switch(
             "Open Reddit app notifications in Ilay",
             when {
@@ -1387,7 +1399,7 @@ private suspend fun toggleInboxNotifications(enable: Boolean) {
     // notification for every pre-existing item, then start the periodic poll.
     runCatching { app.inbox.pollInbox(notify = false) }
     app.inbox.registerPolling()
-    nav?.showSnackbar("Inbox notifications on. Reddit is checked about every 15 minutes.")
+    nav?.showSnackbar("Inbox notifications on. Reddit is checked about every ${InboxNotifications.intervalLabel(app.settings.value.inboxCheckMinutes)}.")
 }
 
 private suspend fun checkUpdatesNow() {

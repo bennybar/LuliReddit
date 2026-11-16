@@ -305,12 +305,20 @@ struct SettingsCatalog {
         let prompts = prompts
         b.toggle(
             "Inbox notifications",
-            "Check for replies & messages in the background (~every 15 min) and notify you. No Firebase — polling only.",
+            "Check for replies & messages in the background and notify you. No Firebase — polling only.",
             s.notifyInbox
         ) { v in
             Task {
                 await toggleInboxNotifications(v)
                 prompts.refresh += 1
+            }
+        }
+        // How often (#188): less often saves battery and Reddit requests.
+        if s.notifyInbox {
+            b.picker("Check every", value: s.inboxCheckMinutes,
+                     options: [15, 30, 60, 180, 360].map { PickOption(value: $0, label: InboxNotifications.intervalLabel($0)) }) { v in
+                app.settings.setInboxCheckMinutes(v)
+                InboxNotifications.registerPolling()
             }
         }
         b.link("Notification activity", "What Ilay notified you about, what it couldn't, and why · Check now", .notificationActivity)
@@ -1055,7 +1063,7 @@ private func dayLabel(_ days: Int) -> String { days == 1 ? "1 day" : "\(days) da
     // notification for every pre-existing item, then start the periodic poll.
     _ = await app.inbox.pollInbox(notify: false)
     app.inbox.registerPolling()
-    nav.showSnackbar("Inbox notifications on. Reddit is checked about every 15 minutes.")
+    nav.showSnackbar("Inbox notifications on. Reddit is checked about every \(InboxNotifications.intervalLabel(app.settings.value.inboxCheckMinutes)).")
 }
 
 @MainActor private func checkUpdatesNow() async {

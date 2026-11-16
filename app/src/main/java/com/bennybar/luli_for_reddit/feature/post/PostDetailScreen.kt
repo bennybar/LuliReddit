@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.StrokeCap
@@ -1524,7 +1526,8 @@ private fun CommentTile(
     val nameColor = when {
         isMod -> Color(0xFF4CAF50)
         isOwn -> cs.primary
-        else -> cs.onSurface
+        // The theme's softer tone, so a name stands apart from the text under it (#185).
+        else -> cs.secondary
     }
     val edge = railColors[(depth - 1).coerceIn(0, railColors.size - 1)].copy(alpha = 0.9f)
     // Settings → Mark what you voted on: a glow, or an edge on the other side.
@@ -1778,6 +1781,25 @@ private fun CommentActionsRow(c: Comment, isOwn: Boolean, actions: ThreadActions
     }
 }
 
+/** A comment's text in a sheet, to select any part of it and copy that (#198). */
+@OptIn(ExperimentalMaterial3Api::class)
+private fun showSelectText(body: String) {
+    Overlays.launch { done ->
+        ModalBottomSheet(onDismissRequest = done) {
+            Column(
+                Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding()
+                    .padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
+            ) {
+                Text("Select text", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(4.dp))
+                Text("Long press a word, then drag to choose", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(12.dp))
+                RedditMarkdown(body, selectable = true)
+            }
+        }
+    }
+}
+
 /** The comment ⋯ menu's entries; [pick] closes the menu then runs the action. */
 @Composable
 private fun ColumnScope.CommentMenuItems(
@@ -1797,6 +1819,8 @@ private fun ColumnScope.CommentMenuItems(
                 onClick = { pick { actions.translate(c) } },
             )
             DropdownMenuItem(text = { Text("Copy text") }, onClick = { pick { copyToClipboard(c.body) } })
+            // Part of it (#198), as iOS's: long press stays collapse.
+            DropdownMenuItem(text = { Text("Select text") }, onClick = { pick { showSelectText(c.body) } })
             if (c.permalink.isNotEmpty()) DropdownMenuItem(text = { Text("Share") }, onClick = { pick { actions.share(c) } })
             DropdownMenuItem(text = { Text("Share as image") }, onClick = { pick { actions.shareImage(c) } })
         }
@@ -1928,7 +1952,8 @@ private fun CalmCommentRow(
     val nameColor = when {
         comment.distinguished == "moderator" -> Color(0xFF4CAF50)
         isOwn -> cs.primary
-        else -> cs.onSurface
+        // The theme's softer tone, so a name stands apart from the text under it (#185).
+        else -> cs.secondary
     }
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val toggle = { actions.toggle(comment) }

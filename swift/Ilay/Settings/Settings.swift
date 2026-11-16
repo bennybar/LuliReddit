@@ -262,6 +262,7 @@ struct Settings: Equatable, Sendable {
     var feedGalleryCarousel = true // galleries in feeds as a carousel (else one image at a time)
     var showApiUsage = false // show API usage instead of search on Posts screen
     var notifyInbox = false // background-poll the inbox + local notifications
+    var inboxCheckMinutes = 15 // how often (#188); iOS treats it as "not before"
     var homeFab: HomeFab = .off // floating button on Home
     var threadFabPosition: ThreadFabPosition = .right // where a thread's floating buttons sit (#126)
     var threadJumpOp: Bool = true // a thread's button for the original poster's comments (#126)

@@ -77,10 +77,17 @@ import UserNotifications
         return (try? await UNUserNotificationCenter.current().add(request)) != nil
     }
 
-    /// Asks for the next ~15-minute check. Replaces a pending one, so it's safe to repeat.
+    /// "15 minutes", "1 hour"…
+    static func intervalLabel(_ minutes: Int) -> String {
+        minutes < 60 ? "\(minutes) minutes" : minutes == 60 ? "1 hour" : "\(minutes / 60) hours"
+    }
+
+    /// Asks for the next check, no sooner than Settings' interval (#188; iOS picks the moment).
+    /// Replaces a pending one, so it's safe to repeat.
     static func registerPolling() {
         let request = BGAppRefreshTaskRequest(identifier: taskId)
-        request.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60)
+        let minutes = max(app.settings.value.inboxCheckMinutes, 15)
+        request.earliestBeginDate = Date(timeIntervalSinceNow: TimeInterval(minutes * 60))
         // Fails where background refresh isn't available (off in Settings, the simulator):
         // nothing to do, and Notification activity still has Check now.
         try? BGTaskScheduler.shared.submit(request)

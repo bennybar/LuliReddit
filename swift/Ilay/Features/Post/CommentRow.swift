@@ -219,7 +219,8 @@ struct CommentRowView: View {
 
     private var nameColor: Color {
         if c.distinguished == "moderator" { return .green }
-        return row.isOwn ? env.accent : .primary
+        // Others' a softer tone, so a name stands apart from the text under it (#185).
+        return row.isOwn ? env.accent : .secondary
     }
 
     private func body(of c: Comment) -> some View {

@@ -132,9 +132,19 @@ object InboxNotifications {
         } catch (_: SecurityException) { false /* permission revoked meanwhile */ }
     }
 
-    /** Registers the ~15-minute periodic poll (network required). */
+    /** How often Reddit is checked, in minutes (#188): Settings' choice; 15 is Android's shortest. */
+    fun checkMinutes(prefs: Prefs) = (prefs.getInt("inboxCheckMinutes") ?: 15).coerceAtLeast(15)
+
+    /** "15 minutes", "1 hour"… */
+    fun intervalLabel(minutes: Int) = when {
+        minutes < 60 -> "$minutes minutes"
+        minutes == 60 -> "1 hour"
+        else -> "${minutes / 60} hours"
+    }
+
+    /** Registers the periodic poll (network required), every [checkMinutes]. */
     fun registerPolling(context: Context, prefs: Prefs) {
-        val request = PeriodicWorkRequestBuilder<InboxPollWorker>(15, TimeUnit.MINUTES)
+        val request = PeriodicWorkRequestBuilder<InboxPollWorker>(checkMinutes(prefs).toLong(), TimeUnit.MINUTES)
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
             .build()
         // The Flutter build registered this unique work with its plugin's worker
@@ -142,7 +152,8 @@ object InboxNotifications {
         val replaced = prefs.getBool(NATIVE_WORK_PREF) == true
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             TASK_UNIQUE,
-            if (replaced) ExistingPeriodicWorkPolicy.KEEP else ExistingPeriodicWorkPolicy.CANCEL_AND_REENQUEUE,
+            // UPDATE: a new interval applies; the same one leaves the schedule as it is.
+            if (replaced) ExistingPeriodicWorkPolicy.UPDATE else ExistingPeriodicWorkPolicy.CANCEL_AND_REENQUEUE,
             request,
         )
         if (!replaced) prefs.setBool(NATIVE_WORK_PREF, true)
