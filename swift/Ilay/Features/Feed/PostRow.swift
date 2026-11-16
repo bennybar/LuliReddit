@@ -17,6 +17,8 @@ struct FeedRowConfig: Equatable {
     /// The whole list's width.
     var width: CGFloat
     var scale: CGFloat
+    /// Lines of a post's text (#186): Settings' choice; 0, the layout's own.
+    var postTextLines = 0
 
     /// Default and Mini are plain rows with hairlines; the others are cards on a grouped page.
     var isCarded: Bool { display != .large && display != .mini }
@@ -47,7 +49,8 @@ struct FeedRowConfig: Equatable {
             seedColor: s.seedColor,
             textScale: s.textScale,
             width: width ?? screen?.bounds.width ?? 402,
-            scale: screen?.scale ?? 3
+            scale: screen?.scale ?? 3,
+            postTextLines: s.postTextLines
         )
     }
 }

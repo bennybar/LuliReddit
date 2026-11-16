@@ -222,6 +222,7 @@ data class Settings(
     val subredditSorts: Map<String, SubredditSort> = emptyMap(), // by lowercase name; overrides defaultSort there
     val defaultCommentSort: String = "confidence", // reddit comment sort id
     val postDisplay: PostDisplay = PostDisplay.CALM,
+    val postTextLines: Int = 0, // a post's text in feeds, in lines (#186); 0: the layout's own (2–3)
     val commentStyle: CommentStyle = CommentStyle.SAME,
     val swipeActions: Boolean = true,
     val floatingChips: Boolean = true, // feeds: filter chips float under the top bar past the list's own

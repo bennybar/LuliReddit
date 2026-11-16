@@ -501,7 +501,7 @@ private struct CardSnippet: View {
                 Text(row.snippet)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .lineLimit(lines)
+                    .lineLimit(row.config.postTextLines > 0 ? row.config.postTextLines : lines)
                     .multilineTextAlignment(.leading)
             }
             .padding(.top, 6)

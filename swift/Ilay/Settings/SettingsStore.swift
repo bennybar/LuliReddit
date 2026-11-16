@@ -59,6 +59,7 @@ final class SettingsStore {
         }
         s.defaultCommentSort = p.getString("defaultCommentSort") ?? s.defaultCommentSort
         s.postDisplay = idx("postDisplay", s.postDisplay)
+        s.postTextLines = p.getInt("postTextLines") ?? s.postTextLines
         s.commentStyle = idx("commentStyle", s.commentStyle)
         s.swipeActions = b("swipeActions", s.swipeActions)
         s.floatingChips = b("floatingChips", s.floatingChips)
@@ -149,6 +150,7 @@ final class SettingsStore {
 
     func setDefaultCommentSort(_ v: String) { p.setString("defaultCommentSort", v); set { $0.defaultCommentSort = v } }
     func setPostDisplay(_ v: PostDisplay) { p.setInt("postDisplay", v.rawValue); set { $0.postDisplay = v } }
+    func setPostTextLines(_ v: Int) { p.setInt("postTextLines", v); set { $0.postTextLines = v } }
     func setCommentStyle(_ v: CommentStyle) { p.setInt("commentStyle", v.rawValue); set { $0.commentStyle = v } }
     func setSwipeActions(_ v: Bool) { p.setBool("swipeActions", v); set { $0.swipeActions = v } }
     func setFloatingChips(_ v: Bool) { p.setBool("floatingChips", v); set { $0.floatingChips = v } }

@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.settings
 
+import androidx.compose.material.icons.automirrored.rounded.Notes
 import com.bennybar.luli_for_reddit.feature.inbox.InboxNotifications
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.rounded.Repeat
@@ -373,6 +374,11 @@ fun SettingsList(
         tile("Post display", s.postDisplay.label, s.postDisplay.icon, onClick = launch {
             pickOption(PostDisplay.entries.map { PickOption(it, it.label, icon = it.icon) }, s.postDisplay)
                 ?.let(ctrl::setPostDisplay)
+        })
+        // How much of a post's text feeds show (#186).
+        val textLines = listOf(PickOption(0, "Layout's default", "2 or 3 lines"), PickOption(5, "5 lines"), PickOption(10, "10 lines"))
+        tile("Post text in feeds", textLines.first { it.value == s.postTextLines }.label, Icons.AutoMirrored.Rounded.Notes, onClick = launch {
+            pickOption(textLines, s.postTextLines)?.let(ctrl::setPostTextLines)
         })
         switch(
             "Subreddit icons", "Show each community's icon on posts instead of its first letter",

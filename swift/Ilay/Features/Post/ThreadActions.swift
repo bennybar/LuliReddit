@@ -183,10 +183,11 @@ import SwiftUI
 
         var groups: [UIMenuElement] = [group(share), group(text)]
         if isOwn {
-            groups.append(group([
+            // Your own comment's first (#203): editing is what you're most likely after.
+            groups.insert(group([
                 item("Edit", "pencil") { [self] in edit(c) },
                 item("Delete", "trash", destructive: true) { [self] in delete(c) },
-            ]))
+            ]), at: 0)
         } else if c.author != "[deleted]" {
             groups.append(group([
                 item("Report", "flag") { [self] in report(c) },

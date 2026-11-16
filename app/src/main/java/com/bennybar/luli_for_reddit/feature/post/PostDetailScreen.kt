@@ -1809,9 +1809,15 @@ private fun ColumnScope.CommentMenuItems(
     withSave: Boolean = false,
     pick: (() -> Unit) -> Unit,
 ) {
-    // Material 3 Expressive menu groups: share-ish actions, then yours (or
-    // block), then moderator actions.
+    // Material 3 Expressive menu groups: share-ish actions, then block,
+    // then moderator actions. Your own comment's Edit / Delete come first (#203).
     val groups = buildList<@Composable ColumnScope.() -> Unit> {
+        if (isOwn) {
+            add {
+                DropdownMenuItem(text = { Text("Edit") }, onClick = { pick { actions.edit(c) } })
+                DropdownMenuItem(text = { Text("Delete") }, onClick = { pick { actions.delete(c) } })
+            }
+        }
         add {
             if (withSave) DropdownMenuItem(text = { Text(if (c.saved) "Unsave" else "Save") }, onClick = { pick { actions.toggleSave(c) } })
             DropdownMenuItem(
@@ -1824,12 +1830,7 @@ private fun ColumnScope.CommentMenuItems(
             if (c.permalink.isNotEmpty()) DropdownMenuItem(text = { Text("Share") }, onClick = { pick { actions.share(c) } })
             DropdownMenuItem(text = { Text("Share as image") }, onClick = { pick { actions.shareImage(c) } })
         }
-        if (isOwn) {
-            add {
-                DropdownMenuItem(text = { Text("Edit") }, onClick = { pick { actions.edit(c) } })
-                DropdownMenuItem(text = { Text("Delete") }, onClick = { pick { actions.delete(c) } })
-            }
-        } else if (c.author != "[deleted]") {
+        if (!isOwn && c.author != "[deleted]") {
             add { DropdownMenuItem(text = { Text("Block u/${c.author}") }, onClick = { pick { actions.block(c) } }) }
         }
         // Moderators of this community (the post says so) can act on comments too.

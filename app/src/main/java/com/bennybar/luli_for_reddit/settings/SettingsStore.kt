@@ -66,6 +66,7 @@ class SettingsStore(private val p: Prefs) {
             }.toMap(),
             defaultCommentSort = p.getString("defaultCommentSort") ?: d.defaultCommentSort,
             postDisplay = idx(PostDisplay.entries.toTypedArray(), "postDisplay", d.postDisplay),
+            postTextLines = p.getInt("postTextLines") ?: d.postTextLines,
             commentStyle = idx(CommentStyle.entries.toTypedArray(), "commentStyle", d.commentStyle),
             swipeActions = b("swipeActions", d.swipeActions),
             floatingChips = b("floatingChips", d.floatingChips),
@@ -159,6 +160,7 @@ class SettingsStore(private val p: Prefs) {
     }
     fun setDefaultCommentSort(v: String) { p.setString("defaultCommentSort", v); set { it.copy(defaultCommentSort = v) } }
     fun setPostDisplay(v: PostDisplay) { p.setInt("postDisplay", v.ordinal); set { it.copy(postDisplay = v) } }
+    fun setPostTextLines(v: Int) { p.setInt("postTextLines", v); set { it.copy(postTextLines = v) } }
     fun setCommentStyle(v: CommentStyle) { p.setInt("commentStyle", v.ordinal); set { it.copy(commentStyle = v) } }
     fun setSwipeActions(v: Boolean) { p.setBool("swipeActions", v); set { it.copy(swipeActions = v) } }
     fun setFloatingChips(v: Boolean) { p.setBool("floatingChips", v); set { it.copy(floatingChips = v) } }

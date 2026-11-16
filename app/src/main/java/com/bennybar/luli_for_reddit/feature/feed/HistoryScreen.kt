@@ -188,7 +188,7 @@ fun HistoryScreen() {
                     // A row's outer corners are round only where the container starts or ends, as in Settings.
                     val top = if (i == 0) 24.dp else 4.dp
                     val bottom = if (i == entries.lastIndex) 24.dp else 4.dp
-                    val spec = remember(e.id) { SwipeSpec(Icons.Rounded.DeleteOutline, removeColor) {
+                    val spec = remember(e.id) { SwipeSpec(Icons.Rounded.DeleteOutline, removeColor, removes = true) {
                         app.history.removeViewed(e.id)
                         // Swiped by accident: Undo puts it back (#154).
                         nav.showSnackbar("Removed from History", actionLabel = "Undo") { app.history.restore(e) }

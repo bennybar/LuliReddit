@@ -497,7 +497,7 @@ private fun LargeCard(p: Post, a: PostActions, s: Settings, dim: Modifier, glow:
                 Text(
                     p.snippet,
                     Modifier.readDim(),
-                        maxLines = 3,
+                        maxLines = s.textLines(3),
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium,
                     color = cs.onSurfaceVariant,
@@ -538,7 +538,7 @@ private fun CardsCard(p: Post, a: PostActions, s: Settings, dim: Modifier, glow:
                 Text(
                     p.snippet,
                     Modifier.readDim(),
-                        maxLines = 2,
+                        maxLines = s.textLines(2),
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium,
                     color = cs.onSurfaceVariant,
@@ -1238,6 +1238,9 @@ private fun CalmCardsCard(p: Post, a: PostActions, s: Settings, dim: Modifier, g
     }
 }
 
+/** How many lines of a post's text a card shows: Settings' choice (#186), else the layout's [own]. */
+private fun Settings.textLines(own: Int) = if (postTextLines > 0) postTextLines else own
+
 /** Header, title, flair, crosspost, media (when [mediaShape] is set), poll and selftext. */
 @Composable
 private fun CalmBody(p: Post, a: PostActions, s: Settings, mediaShape: androidx.compose.ui.graphics.Shape?) {
@@ -1264,7 +1267,7 @@ private fun CalmBody(p: Post, a: PostActions, s: Settings, mediaShape: androidx.
         Text(
             p.snippet,
             Modifier.padding(top = 6.dp).readDim(),
-            maxLines = 2,
+            maxLines = s.textLines(2),
             overflow = TextOverflow.Ellipsis,
             fontSize = 14.sp,
             color = cs.onSurfaceVariant,

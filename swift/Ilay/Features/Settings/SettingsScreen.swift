@@ -123,6 +123,10 @@ struct SettingsCatalog {
     private func feed(_ b: RowBuilder) {
         b.section("Feed")
         b.picker("Post display", value: s.postDisplay, options: PostDisplay.allCases.map { PickOption(value: $0, label: $0.label, icon: $0.icon) }, set: ctrl.setPostDisplay)
+        // How much of a post's text feeds show (#186).
+        b.picker("Post text in feeds", value: s.postTextLines,
+                 options: [PickOption(value: 0, label: "Layout's default"), PickOption(value: 5, label: "5 lines"), PickOption(value: 10, label: "10 lines")],
+                 set: ctrl.setPostTextLines)
         b.toggle("Subreddit icons", "Show each community's icon on posts instead of its first letter", s.subredditIcons, set: ctrl.setSubredditIcons)
         b.picker("Default sort", value: s.defaultSort, options: PostSort.allCases.map { PickOption(value: $0, label: $0.label) }, set: ctrl.setDefaultSort)
         b.toggle(

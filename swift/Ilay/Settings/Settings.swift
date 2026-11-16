@@ -226,6 +226,7 @@ struct Settings: Equatable, Sendable {
     var subredditSorts: [String: SubredditSort] = [:] // by lowercase name; overrides defaultSort there
     var defaultCommentSort = "confidence" // reddit comment sort id
     var postDisplay: PostDisplay = .calm
+    var postTextLines = 0 // a post's text in feeds, in lines (#186); 0: the layout's own (2–3)
     var commentStyle: CommentStyle = .same
     var swipeActions = true
     var floatingChips = true // Home: filter chips float under the top bar past the list's own

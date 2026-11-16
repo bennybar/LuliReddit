@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import kotlinx.coroutines.delay
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -52,7 +54,8 @@ import kotlin.math.roundToInt
 
 /** One side of a swipe: what it shows while dragging, and what it does. */
 @Stable
-class SwipeSpec(val icon: ImageVector, val color: Color, val onTrigger: () -> Unit)
+/** [removes]: the action takes the row away (History's remove), so it slides all the way out first (#183). */
+class SwipeSpec(val icon: ImageVector, val color: Color, val removes: Boolean = false, val onTrigger: () -> Unit)
 
 /**
  * The swipe gesture's state machine, free of UI (unit-tested). A drag of
@@ -166,7 +169,8 @@ fun SwipeActions(
     val scope = rememberCoroutineScope()
     val threshold = with(density) { 64.dp.toPx() }
     // Far enough for the pill to take real space, with the row still in view.
-    val maxDrag = LocalWindowInfo.current.containerSize.width * 0.45f
+    val rowWidth = LocalWindowInfo.current.containerSize.width.toFloat()
+    val maxDrag = rowWidth * 0.45f
     val tracker = remember(threshold, maxDrag) { SwipeTracker(threshold = threshold, maxDrag = maxDrag) }
     // The visible offset: follows the finger, then springs back on release.
     val offset = remember { Animatable(0f) }
@@ -187,11 +191,25 @@ fun SwipeActions(
                 onDragEnd = {
                     val side = tracker.release(rtl)
                     armed = 0f
-                    scope.launch { offset.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow)) }
-                    when (side) {
-                        SwipeTracker.Side.START -> startSpec?.onTrigger?.invoke()
-                        SwipeTracker.Side.END -> endSpec?.onTrigger?.invoke()
-                        null -> {}
+                    val spec = when (side) {
+                        SwipeTracker.Side.START -> startSpec
+                        SwipeTracker.Side.END -> endSpec
+                        null -> null
+                    }
+                    if (spec?.removes == true) {
+                        // Gmail's (#183): the row slides all the way out, its colour taking the
+                        // whole place, then goes; the list closes the gap. Still here a moment
+                        // later (nothing took it away): it comes back.
+                        val out = if (offset.value > 0f) rowWidth else -rowWidth
+                        scope.launch {
+                            offset.animateTo(out, tween(180))
+                            spec.onTrigger()
+                            delay(700)
+                            offset.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow))
+                        }
+                    } else {
+                        scope.launch { offset.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow)) }
+                        spec?.onTrigger?.invoke()
                     }
                 },
                 onDragCancel = {
