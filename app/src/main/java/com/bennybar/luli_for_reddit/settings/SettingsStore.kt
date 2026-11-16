@@ -121,6 +121,7 @@ class SettingsStore(private val p: Prefs) {
             exploreSections = ExploreSection.parse(p.getStringList(ExploreSection.PREFS_KEY)),
             navOutline = b("navOutline", d.navOutline),
             backScrollsToTop = b("backScrollsToTop", d.backScrollsToTop),
+            backLeavesApp = b("backLeavesApp", d.backLeavesApp),
             aiModel = p.getString("aiModel") ?: d.aiModel,
             aiSummaryStyle = p.getInt("aiSummaryStyle") ?: d.aiSummaryStyle,
             aiSummaryLanguage = p.getString("aiSummaryLanguage") ?: d.aiSummaryLanguage,
@@ -295,6 +296,7 @@ class SettingsStore(private val p: Prefs) {
     }
     fun setNavOutline(v: Boolean) { p.setBool("navOutline", v); set { it.copy(navOutline = v) } }
     fun setBackScrollsToTop(v: Boolean) { p.setBool("backScrollsToTop", v); set { it.copy(backScrollsToTop = v) } }
+    fun setBackLeavesApp(v: Boolean) { p.setBool("backLeavesApp", v); set { it.copy(backLeavesApp = v) } }
     fun setAiModel(v: String) { p.setString("aiModel", v); set { it.copy(aiModel = v) } }
     fun setAiSummaryStyle(v: Int) { p.setInt("aiSummaryStyle", v); set { it.copy(aiSummaryStyle = v) } }
     fun setAiSummaryLanguage(v: String) { p.setString("aiSummaryLanguage", v); set { it.copy(aiSummaryLanguage = v) } }

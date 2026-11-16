@@ -68,6 +68,7 @@ import androidx.compose.material.icons.rounded.VerticalAlignTop
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.DoNotDisturbOn
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ExitToApp
 import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.FilterAlt
@@ -628,8 +629,12 @@ fun SettingsList(
             )
         }
         switch(
-            "Back scrolls Posts to top", "On the Posts tab, back scrolls the feed to the top. Back never leaves the app",
+            "Back scrolls Posts to top", "On the Posts tab, back scrolls the feed to the top",
             Icons.Rounded.VerticalAlignTop, s.backScrollsToTop, ctrl::setBackScrollsToTop,
+        )
+        switch(
+            "Back leaves the app", "On the Posts tab, once there's nothing else for back to do. Off: back never leaves the app",
+            Icons.AutoMirrored.Rounded.ExitToApp, s.backLeavesApp, ctrl::setBackLeavesApp,
         )
         divider("appearance")
 

@@ -276,6 +276,7 @@ data class Settings(
     val exploreSections: List<ExploreEntry> = ExploreSection.parse(null), // Explore's sections, and their order (#161)
     val navOutline: Boolean = true, // thin outline around the floating bottom bar (#29)
     val backScrollsToTop: Boolean = true, // back on the Posts tab scrolls the feed to top
+    val backLeavesApp: Boolean = false, // back on Posts, with nothing left to do, leaves the app (#206)
     val aiModel: String = "gpt-5.4-mini", // OpenAI(-compatible) model id for summaries
     val aiSummaryStyle: Int = 1, // index into SummaryStyle (Key points)
     val aiSummaryLanguage: String = "", // English name of the language summaries are written in; "" = the thread's own

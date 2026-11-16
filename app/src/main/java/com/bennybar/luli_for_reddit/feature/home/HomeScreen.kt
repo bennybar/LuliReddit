@@ -132,6 +132,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.bennybar.luli_for_reddit.app
 import com.bennybar.luli_for_reddit.core.UpdateChecker
 import com.bennybar.luli_for_reddit.feature.inbox.InboxScreen
+import com.bennybar.luli_for_reddit.feature.media.findActivity
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.Route
 import com.bennybar.luli_for_reddit.ui.Overlays
@@ -268,7 +269,9 @@ fun HomeScreen() {
         }
     }
 
-    // Back never leaves the app from here. With the side bar on: to the top of
+    // Back never leaves the app from here, unless "Back leaves the app" is on
+    // (#206): then it leaves once there's nothing else to do (instead of
+    // opening the side bar, or doing nothing). With the side bar on: to the top of
     // the page, then to Posts (#70), then it opens the side bar (so the edge
     // swipe that gesture navigation keeps for Back still brings it out; Back
     // again closes it). Otherwise,
@@ -288,15 +291,21 @@ fun HomeScreen() {
             } else if (index != 0) {
                 index = 0
                 chrome = true
+            } else if (app.settings.value.backLeavesApp) {
+                context.findActivity()?.moveTaskToBack(true)
             } else {
                 shellScope.launch { drawer.open() }
             }
         } else if (index != 0) {
             index = 0
             chrome = true
-        } else if (app.settings.value.backScrollsToTop) {
+        } else if (app.settings.value.backScrollsToTop && !(app.settings.value.backLeavesApp && scrollConnection.nearTop())) {
             app.feed.frontpageBackSignal.value++
+            scrollConnection.fromTop[index] = 0f // that scroll isn't seen by the connection
             chrome = true
+        } else if (app.settings.value.backLeavesApp) {
+            // Like the system's own back on a launcher activity: to the background, state kept.
+            context.findActivity()?.moveTaskToBack(true)
         }
     }
 
