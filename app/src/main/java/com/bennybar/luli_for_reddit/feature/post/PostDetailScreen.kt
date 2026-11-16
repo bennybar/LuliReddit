@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalDensity
@@ -1706,16 +1707,23 @@ internal fun Modifier.voteGlow(color: Color?, rtl: Boolean, fadeTop: Boolean = f
 private fun FlairChip(flair: UserFlair, modifier: Modifier = Modifier) {
     val cs = MaterialTheme.colorScheme
     val (text, emoji) = com.bennybar.luli_for_reddit.feature.feed.rememberFlairText(flair)
-    Text(
-        text,
-        // Lightly tinted, as post flairs are (#131).
-        modifier.widthIn(max = 160.dp).clip(RoundedCornerShape(6.dp)).background(cs.secondaryContainer).padding(horizontal = 6.dp, vertical = 1.dp),
-        fontSize = 11.sp,
-        color = cs.onSecondaryContainer,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        inlineContent = emoji,
-    )
+    // Beside a long name there may be next to no room left: then no chip, rather than an
+    // empty one or a lone "…" (#193). An image-only flair needs less than one with words.
+    if (flair.parts.none { !it.text.isNullOrBlank() || it.emojiUrl != null }) return // blank: nothing to show
+    val wordless = flair.parts.all { it.text.isNullOrBlank() }
+    BoxWithConstraints(modifier) {
+        if (maxWidth < if (wordless) 30.dp else 52.dp) return@BoxWithConstraints
+        Text(
+            text,
+            // Lightly tinted, as post flairs are (#131).
+            Modifier.widthIn(max = 200.dp).clip(RoundedCornerShape(6.dp)).background(cs.secondaryContainer).padding(horizontal = 6.dp, vertical = 1.dp),
+            fontSize = 11.sp,
+            color = cs.onSecondaryContainer,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            inlineContent = emoji,
+        )
+    }
 }
 
 @Composable

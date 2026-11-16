@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.feature.markdown.RedditMarkdown
 import com.bennybar.luli_for_reddit.ui.SearchIcon
 import com.bennybar.luli_for_reddit.ui.subredditName
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -242,7 +243,8 @@ private fun SubredditHeader(s: Subreddit, vm: SubredditAboutViewModel) {
                 }
                 if (s.description.isNotEmpty()) {
                     Spacer(Modifier.height(12.dp))
-                    Text(s.description, color = cs.onSurfaceVariant)
+                    // Reddit text: its links open (#194).
+                    RedditMarkdown(s.description, color = cs.onSurfaceVariant)
                 }
             }
         }
@@ -272,7 +274,7 @@ private suspend fun showAbout(name: String, about: Subreddit?) {
                     OwnSort(name)
                     if (about != null && about.description.isNotEmpty()) {
                         Spacer(Modifier.height(12.dp))
-                        Text(about.description)
+                        RedditMarkdown(about.description)
                     }
                     Spacer(Modifier.height(18.dp))
                     SectionHeader("Rules")
@@ -304,7 +306,7 @@ private fun RuleTile(index: Int, title: String, description: String) {
             Icon(if (open) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null)
         }
         AnimatedVisibility(open) {
-            if (description.isNotEmpty()) Text(description, Modifier.padding(bottom = 12.dp))
+            if (description.isNotEmpty()) RedditMarkdown(description, Modifier.padding(bottom = 12.dp))
         }
     }
 }

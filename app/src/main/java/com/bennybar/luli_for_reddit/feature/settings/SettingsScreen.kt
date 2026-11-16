@@ -383,9 +383,10 @@ fun SettingsList(
             "Posts tab shows r/all", "Instead of your frontpage, which Explore's All button opens then. For You, Blend and Reddit Home don't apply.",
             Icons.Rounded.Public, s.postsTabAll, ctrl::setPostsTabAll,
         )
+        // What Home shows, as the chips at its top (#199): picking Best there turns it off.
         switch(
-            "\"For You\" feed",
-            "A personalized frontpage, built on your phone from what you read and like",
+            "Home shows For You",
+            "Your personalized frontpage, built on your phone. Same as picking For You at the top of Home",
             Icons.Rounded.AutoAwesome, s.forYouFeed, ctrl::setForYouFeed,
         )
         switch(
@@ -412,8 +413,8 @@ fun SettingsList(
         })
         if (s.redditHomeAllowed) {
             switch(
-                "Blend (Beta)",
-                "For You also ranks your Reddit Home: Reddit's recommendations, under your For You choices",
+                "Home shows Blend (Beta)",
+                "For You also ranks your Reddit Home: Reddit's recommendations, under your For You choices. Same as picking Blend on Home",
                 Icons.Rounded.Merge, s.forYouFeed && s.blendHome,
             ) { v ->
                 ctrl.setBlendHome(v)

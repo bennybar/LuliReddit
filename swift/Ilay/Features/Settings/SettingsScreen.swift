@@ -129,7 +129,8 @@ struct SettingsCatalog {
             "Posts tab shows r/all", "Instead of your frontpage, which Explore's All button opens then. For You, Blend and Reddit Home don't apply.",
             s.postsTabAll, set: ctrl.setPostsTabAll
         )
-        b.toggle("\"For You\" feed", "A personalized frontpage, built on your phone from what you read and like", s.forYouFeed, set: ctrl.setForYouFeed)
+        // What Home shows, as the chips at its top (#199): picking Best there turns it off.
+        b.toggle("Home shows For You", "Your personalized frontpage, built on your phone. Same as picking For You at the top of Home", s.forYouFeed, set: ctrl.setForYouFeed)
         b.toggle("Auto-hide read items in \"For You\"", "Hide posts you've marked/opened as read", s.autoHideReadForYou, set: ctrl.setAutoHideReadForYou)
         b.custom("forYouDiscovery", title: "For You mix", search: "For You mix familiar discover new communities") {
             ForYouMixSlider(value: s.forYouDiscovery)
@@ -153,7 +154,7 @@ struct SettingsCatalog {
         }
         if s.redditHomeAllowed {
             b.toggle(
-                "Blend (Beta)", "For You also ranks your Reddit Home: Reddit's recommendations, under your For You choices",
+                "Home shows Blend (Beta)", "For You also ranks your Reddit Home: Reddit's recommendations, under your For You choices. Same as picking Blend on Home",
                 s.forYouFeed && s.blendHome
             ) { v in
                 app.settings.setBlendHome(v)

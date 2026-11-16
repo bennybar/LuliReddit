@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
@@ -148,6 +150,9 @@ fun HidingTopBar(bar: HidingBar, modifier: Modifier = Modifier, content: @Compos
             .onSizeChanged { bar.height = it.height }
             .offset { IntOffset(0, bar.shift.roundToInt()) }
             .background(cs.surface)
+            // Its empty space takes the tap: it floats over the list, and a tap there
+            // opened whatever post was under it (#196).
+            .pointerInput(Unit) { detectTapGestures { } }
             .then(modifier),
     ) { content() }
 }

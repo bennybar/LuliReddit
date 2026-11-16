@@ -160,7 +160,8 @@ private struct SubredditHeader: View {
                         .accessibilityAddTraits(subscribed ? .isSelected : [])
                 }
                 if !s.description.isEmpty {
-                    Text(s.description).font(.subheadline).foregroundStyle(.secondary)
+                    // Reddit text: its links open (#194).
+                    RedditMarkdown(text: s.description, fontSize: 15, color: .secondary)
                 }
             }
             .padding(.horizontal, 16)
@@ -211,7 +212,7 @@ private struct SubredditAboutSheet: View {
                     }
                     if signedIn { YourFlair(sub: name) }
                     OwnSort(sub: name)
-                    if let about, !about.description.isEmpty { Text(about.description) }
+                    if let about, !about.description.isEmpty { RedditMarkdown(text: about.description) }
                 }
                 Section("Rules") {
                     if let rules {
@@ -219,7 +220,7 @@ private struct SubredditAboutSheet: View {
                         ForEach(rules.indices, id: \.self) { i in
                             // Expandable, without a row for an empty description's text.
                             DisclosureGroup {
-                                if !rules[i].description.isEmpty { Text(rules[i].description).font(.subheadline) }
+                                if !rules[i].description.isEmpty { RedditMarkdown(text: rules[i].description, fontSize: 15) }
                             } label: {
                                 Text("\(i + 1). \(rules[i].title)").fontWeight(.semibold)
                             }

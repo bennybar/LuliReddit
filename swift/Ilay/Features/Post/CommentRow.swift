@@ -494,15 +494,29 @@ private struct Tag: View {
 }
 
 /// A user's flair in this community, next to their name (#31): its text, with its emoji drawn inline.
+/// Beside a long name it shortens, and with next to no room it's left out rather than shown
+/// as an empty chip (#193).
 struct FlairChip: View {
     let flair: UserFlair
 
     var body: some View {
+        if flair.parts.contains(where: { !($0.text ?? "").trimmed.isEmpty || $0.emojiUrl != nil }) {
+            ViewThatFits(in: .horizontal) {
+                chip
+                chip.frame(width: 90, alignment: .leading)
+                chip.frame(width: 52, alignment: .leading)
+                EmptyView()
+            }
+        }
+    }
+
+    private var chip: some View {
         HStack(spacing: 2) {
             ForEach(Array(flair.parts.enumerated()), id: \.offset) { _, part in
                 if let url = part.emojiUrl.flatMap(URL.init(string:)) {
+                    // Big enough to make out (#193): Reddit's flair images are small.
                     RemoteImage(url: url, contentMode: .fit, maxPixelSize: 48) { Color.clear }
-                        .frame(width: 13, height: 13)
+                        .frame(width: 16, height: 16)
                 } else if let text = part.text {
                     Text(verbatim: text).lineLimit(1)
                 }
@@ -513,7 +527,7 @@ struct FlairChip: View {
         .padding(.horizontal, 5)
         .padding(.vertical, 1)
         .background(.tint.opacity(0.16), in: .rect(cornerRadius: 4)) // tinted, as post flairs (#131)
-        .frame(maxWidth: 140, alignment: .leading)
+        .frame(maxWidth: 180, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
     }
 }

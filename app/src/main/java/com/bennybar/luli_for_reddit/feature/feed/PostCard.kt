@@ -766,7 +766,8 @@ internal fun rememberFlairText(flair: UserFlair): Pair<AnnotatedString, Map<Stri
             if (p.emojiUrl != null) {
                 val id = "e$i"
                 appendInlineContent(id, "□")
-                emoji[id] = InlineTextContent(Placeholder(14.sp, 14.sp, PlaceholderVerticalAlign.TextCenter)) {
+                // Big enough to make out (#193): Reddit's flair images are small.
+                emoji[id] = InlineTextContent(Placeholder(16.sp, 16.sp, PlaceholderVerticalAlign.TextCenter)) {
                     AsyncImage(p.emojiUrl, null, Modifier.fillMaxSize())
                 }
                 // Some flairs have no space of their own after the image.
