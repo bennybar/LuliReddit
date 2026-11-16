@@ -45,6 +45,15 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.91", "Nov 16, 2026",
+        listOf(
+            "New setting: Back leaves the app (Appearance). Off by default: when on, back on Posts leaves once there's nothing else for it to do",
+            "Shorter For You tags: \"From r/x\" for communities you engage with, \"Subscribed · r/x\" for yours, and a fire icon for Trending",
+            "When the next page fails to load, the feed says so with a Retry button instead of just stopping. Profile, Saved and Search lists show where they end",
+            "Swiping to delete a message asks first",
+        ),
+    ),
+    Release(
         "2.0.90", "Nov 16, 2026",
         listOf(
             "Spoiler posts keep their text covered, in feeds and in the thread, until you tap it",
