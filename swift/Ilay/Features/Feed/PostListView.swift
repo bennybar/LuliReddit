@@ -227,6 +227,8 @@ private enum FeedItem: Hashable {
     private var dwell = VisibilityDwell()
     private var dwellTimer: Timer?
     private var lastViewing: String?
+    /// The card at the top of the screen last time: the ones before it have been scrolled past.
+    private var lastTop: String?
     private var lastContentOffset: CGFloat = 0
     /// The one row of chips: a view over the list rather than a cell, since it's sometimes
     /// in the list's flow and sometimes floating. A blank `.chips` row keeps its place.
@@ -725,8 +727,8 @@ private enum FeedItem: Hashable {
     }
 
     /// For You impressions (shown-but-never-opened posts get demoted on the next build),
-    /// "mark read on scroll", and Home following the card on screen all need to know
-    /// what was seen. A light look four times a second, only when one of them is on.
+    /// "mark read on scroll" (what was scrolled past), and Home following the card on
+    /// screen all need to know what's on screen. A light look four times a second, only when one of them is on.
     private func updateDwellTimer() {
         let needed = collectionView.window != nil && (model.markReadOnScroll || model.followsHome || model.deckMode)
         if !needed {
@@ -765,9 +767,19 @@ private enum FeedItem: Hashable {
         for id in seen {
             guard let post = rows[id]?.post else { continue }
             if post.feedReason != nil { app.feed.engines?.learner.impression(post) }
-            // "Mark read on scroll": a card actually seen counts as read (history only —
-            // no interest learning, which is for real engagement).
-            if settings.markReadOnScroll, settings.trackHistory { app.history.markViewed(post) }
+        }
+        // "Mark read on scroll" (#201): a post counts as read once it has gone off the top of
+        // the screen, scrolled past (a fling past counts too), not as soon as it was seen.
+        // History only: no interest learning, which is for real engagement.
+        if settings.markReadOnScroll, settings.trackHistory, let firstId, firstId != lastTop {
+            let snap = dataSource.snapshot()
+            let order = snap.sectionIdentifiers.contains(.feed) ? snap.itemIdentifiers(inSection: .feed) : []
+            if let old = lastTop, let from = order.firstIndex(of: .post(old)), let to = order.firstIndex(of: .post(firstId)), to > from {
+                for case let .post(id) in order[from..<to] {
+                    if let post = rows[id]?.post { app.history.markViewed(post) }
+                }
+            }
+            lastTop = firstId
         }
         // Home (and Blend's Home posts): follow the card on screen in the hidden
         // reddit.com page, so Reddit's own "seen" tracking matches what was actually read

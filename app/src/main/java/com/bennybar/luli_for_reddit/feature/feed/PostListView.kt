@@ -546,6 +546,20 @@ private fun FeedList(
             }
     }
 
+    // Settings › Mark read on scroll (#201): a post counts as read once it has gone off the
+    // top of the screen, scrolled past, not as soon as it has been on screen a second.
+    LaunchedEffect(listState) {
+        var prev = listState.firstVisibleItemIndex
+        snapshotFlow { listState.firstVisibleItemIndex }.collect { first ->
+            val s = app.settings.value
+            if (first > prev && s.markReadOnScroll && s.trackHistory) {
+                val ps = latestPosts
+                for (row in prev until first) ps.getOrNull(row - firstPostRow)?.let(app.history::markViewed)
+            }
+            prev = first
+        }
+    }
+
     LazyColumn(
         Modifier.fillMaxSize(),
         state = listState,

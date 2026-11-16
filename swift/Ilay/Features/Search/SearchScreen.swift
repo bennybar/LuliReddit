@@ -196,6 +196,8 @@ struct SearchScreen: View {
     @State private var vm: SearchViewModel
     @State private var text: String
     @State private var tab = "Posts"
+    /// Communities named like what's being typed (#190), asked once typing pauses.
+    @State private var suggestions: [Subreddit] = []
     @FocusState private var focused: Bool
 
     init(subreddit: String?, query: String?, sort: String? = nil, time: String? = nil) {
@@ -246,6 +248,23 @@ struct SearchScreen: View {
         .searchable(text: $text, placement: .navigationBarDrawer(displayMode: .always), prompt: restricted ? "Search in r/\(subreddit ?? "")" : "Search Reddit")
         .searchFocused($focused)
         .onSubmit(of: .search) { doSearch(text) }
+        // While typing: communities named like it, under the field. One small request a
+        // pause; none inside a subreddit's search.
+        .searchSuggestions {
+            ForEach(suggestions, id: \.name) { s in
+                ResultRow(name: s.name, iconUrl: s.iconUrl, title: s.namePrefixed, subtitle: "\(compactNumber(s.subscribers)) members", route: .subreddit(name: s.name)) {
+                    vm.rememberOpened(kind: "r", name: s.name, icon: s.iconUrl)
+                }
+            }
+        }
+        .task(id: text) {
+            let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !restricted, t.count >= 2, t != vm.query else { suggestions = []; return }
+            try? await Task.sleep(for: .milliseconds(350))
+            if Task.isCancelled { return }
+            let hideNsfw = app.contentFilters.value.hideNsfw
+            if let found = try? await app.repository.subredditSuggestions(t) { suggestions = found.filter { !(hideNsfw && $0.over18) } }
+        }
         // The field's ✕ (and Cancel): back to saved and recent searches.
         .onChange(of: text) { _, new in
             if new.isEmpty && !vm.query.isEmpty { vm.clear() }

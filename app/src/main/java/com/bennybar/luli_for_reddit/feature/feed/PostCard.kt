@@ -368,18 +368,13 @@ fun PostCard(listed: Post, modifier: Modifier = Modifier, swipeOverride: Pair<Sw
 
     var outer: Modifier = modifier
     // For You impressions (shown-but-never-opened posts get demoted on the
-    // next build) and "mark read on scroll" both need to know what was seen.
-    // A card flung past mid-scroll wasn't really seen; counting it would bury
-    // posts the user never had a chance to read. Only a card that sits ≥60%
-    // visible for a second counts as shown.
-    if (reason != null || settings.markReadOnScroll) {
+    // next build) need to know what was seen. A card flung past mid-scroll
+    // wasn't really seen; counting it would bury posts the user never had a
+    // chance to read. Only a card that sits ≥60% visible for a second counts
+    // as shown. ("Mark read on scroll" is the list's: once scrolled past, #201.)
+    if (reason != null) {
         outer = outer.onVisibilityChanged(minDurationMs = 1000, minFractionVisible = 0.6f) { visible ->
-            if (!visible) return@onVisibilityChanged
-            if (post.feedReason != null) app.forYou.learner.impression(post)
-            // "Mark read on scroll": a card actually seen counts as read (history
-            // only — no interest learning, which is for real engagement).
-            val s = app.settings.value
-            if (s.markReadOnScroll && s.trackHistory) app.history.markViewed(post)
+            if (visible) app.forYou.learner.impression(post)
         }
     }
 

@@ -79,7 +79,11 @@ internal tailrec fun Context.findActivity(): Activity? = when (this) {
     else -> null
 }
 
-/** Hides the system bars while a viewer is open (swipe from an edge shows them briefly). */
+/**
+ * Hides the status bar while a viewer is open (a swipe from the top shows it briefly).
+ * Not the navigation bar (#189): hidden, the first edge swipe only brought it back, so
+ * leaving took two Back gestures; its handle is slim, and the viewer draws under it.
+ */
 @Composable
 internal fun ImmersiveMode() {
     val view = LocalView.current
@@ -87,8 +91,8 @@ internal fun ImmersiveMode() {
         val window = view.context.findActivity()?.window ?: return@DisposableEffect onDispose {}
         val controller = WindowCompat.getInsetsController(window, view)
         controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        controller.hide(WindowInsetsCompat.Type.systemBars())
-        onDispose { controller.show(WindowInsetsCompat.Type.systemBars()) }
+        controller.hide(WindowInsetsCompat.Type.statusBars())
+        onDispose { controller.show(WindowInsetsCompat.Type.statusBars()) }
     }
 }
 

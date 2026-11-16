@@ -2,6 +2,8 @@ package com.bennybar.luli_for_reddit.state
 
 import androidx.compose.runtime.staticCompositionLocalOf
 import com.bennybar.luli_for_reddit.app
+import com.bennybar.luli_for_reddit.feature.post.CommentTree
+import com.bennybar.luli_for_reddit.model.Comment
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -10,20 +12,30 @@ import kotlinx.coroutines.flow.update
 /**
  * Commenters' profile pictures (#133), by lowercased name. Reddit's comments .json has
  * none; its GraphQL comment forest has each author's, so with the website sign-in a
- * thread asks for its first page that way too (one more request) and keeps what comes
- * back here, for this thread and the next ones. In memory only.
+ * thread asks for its first page that way too (one more request). With an API key they
+ * come by account id, 100 a request, for at most the first 200 new commenters (#185).
+ * Kept here for this thread and the next ones. In memory only.
  */
 class AuthorAvatars {
     private val _icons = MutableStateFlow<Map<String, String>>(emptyMap())
     val icons: StateFlow<Map<String, String>> = _icons
     private val asked = HashSet<String>()
+    /** Account ids already asked for with an API key (found or not). */
+    private val askedIds = HashSet<String>()
 
-    /** Once per thread and sort; nothing without the website sign-in or with the setting off. */
-    suspend fun loadFor(postId: String, sort: String) {
+    /** Once per thread and sort ([comments]: its first page); nothing with the setting off. */
+    suspend fun loadFor(postId: String, sort: String, comments: List<Comment>) {
         if (!app.settings.value.commentAvatars || !asked.add("$postId|$sort")) return
         val found = try {
-            if (!app.client.isWebMode()) return
-            app.repository.getCommentAvatars(postId, sort)
+            if (app.client.isWebMode()) {
+                app.repository.getCommentAvatars(postId, sort)
+            } else {
+                val known = _icons.value
+                val ids = CommentTree.flatten(comments, emptySet())
+                    .filter { it.authorFullname.startsWith("t2_") && it.author.lowercase() !in known }
+                    .map { it.authorFullname }.distinct().filter { askedIds.add(it) }.take(200)
+                HashMap<String, String>().apply { for (batch in ids.chunked(100)) putAll(app.repository.getUserIcons(batch)) }
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {

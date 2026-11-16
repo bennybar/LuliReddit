@@ -32,7 +32,7 @@ struct ContentFiltersScreen: View {
                     SettingLabel(title: "Hide NSFW posts", subtitle: "Remove them from feeds and search instead of blurring")
                 }
                 Toggle(isOn: Binding(get: { filters.collapseAutoMod }, set: store.setCollapseAutoMod)) {
-                    SettingLabel(title: "Collapse AutoModerator", subtitle: "Start AutoModerator comments collapsed")
+                    SettingLabel(title: "Collapse AutoModerator and bots", subtitle: "Start AutoModerator's comments, and pinned comments by bots, collapsed")
                 }
             }
         }

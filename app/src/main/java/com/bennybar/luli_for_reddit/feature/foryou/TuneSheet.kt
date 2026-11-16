@@ -1,20 +1,16 @@
 package com.bennybar.luli_for_reddit.feature.foryou
 
+import com.bennybar.luli_for_reddit.feature.feed.MenuGroup
+import com.bennybar.luli_for_reddit.feature.feed.MenuLabel
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.HelpOutline
 import androidx.compose.material.icons.outlined.ThumbDown
 import androidx.compose.material.icons.outlined.ThumbUp
-import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Tag
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
@@ -22,8 +18,6 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,14 +26,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.bennybar.luli_for_reddit.app
@@ -77,94 +68,83 @@ fun showTuneSheet(post: Post) {
             val muted = sub.lowercase() in mutedSet
             val why = metaMap[post.id]?.why
 
-            @Composable
-            fun PrefTile(label: String, icon: ImageVector, on: Boolean, f: () -> Unit) = ListItem(
-                modifier = Modifier.clickable(onClick = f),
-                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                leadingContent = { Icon(icon, null, tint = if (on) cs.primary else cs.onSurfaceVariant) },
-                content = { Text(label) },
-                trailingContent = if (on) ({ Icon(Icons.Rounded.Check, null, tint = cs.primary) }) else null,
-            )
-
-            Row(Modifier.padding(start = 20.dp, top = 4.dp, end = 20.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(18.dp), tint = cs.primary)
-                Spacer(Modifier.width(8.dp))
-                Text("Tune For You", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-            }
+            // As every menu (#181, #197): rows in rounded groups, a set preference a tinted pill.
+            MenuLabel("Tune For You")
             if (!why.isNullOrEmpty()) {
                 var open by remember { mutableStateOf(false) }
                 val turn by animateFloatAsState(if (open) 180f else 0f, label = "chevron")
-                ListItem(
-                    modifier = Modifier.clickable { open = !open },
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    leadingContent = { Icon(Icons.AutoMirrored.Rounded.HelpOutline, null) },
-                    content = { Text("Why am I seeing this?") },
-                    trailingContent = { Icon(Icons.Rounded.ExpandMore, null, Modifier.rotate(turn)) },
-                )
+                MenuGroup {
+                    item(
+                        "Why am I seeing this?",
+                        Icons.AutoMirrored.Rounded.HelpOutline,
+                        trailing = { Icon(Icons.Rounded.ExpandMore, null, Modifier.rotate(turn)) },
+                    ) { open = !open }
+                }
                 AnimatedVisibility(open) {
-                    Column(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 8.dp)) {
+                    Column(Modifier.padding(start = 30.dp, end = 22.dp, bottom = 14.dp)) {
                         for (line in why) {
                             Text("• $line", color = cs.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
                         }
                     }
                 }
             }
-            PrefTile("More from r/$sub", Icons.Outlined.ThumbUp, subPref > 0) {
-                close {
-                    learner.subPreference(post, if (subPref > 0) 0 else 1)
-                    toast(if (subPref > 0) "Cleared" else "We'll show more from r/$sub")
+            MenuGroup {
+                item("More from r/$sub", Icons.Outlined.ThumbUp, selected = subPref > 0) {
+                    close {
+                        learner.subPreference(post, if (subPref > 0) 0 else 1)
+                        toast(if (subPref > 0) "Cleared" else "We'll show more from r/$sub")
+                    }
+                }
+                item("Less from r/$sub", Icons.Outlined.ThumbDown, selected = subPref < 0) {
+                    close {
+                        learner.subPreference(post, if (subPref < 0) 0 else -1)
+                        toast(if (subPref < 0) "Cleared" else "We'll show less from r/$sub")
+                    }
                 }
             }
-            PrefTile("Less from r/$sub", Icons.Outlined.ThumbDown, subPref < 0) {
-                close {
-                    learner.subPreference(post, if (subPref < 0) 0 else -1)
-                    toast(if (subPref < 0) "Cleared" else "We'll show less from r/$sub")
-                }
-            }
-            for (t in topics) {
-                ListItem(
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    leadingContent = { Icon(Icons.Rounded.Tag, null) },
-                    content = { Text("“$t”") },
-                    supportingContent = { Text("This topic, in any community") },
-                    trailingContent = {
-                        Row {
-                            for ((v, icon) in listOf(1 to Icons.Outlined.ThumbUp, -1 to Icons.Outlined.ThumbDown)) {
-                                val on = explicit.topics[t] == v
-                                IconButton(
-                                    onClick = {
-                                        close {
-                                            learner.topicPreference(t, if (on) 0 else v)
-                                            toast(
-                                                if (on) "Cleared"
-                                                else "We'll show ${if (v > 0) "more" else "less"} about “$t”",
-                                            )
-                                        }
-                                    },
-                                    colors = IconButtonDefaults.iconButtonColors(
-                                        contentColor = if (on) cs.primary else cs.onSurfaceVariant,
-                                    ),
-                                ) {
-                                    Icon(icon, contentDescription = "${if (v > 0) "More about" else "Less about"} “$t”")
+            MenuGroup {
+                for (t in topics) {
+                    item(
+                        "“$t”",
+                        Icons.Rounded.Tag,
+                        subtitle = "This topic, in any community",
+                        trailing = {
+                            Row {
+                                for ((v, icon) in listOf(1 to Icons.Outlined.ThumbUp, -1 to Icons.Outlined.ThumbDown)) {
+                                    val on = explicit.topics[t] == v
+                                    IconButton(
+                                        onClick = {
+                                            close {
+                                                learner.topicPreference(t, if (on) 0 else v)
+                                                toast(
+                                                    if (on) "Cleared"
+                                                    else "We'll show ${if (v > 0) "more" else "less"} about “$t”",
+                                                )
+                                            }
+                                        },
+                                        colors = IconButtonDefaults.iconButtonColors(
+                                            contentColor = if (on) cs.primary else cs.onSurfaceVariant,
+                                        ),
+                                    ) {
+                                        Icon(icon, contentDescription = "${if (v > 0) "More about" else "Less about"} “$t”")
+                                    }
                                 }
                             }
-                        }
-                    },
-                )
+                        },
+                    )
+                }
             }
-            ListItem(
-                modifier = Modifier.clickable {
+            MenuGroup {
+                item(
+                    if (muted) "Unmute r/$sub" else "Mute r/$sub in For You",
+                    if (muted) Icons.AutoMirrored.Rounded.VolumeUp else Icons.AutoMirrored.Rounded.VolumeOff,
+                ) {
                     close {
                         m.muted.toggle(sub)
                         toast(if (muted) "r/$sub unmuted" else "r/$sub muted from For You")
                     }
-                },
-                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                leadingContent = {
-                    Icon(if (muted) Icons.AutoMirrored.Rounded.VolumeUp else Icons.AutoMirrored.Rounded.VolumeOff, null)
-                },
-                content = { Text(if (muted) "Unmute r/$sub" else "Mute r/$sub in For You") },
-            )
+                }
+            }
         }
     }
 }

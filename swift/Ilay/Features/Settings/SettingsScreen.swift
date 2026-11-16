@@ -263,6 +263,9 @@ struct SettingsCatalog {
         ) { v in
             app.settings.setCollapseBelowScore(v == off ? nil : v)
         }
+        // The same switch as Content filters' (#202), where people look for collapsing.
+        b.toggle("Collapse AutoModerator and bots", "Start AutoModerator's comments, and pinned comments by bots, collapsed",
+                 app.contentFilters.value.collapseAutoMod, set: app.contentFilters.setCollapseAutoMod)
         b.toggle("Open threads collapsed", "Top-level comments show without their replies, each with a \"Show replies\" button", s.collapseTopLevel, set: ctrl.setCollapseTopLevel)
         b.toggle("Swipe actions", "Swipe posts and comments sideways", s.swipeActions, set: ctrl.setSwipeActions)
         if s.swipeActions {

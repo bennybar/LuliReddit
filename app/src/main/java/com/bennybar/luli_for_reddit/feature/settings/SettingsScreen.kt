@@ -678,6 +678,11 @@ fun SettingsList(
                 )?.let { ctrl.setCollapseBelowScore(it.takeIf { v -> v != Int.MIN_VALUE }) }
             },
         )
+        // The same switch as Content filters' (#202), where people look for collapsing.
+        switch(
+            "Collapse AutoModerator and bots", "Start AutoModerator's comments, and pinned comments by bots, collapsed",
+            Icons.Outlined.SmartToy, filters.collapseAutoMod, app.contentFilters::setCollapseAutoMod,
+        )
         switch(
             "Open threads collapsed",
             "Top-level comments show without their replies, each with a \"Show replies\" button",

@@ -138,7 +138,8 @@ class CommentsViewModel(
         }
         // Commenters' pictures come after, on their own request (#133).
         val avatarSort = sort
-        viewModelScope.launch { app.authorAvatars.loadFor(postId, avatarSort) }
+        val firstPage = t.comments
+        viewModelScope.launch { app.authorAvatars.loadFor(postId, avatarSort, firstPage) }
         val collapsed = startCollapsed(t.comments)
         // Fetch the full page only when the first one was cut short (it ends in
         // "load more" rows); a small thread is already complete.
@@ -358,8 +359,8 @@ class CommentsViewModel(
     }
 
     /**
-     * The comments a thread opens with collapsed: AutoModerator's (content
-     * filter), ones scoring below the "Collapse low-scoring comments" setting
+     * The comments a thread opens with collapsed: AutoModerator's and pinned
+     * bot comments (content filter), ones scoring below the "Collapse low-scoring comments" setting
      * (not your own), and with "Open threads collapsed" every top-level
      * comment's replies (folded: its own text stays). [skip]: ones already
      * shown, left as they are.
@@ -373,7 +374,8 @@ class CommentsViewModel(
         for (c in CommentTree.flatten(comments, emptySet())) {
             if (c.isMore || c.id in skip) continue
             when {
-                autoMod && c.author == "AutoModerator" -> out += c.id
+                // Pinned bot comments too (#202): a bot by its name, as Reddit's own say.
+                autoMod && (c.author == "AutoModerator" || (c.stickied && c.author.endsWith("bot", ignoreCase = true))) -> out += c.id
                 below != null && c.score < below && !c.scoreHidden && !c.author.equals(me, ignoreCase = true) -> out += c.id
                 s.collapseTopLevel && c.depth == 0 && c.replies.any { !it.isMore } -> out += CommentTree.folded(c.id)
             }

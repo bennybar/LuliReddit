@@ -486,6 +486,30 @@ class RedditRepository(val client: RedditClient) {
         return (json["data"]["children"].arr() ?: emptyList()).mapNotNull { it["data"]?.let(Subreddit::fromData) }
     }
 
+    /**
+     * Communities named like [query], for suggestions while typing (#190). The website
+     * sign-in has no autocomplete (404): it uses the community picker's search, as Reddit's app.
+     */
+    suspend fun subredditSuggestions(query: String): List<Subreddit> {
+        val q = query.trim().removePrefix("r/")
+        val found = if (client.isWebMode()) {
+            searchSubreddits(q)
+        } else {
+            val json = client.get(
+                "/api/subreddit_autocomplete_v2",
+                linkedMapOf("query" to q, "limit" to 10, "include_over_18" to false, "include_profiles" to false, "typeahead_active" to true),
+            )
+            (json["data"]["children"].arr() ?: emptyList()).mapNotNull { c ->
+                c["data"]?.takeIf { c["kind"].str() == "t5" }?.let(Subreddit::fromData)
+            }
+        }
+        // No NSFW ones while typing (a full search still finds them). Names starting with
+        // what's typed first, then the biggest.
+        return found.filter { !it.over18 }
+            .sortedWith(compareBy<Subreddit> { !it.name.startsWith(q, ignoreCase = true) }.thenByDescending { it.subscribers })
+            .take(6)
+    }
+
     suspend fun searchUsers(query: String): List<RedditUser> {
         if (client.isWebMode()) {
             val vars = buildJsonObject {
@@ -577,6 +601,21 @@ class RedditRepository(val client: RedditClient) {
      * the thread's GraphQL comment forest (the .json comments carry none). Website
      * sign-in only.
      */
+    /**
+     * Users' profile pictures by account id (t2_…), up to 100 a request (#185): lowercased
+     * name → picture. With an API key, where comments come without them.
+     */
+    suspend fun getUserIcons(ids: List<String>): Map<String, String> {
+        val json = client.get("/api/user_data_by_account_ids", linkedMapOf("ids" to ids.joinToString(",")))
+        val out = HashMap<String, String>()
+        json.obj()?.values?.forEach { u ->
+            val name = u["name"].str() ?: return@forEach
+            val img = u["profile_img"].str()?.replace("&amp;", "&")?.takeIf { it.startsWith("http") } ?: return@forEach
+            out[name.lowercase()] = img
+        }
+        return out
+    }
+
     suspend fun getCommentAvatars(postId: String, sort: String): Map<String, String> {
         val data = client.gql("PostComments", GQL_POST_COMMENTS, postCommentsVariables("t3_$postId", sort, null, null))
         return gqlAuthorIcons(data["postInfoById"]["commentForest"]["trees"].arr() ?: emptyList())

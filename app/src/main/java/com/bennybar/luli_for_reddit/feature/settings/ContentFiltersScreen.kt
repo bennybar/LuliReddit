@@ -105,7 +105,7 @@ fun ContentFiltersScreen() {
             }
             item("automod") {
                 SwitchTile(
-                    "Collapse AutoModerator", "Start AutoModerator comments collapsed", Icons.Outlined.SmartToy,
+                    "Collapse AutoModerator and bots", "Start AutoModerator's comments, and pinned comments by bots, collapsed", Icons.Outlined.SmartToy,
                     filters.collapseAutoMod, onChange = store::setCollapseAutoMod,
                 )
             }

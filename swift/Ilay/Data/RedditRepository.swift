@@ -304,6 +304,19 @@ final class RedditRepository: Sendable {
 
     /// Commenters' profile pictures (#133), lowercased name → url, from the first page of
     /// the thread's GraphQL comment forest (the .json comments carry none). Website sign-in only.
+    /// Users' profile pictures by account id (t2_…), up to 100 a request (#185): lowercased
+    /// name → picture. With an API key, where comments come without them.
+    func getUserIcons(_ ids: [String]) async throws -> [String: String] {
+        let json = try await client.get("/api/user_data_by_account_ids", [("ids", ids.joined(separator: ","))])
+        var out: [String: String] = [:]
+        for u in json.obj()?.values ?? [] {
+            guard let name = u["name"].str(), let img = u["profile_img"].str()?.replacingOccurrences(of: "&amp;", with: "&"),
+                  img.hasPrefix("http") else { continue }
+            out[name.lowercased()] = img
+        }
+        return out
+    }
+
     func getCommentAvatars(postId: String, sort: String) async throws -> [String: String] {
         let data = try await client.gql("PostComments", GQL_POST_COMMENTS, postCommentsVariables("t3_\(postId)", sort, nil, nil))
         return gqlAuthorIcons(data["postInfoById"]["commentForest"]["trees"].arr() ?? [])
@@ -476,6 +489,31 @@ final class RedditRepository: Sendable {
         }
         let json = try await client.get("/subreddits/search", [("q", query), ("limit", "25")])
         return (json["data"]["children"].arr() ?? []).compactMap { $0["data"].map(Subreddit.fromData) }
+    }
+
+    /// Communities named like [query], for suggestions while typing (#190). The website
+    /// sign-in has no autocomplete (404): it uses the community picker's search, as Reddit's app.
+    func subredditSuggestions(_ query: String) async throws -> [Subreddit] {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).removePrefix("r/")
+        let found: [Subreddit]
+        if await client.isWebMode() {
+            found = try await searchSubreddits(q)
+        } else {
+            let json = try await client.get("/api/subreddit_autocomplete_v2", [
+                ("query", q), ("limit", "10"), ("include_over_18", "false"), ("include_profiles", "false"), ("typeahead_active", "true"),
+            ])
+            found = (json["data"]["children"].arr() ?? []).compactMap { c in
+                c["kind"].str() == "t5" ? c["data"].map(Subreddit.fromData) : nil
+            }
+        }
+        // No NSFW ones while typing (a full search still finds them). Names starting with
+        // what's typed first, then the biggest.
+        let starts = { (s: Subreddit) in s.name.lowercased().hasPrefix(q.lowercased()) }
+        return Array(found.filter { !$0.over18 }.enumerated().sorted { a, b in
+            if starts(a.element) != starts(b.element) { return starts(a.element) }
+            if a.element.subscribers != b.element.subscribers { return a.element.subscribers > b.element.subscribers }
+            return a.offset < b.offset
+        }.map(\.element).prefix(6))
     }
 
     func searchUsers(_ query: String) async throws -> [RedditUser] {

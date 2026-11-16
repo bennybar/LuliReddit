@@ -149,7 +149,8 @@ final class CommentsViewModel {
         }
         // Commenters' pictures come after, on their own request (#133).
         let (avatarPost, avatarSort) = (postId, sort)
-        Task { await app.authorAvatars.loadFor(postId: avatarPost, sort: avatarSort) }
+        let firstPage = t.comments
+        Task { await app.authorAvatars.loadFor(postId: avatarPost, sort: avatarSort, comments: firstPage) }
         let comments = app.commentVotes.apply(t.comments)
         let collapsed = startCollapsed(t.comments)
         let (post, raw) = (t.post, t.comments)
@@ -429,7 +430,8 @@ final class CommentsViewModel {
     nonisolated static func startCollapsed(_ comments: [Comment], rules: CollapseRules, skip: Set<String> = []) -> Set<String> {
         var out = Set<String>()
         for c in CommentTree.flatten(comments, []) where !c.isMore && !skip.contains(c.id) {
-            if rules.collapseAutoMod, c.author == "AutoModerator" {
+            // Pinned bot comments too (#202): a bot by its name, as Reddit's own say.
+            if rules.collapseAutoMod, c.author == "AutoModerator" || (c.stickied && c.author.lowercased().hasSuffix("bot")) {
                 out.insert(c.id)
             } else if let below = rules.below, c.score < below, !c.scoreHidden, c.author.lowercased() != rules.me.lowercased() {
                 out.insert(c.id)

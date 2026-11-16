@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import kotlinx.coroutines.delay
+import androidx.compose.runtime.produceState
 import com.bennybar.luli_for_reddit.ui.SearchIcon
 import com.bennybar.luli_for_reddit.ui.subredditName
 import com.bennybar.luli_for_reddit.ui.ConnectedChoice
@@ -339,6 +341,20 @@ fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time:
     LaunchedEffect(results) { if (results && pager.currentPage != picked) pager.scrollToPage(picked) }
     LaunchedEffect(pager.settledPage) { if (results) picked = pager.settledPage }
 
+    // While typing (#190): communities named like it, asked once typing pauses. One small
+    // request a pause; none inside a subreddit's search.
+    val typing = !restricted && text.trim().length >= 2 && text.trim() != state.query
+    val hideNsfw = app.contentFilters.state.collectAsStateWithLifecycle().value.hideNsfw
+    val suggestions by produceState(emptyList<Subreddit>(), text, typing) {
+        if (!typing) {
+            value = emptyList()
+            return@produceState
+        }
+        delay(350)
+        value = runCatching { app.repository.subredditSuggestions(text) }.getOrDefault(value)
+            .filter { !(hideNsfw && it.over18) }
+    }
+
     Scaffold(
         topBar = {
             Column {
@@ -401,6 +417,21 @@ fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time:
         Box(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
             when {
                 state.error != null -> ErrorView(state.error, onRetry = { vm.search(state.query, saveRecent = false) })
+                typing -> LazyColumn(Modifier.fillMaxSize()) {
+                    item(key = "searchFor") {
+                        Tile(
+                            title = { Text("Search for “${text.trim()}”") },
+                            leading = { Icon(SearchIcon, null, Modifier.padding(horizontal = 8.dp)) },
+                            onClick = { doSearch(text) },
+                        )
+                    }
+                    items(suggestions, key = { it.name }) { s ->
+                        ResultTile(s.name, s.iconUrl, subredditName(s.namePrefixed), "${compactNumber(s.subscribers)} members") {
+                            vm.rememberOpened("r", s.name, s.iconUrl)
+                            nav.openSubreddit(s.name)
+                        }
+                    }
+                }
                 state.query.isEmpty() -> EmptySearch(
                     saved = saved,
                     recent = state.recent,

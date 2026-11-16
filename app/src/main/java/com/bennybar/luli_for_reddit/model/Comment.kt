@@ -22,6 +22,8 @@ data class Comment(
     val fullname: String, // t1_xxx
     val parentId: String = "", // t1_xxx or t3_xxx
     val author: String,
+    /** The author's account id (t2_…), for their picture with an API key (#185); "" if unknown. */
+    val authorFullname: String = "",
     val body: String,
     val score: Int,
     val createdUtc: Long, // millis since epoch
@@ -87,6 +89,7 @@ data class Comment(
                 fullname = d["name"].str() ?: "t1_${d["id"].str()?.removePrefix("t1_")}",
                 parentId = d["parent_id"].str() ?: "",
                 author = d["author"].str() ?: "[deleted]",
+                authorFullname = d["author_fullname"].str() ?: "",
                 authorFlair = flairOf(d, "author"),
                 body = d["body"].str() ?: "",
                 score = d["score"].int() ?: 0,

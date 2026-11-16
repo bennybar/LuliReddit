@@ -7,6 +7,8 @@ struct Comment: Identifiable, Equatable, Sendable, Copyable {
     var fullname: String // t1_xxx
     var parentId: String = "" // t1_xxx or t3_xxx
     var author: String
+    /// The author's account id (t2_…), for their picture with an API key (#185); "" if unknown.
+    var authorFullname: String = ""
     var body: String
     var score: Int
     var createdUtc: Int // millis since epoch
@@ -71,6 +73,7 @@ struct Comment: Identifiable, Equatable, Sendable, Copyable {
             fullname: d["name"].str() ?? "t1_\(id ?? "null")",
             parentId: d["parent_id"].str() ?? "",
             author: d["author"].str() ?? "[deleted]",
+            authorFullname: d["author_fullname"].str() ?? "",
             body: d["body"].str() ?? "",
             score: d["score"].int() ?? 0,
             createdUtc: (d["created_utc"].long() ?? 0) * 1000,
