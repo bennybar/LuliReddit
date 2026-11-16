@@ -39,7 +39,7 @@ import kotlin.coroutines.resume
  * (Android 12+; on Pixels it's Android System Intelligence): free, private
  * and offline once a language is downloaded. Languages it can't do (Hebrew,
  * or a phone without the service) go to Settings → Translation service:
- * the OpenAI key summaries use, or Azure Translator.
+ * the OpenAI key summaries use, Azure Translator or DeepL (#184).
  */
 object Translate {
     /** A language code as everywhere else (Java still says "iw" for Hebrew, "in" for Indonesian). */
@@ -67,12 +67,11 @@ object Translate {
             .filter { fallback || deviceState(context, from, it) != null }
     }
 
-    private suspend fun fallbackReady(): Boolean =
-        if (app.settings.value.translateService == "azure") {
-            !app.secureStore.azureTranslatorKey().isNullOrEmpty()
-        } else {
-            !app.secureStore.openaiKey().isNullOrEmpty()
-        }
+    private suspend fun fallbackReady(): Boolean = when (app.settings.value.translateService) {
+        "azure" -> !app.secureStore.azureTranslatorKey().isNullOrEmpty()
+        "deepl" -> !app.secureStore.deeplKey().isNullOrEmpty()
+        else -> !app.secureStore.openaiKey().isNullOrEmpty()
+    }
 
     private fun manager(context: Context) = context.getSystemService(TranslationManager::class.java)
 
@@ -125,11 +124,13 @@ object Translate {
         }
         if (!fallbackReady()) return null
         val s = app.settings.value
-        return if (s.translateService == "azure") {
-            azure(texts, from, to, app.secureStore.azureTranslatorKey()!!, s.azureRegion)
-        } else {
-            val base = if (s.aiUseCustomUrl) s.aiBaseUrl else "https://api.openai.com"
-            AiService.translate(base, app.secureStore.openaiKey()!!, s.aiModel, texts, Locale.forLanguageTag(to).getDisplayLanguage(Locale.ENGLISH))
+        return when (s.translateService) {
+            "azure" -> azure(texts, from, to, app.secureStore.azureTranslatorKey()!!, s.azureRegion)
+            "deepl" -> deepl(texts, to, app.secureStore.deeplKey()!!)
+            else -> {
+                val base = if (s.aiUseCustomUrl) s.aiBaseUrl else "https://api.openai.com"
+                AiService.translate(base, app.secureStore.openaiKey()!!, s.aiModel, texts, Locale.forLanguageTag(to).getDisplayLanguage(Locale.ENGLISH))
+            }
         }
     }
 
@@ -187,6 +188,50 @@ object Translate {
             val json = runCatching { AppJson.parseToJsonElement(text) }.getOrNull()
             if (code != 200) throw Exception("Azure Translator refused it ($code): ${json["error"]["message"].str() ?: text}")
             batch.indices.mapTo(out) { i -> json[i]["translations"][0]["text"].str() ?: batch[i] }
+        }
+        return out
+    }
+
+    /**
+     * DeepL (Settings → Translation service, #184): [key], a Free one (ending ":fx") on
+     * DeepL's free host. Up to 50 texts a request. DeepL detects the source language
+     * itself, so it never refuses text the phone mislabeled.
+     */
+    private suspend fun deepl(texts: List<String>, to: String, key: String): List<String> {
+        val host = if (key.endsWith(":fx")) "https://api-free.deepl.com" else "https://api.deepl.com"
+        // Its codes, with the variants it wants for English, Portuguese and Chinese.
+        val target = when (to) {
+            "en" -> "EN-US"
+            "pt" -> "PT-BR"
+            "zh" -> "ZH-HANS"
+            else -> to.uppercase()
+        }
+        val out = ArrayList<String>(texts.size)
+        for (batch in batches(texts, 100_000, 50)) {
+            val body = buildJsonObject {
+                put("text", JsonArray(batch.map { JsonPrimitive(it) }))
+                put("target_lang", target)
+            }.toString()
+            val req = Request.Builder().url("$host/v2/translate")
+                .header("Authorization", "DeepL-Auth-Key $key")
+                .post(body.toRequestBody("application/json".toMediaType()))
+                .build()
+            val (code, text) = try {
+                Http.client.await(req).use { r -> r.code to withContext(Dispatchers.IO) { r.body.string() } }
+            } catch (e: IOException) {
+                throw Exception("Couldn't reach DeepL: ${e.message}")
+            }
+            val json = runCatching { AppJson.parseToJsonElement(text) }.getOrNull()
+            if (code != 200) {
+                throw Exception(
+                    when (code) {
+                        403 -> "DeepL refused the key: check it in Settings › Translation service"
+                        456 -> "Your DeepL characters are used up"
+                        else -> "DeepL refused it ($code): ${json["message"].str() ?: text}"
+                    },
+                )
+            }
+            batch.indices.mapTo(out) { i -> json["translations"][i]["text"].str() ?: batch[i] }
         }
         return out
     }

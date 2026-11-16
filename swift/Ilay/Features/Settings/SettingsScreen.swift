@@ -79,6 +79,7 @@ struct SecureFlags: Equatable {
     var aiKey = false
     var giphyKey = false
     var azureKey = false
+    var deeplKey = false
     var web = false
 }
 
@@ -348,6 +349,7 @@ struct SettingsCatalog {
             options: [
                 PickOption(value: "openai", label: "OpenAI", subtitle: "Your AI summaries key; each translation costs a little"),
                 PickOption(value: "azure", label: "Azure Translator", subtitle: "Your Azure key; 2 million characters a month free"),
+                PickOption(value: "deepl", label: "DeepL", subtitle: "Your DeepL API key"),
             ],
             set: ctrl.setTranslateService
         )
@@ -377,6 +379,25 @@ struct SettingsCatalog {
                 ) { r in
                     if case let .save(text) = r { app.settings.setAzureRegion(text.trimmed) }
                 }, initial: s.azureRegion)
+            }
+        }
+        if s.translateService == "deepl" {
+            let prompts = prompts
+            b.tile("DeepL key", secure.deeplKey ? "Key set — tap to change or remove" : "Add your DeepL API key (deepl.com › API)") {
+                prompts.ask(TextPrompt(
+                    title: "DeepL key",
+                    note: "Stored securely on this device (never in backups). Translations send the text to DeepL.",
+                    secret: true,
+                    removable: secure.deeplKey
+                ) { r in
+                    Task {
+                        switch r {
+                        case .remove: await app.secureStore.saveDeeplKey(nil)
+                        case let .save(text): if !text.isBlank { await app.secureStore.saveDeeplKey(text.trimmed) }
+                        }
+                        prompts.refresh += 1
+                    }
+                })
             }
         }
     }
@@ -974,6 +995,7 @@ struct SettingsScreen: View {
                 aiKey: !(await store.openaiKey() ?? "").isEmpty,
                 giphyKey: !(await store.giphyKey() ?? "").isEmpty,
                 azureKey: !(await store.azureTranslatorKey() ?? "").isEmpty,
+                deeplKey: !(await store.deeplKey() ?? "").isEmpty,
                 web: await store.authMode() == "web"
             )
         }

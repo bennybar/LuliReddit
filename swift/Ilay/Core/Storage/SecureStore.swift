@@ -136,6 +136,10 @@ actor SecureStore {
     func azureTranslatorKey() async -> String? { await readOrNull(Self.kAzureTranslatorKey) }
     func saveAzureTranslatorKey(_ value: String?) async { await write(Self.kAzureTranslatorKey, value?.nilIfEmpty) }
 
+    /// DeepL key (Settings → Translation service, #184). Account-independent.
+    func deeplKey() async -> String? { await readOrNull(Self.kDeeplKey) }
+    func saveDeeplKey(_ value: String?) async { await write(Self.kDeeplKey, value?.nilIfEmpty) }
+
     func saveCredentials(clientId: String, redirectUri: String, giphyKey: String? = nil) async {
         await write(Self.kClientId, clientId)
         await write(Self.kRedirectUri, redirectUri)
@@ -270,6 +274,7 @@ actor SecureStore {
     private static let kGiphyKey = "giphy_api_key"
     private static let kOpenaiKey = "openai_api_key"
     private static let kAzureTranslatorKey = "azure_translator_key"
+    private static let kDeeplKey = "deepl_key"
     private static let kAccessToken = "access_token"
     private static let kRefreshToken = "refresh_token"
     private static let kTokenExpiry = "token_expiry"

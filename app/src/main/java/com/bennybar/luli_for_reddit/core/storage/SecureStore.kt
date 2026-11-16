@@ -115,6 +115,10 @@ class SecureStore(private val context: Context) {
     suspend fun azureTranslatorKey(): String? = readOrNull(K_AZURE_TRANSLATOR_KEY)
     suspend fun saveAzureTranslatorKey(value: String?) = write(K_AZURE_TRANSLATOR_KEY, value?.ifEmpty { null })
 
+    /** DeepL key (Settings → Translation service, #184). Account-independent. */
+    suspend fun deeplKey(): String? = readOrNull(K_DEEPL_KEY)
+    suspend fun saveDeeplKey(value: String?) = write(K_DEEPL_KEY, value?.ifEmpty { null })
+
     suspend fun saveCredentials(clientId: String, redirectUri: String, giphyKey: String? = null) {
         write(K_CLIENT_ID, clientId)
         write(K_REDIRECT_URI, redirectUri)
@@ -258,6 +262,7 @@ class SecureStore(private val context: Context) {
         private const val K_GIPHY_KEY = "giphy_api_key"
         private const val K_OPENAI_KEY = "openai_api_key"
         private const val K_AZURE_TRANSLATOR_KEY = "azure_translator_key"
+        private const val K_DEEPL_KEY = "deepl_key"
         private const val K_ACCESS_TOKEN = "access_token"
         private const val K_REFRESH_TOKEN = "refresh_token"
         private const val K_TOKEN_EXPIRY = "token_expiry"

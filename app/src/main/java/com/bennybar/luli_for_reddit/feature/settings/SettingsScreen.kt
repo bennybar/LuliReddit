@@ -319,11 +319,13 @@ fun SettingsList(
     var aiKeySet by remember { mutableStateOf(false) }
     var giphyKeySet by remember { mutableStateOf(false) }
     var azureKeySet by remember { mutableStateOf(false) }
+    var deeplKeySet by remember { mutableStateOf(false) }
     var authMode by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(secureVersion, session) {
         aiKeySet = !app.secureStore.openaiKey().isNullOrEmpty()
         giphyKeySet = !app.secureStore.giphyKey().isNullOrEmpty()
         azureKeySet = !app.secureStore.azureTranslatorKey().isNullOrEmpty()
+        deeplKeySet = !app.secureStore.deeplKey().isNullOrEmpty()
         authMode = runCatching { app.secureStore.authMode() }.getOrNull()
     }
     val web = authMode == "web"
@@ -806,7 +808,7 @@ fun SettingsList(
         )
         tile(
             "Translation service",
-            (if (s.translateService == "azure") "Azure Translator" else "OpenAI (your AI key)") +
+            (when (s.translateService) { "azure" -> "Azure Translator"; "deepl" -> "DeepL"; else -> "OpenAI (your AI key)" }) +
                 " · for languages your phone can't translate",
             Icons.Outlined.Dns,
             onClick = launch {
@@ -814,6 +816,7 @@ fun SettingsList(
                     listOf(
                         PickOption("openai", "OpenAI", "Your AI summaries key; each translation costs a little"),
                         PickOption("azure", "Azure Translator", "Your Azure key; 2 million characters a month free"),
+                        PickOption("deepl", "DeepL", "Your DeepL API key"),
                     ),
                     s.translateService,
                 )?.let(ctrl::setTranslateService)
@@ -843,6 +846,24 @@ fun SettingsList(
                 ) as? TextResult.Save ?: return@launch
                 ctrl.setAzureRegion(r.text.trim())
             })
+        }
+        if (s.translateService == "deepl") {
+            tile(
+                "DeepL key",
+                if (deeplKeySet) "Key set — tap to change or remove" else "Add your DeepL API key (deepl.com › API)",
+                Icons.Outlined.Key,
+                onClick = launch {
+                    val r = textDialog(
+                        "DeepL key", secret = true, removable = deeplKeySet,
+                        note = "Stored securely on this device (never in backups). Translations send the text to DeepL.",
+                    ) ?: return@launch
+                    when (r) {
+                        TextResult.Remove -> app.secureStore.saveDeeplKey(null)
+                        is TextResult.Save -> if (r.text.isNotBlank()) app.secureStore.saveDeeplKey(r.text.trim())
+                    }
+                    secureVersion++
+                },
+            )
         }
         divider("translation")
 

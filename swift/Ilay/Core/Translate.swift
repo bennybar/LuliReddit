@@ -7,7 +7,7 @@ import Translation
 /// On the phone first, through Apple's Translation framework: free, private and
 /// offline once a language is downloaded, which iOS asks for the first time.
 /// Languages it can't do (Hebrew) go to Settings → Translation service: the
-/// OpenAI key summaries use, or Azure Translator.
+/// OpenAI key summaries use, Azure Translator or DeepL (#184).
 enum Translate {
     /// A language code as everywhere else (Java still says "iw" for Hebrew, "in" for Indonesian).
     static func norm(_ code: String) -> String {
@@ -47,10 +47,11 @@ enum Translate {
 
     @MainActor
     private static func fallbackReady() async -> Bool {
-        if app.settings.value.translateService == "azure" {
-            return await app.secureStore.azureTranslatorKey()?.isEmpty == false
+        switch app.settings.value.translateService {
+        case "azure": return await app.secureStore.azureTranslatorKey()?.isEmpty == false
+        case "deepl": return await app.secureStore.deeplKey()?.isEmpty == false
+        default: return await app.secureStore.openaiKey()?.isEmpty == false
         }
-        return await app.secureStore.openaiKey()?.isEmpty == false
     }
 
     /// Whether the phone can translate [from] into [to] (now, or after a download).
@@ -83,6 +84,9 @@ enum Translate {
         let s = app.settings.value
         if s.translateService == "azure" {
             return try await azure(texts, from: from, to: to, key: await app.secureStore.azureTranslatorKey()!, region: s.azureRegion)
+        }
+        if s.translateService == "deepl" {
+            return try await deepl(texts, to: to, key: await app.secureStore.deeplKey()!)
         }
         let base = s.aiUseCustomUrl ? s.aiBaseUrl : "https://api.openai.com"
         let english = Locale(identifier: "en").localizedString(forLanguageCode: to) ?? to
@@ -158,6 +162,41 @@ enum Translate {
                 throw AppException("Azure Translator refused it (\(res.status)): \(json["error"]["message"].str() ?? text)")
             }
             for (i, t) in batch.enumerated() { out.append(json[i]["translations"][0]["text"].str() ?? t) }
+        }
+        return out
+    }
+
+    /// DeepL (Settings → Translation service, #184): [key], a Free one (ending ":fx") on
+    /// DeepL's free host. Up to 50 texts a request. DeepL detects the source language
+    /// itself, so it never refuses text the phone mislabeled.
+    private static func deepl(_ texts: [String], to: String, key: String) async throws -> [String] {
+        let host = key.hasSuffix(":fx") ? "https://api-free.deepl.com" : "https://api.deepl.com"
+        // Its codes, with the variants it wants for English, Portuguese and Chinese.
+        let target = ["en": "EN-US", "pt": "PT-BR", "zh": "ZH-HANS"][to] ?? to.uppercased()
+        var out: [String] = []
+        for batch in batches(texts, maxChars: 100_000, maxCount: 50) {
+            var req = URLRequest(url: URL(string: "\(host)/v2/translate")!)
+            req.httpMethod = "POST"
+            req.setValue("DeepL-Auth-Key \(key)", forHTTPHeaderField: "Authorization")
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            var body = JsonObject()
+            body["text"] = .array(batch.map { .string($0) })
+            body["target_lang"] = .string(target)
+            req.httpBody = Data(body.encoded().utf8)
+            let res: (status: Int, body: Data, response: HTTPURLResponse)
+            do {
+                res = try await Http.session.send(req)
+            } catch is URLError {
+                throw AppException("Couldn't reach DeepL")
+            }
+            let json = try? AppJson.parse(res.body)
+            switch res.status {
+            case 200: break
+            case 403: throw AppException("DeepL refused the key: check it in Settings › Translation service")
+            case 456: throw AppException("Your DeepL characters are used up")
+            default: throw AppException("DeepL refused it (\(res.status)): \(json["message"].str() ?? String(decoding: res.body, as: UTF8.self))")
+            }
+            for (i, t) in batch.enumerated() { out.append(json["translations"][i]["text"].str() ?? t) }
         }
         return out
     }
