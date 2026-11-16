@@ -45,6 +45,13 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.90", "Nov 16, 2026",
+        listOf(
+            "Spoiler posts keep their text covered, in feeds and in the thread, until you tap it",
+            "Threads in contest mode say so above the comments: random order, scores hidden",
+        ),
+    ),
+    Release(
         "2.0.89", "Nov 16, 2026",
         listOf(
             "Collapse AutoModerator and bots is only in Settings › Posts & comments now: it was also in Content filters, the same switch twice",
