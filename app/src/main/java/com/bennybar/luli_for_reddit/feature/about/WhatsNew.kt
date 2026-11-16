@@ -45,6 +45,12 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.89", "Nov 16, 2026",
+        listOf(
+            "Collapse AutoModerator and bots is only in Settings › Posts & comments now: it was also in Content filters, the same switch twice",
+        ),
+    ),
+    Release(
         "2.0.88", "Nov 16, 2026",
         listOf(
             "Translation: DeepL with your own API key, as a service for languages your phone can't translate (Settings › Translation service)",
