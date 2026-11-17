@@ -119,7 +119,7 @@ struct ViewerControls: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if let downloadUrl {
                     ViewerButton(icon: "arrow.down.to.line", label: "Download") {
-                        Task { await saveMediaToGallery(downloadUrl, isVideo: downloadIsVideo) }
+                        Task { await saveMediaToGallery(downloadUrl, isVideo: downloadIsVideo, title: title) }
                     }
                 }
                 if let sourceUrl {

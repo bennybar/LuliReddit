@@ -4,6 +4,8 @@ import SwiftUI
 /// the way up (#62), once the finger has gone 48pt that way, not on the first nudge (#177).
 @MainActor @Observable final class FabScroll {
     private(set) var expanded = true
+    /// A finger is scrolling the list, or its fling still is (set by the thread's list, #210).
+    var userScrolling = false
     /// How far the finger has scrolled since it last turned around (negative: down).
     @ObservationIgnored private var travel: CGFloat = 0
 

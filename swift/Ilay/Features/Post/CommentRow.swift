@@ -499,16 +499,31 @@ private struct Tag: View {
 /// as an empty chip (#193).
 struct FlairChip: View {
     let flair: UserFlair
+    @State private var full = false
 
     var body: some View {
         if flair.parts.contains(where: { !($0.text ?? "").trimmed.isEmpty || $0.emojiUrl != nil }) {
             ViewThatFits(in: .horizontal) {
-                chip
-                chip.frame(width: 90, alignment: .leading)
-                chip.frame(width: 52, alignment: .leading)
+                tappable(chip)
+                tappable(chip.frame(width: 90, alignment: .leading))
+                tappable(chip.frame(width: 52, alignment: .leading))
                 EmptyView()
             }
         }
+    }
+
+    /// A tap shows it whole (#209): it may be cut short at any of the sizes above.
+    private func tappable(_ cut: some View) -> some View {
+        Button { full = true } label: { cut }
+            .buttonStyle(.plain)
+            .accessibilityLabel(flair.parts.compactMap(\.text).joined())
+            .popover(isPresented: $full) {
+                Text(verbatim: flair.parts.compactMap(\.text).joined().trimmed)
+                    .font(.callout)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .presentationCompactAdaptation(.popover)
+            }
     }
 
     private var chip: some View {

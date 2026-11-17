@@ -161,6 +161,10 @@ struct PostDetailScreen: View {
                             onNext: { jumpNext { $0.depth == 0 } },
                             onPrev: { jumpNext(backwards: true) { $0.depth == 0 } }
                         )
+                        // Out of the way while a finger scrolls (#210), not while a jump does.
+                        .opacity(settings.threadButtonsHideOnScroll && toolbarScroll.userScrolling ? 0 : 1)
+                        .allowsHitTesting(!(settings.threadButtonsHideOnScroll && toolbarScroll.userScrolling))
+                        .animation(.easeOut(duration: 0.2), value: toolbarScroll.userScrolling)
                     }
                 if searchOpen, thread != nil { searchBar }
                 if focusCommentId != nil {

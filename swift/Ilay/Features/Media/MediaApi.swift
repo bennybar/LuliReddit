@@ -51,8 +51,8 @@ func externalVideoSource(_ p: Post) -> String {
 
 /// Downloads a media file to Photos' "Ilay" album, with a cancellable progress dialog
 /// showing downloaded / total size.
-@MainActor func saveMediaToGallery(_ url: String, isVideo: Bool) async {
-    await saveMedia(url, isVideo: isVideo)
+@MainActor func saveMediaToGallery(_ url: String, isVideo: Bool, title: String? = nil) async {
+    await saveMedia(url, isVideo: isVideo, title: title)
 }
 
 /// A gallery as a carousel (#30), for the post screen: a large image with the next ones

@@ -645,7 +645,14 @@ final class CommentListController: UIViewController, UICollectionViewDelegate {
 
     func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
         scrollTarget = nil
+        fabScroll?.userScrolling = true
     }
+
+    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+        if !decelerate { fabScroll?.userScrolling = false }
+    }
+
+    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) { fabScroll?.userScrolling = false }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
         let y = scrollView.contentOffset.y

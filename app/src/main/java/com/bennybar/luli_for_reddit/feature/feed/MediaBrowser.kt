@@ -53,6 +53,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -196,6 +197,7 @@ private class BrowserVideo(context: Context, muted: Boolean) {
     var aspect by mutableFloatStateOf(0f)
     var failed by mutableStateOf(false)
     var ended by mutableStateOf(false) // stopped at the end (Loop videos off, #156)
+    var playing by mutableStateOf(false)
     var muted by mutableStateOf(muted)
         private set
 
@@ -217,6 +219,10 @@ private class BrowserVideo(context: Context, muted: Boolean) {
 
             override fun onPlaybackStateChanged(state: Int) {
                 ended = state == Player.STATE_ENDED
+            }
+
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                playing = isPlaying
             }
         })
     }
@@ -300,6 +306,12 @@ internal fun FeedMediaBrowser(route: MediaViewer.Feed) {
 
     val video = remember { BrowserVideo(context, muted = app.settings.value.viewerMuted) }
     DisposableEffect(video) { onDispose { video.player.release() } }
+    // The screen stays on while a clip plays (#211): watching isn't touching.
+    val view = LocalView.current
+    DisposableEffect(view, video.playing) {
+        view.keepScreenOn = video.playing
+        onDispose { view.keepScreenOn = false }
+    }
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { video.player.pause() }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { if (video.owner != null) video.player.play() }
 

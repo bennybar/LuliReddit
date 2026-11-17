@@ -602,6 +602,9 @@ struct MediaBrowser: View {
         }
         .animation(.easeOut(duration: 0.15), value: controls)
         .accessibilityAction(.escape) { model.close() }
+        // The screen stays on while a clip plays (#211): watching isn't touching.
+        .onChange(of: model.playing, initial: true) { _, on in UIApplication.shared.isIdleTimerDisabled = on }
+        .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
     }
 }
 

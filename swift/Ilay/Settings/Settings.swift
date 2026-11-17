@@ -269,6 +269,7 @@ struct Settings: Equatable, Sendable {
     var threadJumpOp: Bool = true // a thread's button for the original poster's comments (#126)
     var threadJumpMine: Bool = true // a thread's button for your own comments (#126)
     var threadJumpNext: Bool = true // a thread's next top-level comment button (#121)
+    var threadButtonsHideOnScroll = false // the thread's buttons step aside while you scroll (#210)
     var topBarMode: TopBarMode = .expandable // Posts-screen action layout
     var navLabels = true // show text labels on the bottom nav bar
     var navStyle = 0 // 0 bottom bar, 1 side bar, 2 both (#25)

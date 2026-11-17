@@ -138,7 +138,7 @@ suspend fun openPostVideo(nav: AppNavigator, post: Post) {
  * gallery's "Ilay" album, with a cancellable progress dialog showing
  * downloaded / total size.
  */
-suspend fun saveMediaToGallery(url: String, isVideo: Boolean) = saveMedia(url, isVideo)
+suspend fun saveMediaToGallery(url: String, isVideo: Boolean, title: String? = null) = saveMedia(url, isVideo, title)
 
 /**
  * A gallery as a Material 3 carousel (#30), for the post screen: a large

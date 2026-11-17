@@ -266,6 +266,7 @@ data class Settings(
     val threadJumpOp: Boolean = true, // show OP comments jump button in thread toolbar
     val threadJumpMine: Boolean = true, // show your comments jump button in thread toolbar
     val threadJumpNext: Boolean = true, // the thread toolbar's next top-level comment button (#121)
+    val threadButtonsHideOnScroll: Boolean = false, // the thread's buttons step aside while you scroll (#210)
     val topBarMode: TopBarMode = TopBarMode.EXPANDABLE, // Posts-screen action layout
     // The top bar menu panel's buttons and order, per mode (#108).
     val topBarMenuExpandable: List<TopBarMenuEntry> = TopBarMenuItem.parse(null, TopBarMode.EXPANDABLE),

@@ -188,7 +188,7 @@ internal fun ViewerControls(
             )
             if (downloadUrl != null) {
                 RoundBtn(Icons.Rounded.Download, "Download") {
-                    scope.launch { saveMediaToGallery(downloadUrl, downloadIsVideo) }
+                    scope.launch { saveMediaToGallery(downloadUrl, downloadIsVideo, title) }
                 }
                 Spacer(Modifier.width(4.dp))
             }

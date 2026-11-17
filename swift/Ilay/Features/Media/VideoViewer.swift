@@ -254,6 +254,9 @@ struct VideoViewer: View {
         }
         .animation(.easeOut(duration: 0.15), value: controls)
         .accessibilityAction(.escape) { state.close() }
+        // The screen stays on while a clip plays (#211): watching isn't touching.
+        .onChange(of: model.playing, initial: true) { _, on in UIApplication.shared.isIdleTimerDisabled = on }
+        .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
         // Position for the time labels / scrubber, while the controls are up.
         .task(id: controls && model.ready) {
             guard controls && model.ready else { return }

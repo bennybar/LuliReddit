@@ -71,6 +71,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -231,6 +232,13 @@ internal fun VideoViewer(route: MediaViewer.Video) {
             player.removeListener(listener)
             player.release()
         }
+    }
+
+    // The screen stays on while the clip plays (#211): watching isn't touching.
+    val view = LocalView.current
+    DisposableEffect(view, playing) {
+        view.keepScreenOn = playing
+        onDispose { view.keepScreenOn = false }
     }
 
     // Pause in the background; resume if it was playing.

@@ -110,14 +110,29 @@ internal suspend fun downloadTo(url: String, dest: File, onProgress: (Long, Long
 }
 
 /**
+ * A saved file's name (without extension): the post's [title] (#212), without
+ * the characters file systems refuse and cut to 80, else `ilay_<ts>`.
+ */
+internal fun savedFileName(title: String?, ts: Long): String {
+    val clean = title.orEmpty()
+        .replace(Regex("""[\\/:*?"<>|\p{Cntrl}]"""), " ")
+        .replace(Regex("""\s+"""), " ")
+        .trim()
+        .take(80)
+        .trimEnd(' ', '.')
+        .trimStart('.')
+    return clean.ifEmpty { "ilay_$ts" }
+}
+
+/**
  * The download behind [saveMediaToGallery]: fetches [url] to a temp file,
- * then copies it into the picked folder (as `ilay_<ts>`), else the gallery's
- * "Ilay" album: Pictures/Ilay for images *and* videos, named `luli_<ts>`, as
- * the Flutter build's gal plugin saved them, so existing users keep one
- * album. Runs on the app scope, so leaving the
+ * then copies it into the picked folder, else the gallery's "Ilay" album:
+ * Pictures/Ilay for images *and* videos, as the Flutter build's gal plugin
+ * saved them, so existing users keep one album. Named by [savedFileName].
+ * Runs on the app scope, so leaving the
  * screen doesn't abort a save; the dialog's Cancel does.
  */
-internal suspend fun saveMedia(url: String, isVideo: Boolean) {
+internal suspend fun saveMedia(url: String, isVideo: Boolean, title: String? = null) {
     val nav = app.navigatorOrNull ?: return
     val folder = app.media.folder.value
     val progress = MutableStateFlow(0L to 0L) // (received, total)
@@ -137,12 +152,14 @@ internal suspend fun saveMedia(url: String, isVideo: Boolean) {
                 downloadTo(url, tmp) { got, total -> progress.value = got to total }
             }
             val mime = mimeFor(ext, isVideo)
-            if (folder != null && app.media.saveToFolder(folder, tmp, "ilay_$ts.$ext", mime)) {
+            // Named after the post (#212); the folder / gallery adds " (1)" to a repeat.
+            val name = "${savedFileName(title, ts)}.$ext"
+            if (folder != null && app.media.saveToFolder(folder, tmp, name, mime)) {
                 finished.value = true
                 nav.showSnackbar("Saved to ${folder.name}")
                 return@launch
             }
-            insertIntoGallery(tmp, tmp.name, mime, isVideo)
+            insertIntoGallery(tmp, name, mime, isVideo)
             finished.value = true
             nav.showSnackbar(
                 if (folder == null) "Saved to your gallery"

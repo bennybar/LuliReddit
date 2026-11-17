@@ -592,6 +592,11 @@ fun SettingsList(
             Icons.Rounded.KeyboardArrowDown, s.threadJumpNext, ctrl::setThreadJumpNext,
         )
         switch(
+            "Hide thread buttons while scrolling",
+            "They step aside while your finger scrolls a thread and come back when it stops",
+            Icons.Rounded.UnfoldLess, s.threadButtonsHideOnScroll, ctrl::setThreadButtonsHideOnScroll,
+        )
+        switch(
             "Jump to OP's comments button",
             "Show a button in threads to jump between comments by the original poster",
             Icons.Rounded.RecordVoiceOver, s.threadJumpOp, ctrl::setThreadJumpOp,

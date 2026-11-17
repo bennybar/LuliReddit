@@ -130,11 +130,24 @@ private func insertIntoPhotos(_ file: URL, name: String, isVideo: Bool, toAlbum:
     }
 }
 
+/// A saved file's name (without extension): the post's title (#212), without the
+/// characters file systems refuse and cut to 80, else `ilay_<ts>`. Same as Android.
+func savedFileName(_ title: String?, ts: Int) -> String {
+    var clean = (title ?? "")
+        .replacingOccurrences(of: #"[\\/:*?"<>|\p{Cc}]"#, with: " ", options: .regularExpression)
+        .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+        .trimmingCharacters(in: .whitespaces)
+    clean = String(clean.prefix(80))
+    while let last = clean.last, last == " " || last == "." { clean.removeLast() }
+    while clean.first == "." { clean.removeFirst() }
+    return clean.isEmpty ? "ilay_\(ts)" : clean
+}
+
 /// Downloads a media file to the "Ilay" album in Photos, with a cancellable progress
 /// dialog showing downloaded / total size. Fetches `url` to a temp file named
-/// `luli_<ts>`, first. Runs apart from the caller, so leaving the screen doesn't abort a
-/// save; the dialog's Cancel does.
-@MainActor func saveMedia(_ url: String, isVideo: Bool) async {
+/// `luli_<ts>`, first; in Photos it's named by `savedFileName`. Runs apart from the caller,
+/// so leaving the screen doesn't abort a save; the dialog's Cancel does.
+@MainActor func saveMedia(_ url: String, isVideo: Bool, title: String? = nil) async {
     let nav = app.navigator
     let toAlbum: Bool
     do {
@@ -149,8 +162,8 @@ private func insertIntoPhotos(_ file: URL, name: String, isVideo: Bool, toAlbum:
         let last = clean.split(separator: "/").last.map(String.init) ?? ""
         var ext = last.contains(".") ? (last.split(separator: ".").last.map { $0.lowercased() } ?? "") : ""
         if ext.isEmpty || ext.count > 4 { ext = isVideo ? "mp4" : "jpg" }
-        let name = "luli_\(Int(Date().timeIntervalSince1970 * 1000)).\(ext)"
-        let tmp = FileManager.default.temporaryDirectory.appending(path: name)
+        let ts = Int(Date().timeIntervalSince1970 * 1000)
+        let tmp = FileManager.default.temporaryDirectory.appending(path: "luli_\(ts).\(ext)")
         defer { try? FileManager.default.removeItem(at: tmp) }
         do {
             // Reddit's own videos: with their sound (stored as a separate file).
@@ -160,7 +173,7 @@ private func insertIntoPhotos(_ file: URL, name: String, isVideo: Bool, toAlbum:
                 try await downloadTo(url, dest: tmp, onProgress: progress.report)
             }
             try Task.checkCancellation()
-            try await insertIntoPhotos(tmp, name: name, isVideo: isVideo, toAlbum: toAlbum)
+            try await insertIntoPhotos(tmp, name: "\(savedFileName(title, ts: ts)).\(ext)", isVideo: isVideo, toAlbum: toAlbum)
             return "Saved to Photos"
         } catch is CancellationError {
             return "Download cancelled"

@@ -129,6 +129,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableIntStateOf
@@ -373,6 +377,13 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
     }
 
     val fab = rememberFabScroll()
+    // Settings › Hide thread buttons while scrolling (#210): from a finger's drag until
+    // the scroll (and its fling) stops; a jump button's own scroll doesn't count.
+    val dragged by listState.interactionSource.collectIsDraggedAsState()
+    var fingerScroll by remember { mutableStateOf(false) }
+    LaunchedEffect(dragged) { if (dragged) fingerScroll = true }
+    LaunchedEffect(listState.isScrollInProgress) { if (!listState.isScrollInProgress) fingerScroll = false }
+    val hideButtons = settings.threadButtonsHideOnScroll && fingerScroll
     Scaffold(
         topBar = {
             TopAppBar(
@@ -415,7 +426,7 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
                 val hasMine = remember(flat, username, settings.threadJumpMine) {
                     settings.threadJumpMine && username.isNotEmpty() && flat.any { !it.isMore && it.author == username }
                 }
-                ThreadToolbar(
+                AnimatedVisibility(!hideButtons, enter = fadeIn(), exit = fadeOut()) { ThreadToolbar(
                     newCount = newCount,
                     hasOp = hasOp,
                     hasMine = hasMine,
@@ -444,7 +455,7 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
                         jumpNext(backwards = true) { it.depth == 0 }
                     },
                     expanded = fab.expanded,
-                )
+                ) }
             }
         },
     ) { padding ->
@@ -1720,18 +1731,32 @@ private fun FlairChip(flair: UserFlair, modifier: Modifier = Modifier) {
     // empty one or a lone "…" (#193). An image-only flair needs less than one with words.
     if (flair.parts.none { !it.text.isNullOrBlank() || it.emojiUrl != null }) return // blank: nothing to show
     val wordless = flair.parts.all { it.text.isNullOrBlank() }
+    // Cut short, a tap shows it whole (#209).
+    var cut by remember { mutableStateOf(false) }
+    var full by remember { mutableStateOf(false) }
     BoxWithConstraints(modifier) {
         if (maxWidth < if (wordless) 30.dp else 52.dp) return@BoxWithConstraints
         Text(
             text,
             // Lightly tinted, as post flairs are (#131).
-            Modifier.widthIn(max = 200.dp).clip(RoundedCornerShape(6.dp)).background(cs.secondaryContainer).padding(horizontal = 6.dp, vertical = 1.dp),
+            Modifier.widthIn(max = 200.dp).clip(RoundedCornerShape(6.dp))
+                .then(if (cut) Modifier.clickable { full = true } else Modifier)
+                .background(cs.secondaryContainer).padding(horizontal = 6.dp, vertical = 1.dp),
             fontSize = 11.sp,
             color = cs.onSecondaryContainer,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             inlineContent = emoji,
+            onTextLayout = { cut = it.hasVisualOverflow },
         )
+        DropdownMenu(expanded = full, onDismissRequest = { full = false }) {
+            Text(
+                text,
+                Modifier.widthIn(max = 280.dp).padding(horizontal = 14.dp, vertical = 8.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                inlineContent = emoji,
+            )
+        }
     }
 }
 
