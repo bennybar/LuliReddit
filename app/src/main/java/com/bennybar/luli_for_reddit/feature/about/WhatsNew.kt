@@ -45,6 +45,15 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.92", "Nov 17, 2026",
+        listOf(
+            "The screen stays on while a video plays full screen",
+            "Saved images and videos are named after the post's title",
+            "Tap a user flair that's cut short to read all of it",
+            "New setting: Hide thread buttons while scrolling (Posts & comments). They step aside while your finger scrolls a thread",
+        ),
+    ),
+    Release(
         "2.0.91", "Nov 16, 2026",
         listOf(
             "New setting: Back leaves the app (Appearance). Off by default: when on, back on Posts leaves once there's nothing else for it to do",
