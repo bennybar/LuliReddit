@@ -39,8 +39,8 @@ final class PostThreadTests: XCTestCase {
         XCTAssertEqual(CommentsViewModel.startCollapsed(tree, rules: rules, skip: ["auto", "parent"]), ["low"])
     }
 
-    func testPinnedBotCommentsCollapseWithAutoModerator() {
-        // #202: pinned comments by bots, not every bot, and not pinned human ones.
+    func testPinnedCommentsCollapseWithAutoModerator() {
+        // #216: every pinned comment (bots' whatever their name, mods' notes), not every bot.
         let tree = [
             c("pinnedBot", author: "SaveVideoBot").with { $0.stickied = true },
             c("bot", author: "RemindMeBot"),
@@ -49,7 +49,7 @@ final class PostThreadTests: XCTestCase {
         var rules = CommentsViewModel.CollapseRules(me: "me")
         XCTAssertEqual(CommentsViewModel.startCollapsed(tree, rules: rules), [])
         rules.collapseAutoMod = true
-        XCTAssertEqual(CommentsViewModel.startCollapsed(tree, rules: rules), ["pinnedBot"])
+        XCTAssertEqual(CommentsViewModel.startCollapsed(tree, rules: rules), ["pinnedBot", "pinnedMod"])
     }
 
     func testToggleCollapse() {
