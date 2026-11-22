@@ -1452,9 +1452,12 @@ private fun PostMedia(p: Post, nav: AppNavigator, radius: androidx.compose.ui.un
     val blur = (p.over18 && blurNsfw.blurNsfw) || p.spoiler
     val label = if (p.over18) "NSFW" else "Spoiler"
     if (p.type == PostType.GALLERY && p.gallery.isNotEmpty()) {
-        NsfwBlur(blur, Modifier.padding(bottom = 12.dp), label = label) {
-            if (p.gallery.size > 1) GalleryM3Carousel(p.gallery, title = p.title)
-            else GalleryCarousel(p.gallery, if (radius != 16.dp) Modifier.clip(RoundedCornerShape(radius)) else Modifier, title = p.title)
+        // A spoiler / NSFW gallery covers each image, as in the feed (#229, #165): it still
+        // swipes, and the first tap reveals them all.
+        val cover = if (blur) label else null
+        Box(Modifier.padding(bottom = 12.dp)) {
+            if (p.gallery.size > 1) GalleryM3Carousel(p.gallery, title = p.title, cover = cover)
+            else GalleryCarousel(p.gallery, if (radius != 16.dp) Modifier.clip(RoundedCornerShape(radius)) else Modifier, title = p.title, cover = cover)
         }
         return
     }
