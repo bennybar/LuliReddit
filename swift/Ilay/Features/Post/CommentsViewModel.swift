@@ -43,6 +43,8 @@ struct PostThread: Equatable, Sendable, Copyable {
 struct ThreadUiState {
     var thread: PostThread? = nil
     var loading = true
+    /// The first page is shown and the full one is on its way (a long thread).
+    var fullPagePending = false
     var refreshing = false
     var error: Error? = nil
     var sort = ""
@@ -181,6 +183,9 @@ final class CommentsViewModel {
         // page was being prepared must survive the swap.
         let comments = app.commentVotes.apply(full.comments)
         ui.thread = PostThread(post: full.post, comments: comments, collapsed: latest.collapsed.union(autoMod))
+        // The first page's commenters have theirs (or are asked for): the rest now (#217).
+        let (avatarPost, avatarSort, fullComments2) = (postId, sort, full.comments)
+        Task { await app.authorAvatars.loadRest(postId: avatarPost, sort: avatarSort, comments: fullComments2) }
         app.postOverrides.syncFromServer(full.post)
         prewarm(comments, post: full.post)
     }
@@ -208,10 +213,12 @@ final class CommentsViewModel {
                     translateTargets: shown.translateTargets, translation: shown.translation, translatedTo: shown.translatedTo
                 )
                 app.postOverrides.syncFromServer(t.post)
+                ui.fullPagePending = more
                 prewarm(t.comments, post: t.post)
                 if language == nil { await detectLanguage(t) } else if let to = shown.translatedTo { translate(to) }
                 if more, !Task.isCancelled {
                     await loadFullPage()
+                    ui.fullPagePending = false
                     if let to = ui.translatedTo { translate(to) }
                 }
             } catch {
@@ -492,6 +499,7 @@ final class CommentsViewModel {
                 let tree = await Task.detached { CommentTree.replaceMore(current, moreNode, voted) }.value
                 prewarm(voted, post: s.post)
                 edit { t in withTree(t, tree).with { $0.loadingMore.remove(moreNode.fullname) } }
+                Task { await app.authorAvatars.loadAuthors(flat) } // #217
                 if let to = ui.translatedTo { translate(to) }
             } catch {
                 self?.edit { $0.with { $0.loadingMore.remove(moreNode.fullname) } }

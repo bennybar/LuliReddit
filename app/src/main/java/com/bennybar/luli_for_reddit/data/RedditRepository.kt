@@ -16,6 +16,7 @@ import com.bennybar.luli_for_reddit.core.obj
 import com.bennybar.luli_for_reddit.core.redditPostRoute
 import com.bennybar.luli_for_reddit.core.resolveShareLink
 import com.bennybar.luli_for_reddit.core.str
+import com.bennybar.luli_for_reddit.core.int
 import com.bennybar.luli_for_reddit.feature.post.CommentTree
 import com.bennybar.luli_for_reddit.model.Comment
 import com.bennybar.luli_for_reddit.model.Flair
@@ -616,9 +617,16 @@ class RedditRepository(val client: RedditClient) {
         return out
     }
 
-    suspend fun getCommentAvatars(postId: String, sort: String): Map<String, String> {
-        val data = client.gql("PostComments", GQL_POST_COMMENTS, postCommentsVariables("t3_$postId", sort, null, null))
-        return gqlAuthorIcons(data["postInfoById"]["commentForest"]["trees"].arr() ?: emptyList())
+    /**
+     * One page of a thread's GraphQL comment forest (about 25 comments, the rest folded
+     * into "more" entries): its commenters' pictures, and the cursor of the page after
+     * (the top-level "more"), if any.
+     */
+    suspend fun getCommentAvatars(postId: String, sort: String, after: String? = null): Pair<Map<String, String>, String?> {
+        val data = client.gql("PostComments", GQL_POST_COMMENTS, postCommentsVariables("t3_$postId", sort, null, after))
+        val trees = data["postInfoById"]["commentForest"]["trees"].arr() ?: emptyList()
+        val next = trees.lastOrNull { it["more"] is kotlinx.serialization.json.JsonObject && (it["depth"].int() ?: 0) == 0 }?.get("more")?.get("cursor").str()
+        return gqlAuthorIcons(trees) to next
     }
 
     private suspend fun <T> orGql(rest: suspend () -> T, gql: suspend () -> T): T {

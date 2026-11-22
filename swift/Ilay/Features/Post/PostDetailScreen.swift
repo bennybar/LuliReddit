@@ -29,6 +29,8 @@ struct PostDetailScreen: View {
     // Where you left this thread (#179): it reopens there once the comments are in. Once a
     // visit; a link to one comment opens on that comment instead.
     @State private var resumeAt: (fullname: String, offset: Int)?
+    /// "Back where you left off · Top", for a few seconds at the top (#223).
+    @State private var backNotice = false
     @State private var resumed: Bool
 
     @Environment(\.scenePhase) private var scenePhase
@@ -48,13 +50,18 @@ struct PostDetailScreen: View {
 
     private func resumePosition() {
         guard !resumed, !flat.isEmpty, let at = resumeAt else { return }
+        guard flat.contains(where: { $0.fullname == at.fullname }) else {
+            // A long thread shows its first page, then the full one: a comment further
+            // down (where the jump buttons often lead, #223) is only in that. Until it's
+            // in, wait; after, it's gone or folded away: the top, as before.
+            if !ui.loading, !ui.fullPagePending { resumed = true }
+            return
+        }
         resumed = true
-        // Gone, or folded away: the top, as before.
-        guard flat.contains(where: { $0.fullname == at.fullname }) else { return }
         // After the list has taken the comments.
         Task {
             handle.scroll(to: at.fullname, fraction: 0)
-            app.navigator.showSnackbar("Back where you left off", actionLabel: "Top") { [handle] in handle.scrollToTop() }
+            backNotice = true
         }
     }
 
@@ -104,7 +111,8 @@ struct PostDetailScreen: View {
                 if phase == .active { dwell.resume() } else { dwell.pause() }
                 if phase == .background { savePosition() }
             }
-            .onChange(of: flat.isEmpty, initial: true) { _, _ in resumePosition() }
+            .onChange(of: flat.count, initial: true) { _, _ in resumePosition() }
+            .onChange(of: ui.fullPagePending) { _, _ in resumePosition() }
             .onChange(of: vm.revision) { _, _ in syncActions() }
             .onChange(of: revealId) { _, id in if let id { reveal(id) } }
             .task(id: thread.flatMap { !username.isEmpty && $0.post.author == username ? $0.post.subreddit : nil }) {
@@ -169,6 +177,30 @@ struct PostDetailScreen: View {
                 if searchOpen, thread != nil { searchBar }
                 if focusCommentId != nil {
                     focusBanner.frame(maxHeight: .infinity, alignment: .top)
+                }
+                if backNotice {
+                    // At the top for a few seconds or until you scroll. It was a toast,
+                    // which covered the thread's buttons at the bottom (#223).
+                    HStack(spacing: 4) {
+                        Text("Back where you left off").font(.subheadline.weight(.medium))
+                        Button("Top") {
+                            backNotice = false
+                            handle.scrollToTop()
+                        }
+                        .font(.subheadline.weight(.semibold))
+                    }
+                    .padding(.leading, 16)
+                    .padding(.trailing, 12)
+                    .padding(.vertical, 10)
+                    .glassEffect(.regular, in: .capsule)
+                    .padding(.top, 8)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .transition(.opacity)
+                    .task {
+                        try? await Task.sleep(for: .seconds(4))
+                        withAnimation { backNotice = false }
+                    }
+                    .onChange(of: toolbarScroll.userScrolling) { _, on in if on { withAnimation { backNotice = false } } }
                 }
             }
         }

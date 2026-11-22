@@ -11,10 +11,12 @@ import kotlinx.coroutines.flow.update
 
 /**
  * Commenters' profile pictures (#133), by lowercased name. Reddit's comments .json has
- * none; its GraphQL comment forest has each author's, so with the website sign-in a
- * thread asks for its first page that way too (one more request). With an API key they
- * come by account id, 100 a request, for at most the first 200 new commenters (#185).
- * Kept here for this thread and the next ones. In memory only.
+ * none. With the website sign-in they come from its GraphQL comment forest, about 25
+ * comments a request: the first page as a thread opens (one more request), and up to
+ * [MORE_PAGES] more once a long thread's full page is in (#217). With an API key they
+ * come by account id, 100 a request, for at most 200 new commenters at a time (#185):
+ * the first page, the full page and loaded "more replies" (#217). (The website sign-in
+ * gets a 404 there.) Kept here for this thread and the next ones. In memory only.
  */
 class AuthorAvatars {
     private val _icons = MutableStateFlow<Map<String, String>>(emptyMap())
@@ -22,26 +24,63 @@ class AuthorAvatars {
     private val asked = HashSet<String>()
     /** Account ids already asked for with an API key (found or not). */
     private val askedIds = HashSet<String>()
+    /** Website sign-in: where each thread's (postId|sort) GraphQL pages continue. */
+    private val next = HashMap<String, String>()
 
     /** Once per thread and sort ([comments]: its first page); nothing with the setting off. */
     suspend fun loadFor(postId: String, sort: String, comments: List<Comment>) {
         if (!app.settings.value.commentAvatars || !asked.add("$postId|$sort")) return
-        val found = try {
-            if (app.client.isWebMode()) {
-                app.repository.getCommentAvatars(postId, sort)
-            } else {
-                val known = _icons.value
-                val ids = CommentTree.flatten(comments, emptySet())
-                    .filter { it.authorFullname.startsWith("t2_") && it.author.lowercase() !in known }
-                    .map { it.authorFullname }.distinct().filter { askedIds.add(it) }.take(200)
-                HashMap<String, String>().apply { for (batch in ids.chunked(100)) putAll(app.repository.getUserIcons(batch)) }
-            }
+        if (!app.client.isWebMode()) return loadAuthors(comments)
+        val (found, after) = try {
+            app.repository.getCommentAvatars(postId, sort)
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
             asked.remove("$postId|$sort")
             return
         }
+        if (after != null) next["$postId|$sort"] = after
+        add(found)
+    }
+
+    /** A long thread's full page is in ([comments]): the commenters past the first page. */
+    suspend fun loadRest(postId: String, sort: String, comments: List<Comment>) {
+        if (!app.settings.value.commentAvatars) return
+        if (!app.client.isWebMode()) return loadAuthors(comments)
+        repeat(MORE_PAGES) {
+            val after = next.remove("$postId|$sort") ?: return
+            val (found, more) = try {
+                app.repository.getCommentAvatars(postId, sort, after)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                return
+            }
+            if (more != null) next["$postId|$sort"] = more
+            add(found)
+        }
+    }
+
+    /** API key: [comments]' authors not known yet, by account id (each asked for once). */
+    suspend fun loadAuthors(comments: List<Comment>) {
+        if (!app.settings.value.commentAvatars || app.client.isWebMode()) return
+        val known = _icons.value
+        val ids = CommentTree.flatten(comments, emptySet())
+            .filter { it.authorFullname.startsWith("t2_") && it.author.lowercase() !in known }
+            .map { it.authorFullname }.distinct().filter { askedIds.add(it) }.take(200)
+        if (ids.isEmpty()) return
+        val found = try {
+            HashMap<String, String>().apply { for (batch in ids.chunked(100)) putAll(app.repository.getUserIcons(batch)) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            askedIds.removeAll(ids.toSet())
+            return
+        }
+        add(found)
+    }
+
+    private fun add(found: Map<String, String>) {
         if (found.isEmpty()) return
         _icons.update { old ->
             // Bounded: the oldest go first.
@@ -52,6 +91,7 @@ class AuthorAvatars {
 
     private companion object {
         const val MAX = 3000
+        const val MORE_PAGES = 3
     }
 }
 

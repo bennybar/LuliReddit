@@ -317,9 +317,14 @@ final class RedditRepository: Sendable {
         return out
     }
 
-    func getCommentAvatars(postId: String, sort: String) async throws -> [String: String] {
-        let data = try await client.gql("PostComments", GQL_POST_COMMENTS, postCommentsVariables("t3_\(postId)", sort, nil, nil))
-        return gqlAuthorIcons(data["postInfoById"]["commentForest"]["trees"].arr() ?? [])
+    /// One page of a thread's GraphQL comment forest (about 25 comments, the rest folded
+    /// into "more" entries): its commenters' pictures, and the cursor of the page after
+    /// (the top-level "more"), if any.
+    func getCommentAvatars(postId: String, sort: String, after: String? = nil) async throws -> (icons: [String: String], next: String?) {
+        let data = try await client.gql("PostComments", GQL_POST_COMMENTS, postCommentsVariables("t3_\(postId)", sort, nil, after))
+        let trees = data["postInfoById"]["commentForest"]["trees"].arr() ?? []
+        let next = trees.last { $0["more"].obj() != nil && ($0["depth"].int() ?? 0) == 0 }?["more"]["cursor"].str()
+        return (gqlAuthorIcons(trees), next)
     }
 
     /// Parses a comments response (live or saved offline).

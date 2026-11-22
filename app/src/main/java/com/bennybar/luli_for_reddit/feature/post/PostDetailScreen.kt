@@ -118,6 +118,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -273,7 +274,8 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
     val listState = rememberLazyListState(cacheWindow = LazyLayoutCacheWindow(ahead = 900.dp, behind = 300.dp))
     val scope = rememberCoroutineScope()
     // Reopens where you left off (#179); a link to one comment opens on that comment instead.
-    if (focusCommentId == null) ThreadPosition(postId, listState, flat)
+    var backNotice by remember { mutableStateOf(false) }
+    if (focusCommentId == null) ThreadPosition(postId, listState, flat, settled = !ui.loading && !ui.fullPagePending) { backNotice = true }
     val haptic = LocalHapticFeedback.current
 
     // In-post comment search. Matches by fullname, not list position:
@@ -493,6 +495,12 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
                     }
                 }
             }
+            BackWhereYouLeftOff(
+                backNotice,
+                listState,
+                onTop = { backNotice = false; scope.launch { listState.animateScrollToItem(0) } },
+                onDone = { backNotice = false },
+            )
             if (searchOpen && thread != null) {
                 SearchBar(
                     query = query,
@@ -510,29 +518,36 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
 
 /**
  * Where you were in a thread (#179): reopening it scrolls back to the comment that was at
- * the top of the screen, once the comments are in, with "Top" to go back up. Saved as you
- * leave, or when Android stops the app; at the top, it's forgotten.
+ * the top of the screen, once the comments are in, with "Top" to go back up ([onResumed]).
+ * Saved as you leave, or when Android stops the app; at the top, it's forgotten.
  */
 @Composable
-private fun ThreadPosition(postId: String, listState: LazyListState, flat: List<Comment>) {
-    val nav = LocalNavigator.current
-    val scope = rememberCoroutineScope()
+private fun ThreadPosition(postId: String, listState: LazyListState, flat: List<Comment>, settled: Boolean, onResumed: () -> Unit) {
     val resumeAt = remember(postId) { app.threadVisits.lastPosition(postId) }
     // Once a visit: not again on coming back from a profile or a link opened from here.
     var resumed by rememberSaveable(postId) { mutableStateOf(resumeAt == null) }
-    LaunchedEffect(flat.isNotEmpty()) {
+    LaunchedEffect(flat, settled) {
         if (resumed || flat.isEmpty() || resumeAt == null) return@LaunchedEffect
-        resumed = true
         val i = flat.indexOfFirst { it.fullname == resumeAt.first }
-        if (i < 0) return@LaunchedEffect // gone, or folded away: the top, as before
+        if (i < 0) {
+            // A long thread shows its first page, then the full one: a comment further
+            // down (where the jump buttons often lead, #223) is only in that. Until it's
+            // in, wait; after, it's gone or folded away: the top, as before.
+            if (settled) resumed = true
+            return@LaunchedEffect
+        }
+        resumed = true
         listState.scrollToItem(i + 1, resumeAt.second) // the post's header is item 0
-        nav.showSnackbar("Back where you left off", actionLabel = "Top") { scope.launch { listState.animateScrollToItem(0) } }
+        onResumed()
     }
     fun save() {
         // Still loading: nothing new to save, and the last position stays.
         if (!resumed) return
-        val key = listState.layoutInfo.visibleItemsInfo.firstOrNull()?.key as? String
-        if (listState.firstVisibleItemIndex == 0 || key == null || !key.startsWith("t1_")) {
+        // The row at the top and how far it's scrolled past, from the same row (the
+        // first of visibleItemsInfo can be the one above it, inside the list's padding).
+        val index = listState.firstVisibleItemIndex
+        val key = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }?.key as? String
+        if (index == 0 || key == null || !key.startsWith("t1_")) {
             app.threadVisits.recordPosition(postId, null, 0)
         } else {
             app.threadVisits.recordPosition(postId, key, listState.firstVisibleItemScrollOffset)
@@ -540,6 +555,27 @@ private fun ThreadPosition(postId: String, listState: LazyListState, flat: List<
     }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { save() }
     DisposableEffect(postId) { onDispose { save() } }
+}
+
+/**
+ * "Back where you left off · Top", at the top of the thread for a few seconds or until you
+ * scroll. It was a snackbar, which covered the thread's buttons at the bottom (#223).
+ */
+@Composable
+private fun BoxScope.BackWhereYouLeftOff(visible: Boolean, listState: LazyListState, onTop: () -> Unit, onDone: () -> Unit) {
+    val dragged by listState.interactionSource.collectIsDraggedAsState()
+    LaunchedEffect(visible, dragged) {
+        if (!visible) return@LaunchedEffect
+        if (dragged) onDone() else { delay(4000); onDone() }
+    }
+    AnimatedVisibility(visible, Modifier.align(Alignment.TopCenter).padding(top = 8.dp), enter = fadeIn(), exit = fadeOut()) {
+        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer, shadowElevation = 3.dp) {
+            Row(Modifier.padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Back where you left off", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                TextButton(onClick = onTop) { Text("Top") }
+            }
+        }
+    }
 }
 
 /** Pause/resume reading time with the screen; learn when another screen covers it. */
