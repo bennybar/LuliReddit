@@ -2,6 +2,17 @@ package com.bennybar.luli_for_reddit.feature.settings
 
 import androidx.compose.material.icons.automirrored.rounded.Notes
 import com.bennybar.luli_for_reddit.feature.inbox.InboxNotifications
+import androidx.compose.material.icons.outlined.DynamicFeed
+import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.PermMedia
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Translate
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Storage
+import androidx.compose.material.icons.outlined.ManageAccounts
+import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.FormatPaint
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.AccountCircle
@@ -13,11 +24,6 @@ import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material.icons.rounded.Tag
 import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.AlternateEmail
-import androidx.compose.material.icons.rounded.Storage
-import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material.icons.rounded.PermMedia
-import androidx.compose.material.icons.rounded.Forum
-import androidx.compose.material.icons.rounded.DynamicFeed
 import com.bennybar.luli_for_reddit.settings.HomeFab
 import com.bennybar.luli_for_reddit.settings.ThreadFab
 import com.bennybar.luli_for_reddit.settings.ThreadFabPosition
@@ -113,7 +119,6 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.OpenInBrowser
 import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Speed
@@ -252,22 +257,22 @@ private const val CUSTOM_MODEL = "\u0000custom"
 /** The main page's categories (#68), in groups: a section of the list, what's in it, its icon. */
 private val SETTINGS_CATEGORIES = listOf(
     listOf(
-        Triple("Feed", "Layout, sort, For You, what's hidden", Icons.Rounded.DynamicFeed),
-        Triple("Appearance", "Theme, font, app icon, navigation", Icons.Rounded.Palette),
-        Triple("Posts & comments", "Comment style, collapsing, swipes", Icons.Rounded.Forum),
-        Triple("Media", "Autoplay, NSFW blur, saving", Icons.Rounded.PermMedia),
+        Triple("Feed", "Layout, sort, For You, what's hidden", Icons.Outlined.DynamicFeed),
+        Triple("Appearance", "Theme, font, app icon, navigation", Icons.Outlined.Palette),
+        Triple("Posts & comments", "Comment style, collapsing, swipes", Icons.Outlined.Forum),
+        Triple("Media", "Autoplay, NSFW blur, saving", Icons.Outlined.PermMedia),
     ),
     listOf(
-        Triple("Notifications", "Inbox alerts", Icons.Rounded.Notifications),
-        Triple("Translation", "Languages and service", Icons.Rounded.Translate),
-        Triple("AI summaries", "Key, model, style", Icons.Rounded.AutoAwesome),
+        Triple("Notifications", "Inbox alerts", Icons.Outlined.Notifications),
+        Triple("Translation", "Languages and service", Icons.Outlined.Translate),
+        Triple("AI summaries", "Key, model, style", Icons.Outlined.AutoAwesome),
     ),
     listOf(
-        Triple("Data & storage", "History, cache, backup", Icons.Rounded.Storage),
-        Triple("Account & keys", "Login, API keys, clear data", Icons.Rounded.ManageAccounts),
-        Triple("Power-user features", "API usage", Icons.Rounded.Tune),
+        Triple("Data & storage", "History, cache, backup", Icons.Outlined.Storage),
+        Triple("Account & keys", "Login, API keys, clear data", Icons.Outlined.ManageAccounts),
+        Triple("Power-user features", "API usage", Icons.Outlined.Tune),
     ),
-    listOf(Triple("About", "Version, updates, licenses", Icons.Rounded.Info)),
+    listOf(Triple("About", "Version, updates, licenses", Icons.Outlined.Info)),
 )
 
 /** Settings: the categories, or the one [section] (a page of its own). */
@@ -507,7 +512,7 @@ fun SettingsList(
         section("Appearance")
         // Light / dark, AMOLED, wallpaper colours, the accent and the palette style: one page (#114).
         add(Entry("t:Theme & colours", "Theme & colours ${themeSummary(s)} dark light AMOLED black accent color colour wallpaper dynamic palette style hex") {
-            SettingTile("Theme & colours", themeSummary(s), Icons.Rounded.Palette, onClick = { nav.push(Route.ThemeColors) })
+            SettingTile("Theme & colours", themeSummary(s), Icons.Outlined.FormatPaint, onClick = { nav.push(Route.ThemeColors) })
         })
         tile("App font", s.appFont.label, Icons.Rounded.FontDownload, onClick = launch {
             pickOption(AppFont.entries.map { PickOption(it, it.label, subtitle = it.description) }, s.appFont)?.let(ctrl::setAppFont)
