@@ -406,7 +406,9 @@ private struct AuthorDot: View {
 
     var body: some View {
         let deleted = name.isEmpty || name.hasPrefix("[")
-        let icon = deleted || !app.settings.value.commentAvatars ? nil : app.authorAvatars.icons[name.lowercased()]
+        // Your own picture is known without asking: a reply you just posted has it too (#215).
+        let mine = name.lowercased() == app.session.username.lowercased() ? app.feed.me?.iconUrl : nil
+        let icon = deleted || !app.settings.value.commentAvatars ? nil : app.authorAvatars.icons[name.lowercased()] ?? mine
         // Soft tones like the other placeholders (#168).
         let tones = avatarTones(name)
         Text(verbatim: deleted ? "?" : String(name.prefix(1)).uppercased())

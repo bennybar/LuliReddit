@@ -89,6 +89,8 @@ struct PostDetailScreen: View {
                 vm.start()
                 dwell.start()
                 syncActions()
+                // Your own picture for your comments, a reply just posted included (#215).
+                if app.settings.value.commentAvatars { app.feed.loadMe() }
                 await app.post.refreshAiKey()
             }
             .onAppear {

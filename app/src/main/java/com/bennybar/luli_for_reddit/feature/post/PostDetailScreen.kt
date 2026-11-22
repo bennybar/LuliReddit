@@ -786,7 +786,14 @@ private fun CommentList(
     val flat = thread.flat
     // Animated images in the thread pause while it scrolls (see rememberPauseWhileScrolling).
     val scrolling = remember(listState) { { listState.isScrollInProgress } }
-    val icons by app.authorAvatars.icons.collectAsState()
+    val found by app.authorAvatars.icons.collectAsState()
+    // Your own picture is known without asking: a reply you just posted has it too (#215).
+    val me by app.feed.me.collectAsState()
+    LaunchedEffect(username, settings.commentAvatars) { if (username.isNotEmpty() && settings.commentAvatars) app.feed.loadMe() }
+    val icons = remember(found, me, username) {
+        val mine = me?.iconUrl?.takeIf { username.isNotEmpty() && username.lowercase() !in found }
+        if (mine == null) found else found + (username.lowercase() to mine)
+    }
     CompositionLocalProvider(LocalListScrolling provides scrolling, LocalAuthorIcons provides if (settings.commentAvatars) icons else emptyMap()) {
         LazyColumn(
             Modifier.fillMaxSize(),
