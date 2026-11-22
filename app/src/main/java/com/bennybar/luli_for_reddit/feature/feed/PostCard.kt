@@ -888,7 +888,8 @@ fun PollOptions(p: Post) {
                 app.post.pollVoteOpened = p.id
                 nav.push(Route.RedditWeb("https://www.reddit.com${p.permalink}", "Vote in poll"))
             }) { Text("Vote on Reddit") }
-            else -> Text("Vote in the official app", fontSize = 12.sp, color = cs.onSurfaceVariant)
+            // Reddit's API can't vote in polls: its site can (#222).
+            else -> TextButton(onClick = { nav.openInBrowser("https://www.reddit.com${p.permalink}") }) { Text("Vote on reddit.com") }
         }
     }
 }

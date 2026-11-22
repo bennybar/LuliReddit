@@ -455,7 +455,9 @@ struct PollOptionsView: View {
                     }
                     .font(.subheadline)
                 } else {
-                    Text("Vote in the official app")
+                    // Reddit's API can't vote in polls: its site can (#222).
+                    Button("Vote on reddit.com") { app.navigator.openInBrowser("https://www.reddit.com\(p.permalink)") }
+                        .font(.subheadline)
                 }
             }
             .font(.caption)

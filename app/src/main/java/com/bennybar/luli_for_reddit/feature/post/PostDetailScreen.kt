@@ -1820,6 +1820,9 @@ private fun CommentActionsRow(c: Comment, isOwn: Boolean, actions: ThreadActions
         IconButton(onClick = onClick, modifier = Modifier.size(36.dp)) { Icon(icon, desc, Modifier.size(18.dp), tint = tint) }
     }
 
+    // Deep in a thread the row is narrow: "Reply" loses its word so ⋯ stays on screen (#215).
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+    val compact = maxWidth < 300.dp
     Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         small(Icons.Rounded.ArrowUpward, "Upvote", if (up) votes.up else cs.onSurfaceVariant, up) { actions.vote(c, 1) }
         Text(
@@ -1835,9 +1838,11 @@ private fun CommentActionsRow(c: Comment, isOwn: Boolean, actions: ThreadActions
             modifier = Modifier.heightIn(min = 36.dp),
             colors = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = cs.onSurfaceVariant),
         ) {
-            Icon(Icons.AutoMirrored.Rounded.Reply, null, Modifier.size(16.dp))
-            Spacer(Modifier.width(6.dp))
-            Text("Reply", fontSize = 12.5.sp)
+            Icon(Icons.AutoMirrored.Rounded.Reply, if (compact) "Reply" else null, Modifier.size(16.dp))
+            if (!compact) {
+                Spacer(Modifier.width(6.dp))
+                Text("Reply", fontSize = 12.5.sp)
+            }
         }
         Spacer(Modifier.weight(1f))
         small(Icons.Rounded.UnfoldLess, "Collapse thread", cs.onSurfaceVariant) { actions.toggle(c) }
@@ -1856,6 +1861,7 @@ private fun CommentActionsRow(c: Comment, isOwn: Boolean, actions: ThreadActions
                 }
             }
         }
+    }
     }
 }
 
@@ -2148,7 +2154,11 @@ private fun CalmCommentRow(
             ) {
                 BodyWithMedia(comment.body, comment.media, nav, maxMedia = 3)
             }
-            // ↑ score ↓ · Reply · Collapse · ⋯ — small, 32dp targets.
+            // ↑ score ↓ · Reply · Collapse · ⋯ — small, 32dp targets. Deep in a thread the row
+            // is narrow: the words go, the icons stay, so ⋯ (Edit, Delete…) isn't pushed off
+            // the edge (#215: a reply you'd just posted, often the deepest, had none).
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val compact = maxWidth < 300.dp
             Row(Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 val muted = cs.onSurfaceVariant
                 // A vote colours its arrow and the score, with no circle behind it (#141).
@@ -2173,13 +2183,15 @@ private fun CalmCommentRow(
                         .padding(horizontal = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.AutoMirrored.Rounded.Reply, null, Modifier.size(16.dp), tint = muted)
-                    Spacer(Modifier.width(4.dp))
-                    Text("Reply", fontSize = 12.5.sp, fontWeight = FontWeight.Medium, color = muted)
+                    Icon(Icons.AutoMirrored.Rounded.Reply, if (compact) "Reply" else null, Modifier.size(16.dp), tint = muted)
+                    if (!compact) {
+                        Spacer(Modifier.width(4.dp))
+                        Text("Reply", fontSize = 12.5.sp, fontWeight = FontWeight.Medium, color = muted)
+                    }
                 }
                 Spacer(Modifier.weight(1f))
                 if (comment.saved) Icon(Icons.Rounded.Bookmark, "Saved", Modifier.size(16.dp), tint = cs.primary)
-                CollapsePill(Icons.Rounded.UnfoldLess, "Collapse", toggle)
+                CollapsePill(Icons.Rounded.UnfoldLess, "Collapse", toggle, compact)
                 Box {
                     Box(Modifier.size(32.dp).clip(CircleShape).clickable { menu = true }, contentAlignment = Alignment.Center) {
                         Icon(Icons.Rounded.MoreHoriz, "More", Modifier.size(16.dp), tint = muted)
@@ -2192,13 +2204,14 @@ private fun CalmCommentRow(
                     }
                 }
             }
+            }
         }
     }
 }
 
 /** Calm thread's collapse / expand control: a labelled tonal pill, easy to spot and hit. */
 @Composable
-private fun CollapsePill(icon: ImageVector, label: String, onClick: () -> Unit) {
+private fun CollapsePill(icon: ImageVector, label: String, onClick: () -> Unit, compact: Boolean = false) {
     val cs = MaterialTheme.colorScheme
     Row(
         Modifier
@@ -2207,12 +2220,15 @@ private fun CollapsePill(icon: ImageVector, label: String, onClick: () -> Unit) 
             .clip(RoundedCornerShape(14.dp))
             .background(cs.secondaryContainer)
             .clickable(onClickLabel = label, onClick = onClick)
-            .padding(start = 8.dp, end = 10.dp),
+            .padding(start = 8.dp, end = if (compact) 8.dp else 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, null, Modifier.size(16.dp), tint = cs.onSecondaryContainer)
-        Spacer(Modifier.width(4.dp))
-        Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = cs.onSecondaryContainer)
+        // [compact]: just the icon, in a narrow row.
+        Icon(icon, if (compact) label else null, Modifier.size(16.dp), tint = cs.onSecondaryContainer)
+        if (!compact) {
+            Spacer(Modifier.width(4.dp))
+            Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = cs.onSecondaryContainer)
+        }
     }
 }
 
