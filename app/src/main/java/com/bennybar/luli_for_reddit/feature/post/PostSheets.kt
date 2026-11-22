@@ -636,7 +636,8 @@ private val reportReasons = listOf(
 )
 
 /** Report dialog: preset reasons or a custom one. Works for posts and comments. */
-suspend fun showReportDialog(fullname: String) {
+/** Reports [fullname] (a post or comment), or what [send] reports (a user, #221). */
+suspend fun showReportDialog(fullname: String, send: (suspend (String) -> Unit)? = null) {
     val reason = Overlays.show<String> { done ->
         var selected by remember { mutableStateOf<String?>(null) }
         var custom by remember { mutableStateOf("") }
@@ -676,7 +677,7 @@ suspend fun showReportDialog(fullname: String) {
         )
     } ?: return
     try {
-        app.repository.report(fullname, reason)
+        if (send != null) send(reason) else app.repository.report(fullname, reason)
         snack("Reported. Thanks.")
     } catch (e: Exception) {
         snack("Could not report: ${errorText(e)}")

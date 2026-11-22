@@ -914,6 +914,11 @@ class RedditRepository(val client: RedditClient) {
         client.post("/api/report", mapOf("thing_id" to fullname, "reason" to reason))
     }
 
+    /** Reports a user to Reddit's admins (#221). */
+    suspend fun reportUser(username: String, reason: String) {
+        client.post("/api/report_user", mapOf("user" to username, "reason" to reason))
+    }
+
     /** Blocks a user (you stop seeing their posts/comments/messages). */
     suspend fun blockUser(username: String) { client.post("/api/block_user", mapOf("name" to username)) }
 

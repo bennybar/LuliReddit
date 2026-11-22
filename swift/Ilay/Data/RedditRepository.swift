@@ -876,6 +876,11 @@ final class RedditRepository: Sendable {
         try await client.post("/api/report", [("thing_id", fullname), ("reason", reason)])
     }
 
+    /// Reports a user to Reddit's admins (#221).
+    func reportUser(_ username: String, reason: String) async throws {
+        try await client.post("/api/report_user", [("user", username), ("reason", reason)])
+    }
+
     /// Blocks a user (you stop seeing their posts/comments/messages).
     func blockUser(_ username: String) async throws { try await client.post("/api/block_user", [("name", username)]) }
 

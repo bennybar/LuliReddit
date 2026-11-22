@@ -59,6 +59,9 @@ struct UserScreen: View {
                         Menu("More", systemImage: "ellipsis") {
                             Button("Send message", systemImage: "envelope") { nav.push(.composeMessage(to: username)) }
                             Button("Share", systemImage: "square.and.arrow.up", action: share)
+                            Button("Report user", systemImage: "flag") { // #221
+                                Task { await showReportDialog("u/\(username)") { try await app.repository.reportUser(username, reason: $0) } }
+                            }
                             Button("Block user", systemImage: "hand.raised", role: .destructive) {
                                 Task { await confirmBlockUser(username) }
                             }

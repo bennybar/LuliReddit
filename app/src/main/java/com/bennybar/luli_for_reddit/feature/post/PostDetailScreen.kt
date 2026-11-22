@@ -764,6 +764,10 @@ private class ThreadActions(val vm: CommentsViewModel, val nav: AppNavigator, va
         scope.launch { confirmBlockUser(c.author) }
     }
 
+    fun report(c: Comment) {
+        scope.launch { showReportDialog(c.fullname) }
+    }
+
     fun mod(c: Comment, doneMsg: String, action: suspend (com.bennybar.luli_for_reddit.data.RedditRepository) -> Unit) {
         scope.launch {
             if (!modAction(doneMsg, action)) return@launch
@@ -1905,7 +1909,10 @@ private fun ColumnScope.CommentMenuItems(
             DropdownMenuItem(text = { Text("Share as image") }, onClick = { pick { actions.shareImage(c) } })
         }
         if (!isOwn && c.author != "[deleted]") {
-            add { DropdownMenuItem(text = { Text("Block u/${c.author}") }, onClick = { pick { actions.block(c) } }) }
+            add {
+                DropdownMenuItem(text = { Text("Report") }, onClick = { pick { actions.report(c) } }) // #221, as iOS
+                DropdownMenuItem(text = { Text("Block u/${c.author}") }, onClick = { pick { actions.block(c) } })
+            }
         }
         // Moderators of this community (the post says so) can act on comments too.
         if (actions.post?.canModPost == true) {

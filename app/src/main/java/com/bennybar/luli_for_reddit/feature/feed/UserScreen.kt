@@ -71,6 +71,8 @@ import com.bennybar.luli_for_reddit.core.compactNumber
 import com.bennybar.luli_for_reddit.core.routeForRedditUrl
 import com.bennybar.luli_for_reddit.core.timeAgo
 import com.bennybar.luli_for_reddit.feature.post.confirmBlockUser
+import com.bennybar.luli_for_reddit.feature.post.showReportDialog
+import androidx.compose.material.icons.outlined.Flag
 import com.bennybar.luli_for_reddit.model.Comment
 import com.bennybar.luli_for_reddit.model.Post
 import com.bennybar.luli_for_reddit.model.RedditUser
@@ -123,6 +125,9 @@ fun UserScreen(username: String) {
                     }
                     IconButton(onClick = { nav.share("https://reddit.com/user/$username") }) { Icon(Icons.Outlined.Share, "Share") }
                     if (!isSelf) {
+                        IconButton(onClick = { scope.launch { showReportDialog("u/$username") { app.repository.reportUser(username, it) } } }) {
+                            Icon(Icons.Outlined.Flag, "Report user") // #221
+                        }
                         IconButton(onClick = { scope.launch { confirmBlockUser(username) } }) {
                             Icon(Icons.Rounded.Block, "Block user")
                         }

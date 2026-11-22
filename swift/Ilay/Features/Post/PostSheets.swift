@@ -562,11 +562,12 @@ private let reportReasons = [
 ]
 
 /// Report: preset reasons or a custom one. Works for posts and comments.
-@MainActor func showReportDialog(_ fullname: String) async {
+/// Reports `fullname` (a post or comment), or what `send` reports (a user, #221).
+@MainActor func showReportDialog(_ fullname: String, send: ((String) async throws -> Void)? = nil) async {
     let picked: String? = await Overlays.show(detents: [.medium, .large]) { done in ReportSheet(done: done) }
     guard let reason = picked else { return }
     do {
-        try await app.repository.report(fullname, reason: reason)
+        if let send { try await send(reason) } else { try await app.repository.report(fullname, reason: reason) }
         snack("Reported. Thanks.")
     } catch {
         snack("Could not report: \(errorText(error))")
