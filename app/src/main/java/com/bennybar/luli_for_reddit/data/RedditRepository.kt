@@ -28,6 +28,8 @@ import com.bennybar.luli_for_reddit.model.RedditUser
 import com.bennybar.luli_for_reddit.model.Subreddit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -702,7 +704,7 @@ class RedditRepository(val client: RedditClient) {
         if (richtextJson != null) data["richtext_json"] = richtextJson else data["text"] = text
         val res = client.post("/api/comment", data)
         throwIfErrors(res)
-        val thing = res["json"]["data"]["things"][0] ?: throw Exception("Reddit did not return the new comment.")
+        val thing = res["json"]["data"]["things"][0] ?: return postedReply(parentFullname, depth)
         val c = Comment.fromChild(thing, depth)
         // A website session gets the legacy reply format: id + rendered HTML,
         // no author, body or timestamp. Fill those in from what was sent, or
@@ -716,6 +718,28 @@ class RedditRepository(val client: RedditClient) {
             score = 1,
             likes = true,
         )
+    }
+
+    /**
+     * A reply Reddit took without sending it back (no errors, no comment: one with an
+     * image from a website session, #220): your newest comment under [parentFullname].
+     * It can take Reddit a moment to list it, so a second look follows. Not found, it
+     * still says it was posted: "failed" invited a duplicate.
+     */
+    private suspend fun postedReply(parentFullname: String, depth: Int): Comment {
+        val me = app.session.username
+        repeat(2) { attempt ->
+            if (attempt > 0) delay(1500)
+            val mine = try {
+                getUserComments(me, sort = PostSort.NEWEST).items
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                emptyList()
+            }
+            mine.take(5).firstOrNull { it.parentId == parentFullname }?.let { return it.copy(depth = depth) }
+        }
+        throw Exception("Your reply was posted, but Reddit didn't send it back. Pull to refresh the thread to see it.")
     }
 
     /** Reddit's answer when a subreddit doesn't allow images in comments. */

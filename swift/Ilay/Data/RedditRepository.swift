@@ -689,13 +689,27 @@ final class RedditRepository: Sendable {
         if let first = apiErrors(body).first { throw AppException(first) }
     }
 
+    /// A reply Reddit took without sending it back (no errors, no comment: one with an
+    /// image from a website session, #220): your newest comment under [parentFullname].
+    /// It can take Reddit a moment to list it, so a second look follows. Not found, it
+    /// still says it was posted: "failed" invited a duplicate.
+    private func postedReply(_ parentFullname: String, depth: Int) async throws -> Comment {
+        let me = await app.session.username
+        for attempt in 0..<2 {
+            if attempt > 0 { try await Task.sleep(for: .milliseconds(1500)) }
+            let mine = (try? await getUserComments(me, sort: .newest).items) ?? []
+            if let c = mine.prefix(5).first(where: { $0.parentId == parentFullname }) { return c.with { $0.depth = depth } }
+        }
+        throw AppException("Your reply was posted, but Reddit didn't send it back. Pull to refresh the thread to see it.")
+    }
+
     /// Replies to [parentFullname] (t3_ post or t1_ comment); returns the new comment at [depth].
     func reply(_ parentFullname: String, text: String, richtextJson: String? = nil, depth: Int = 0) async throws -> Comment {
         var data: Fields = [("api_type", "json"), ("thing_id", parentFullname)]
         if let richtextJson { data.append(("richtext_json", richtextJson)) } else { data.append(("text", text)) }
         let res = try await client.post("/api/comment", data)
         try throwIfErrors(res)
-        guard let thing = res["json"]["data"]["things"][0] else { throw AppException("Reddit did not return the new comment.") }
+        guard let thing = res["json"]["data"]["things"][0] else { return try await postedReply(parentFullname, depth: depth) }
         let c = Comment.fromChild(thing, depth)
         // A website session gets the legacy reply format: id + rendered HTML,
         // no author, body or timestamp. Fill those in from what was sent, or
