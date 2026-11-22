@@ -45,6 +45,16 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.93", "Nov 22, 2026",
+        listOf(
+            "Long threads reopen where you left off after using the jump buttons too, and \"Back where you left off\" sits at the top instead of over the buttons",
+            "More commenters' pictures show in long threads, and your own on your comments",
+            "A reply with an image no longer says it failed when Reddit posted it",
+            "Collapse AutoModerator and pinned comments: every pinned comment now starts collapsed",
+            "New comment in the thread's ⋯ menu, your picture on the Profile tab, and Report for comments and users",
+        ),
+    ),
+    Release(
         "2.0.92", "Nov 17, 2026",
         listOf(
             "The screen stays on while a video plays full screen",
