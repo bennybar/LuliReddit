@@ -30,6 +30,7 @@ import com.bennybar.luli_for_reddit.data.TopTime
 enum class AppFont(val key: String, val label: String, val description: String) {
     ROBOTO("roboto", "Roboto", "Android's default"),
     GOOGLE_SANS("googlesans", "Google Sans", "The typeface of Google's own apps"),
+    GOOGLE_SANS_FLEX("googlesansflex", "Google Sans Flex", "Material 3 Expressive's: rounded titles, plain text to read"),
     JAKARTA("jakarta", "Plus Jakarta Sans", "Rounder, with Unbounded for headlines");
 
     companion object {

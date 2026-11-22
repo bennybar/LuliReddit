@@ -175,6 +175,25 @@ object AppTheme {
     )
 
     /**
+     * Google Sans Flex (OFL, #224), Material 3 Expressive's typeface: one variable file
+     * subset to Latin/Greek/Cyrillic, slant and width fixed; weight, optical size and
+     * roundness (ROND 0–100) left. [rounded]: fully round, for titles.
+     */
+    @OptIn(ExperimentalTextApi::class)
+    private fun googleSansFlex(rounded: Boolean) = FontFamily(
+        listOf(FontWeight.Normal, FontWeight.Medium, FontWeight.SemiBold, FontWeight.Bold).map { w ->
+            Font(
+                R.font.google_sans_flex,
+                w,
+                variationSettings = FontVariation.Settings(FontVariation.weight(w.weight), FontVariation.Setting("ROND", if (rounded) 100f else 0f)),
+            )
+        },
+    )
+
+    val googleSansFlex = googleSansFlex(rounded = false)
+    val googleSansFlexRounded = googleSansFlex(rounded = true)
+
+    /**
      * Each text reads in its own direction (a Hebrew title or comment right to
      * left, with its punctuation where it belongs). Compose's default follows
      * the layout direction only, so RTL text was laid out as if it were English.
@@ -193,6 +212,19 @@ object AppTheme {
     private fun baseTypography(font: AppFont): Typography {
         val t = Typography()
         if (font == AppFont.ROBOTO) return t
+        if (font == AppFont.GOOGLE_SANS_FLEX) {
+            // Material's sizes and weights; the expressive part is the round titles
+            // (the "Google Sans Rounded" look) over plain text to read (#224).
+            fun TextStyle.r() = copy(fontFamily = googleSansFlexRounded)
+            fun TextStyle.p() = copy(fontFamily = googleSansFlex)
+            return t.copy(
+                displayLarge = t.displayLarge.r(), displayMedium = t.displayMedium.r(), displaySmall = t.displaySmall.r(),
+                headlineLarge = t.headlineLarge.r(), headlineMedium = t.headlineMedium.r(), headlineSmall = t.headlineSmall.r(),
+                titleLarge = t.titleLarge.r(), titleMedium = t.titleMedium.r(), titleSmall = t.titleSmall.r(),
+                bodyLarge = t.bodyLarge.p(), bodyMedium = t.bodyMedium.p(), bodySmall = t.bodySmall.p(),
+                labelLarge = t.labelLarge.p(), labelMedium = t.labelMedium.p(), labelSmall = t.labelSmall.p(),
+            )
+        }
         if (font == AppFont.GOOGLE_SANS) {
             // Material's type scale was drawn for Google Sans: keep its sizes and weights.
             fun TextStyle.g() = copy(fontFamily = googleSans)
