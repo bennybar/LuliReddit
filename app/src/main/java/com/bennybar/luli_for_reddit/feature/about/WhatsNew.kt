@@ -45,6 +45,13 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.95", "Nov 22, 2026",
+        listOf(
+            "Comments deep in a thread keep their ⋯ menu (Edit, Delete…): on narrow rows Reply and Collapse show just their icons",
+            "Polls: \"Vote on reddit.com\" opens the post on Reddit's site, where you can vote",
+        ),
+    ),
+    Release(
         "2.0.94", "Nov 22, 2026",
         listOf(
             "Expandable top bar: a big title at the top of Posts, Explore and Inbox that shrinks into the bar as you scroll",
