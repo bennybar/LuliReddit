@@ -336,11 +336,12 @@ private struct SheetPick {
 
 /// The post overflow sheet: share, save offline, hide, copy, report, block, crosspost,
 /// open in browser, mod actions.
-@MainActor func showPostActionsSheet(_ post: Post) {
+/// `onComment`: the thread's, which puts "New comment" first (#225).
+@MainActor func showPostActionsSheet(_ post: Post, onComment: (@MainActor () -> Void)? = nil) {
     Task {
         // After the sheet has gone: an action may open a sheet of its own.
         let pick: SheetPick? = await Overlays.show(detents: [.medium, .large]) { done in
-            PostActionsSheet(post: post) { run in done(SheetPick(run: run)) }
+            PostActionsSheet(post: post, onComment: onComment) { run in done(SheetPick(run: run)) }
         }
         await pick?.run()
     }
@@ -348,6 +349,7 @@ private struct SheetPick {
 
 private struct PostActionsSheet: View {
     let post: Post
+    var onComment: (@MainActor () -> Void)? = nil
     let pick: (@escaping @MainActor () async -> Void) -> Void
 
     private var link: String { "https://reddit.com\(post.permalink)" }
@@ -356,6 +358,10 @@ private struct PostActionsSheet: View {
         let savedOffline = app.offline.contains(post.id)
         NavigationStack {
             List {
+                // In a thread: with the floating button off (Settings › Thread buttons), here.
+                if let onComment {
+                    Section { item("plus.bubble", "New comment") { onComment() } }
+                }
                 Section {
                     item("square.and.arrow.up", "Share link") {
                         // Sharing is a strong interest signal.

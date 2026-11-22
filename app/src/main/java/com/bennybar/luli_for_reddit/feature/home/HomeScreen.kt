@@ -114,6 +114,9 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.border
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -682,6 +685,12 @@ private fun FloatingNav(
     val spans = remember { arrayOfNulls<ClosedFloatingPointRange<Float>>(navItems.size) }
     val current by rememberUpdatedState(selected)
     val select by rememberUpdatedState(onSelected)
+    // Your picture as the Profile tab's icon, signed in (#219).
+    val session by app.session.state.collectAsStateWithLifecycle()
+    val me by app.feed.me.collectAsStateWithLifecycle()
+    val signedIn = app.session.username.isNotEmpty()
+    LaunchedEffect(session, signedIn) { if (signedIn) app.feed.loadMe() }
+    val avatar = me?.iconUrl?.takeIf { signedIn }
     Box(modifier.navigationBarsPadding().padding(bottom = 20.dp)) {
         Surface(
             Modifier
@@ -718,6 +727,7 @@ private fun FloatingNav(
                         item = item,
                         selected = selected == i,
                         badge = if (i == 2) unread else 0,
+                        avatar = if (i == 3) avatar else null,
                         showLabel = showLabels,
                         onClick = { onSelected(i) },
                         modifier = Modifier.onPlaced { c ->
@@ -736,6 +746,7 @@ private fun NavButton(
     item: NavItem,
     selected: Boolean,
     badge: Int,
+    avatar: String?,
     showLabel: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -756,7 +767,17 @@ private fun NavButton(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         val icon: @Composable () -> Unit = {
-            Icon(if (selected) item.on else item.off, item.label, Modifier.size(24.dp), tint = contentColor)
+            if (avatar != null) {
+                // Ringed in the tab's colour, so selected still reads as selected.
+                AsyncImage(
+                    avatar,
+                    item.label,
+                    Modifier.size(26.dp).clip(CircleShape).border(1.5.dp, contentColor, CircleShape),
+                    contentScale = ContentScale.Crop,
+                )
+            } else {
+                Icon(if (selected) item.on else item.off, item.label, Modifier.size(24.dp), tint = contentColor)
+            }
         }
         if (badge > 0) {
             BadgedBox(badge = { Badge { Text(if (badge > 99) "99+" else "$badge") } }) { icon() }

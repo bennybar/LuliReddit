@@ -255,7 +255,7 @@ struct PostDetailScreen: View {
                 if !username.isEmpty, thread.post.author == username {
                     Menu {
                         Button {
-                            showPostActionsSheet(thread.post)
+                            showPostActionsSheet(thread.post) { [actions] in actions.replyToPost() }
                         } label: {
                             Label("Post actions", systemImage: "ellipsis.circle")
                         }
@@ -266,7 +266,7 @@ struct PostDetailScreen: View {
                     }
                 } else {
                     Button {
-                        showPostActionsSheet(thread.post)
+                        showPostActionsSheet(thread.post) { [actions] in actions.replyToPost() }
                     } label: {
                         Label("More", systemImage: "ellipsis")
                     }

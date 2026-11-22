@@ -701,7 +701,7 @@ fun SettingsList(
         // Collapsing AutoModerator and pinned bots (#202): here only, with the other collapse
         // options (it was also in Content filters, which read as a second, different switch).
         switch(
-            "Collapse AutoModerator and bots", "Start AutoModerator's comments, and pinned comments by bots, collapsed",
+            "Collapse AutoModerator and pinned comments", "Start AutoModerator's comments, and every pinned comment (bots', mods' notes), collapsed",
             Icons.Outlined.SmartToy, filters.collapseAutoMod, app.contentFilters::setCollapseAutoMod,
         )
         switch(

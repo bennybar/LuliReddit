@@ -407,7 +407,7 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
                                 Icon(if (searchOpen) Icons.Rounded.SearchOff else SearchIcon, "Search comments")
                             }
                         }
-                        IconButton(onClick = { showPostActionsSheet(thread.post) }) { Icon(Icons.Rounded.MoreVert, "More") }
+                        IconButton(onClick = { showPostActionsSheet(thread.post, onComment = actions::replyToPost) }) { Icon(Icons.Rounded.MoreVert, "More") }
                         if (username.isNotEmpty() && thread.post.author == username) OwnPostMenu(thread.post, vm, nav)
                     }
                 },

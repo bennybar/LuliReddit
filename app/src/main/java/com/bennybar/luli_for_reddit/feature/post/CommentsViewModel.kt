@@ -380,8 +380,9 @@ class CommentsViewModel(
         for (c in CommentTree.flatten(comments, emptySet())) {
             if (c.isMore || c.id in skip) continue
             when {
-                // Pinned bot comments too (#202): a bot by its name, as Reddit's own say.
-                autoMod && (c.author == "AutoModerator" || (c.stickied && c.author.endsWith("bot", ignoreCase = true))) -> out += c.id
+                // And every pinned comment (#216): bots' (#202), whatever their name
+                // (u/qualityvote2), and the mods' notes, a tap away.
+                autoMod && (c.author == "AutoModerator" || c.stickied) -> out += c.id
                 below != null && c.score < below && !c.scoreHidden && !c.author.equals(me, ignoreCase = true) -> out += c.id
                 s.collapseTopLevel && c.depth == 0 && c.replies.any { !it.isMore } -> out += CommentTree.folded(c.id)
             }

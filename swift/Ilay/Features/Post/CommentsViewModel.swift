@@ -438,7 +438,9 @@ final class CommentsViewModel {
         var out = Set<String>()
         for c in CommentTree.flatten(comments, []) where !c.isMore && !skip.contains(c.id) {
             // Pinned bot comments too (#202): a bot by its name, as Reddit's own say.
-            if rules.collapseAutoMod, c.author == "AutoModerator" || (c.stickied && c.author.lowercased().hasSuffix("bot")) {
+            // And every pinned comment (#216): bots' (#202), whatever their name
+            // (u/qualityvote2), and the mods' notes, a tap away.
+            if rules.collapseAutoMod, c.author == "AutoModerator" || c.stickied {
                 out.insert(c.id)
             } else if let below = rules.below, c.score < below, !c.scoreHidden, c.author.lowercased() != rules.me.lowercased() {
                 out.insert(c.id)

@@ -38,6 +38,8 @@ struct HomeScreen: View {
     @State private var drawer: CGFloat = 0
     @State private var lastExploreTap = Date.distantPast
     @State private var startupChecksDone = false
+    /// Your profile picture, round and tab-icon sized (#219).
+    @State private var profileIcon: UIImage?
 
     private let drawerWidth: CGFloat = 300
 
@@ -52,17 +54,38 @@ struct HomeScreen: View {
         ZStack(alignment: .leading) {
             TabView(selection: Binding(get: { nav.selectedTab }, set: selectTab)) {
                 ForEach(navItems.indices, id: \.self) { i in
-                    Tab(navItems[i].label, systemImage: navItems[i].systemImage, value: i) {
+                    Tab(value: i) {
                         NavigationStack(path: $nav.paths[i]) {
                             TabRoot(index: i)
                                 .navigationDestination(for: Route.self) { RouteView(route: $0) }
                         }
                         .modifier(HidesTabBar(hidden: !bottomBar))
+                    } label: {
+                        // Your picture as the Profile tab's icon, signed in (#219).
+                        if i == 3, let profileIcon {
+                            Label { Text(navItems[i].label) } icon: { Image(uiImage: profileIcon) }
+                        } else {
+                            Label(navItems[i].label, systemImage: navItems[i].systemImage)
+                        }
                     }
                     .badge(i == 2 ? unread : 0)
                 }
             }
             .tabBarMinimizeBehavior(.onScrollDown)
+            .task(id: app.session.username) { app.feed.loadMe() }
+            .task(id: app.feed.me?.iconUrl) {
+                guard let url = app.feed.me?.iconUrl.flatMap(URL.init(string:)),
+                      let image = await ImageLoader.shared.image(url: url, maxPixelSize: 96) else {
+                    profileIcon = nil
+                    return
+                }
+                let size = CGSize(width: 26, height: 26)
+                // Its own colours (a tab icon is tinted otherwise), cut round.
+                profileIcon = UIGraphicsImageRenderer(size: size).image { _ in
+                    UIBezierPath(ovalIn: CGRect(origin: .zero, size: size)).addClip()
+                    image.draw(in: CGRect(origin: .zero, size: size))
+                }.withRenderingMode(.alwaysOriginal)
+            }
             .environment(\.sideBar, sideBar ? { openDrawer() } : nil)
             .gesture(EdgePan(enabled: sideBar && atRoot && drawer == 0, width: drawerWidth) { progress in
                 drawer = progress

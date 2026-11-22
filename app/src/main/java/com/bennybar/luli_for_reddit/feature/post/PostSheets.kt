@@ -45,6 +45,7 @@ import com.bennybar.luli_for_reddit.feature.media.canShareAsMedia
 import androidx.compose.material.icons.outlined.PermMedia
 import androidx.compose.material.icons.outlined.ThumbDown
 import androidx.compose.material.icons.rounded.DoneAll
+import androidx.compose.material.icons.rounded.AddComment
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.CheckCircle
@@ -425,13 +426,14 @@ private fun <T> ComposeSheet(
  * The post overflow sheet: share, save offline, hide, copy, report,
  * block, crosspost, open in browser, mod actions, Tune For You.
  */
-fun showPostActionsSheet(post: Post) {
-    Overlays.launch { done -> PostActionsSheet(post, done) }
+/** [onComment]: the thread's, which puts "New comment" first (#225). */
+fun showPostActionsSheet(post: Post, onComment: (() -> Unit)? = null) {
+    Overlays.launch { done -> PostActionsSheet(post, onComment, done) }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PostActionsSheet(post: Post, done: () -> Unit) {
+private fun PostActionsSheet(post: Post, onComment: (() -> Unit)?, done: () -> Unit) {
     // Subscribed: Reddit's list can arrive while the sheet is open.
     val showFewerIds by app.forYou.redditHome.showFewerIds.collectAsStateWithLifecycle()
     val sheet = rememberModalBottomSheetState()
@@ -461,6 +463,8 @@ private fun PostActionsSheet(post: Post, done: () -> Unit) {
     val seen = app.history.contains(post.id)
     ModalBottomSheet(onDismissRequest = done, sheetState = sheet) {
         Column(Modifier.verticalScroll(rememberScrollState()).navigationBarsPadding()) {
+            // In a thread: with the floating button off (Settings › Thread buttons), here.
+            if (onComment != null) MenuGroup { act(Icons.Rounded.AddComment, "New comment") { onComment() } }
             MenuGroup {
                 act(Icons.Outlined.Share, "Share link") {
                     // Sharing is a strong interest signal.
