@@ -106,6 +106,8 @@ import com.bennybar.luli_for_reddit.nav.NavCache
 import com.bennybar.luli_for_reddit.nav.Route
 import androidx.compose.foundation.layout.RowScope
 import com.bennybar.luli_for_reddit.feature.home.TabSearchBar
+import com.bennybar.luli_for_reddit.feature.feed.CollapsingTitleBar
+import com.bennybar.luli_for_reddit.feature.feed.rememberCollapsingTitle
 import com.bennybar.luli_for_reddit.settings.TopBarMode
 import com.bennybar.luli_for_reddit.ui.friendlyError
 import com.bennybar.luli_for_reddit.feature.post.confirmDelete
@@ -165,9 +167,15 @@ fun InboxScreen(reselect: Int, selected: Boolean = true) {
 
     val fab = rememberFabScroll()
     val settings by app.settings.state.collectAsStateWithLifecycle()
+    val collapsing = rememberCollapsingTitle {
+        val l = lists[pager.currentPage]
+        l.firstVisibleItemIndex == 0 && l.firstVisibleItemScrollOffset == 0
+    }
     val openSideBar = LocalSideBar.current
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     Scaffold(
+        // Expandable: scrolling a list folds the title first (only that mode shows it).
+        modifier = if (settings.topBarMode == TopBarMode.FULL) Modifier else Modifier.nestedScroll(collapsing),
         topBar = {
             Column {
                 val barActions: @Composable RowScope.() -> Unit = {
@@ -194,7 +202,11 @@ fun InboxScreen(reselect: Int, selected: Boolean = true) {
                 if (settings.topBarMode == TopBarMode.FULL) {
                     TabSearchBar("Search Reddit", onSearch = { nav.push(Route.Search()) }, actions = barActions)
                 } else {
-                    TopAppBar(title = title, navigationIcon = { SideBarButton() }, colors = appBarColors, actions = barActions)
+                    // Expandable: the big title that folds into the bar as the list scrolls.
+                    CollapsingTitleBar(
+                        collapsing, "Inbox", hasNavigation = openSideBar != null, underStatusBar = false,
+                        navigation = { SideBarButton() }, actions = barActions,
+                    )
                 }
                 PrimaryScrollableTabRow(
                     selectedTabIndex = pager.currentPage,

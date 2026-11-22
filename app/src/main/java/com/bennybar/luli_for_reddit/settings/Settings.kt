@@ -55,7 +55,7 @@ enum class PaletteStyle(val label: String) {
 /** Where the Posts-screen actions (search, new post, profile) live. Persisted by index. */
 enum class TopBarMode(val label: String, val description: String) {
     FULL("Full top bar", "Search, new post and profile across the top (current)"),
-    EXPANDABLE("Expandable", "Just a title with one button that floats the full top bar in on demand"),
+    EXPANDABLE("Expandable", "A big title that shrinks into the bar as you scroll, with search and ⋯ beside it"),
 }
 
 /**

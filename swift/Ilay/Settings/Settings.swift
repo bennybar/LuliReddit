@@ -15,7 +15,7 @@ enum TopBarMode: Int, CaseIterable, Sendable {
     var description: String {
         self == .full
             ? "Search, new post and profile across the top (current)"
-            : "Just a title with one button that floats the full top bar in on demand"
+            : "A big title that shrinks into the bar as you scroll, with search and ⋯ beside it"
     }
 }
 

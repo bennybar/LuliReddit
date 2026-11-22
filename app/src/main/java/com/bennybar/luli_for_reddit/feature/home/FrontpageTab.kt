@@ -19,6 +19,11 @@ import com.bennybar.luli_for_reddit.feature.feed.rememberFeedController
 import com.bennybar.luli_for_reddit.feature.feed.rememberFeedListState
 import com.bennybar.luli_for_reddit.feature.feed.rememberHidingBar
 import com.bennybar.luli_for_reddit.feature.feed.HidingTopBar
+import com.bennybar.luli_for_reddit.feature.feed.CollapsingTitleBar
+import com.bennybar.luli_for_reddit.feature.feed.rememberCollapsingTitle
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.asPaddingValues
 import com.bennybar.luli_for_reddit.feature.feed.showTopPanel
 import com.bennybar.luli_for_reddit.feature.feed.PanelButton
 import com.bennybar.luli_for_reddit.feature.feed.PanelOuter
@@ -130,20 +135,12 @@ internal fun FrontpageTab(selected: Boolean) {
         // The menu, without what's already in this bar (#78).
         FullTopBar(username) { showFloatingToolbar(nav, username, { openMediaBrowser(nav, feedKey, listState) }, compact = true) }
     }
-    // The title row: the bar itself in Expandable mode; Full mode scrolls it with the feed.
+    // Full mode's title row, which scrolls with the feed (the feed insets it 7dp).
     val titleRow: @Composable () -> Unit = {
         Row(
-            Modifier.fillMaxWidth().padding(
-                // With the ☰ there, line it up with the other tabs' (4dp + the button's own inset).
-                // The feed (or, in Expandable mode, the bar) already insets it 7dp.
-                start = if (expandable && LocalSideBar.current != null) 0.dp else 16.dp,
-                top = if (expandable) (if (LocalSideBar.current != null) 8.dp else 10.dp) else 8.dp,
-                end = if (expandable) 4.dp else 16.dp,
-            ),
+            Modifier.fillMaxWidth().padding(start = 16.dp, top = 8.dp, end = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Full mode has it in the action row above.
-            if (expandable) SideBarButton(Modifier.offset(x = (-3).dp))
             Text(
                 if (postsAll) "r/all" else if (homeOn) "Home" else if (blend) "Blend" else if (forYou) "For You" else "Frontpage",
                 style = MaterialTheme.typography.titleLarge,
@@ -162,29 +159,43 @@ internal fun FrontpageTab(selected: Boolean) {
             } else {
                 Spacer(Modifier.weight(1f))
             }
-            // Expandable mode: search right here, and one button that floats the toolbar in.
-            if (expandable) {
+        }
+    }
+    // Expandable (#214): the big title that folds into the bar as the feed scrolls.
+    val collapsing = rememberCollapsingTitle { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 }
+    val statusBar = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    Box(Modifier.fillMaxSize().clipToBounds().nestedScroll(if (expandable) collapsing else bar).nestedScroll(fab)) {
+        val density = LocalDensity.current
+        PostListView(
+            feedKey = feedKey,
+            postsTab = true,
+            header = if (expandable) null else titleRow,
+            topPadding = if (expandable) statusBar + collapsing.height else with(density) { bar.height.toDp() },
+            listState = listState,
+            refreshRequests = refreshRequests,
+            hideReadRequests = hideReadRequests,
+            // Right under the bar when it's fully out, off the top when it's gone.
+            floatingChipsY = when {
+                !settings.floatingChips -> null
+                expandable -> { _ -> with(density) { (statusBar + collapsing.height).roundToPx() } }
+                else -> bar::chipsY
+            },
+        )
+        if (expandable) {
+            CollapsingTitleBar(
+                collapsing,
+                if (postsAll) "r/all" else if (homeOn) "Home" else if (blend) "Blend" else if (forYou) "For You" else "Frontpage",
+                subtitle = if (!homeOn && forYou) (if (blend) blendSubtitle(blendState) else "On your phone") else null,
+                hasNavigation = LocalSideBar.current != null,
+                navigation = { SideBarButton() },
+            ) {
                 IconButton(onClick = { nav.push(Route.Search()) }) { Icon(SearchIcon, "Search") }
                 IconButton(onClick = { showFloatingToolbar(nav, username, { openMediaBrowser(nav, feedKey, listState) }) }) {
                     Icon(Icons.Rounded.MoreHoriz, "Toolbar")
                 }
             }
-        }
-    }
-    Box(Modifier.fillMaxSize().clipToBounds().nestedScroll(bar).nestedScroll(fab)) {
-        PostListView(
-            feedKey = feedKey,
-            postsTab = true,
-            header = if (expandable) null else titleRow,
-            topPadding = with(LocalDensity.current) { bar.height.toDp() },
-            listState = listState,
-            refreshRequests = refreshRequests,
-            hideReadRequests = hideReadRequests,
-            // Right under the bar when it's fully out, off the top when it's gone.
-            floatingChipsY = if (!settings.floatingChips) null else bar::chipsY,
-        )
-        HidingTopBar(bar, Modifier.statusBarsPadding().padding(horizontal = if (expandable) 7.dp else 0.dp)) {
-            if (expandable) titleRow() else actionRow()
+        } else {
+            HidingTopBar(bar, Modifier.statusBarsPadding()) { actionRow() }
         }
         FeedFab(
             // The Full bar's own New post button already does it: not two of them.
