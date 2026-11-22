@@ -18,6 +18,8 @@ struct InboxScreen: View {
 
     private var anonymous: Bool { app.session.session?.anonymous == true }
 
+    private var fullBar: Bool { app.settings.value.topBarMode == .full }
+
     var body: some View {
         // Signed in on the web: Reddit's own notifications (a tab) and Chat.
         let tabs = InboxModule.tabs + (webSignIn ? [(label: "Reddit", key: redditTab)] : [])
@@ -59,9 +61,19 @@ struct InboxScreen: View {
         .onChange(of: app.inbox.unreadCount) { old, new in
             if new > old { app.inbox.refreshStale(maxAgeMillis: 0) }
         }
-        .navigationTitle("Inbox")
+        // Settings › Appearance › Top bar, as Posts and Explore (#214): Full, the search
+        // bar in the middle with Inbox's buttons after it; Expandable, the title.
+        .navigationTitle(fullBar ? "" : "Inbox")
+        .navigationBarTitleDisplayMode(fullBar ? .inline : .automatic)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) { SideBarButton() }
+            if fullBar {
+                ToolbarItem(placement: .principal) {
+                    Button { nav.push(.search()) } label: {
+                        Text("Search Reddit").foregroundStyle(.secondary).frame(maxWidth: 220)
+                    }
+                }
+            }
             ToolbarItemGroup(placement: .topBarTrailing) {
                 if !anonymous {
                     if tab == "inbox" {

@@ -8,6 +8,8 @@ struct ProfileTab: View {
     @Environment(AppNavigator.self) private var nav
     @State private var tab = "Posts"
 
+    private var fullBar: Bool { app.settings.value.topBarMode == .full }
+
     var body: some View {
         let session = app.session.session
         let username = session?.username ?? ""
@@ -33,9 +35,20 @@ struct ProfileTab: View {
                 .id(username)
             }
         }
-        .navigationTitle("Profile")
+        // Settings › Appearance › Top bar, as Posts and Explore (#214): Full, a search bar
+        // for your own posts (Reddit's search finds posts by author, not comments).
+        .navigationTitle(fullBar ? "" : "Profile")
+        .navigationBarTitleDisplayMode(fullBar ? .inline : .automatic)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) { SideBarButton() }
+            if fullBar {
+                let signedOut = anonymous || username.isEmpty
+                ToolbarItem(placement: .principal) {
+                    Button { nav.push(signedOut ? .search() : .search(query: "author:\(username)")) } label: {
+                        Text(signedOut ? "Search Reddit" : "Search your posts").foregroundStyle(.secondary).frame(maxWidth: 220)
+                    }
+                }
+            }
             ToolbarItemGroup(placement: .topBarTrailing) {
                 if !anonymous && !username.isEmpty { library }
                 SettingsButton()

@@ -72,6 +72,7 @@ import com.bennybar.luli_for_reddit.feature.feed.SectionHeader
 import com.bennybar.luli_for_reddit.feature.feed.TapGuard
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.Route
+import com.bennybar.luli_for_reddit.settings.TopBarMode
 import com.bennybar.luli_for_reddit.ui.Overlays
 import kotlinx.coroutines.launch
 
@@ -95,13 +96,25 @@ internal fun ProfileTab() {
         // Lined up with Home's title row (#153): it sits in the feed's 7dp inset, its ☰
         // nudged 3dp out, 10dp down without the side bar.
         val sideBar = LocalSideBar.current != null
-        Row(
+        val settings by app.settings.state.collectAsStateWithLifecycle()
+        val signedOut = anonymous || username.isEmpty()
+        if (settings.topBarMode == TopBarMode.FULL) {
+            // As Posts and Explore (#214): the round search bar, here for your own posts
+            // (Reddit's search finds posts by author, not comments), then the ⋯ menu.
+            TabSearchBar(
+                if (signedOut) "Search Reddit" else "Search your posts",
+                onSearch = { nav.push(if (signedOut) Route.Search() else Route.Search(query = "author:$username")) },
+            ) {
+                // The side bar always has Settings (#138).
+                if (signedOut) { if (!sideBar) SettingsButton() } else YourStuffMenu()
+            }
+        } else Row(
             Modifier.fillMaxWidth().padding(start = if (sideBar) 7.dp else 23.dp, top = if (sideBar) 8.dp else 10.dp, end = 11.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             SideBarButton(Modifier.offset(x = (-3).dp))
             Text("Profile", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
-            if (anonymous || username.isEmpty()) {
+            if (signedOut) {
                 // The side bar always has Settings (#138).
                 if (LocalSideBar.current == null) SettingsButton()
             } else {

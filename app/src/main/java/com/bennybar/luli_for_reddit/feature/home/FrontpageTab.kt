@@ -85,6 +85,7 @@ import com.bennybar.luli_for_reddit.feature.feed.SearchPill
 import com.bennybar.luli_for_reddit.nav.AppNavigator
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.Route
+import androidx.compose.foundation.layout.RowScope
 import com.bennybar.luli_for_reddit.settings.PostDisplay
 import com.bennybar.luli_for_reddit.settings.TopBarMode
 import com.bennybar.luli_for_reddit.settings.TopBarMenuItem
@@ -272,6 +273,35 @@ private fun RoundSearchBar(username: String, onAvatar: () -> Unit) {
             }
         }
         BarAvatar(username, onAvatar)
+    }
+}
+
+/**
+ * The Full bar on Inbox and Profile (#214): the ☰, the round search bar as on Posts and
+ * Explore with that tab's [placeholder], and the tab's own buttons after it ([actions]).
+ */
+@Composable
+internal fun TabSearchBar(placeholder: String, onSearch: () -> Unit, actions: @Composable RowScope.() -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val sideBar = LocalSideBar.current != null
+    Row(
+        Modifier.fillMaxWidth().padding(start = if (sideBar) 4.dp else 16.dp, top = 4.dp, end = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SideBarButton()
+        // The same field as Home's bar at the moment: with its New post button, the pill
+        // with a magnifier; without, Gmail's round one with the words in the middle.
+        val settings by app.settings.state.collectAsStateWithLifecycle()
+        if (settings.fullBarNewPost) {
+            SearchPill(placeholder, onClick = onSearch, modifier = Modifier.weight(1f))
+        } else {
+            Surface(Modifier.weight(1f).height(56.dp), shape = CircleShape, color = cs.surfaceContainerHigh) {
+                Box(Modifier.fillMaxSize().clickable(onClickLabel = placeholder, onClick = onSearch), contentAlignment = Alignment.Center) {
+                    Text(placeholder, color = cs.onSurfaceVariant, fontSize = 16.sp, maxLines = 1)
+                }
+            }
+        }
+        actions()
     }
 }
 

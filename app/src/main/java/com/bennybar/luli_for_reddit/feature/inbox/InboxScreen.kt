@@ -104,6 +104,9 @@ import com.bennybar.luli_for_reddit.nav.AppNavigator
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.NavCache
 import com.bennybar.luli_for_reddit.nav.Route
+import androidx.compose.foundation.layout.RowScope
+import com.bennybar.luli_for_reddit.feature.home.TabSearchBar
+import com.bennybar.luli_for_reddit.settings.TopBarMode
 import com.bennybar.luli_for_reddit.ui.friendlyError
 import com.bennybar.luli_for_reddit.feature.post.confirmDelete
 import kotlinx.coroutines.launch
@@ -161,16 +164,13 @@ fun InboxScreen(reselect: Int, selected: Boolean = true) {
     }
 
     val fab = rememberFabScroll()
+    val settings by app.settings.state.collectAsStateWithLifecycle()
     val openSideBar = LocalSideBar.current
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     Scaffold(
         topBar = {
             Column {
-                TopAppBar(
-                    title = title,
-                    navigationIcon = { SideBarButton() },
-                    colors = appBarColors,
-                    actions = {
+                val barActions: @Composable RowScope.() -> Unit = {
                         if (webSignIn) {
                             IconButton(onClick = { nav.push(Route.RedditWeb(RedditWeb.CHAT, "Chat")) }) {
                                 Icon(Icons.AutoMirrored.Outlined.Chat, "Reddit Chat")
@@ -188,8 +188,14 @@ fun InboxScreen(reselect: Int, selected: Boolean = true) {
                         }) { Icon(Icons.Outlined.MarkEmailRead, "Mark all read") }
                         // The side bar always has Settings (#145).
                         if (openSideBar == null) SettingsButton()
-                    },
-                )
+                }
+                // Settings › Appearance › Top bar, as Posts and Explore (#214): Full, the
+                // round search bar with Inbox's buttons after it; Expandable, the title.
+                if (settings.topBarMode == TopBarMode.FULL) {
+                    TabSearchBar("Search Reddit", onSearch = { nav.push(Route.Search()) }, actions = barActions)
+                } else {
+                    TopAppBar(title = title, navigationIcon = { SideBarButton() }, colors = appBarColors, actions = barActions)
+                }
                 PrimaryScrollableTabRow(
                     selectedTabIndex = pager.currentPage,
                     edgePadding = 0.dp,
