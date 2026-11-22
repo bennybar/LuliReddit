@@ -45,6 +45,14 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.94", "Nov 22, 2026",
+        listOf(
+            "Expandable top bar: a big title at the top of Posts, Explore and Inbox that shrinks into the bar as you scroll",
+            "Full top bar on Inbox and Profile too, with a search for your own posts on Profile",
+            "New app font: Google Sans Flex, with rounded titles (Settings › Appearance › App font)",
+        ),
+    ),
+    Release(
         "2.0.93", "Nov 22, 2026",
         listOf(
             "Long threads reopen where you left off after using the jump buttons too, and \"Back where you left off\" sits at the top instead of over the buttons",
