@@ -138,11 +138,20 @@ fun rememberHidingBar(listState: LazyListState): HidingBar {
 fun HidingTopBar(bar: HidingBar, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     val cs = MaterialTheme.colorScheme
     val fade = cs.surface
+    // Long and gradual, as Google Discover's (#226): the status bar's icons stay readable
+    // and the fade has no visible edge.
     Box(
         Modifier
             .fillMaxWidth()
-            .height(WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 16.dp)
-            .background(Brush.verticalGradient(listOf(fade.copy(alpha = 0.7f), fade.copy(alpha = 0f)))),
+            .height(WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 40.dp)
+            .background(
+                Brush.verticalGradient(
+                    0f to fade.copy(alpha = 0.85f),
+                    0.35f to fade.copy(alpha = 0.6f),
+                    0.7f to fade.copy(alpha = 0.2f),
+                    1f to fade.copy(alpha = 0f),
+                ),
+            ),
     )
     Box(
         Modifier

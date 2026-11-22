@@ -44,17 +44,18 @@ import kotlin.math.roundToInt
 
 /** The bar's own row, where the title ends up. */
 private val BAR = 64.dp
-/** The room the big title takes under it, at the top of the list. */
-private val EXTRA = 60.dp
+/** The room the big title takes under it, at the top of the list: tall, the title at its foot (#226). */
+private val EXTRA = 88.dp
 private const val SMALL = 22f / 32f // the title's size in the bar, against its big size
 
 /**
  * Settings › Appearance › Top bar › Expandable (#214, #182): a big title under the bar's
  * buttons at the top of the list, which shrinks and slides into the bar as the list
  * scrolls, and grows back once it's at the top again. Put `nestedScroll(state)` on what
- * holds the list, and give the list [CollapsingTitle.height] (plus the status bar) as its
- * top padding. Scrolling up takes the header first; down, only with the list at its top
- * ([atTop]), so it comes back there and not mid-list.
+ * holds the list, outside a [HidingBar] if the bar should also slide away once folded
+ * (#226), and give the list the bar's height as its top padding. Scrolling up takes the
+ * header first; down, only with the list at its top ([atTop]), so it comes back there
+ * and not mid-list.
  */
 @Stable
 class CollapsingTitle(private val atTop: () -> Boolean) : NestedScrollConnection {
@@ -122,9 +123,10 @@ fun CollapsingTitleBar(
             actions()
         }
         val density = LocalDensity.current
-        // Big: its own line under the row, at the screen's 20dp. Small: in the row, after the ☰.
+        // Big: at the foot of the header, as Sync's and Android's large bars (#226), at the
+        // screen's 20dp. Small: centred in the row, after the ☰ (#231: it sat 2dp high).
         val x = lerp(20.dp, if (hasNavigation) 60.dp else 20.dp, p)
-        val y = lerp(BAR - 4.dp, (BAR - 40.dp * SMALL) / 2 - 2.dp, p)
+        val y = lerp(BAR + EXTRA - 40.dp - (if (subtitle != null) 20.dp else 0.dp) - 10.dp, (BAR - 40.dp * SMALL) / 2, p)
         val scale = 1f + (SMALL - 1f) * p
         Column(
             Modifier

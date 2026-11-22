@@ -19,9 +19,6 @@ import com.bennybar.luli_for_reddit.ui.SearchIcon
 import com.bennybar.luli_for_reddit.settings.TopBarMode
 import com.bennybar.luli_for_reddit.feature.feed.HidingTopBar
 import com.bennybar.luli_for_reddit.feature.feed.CollapsingTitleBar
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.WindowInsets
 import com.bennybar.luli_for_reddit.feature.feed.rememberCollapsingTitle
 import com.bennybar.luli_for_reddit.feature.feed.rememberHidingBar
 import com.bennybar.luli_for_reddit.feature.feed.rememberSizedRequest
@@ -262,9 +259,9 @@ internal fun ExploreTab() {
 
     // Expandable (#214): the big title that folds into the bar as the list scrolls.
     val collapsing = rememberCollapsingTitle { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 }
-    val statusBar = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    Box(Modifier.fillMaxSize().clipToBounds().nestedScroll(if (expandable) collapsing else bar)) {
-    val barHeight = if (expandable) statusBar + collapsing.height else with(LocalDensity.current) { bar.height.toDp() }
+    // It folds first, then the folded bar slides away as before (#226).
+    Box(Modifier.fillMaxSize().clipToBounds().then(if (expandable) Modifier.nestedScroll(collapsing) else Modifier).nestedScroll(bar)) {
+    val barHeight = with(LocalDensity.current) { bar.height.toDp() }
     RefreshBox(
         isRefreshing = refreshing,
         onRefresh = {
@@ -499,10 +496,12 @@ internal fun ExploreTab() {
         }
     }
     if (expandable) {
-        CollapsingTitleBar(collapsing, "Explore", hasNavigation = sideBar, navigation = { SideBarButton() }) {
-            IconButton(onClick = { nav.push(Route.Search()) }) { Icon(SearchIcon, "Search communities & posts") }
-            // The side bar always has Settings (#145).
-            if (!sideBar) SettingsButton()
+        HidingTopBar(bar, Modifier.statusBarsPadding()) {
+            CollapsingTitleBar(collapsing, "Explore", hasNavigation = sideBar, underStatusBar = false, navigation = { SideBarButton() }) {
+                IconButton(onClick = { nav.push(Route.Search()) }) { Icon(SearchIcon, "Search communities & posts") }
+                // The side bar always has Settings (#145).
+                if (!sideBar) SettingsButton()
+            }
         }
     } else {
         HidingTopBar(bar, Modifier.statusBarsPadding()) {

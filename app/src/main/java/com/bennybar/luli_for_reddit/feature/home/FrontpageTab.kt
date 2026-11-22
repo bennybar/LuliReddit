@@ -21,9 +21,6 @@ import com.bennybar.luli_for_reddit.feature.feed.rememberHidingBar
 import com.bennybar.luli_for_reddit.feature.feed.HidingTopBar
 import com.bennybar.luli_for_reddit.feature.feed.CollapsingTitleBar
 import com.bennybar.luli_for_reddit.feature.feed.rememberCollapsingTitle
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.asPaddingValues
 import com.bennybar.luli_for_reddit.feature.feed.showTopPanel
 import com.bennybar.luli_for_reddit.feature.feed.PanelButton
 import com.bennybar.luli_for_reddit.feature.feed.PanelOuter
@@ -163,30 +160,27 @@ internal fun FrontpageTab(selected: Boolean) {
     }
     // Expandable (#214): the big title that folds into the bar as the feed scrolls.
     val collapsing = rememberCollapsingTitle { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 }
-    val statusBar = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    Box(Modifier.fillMaxSize().clipToBounds().nestedScroll(if (expandable) collapsing else bar).nestedScroll(fab)) {
-        val density = LocalDensity.current
+    // It folds first, then the folded bar slides away as before (#226): the hiding bar
+    // inside it only sees the scroll the feed itself takes.
+    Box(Modifier.fillMaxSize().clipToBounds().then(if (expandable) Modifier.nestedScroll(collapsing) else Modifier).nestedScroll(bar).nestedScroll(fab)) {
         PostListView(
             feedKey = feedKey,
             postsTab = true,
             header = if (expandable) null else titleRow,
-            topPadding = if (expandable) statusBar + collapsing.height else with(density) { bar.height.toDp() },
+            topPadding = with(LocalDensity.current) { bar.height.toDp() },
             listState = listState,
             refreshRequests = refreshRequests,
             hideReadRequests = hideReadRequests,
             // Right under the bar when it's fully out, off the top when it's gone.
-            floatingChipsY = when {
-                !settings.floatingChips -> null
-                expandable -> { _ -> with(density) { (statusBar + collapsing.height).roundToPx() } }
-                else -> bar::chipsY
-            },
+            floatingChipsY = if (!settings.floatingChips) null else bar::chipsY,
         )
-        if (expandable) {
+        if (expandable) HidingTopBar(bar, Modifier.statusBarsPadding()) {
             CollapsingTitleBar(
                 collapsing,
                 if (postsAll) "r/all" else if (homeOn) "Home" else if (blend) "Blend" else if (forYou) "For You" else "Frontpage",
                 subtitle = if (!homeOn && forYou) (if (blend) blendSubtitle(blendState) else "On your phone") else null,
                 hasNavigation = LocalSideBar.current != null,
+                underStatusBar = false,
                 navigation = { SideBarButton() },
             ) {
                 IconButton(onClick = { nav.push(Route.Search()) }) { Icon(SearchIcon, "Search") }
