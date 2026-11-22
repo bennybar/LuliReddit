@@ -72,6 +72,7 @@ import com.bennybar.luli_for_reddit.feature.feed.SectionHeader
 import com.bennybar.luli_for_reddit.feature.feed.TapGuard
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.Route
+import com.bennybar.luli_for_reddit.ui.SearchIcon
 import com.bennybar.luli_for_reddit.settings.TopBarMode
 import com.bennybar.luli_for_reddit.ui.Overlays
 import kotlinx.coroutines.launch
@@ -114,6 +115,10 @@ internal fun ProfileTab() {
         ) {
             SideBarButton(Modifier.offset(x = (-3).dp))
             Text("Profile", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+            // As the other tabs' (#228): your own posts, or Reddit signed out.
+            IconButton(onClick = { nav.push(if (signedOut) Route.Search() else Route.Search(query = "author:$username")) }) {
+                Icon(SearchIcon, if (signedOut) "Search Reddit" else "Search your posts")
+            }
             if (signedOut) {
                 // The side bar always has Settings (#138).
                 if (LocalSideBar.current == null) SettingsButton()

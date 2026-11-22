@@ -50,6 +50,13 @@ struct ProfileTab: View {
                 }
             }
             ToolbarItemGroup(placement: .topBarTrailing) {
+                if !fullBar {
+                    // As the other tabs' (#228): your own posts, or Reddit signed out.
+                    let signedOut = anonymous || username.isEmpty
+                    Button(signedOut ? "Search Reddit" : "Search your posts", systemImage: "magnifyingglass") {
+                        nav.push(signedOut ? .search() : .search(query: "author:\(username)"))
+                    }
+                }
                 if !anonymous && !username.isEmpty { library }
                 SettingsButton()
             }
