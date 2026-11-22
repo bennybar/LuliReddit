@@ -43,6 +43,8 @@ import com.bennybar.luli_for_reddit.settings.SideBarItem
 import androidx.compose.material3.MotionScheme
 import com.bennybar.luli_for_reddit.feature.about.maybeShowWhatsNew
 import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.layout.onPlaced
@@ -213,8 +215,9 @@ fun HomeScreen() {
     val scrollConnection = remember(turnAfter) {
         object : NestedScrollConnection {
             // How far each tab's list is from its top, tracked from the
-            // scroll deltas (lists start at the top; null = unknown).
-            val fromTop = arrayOfNulls<Float>(4).apply { fill(0f) }
+            // scroll deltas (lists start at the top; null = unknown). Snapshot state,
+            // so whether Back leaves the app follows it (#230).
+            val fromTop = mutableStateListOf<Float?>(0f, 0f, 0f, 0f)
             var direction = 0 // last user direction: -1 down the list, 1 up, 0 idle
             var travelDir = 0 // the way the finger is going now, and how far it has gone
             var travel = 0f
@@ -283,7 +286,15 @@ fun HomeScreen() {
     // leave instead).
     // Sheets, viewers and pushed screens register their own, later handlers,
     // which take precedence.
-    BackHandler {
+    // When Back would leave the app (Back leaves the app on, Posts, nothing left to do:
+    // the conditions below), this handler steps aside and Android does it, with its own
+    // predictive back-to-home animation (#230).
+    val backLeaves by remember {
+        derivedStateOf {
+            settings.backLeavesApp && !drawer.isOpen && index == 0 && (scrollConnection.nearTop() || !settings.backScrollsToTop)
+        }
+    }
+    BackHandler(enabled = !backLeaves) {
         if (drawer.isOpen) {
             shellScope.launch { drawer.close() }
         } else if (sideBar) {
