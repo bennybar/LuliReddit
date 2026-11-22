@@ -45,6 +45,15 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.96", "Nov 22, 2026",
+        listOf(
+            "Expandable top bar: the big title sits at the foot of a taller header, and once folded the bar slides away as you scroll, as before",
+            "A softer fade behind the status bar when the top bar is away",
+            "Back leaves the app (when on) with Android's own back-to-home animation",
+            "Search button on Profile, spoiler galleries in a post covered image by image, and outlined icons in Settings",
+        ),
+    ),
+    Release(
         "2.0.95", "Nov 22, 2026",
         listOf(
             "Comments deep in a thread keep their ⋯ menu (Edit, Delete…): on narrow rows Reply and Collapse show just their icons",
