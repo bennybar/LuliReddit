@@ -45,6 +45,15 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.97", "Nov 22, 2026",
+        listOf(
+            "Home and Blend scroll more smoothly as you go deeper: Ilay reads only the new posts from your Reddit Home",
+            "For You loads its later pages faster, and a slow source no longer holds up the first one",
+            "On a slow connection, For You keeps what arrives late for the next page instead of dropping it",
+            "With Hide read posts on, For You pages come back full",
+        ),
+    ),
+    Release(
         "2.0.96", "Nov 22, 2026",
         listOf(
             "Expandable top bar: the big title sits at the foot of a taller header, and once folded the bar slides away as you scroll, as before",
