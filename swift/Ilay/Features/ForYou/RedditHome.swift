@@ -203,6 +203,7 @@ final class RedditHomeLoader: NSObject, WKNavigationDelegate {
                 // tearing it down and re-setting every cookie. Mark the old document so
                 // its posts aren't read as the new page's.
                 seen.removeAll()
+                showFewerIds = []
                 _ = await eval("document.documentElement.setAttribute('data-ilay-old','1')")
                 if let view {
                     (loadFailed, loadFinishedAt) = (false, nil)
@@ -224,11 +225,15 @@ final class RedditHomeLoader: NSObject, WKNavigationDelegate {
                 if seen.isEmpty, (page?.posts ?? []).isEmpty, Self.givesUp(loadFailed: loadFailed, finishedAt: loadFinishedAt, now: nowMillis()) {
                     throw HomeUnavailableException()
                 }
-                if let page { showFewerIds = Set(page.posts.filter(\.canShowFewer).map { $0.id.removePrefix("t3_") }) }
                 var grew = false
                 for p in page?.posts ?? [] where seen.insert(p.id).inserted {
                     fresh.append(p)
                     grew = true
+                }
+                if grew, let got = page?.posts {
+                    showFewerIds.formUnion(got.filter(\.canShowFewer).map { $0.id.removePrefix("t3_") })
+                    // Read: the page leaves them out of the next read (see readPosts).
+                    await markRead(got.map(\.id))
                 }
                 if grew { onProgress?(fresh.count) }
                 if fresh.count >= target { break }
@@ -412,11 +417,22 @@ final class RedditHomeLoader: NSObject, WKNavigationDelegate {
         }
     }
 
-    /// The posts on the page now, or nil while a reload is still showing the previous page.
+    /// The posts on the page not read yet, or nil while a reload is still showing the
+    /// previous page. It ran ten times a second over every post on the page: hundreds
+    /// after a few batches. Now the page hands over only new ones (`markRead`).
     private func read() async -> HomePageRead? {
         let result = await eval(Self.readPosts) as? String
         // This runs ten times a second while the user scrolls: off the main thread.
         return await Task.detached { HomePageRead.parse(result) }.value
+    }
+
+    /// Marks `ids` (t3_…) as read on the page, so the next read skips them. Only once
+    /// they've arrived here: a read whose result got lost reads them again (and `seen`
+    /// keeps them from counting twice).
+    private func markRead(_ ids: [String]) async {
+        if ids.isEmpty { return }
+        let list = ids.map { "'" + $0.filter { $0.isLetter || $0.isNumber || $0 == "_" } + "'" }.joined(separator: ",")
+        _ = await eval("[\(list)].forEach(function(i){var e=document.getElementById(i);if(e)e.setAttribute('data-ilay-r','1');})")
     }
 
     private func disposeNow() {
@@ -444,7 +460,7 @@ final class RedditHomeLoader: NSObject, WKNavigationDelegate {
       var app = document.querySelector('shreddit-app');
       var signedOut = !!app && app.getAttribute('user-logged-in') !== 'true';
       var posts = Array.from(document.querySelectorAll('shreddit-post'))
-        .filter(function (e) { return !e.hasAttribute('promoted') && (e.id || '').indexOf('t3_') === 0; })
+        .filter(function (e) { return !e.hasAttribute('promoted') && !e.hasAttribute('data-ilay-r') && (e.id || '').indexOf('t3_') === 0; })
         .map(function (e) {
           function slot(n) { return e.querySelector('[slot="' + n + '"]'); }
           var media = slot('post-media-container');

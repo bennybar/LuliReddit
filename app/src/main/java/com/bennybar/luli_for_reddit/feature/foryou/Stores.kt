@@ -511,15 +511,22 @@ class ExplicitPrefsStore(private val prefs: Prefs) {
  * keep scrolling past fades on its own, and a niche one you always open
  * rises even with few impressions. Decays like the interest model.
  */
-class SubStatsStore(private val prefs: Prefs, private val trackHistory: () -> Boolean, private val base: String = BASE) {
+class SubStatsStore(
+    private val prefs: Prefs,
+    private val trackHistory: () -> Boolean,
+    private val scope: CoroutineScope,
+    private val base: String = BASE,
+) {
     private var key = base
     private var ts: Long? = null
+    private var saveScheduled = false
     private val _state = MutableStateFlow<Map<String, Pair<Double, Double>>>(emptyMap())
     val state: StateFlow<Map<String, Pair<Double, Double>>> = _state
     val value: Map<String, Pair<Double, Double>> get() = _state.value
 
     @Synchronized
     fun load(username: String) {
+        flush() // waiting changes belong to the account that made them
         key = userScopedKey(prefs, username, base)
         val m = readJson(prefs, key)
         _state.value = try {
@@ -549,14 +556,30 @@ class SubStatsStore(private val prefs: Prefs, private val trackHistory: () -> Bo
         val cur = next.remove(k) ?: (0.0 to 0.0)
         next[k] = cur.first + impr to cur.second + eng
         while (next.size > CAP) next.remove(next.keys.first())
-        val now = System.currentTimeMillis()
-        ts = now
+        ts = System.currentTimeMillis()
         _state.value = next
+        // Saved in a batch, as impressions are: every card seen used to rewrite it
+        // (twice: subreddits and post types) on the main thread.
+        if (!saveScheduled) {
+            saveScheduled = true
+            scope.launch {
+                delay(2000)
+                flush()
+            }
+        }
+    }
+
+    /** Saves now what's waiting for the batch (going to the background). */
+    @Synchronized
+    fun flush() {
+        if (!saveScheduled) return
+        saveScheduled = false
+        val t = ts ?: return
         prefs.setString(
             key,
             buildJsonObject {
-                put("_ts", now)
-                for ((kk, v) in next) put(kk, JsonArray(listOf(JsonPrimitive(v.first), JsonPrimitive(v.second))))
+                put("_ts", t)
+                for ((kk, v) in _state.value) put(kk, JsonArray(listOf(JsonPrimitive(v.first), JsonPrimitive(v.second))))
             }.toString(),
         )
     }
@@ -566,6 +589,7 @@ class SubStatsStore(private val prefs: Prefs, private val trackHistory: () -> Bo
 
     @Synchronized
     fun clear() {
+        saveScheduled = false
         _state.value = emptyMap()
         prefs.remove(key)
     }
@@ -666,8 +690,9 @@ class DocFreqStore(private val prefs: Prefs) {
  * tracking is on. Shown on a hidden debug screen in Manage For You, and used
  * to adapt how much discovery the feed mixes in.
  */
-class ForYouMetrics(private val prefs: Prefs, private val trackHistory: () -> Boolean) {
+class ForYouMetrics(private val prefs: Prefs, private val trackHistory: () -> Boolean, private val scope: CoroutineScope) {
     private var key = BASE
+    private var saveScheduled = false
     private val _state = MutableStateFlow<Map<String, Map<String, Int>>>(emptyMap())
     val state: StateFlow<Map<String, Map<String, Int>>> = _state
 
@@ -675,6 +700,7 @@ class ForYouMetrics(private val prefs: Prefs, private val trackHistory: () -> Bo
 
     @Synchronized
     fun load(username: String) {
+        flush() // waiting counts belong to the account that made them
         key = userScopedKey(prefs, username, BASE)
         val m = readJson(prefs, key)
         _state.value = try {
@@ -701,10 +727,25 @@ class ForYouMetrics(private val prefs: Prefs, private val trackHistory: () -> Bo
         val bucket = next.getOrPut(today) { LinkedHashMap() }
         bucket[metric] = (bucket[metric] ?: 0) + n
         _state.value = next
+        // Saved in a batch: a card seen counts three or four metrics at once.
+        if (!saveScheduled) {
+            saveScheduled = true
+            scope.launch {
+                delay(2000)
+                flush()
+            }
+        }
+    }
+
+    /** Saves now what's waiting for the batch (going to the background). */
+    @Synchronized
+    fun flush() {
+        if (!saveScheduled) return
+        saveScheduled = false
         prefs.setString(
             key,
             buildJsonObject {
-                for ((d, b) in next) put(d, buildJsonObject { for ((k, c) in b) put(k, c) })
+                for ((d, b) in _state.value) put(d, buildJsonObject { for ((k, c) in b) put(k, c) })
             }.toString(),
         )
     }
@@ -732,6 +773,7 @@ class ForYouMetrics(private val prefs: Prefs, private val trackHistory: () -> Bo
 
     @Synchronized
     fun clear() {
+        saveScheduled = false
         _state.value = emptyMap()
         prefs.remove(key)
     }

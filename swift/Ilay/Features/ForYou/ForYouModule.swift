@@ -93,6 +93,13 @@ final class ForYouModule: UserScoped, FeedEngines {
     func homeViewing(_ postId: String) { redditHome.viewing(postId) }
     func disposeHome() { redditHome.dispose() }
 
+    /// Saves the stats waiting for their batch (the app is going to the background).
+    func flush() {
+        subStats.flush()
+        typeStats.flush()
+        metrics.flush()
+    }
+
     func loadingDeck(forYou: Bool) -> AnyView { AnyView(HomeLoadingDeck(forYou: forYou)) }
     func showTuneSheet(_ post: Post) { Ilay.showTuneSheet(post) }
 }
@@ -330,6 +337,43 @@ final class ForYouEngine {
     // Community listings by request ("a+b+c", "all/top/day"), kept a few minutes.
     @ObservationIgnored private var listingCache: [String: (at: Int, listing: Listing<Post>)] = [:]
     @ObservationIgnored private var seedJob: Task<Void, Never>? // the cold-start seed, while it runs
+    // Secondary sources that missed a page's cutoff but kept loading: the next page
+    // takes what they brought instead of it being thrown away, which on a slow
+    // connection made feeds thin. Bounded; dropped on refresh.
+    @ObservationIgnored private var late: [LateSource] = []
+
+    @MainActor private final class LateSource {
+        let key: String
+        let task: Task<Listing<Post>, Error>
+        var listing: Listing<Post>?
+        var finished = false
+        init(_ key: String, _ task: Task<Listing<Post>, Error>) {
+            self.key = key
+            self.task = task
+        }
+    }
+
+    private func keepLate(_ key: String, _ task: Task<Listing<Post>, Error>) {
+        let l = LateSource(key, task)
+        late.append(l)
+        if late.count > 8 { late.removeFirst().task.cancel() }
+        Task { @MainActor in
+            l.listing = try? await task.value
+            l.finished = true
+        }
+    }
+
+    /// The late requests that have arrived since (the others stay for the page after).
+    private func takeLate() -> [(key: String, listing: Listing<Post>)] {
+        let done = late.filter(\.finished)
+        late.removeAll(where: \.finished)
+        return done.compactMap { l in l.listing.map { (l.key, $0) } }
+    }
+
+    private func dropLate() {
+        for l in late { l.task.cancel() }
+        late.removeAll()
+    }
 
     /// Candidate posts gathered so far while the first page loads (for the loading deck).
     private(set) var progress = 0
@@ -342,6 +386,7 @@ final class ForYouEngine {
 
     func reset() {
         leftovers = []
+        dropLate()
         communityTurn = 0
         blendPlaced = 0
         knownSubs = nil
@@ -358,6 +403,7 @@ final class ForYouEngine {
         if firstPage {
             progress = 0
             m.impressions.newFeed() // a post seen again in this build counts again
+            dropLate() // a new build: the last one's stragglers don't belong to it
         }
         // Cold start's seed runs alongside the sources (it used to hold them up);
         // the ranking waits for it. One at a time: a refresh meanwhile shares it.
@@ -612,11 +658,21 @@ final class ForYouEngine {
         let results: [SourceResult] = await withTaskGroup(of: SourceResult.self) { group in
             // Each source: its listing, or nil if it failed / timed out. Secondary
             // sources get a short timeout so the slowest community doesn't decide how
-            // long the page takes.
+            // long the page takes; one that misses it keeps loading for the next page.
+            // /best gets a longer one of its own: with none, a stalled request held the
+            // loading deck up for the whole network timeout.
             func source(_ key: String, secondary: Bool = true, _ f: @escaping @Sendable () async throws -> Listing<Post>) {
                 group.addTask { [weak self] in
+                    // Its own task, so a late one can outlive this page; cancelling the
+                    // page (a newer refresh) still cancels it.
+                    let req = Task { try await f() }
                     do {
-                        let listing = secondary ? try await withTimeoutOrNil(2500, f) : try await f()
+                        let listing = try await withTaskCancellationHandler {
+                            try await withTimeoutOrNil(secondary ? 2500 : 8000) { try await req.value }
+                        } onCancel: { req.cancel() }
+                        if listing == nil {
+                            if secondary { await self?.keepLate(key, req) } else { req.cancel() }
+                        }
                         if let listing, firstPage {
                             await MainActor.run { self?.progress += listing.items.count }
                         }
@@ -714,6 +770,9 @@ final class ForYouEngine {
         }
 
         var ids = excludeIds
+        // Hide read posts: out before ranking, so a page still comes back full (they
+        // used to be ranked, placed, then filtered out of it).
+        if s.hideReadPosts { ids.formUnion(c.history.ids) }
         var pool: [Candidate] = []
         func add(_ l: Listing<Post>?, _ src: String) {
             for p in l?.items ?? [] where ids.insert(p.id).inserted { pool.append(Candidate(post: p, source: src)) }
@@ -739,23 +798,28 @@ final class ForYouEngine {
             }
             if !home.isEmpty { m.redditHome.blendPrefetch() }
         }
-        // Held over from the last page ("home" ones stay Reddit's picks).
-        for cand in carryOver where ids.insert(cand.post.id).inserted {
-            pool.append(cand.source == "home" ? cand : Candidate(post: cand.post, source: "carry"))
-        }
+        // Held over from the last page, keeping where each came from: relabelled
+        // "carry", its reason and the per-source stats lost it.
+        for cand in carryOver where ids.insert(cand.post.id).inserted { pool.append(cand) }
         add(listing("best"), "best")
         add(listing("rising"), "rising")
         add(listing("popular"), "popular")
         // The combined listings, each post labelled by its community's group.
         let (favSet, interestSet) = (Set(favourites), Set(topInterest))
-        for key in ["favourites", "near"] {
-            for p in listing(key)?.items ?? [] where ids.insert(p.id).inserted {
+        func addHot(_ l: Listing<Post>?) {
+            for p in l?.items ?? [] where ids.insert(p.id).inserted {
                 let sub = p.subreddit.lowercased()
                 let src = interestSet.contains(sub) ? "interest" : favSet.contains(sub) ? "favourite" : "community"
                 pool.append(Candidate(post: p, source: src))
             }
         }
+        addHot(listing("favourites"))
+        addHot(listing("near"))
         add(listing("explore"), "explore")
+        // Sources that came in after an earlier page's cutoff.
+        for (key, l) in takeLate() {
+            if key == "favourites" || key == "near" { addHot(l) } else { add(l, key) }
+        }
 
         // Every source failed (offline, rate-limited…): say so, rather than
         // showing an empty feed that just ends. Not when one answered (with

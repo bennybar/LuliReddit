@@ -85,6 +85,13 @@ class FeedController(val key: String) {
     // With the Posts tab on r/all (Settings) the frontpage is a plain pushed page.
     private val forYou get() = isFrontpage && !app.settings.value.postsTabAll && app.settings.value.forYouFeed
 
+    /** For You with your Reddit Home blended in (it reads Home in the hidden browser too). */
+    private val blendOn: Boolean
+        get() {
+            val s = app.settings.value
+            return forYou && s.blendHome && s.redditHomeAllowed
+        }
+
     /** Experimental Reddit Home (opt-in after a risk warning in Settings). */
     private val redditHome: Boolean
         get() {
@@ -263,13 +270,15 @@ class FeedController(val key: String) {
             }
         }
         // Retry once: a cold-start request can fail while the token is being
-        // refreshed for the first time.
+        // refreshed for the first time. Not when Reddit said to slow down (429):
+        // For You's retry is six or more requests at once, straight back into it.
         val listing = try {
             try {
                 fetch()
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                if (e is com.bennybar.luli_for_reddit.core.net.RedditApiException && e.statusCode == 429) throw e
                 fetch()
             }
         } catch (e: CancellationException) {
@@ -299,6 +308,9 @@ class FeedController(val key: String) {
      */
     private fun rebuild(showLoading: Boolean): Job {
         buildJob?.cancel()
+        // Neither Home nor Blend any more (switched to Best, For You…): close the
+        // hidden browser now, not only when the feed itself goes away.
+        if (isFrontpage && !redditHome && !blendOn) app.forYou.redditHome.dispose()
         val hadData = current != null
         if (showLoading) _ui.value = FeedUi.Loading
         val job = scope.launch {

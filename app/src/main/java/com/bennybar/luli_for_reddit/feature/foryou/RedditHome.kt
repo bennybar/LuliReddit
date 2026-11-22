@@ -200,6 +200,7 @@ class RedditHomeLoader(private val context: Context) {
                 // tearing it down and re-setting every cookie. Mark the old document so
                 // its posts aren't read as the new page's.
                 seen.clear()
+                showFewerIds = emptySet()
                 eval("document.documentElement.setAttribute('data-ilay-old','1')")
                 loadFailed = false
                 loadFinishedAt = null
@@ -219,13 +220,18 @@ class RedditHomeLoader(private val context: Context) {
                 if (seen.isEmpty() && page?.posts.isNullOrEmpty() && givesUp(loadFailed, loadFinishedAt, System.currentTimeMillis())) {
                     throw HomeUnavailableException()
                 }
-                if (page != null) showFewerIds = page.posts.filter { it.canShowFewer }.mapTo(HashSet()) { it.id.removePrefix("t3_") }
                 var grew = false
                 for (p in page?.posts ?: emptyList()) {
                     if (seen.add(p.id)) {
                         fresh.add(p)
                         grew = true
                     }
+                }
+                if (grew) {
+                    val got = page!!.posts
+                    showFewerIds = showFewerIds + got.filter { it.canShowFewer }.map { it.id.removePrefix("t3_") }
+                    // Read: the page leaves them out of the next read (see READ_POSTS).
+                    markRead(got.map { it.id })
                 }
                 if (grew) onProgress?.invoke(fresh.size)
                 if (fresh.size >= target) break
@@ -379,11 +385,16 @@ class RedditHomeLoader(private val context: Context) {
 
     private class PageRead(val posts: List<PagePost>, val signedOut: Boolean)
 
-    /** The posts on the page now, or null while a reload is still showing the previous page. */
+    /**
+     * The posts on the page not read yet, or null while a reload is still showing the
+     * previous page. It ran ten times a second over every post on the page, decoding
+     * them all on the main thread: hundreds after a few batches, while you scrolled.
+     * Now the page hands over only new ones ([markRead]), decoded off the main thread.
+     */
     private suspend fun read(): PageRead? = try {
         val r = eval(READ_POSTS)
         if (r == null || r == "null") null
-        else {
+        else withContext(Dispatchers.Default) {
             // evaluateJavascript returns the script's string result JSON-quoted.
             val json = AppJson.parseToJsonElement(AppJson.parseToJsonElement(r).str() ?: "null")
             PageRead(
@@ -395,6 +406,17 @@ class RedditHomeLoader(private val context: Context) {
         throw e
     } catch (_: Exception) {
         PageRead(emptyList(), false) // page between documents
+    }
+
+    /**
+     * Marks [ids] (t3_…) as read on the page, so the next read skips them. Only once
+     * they've arrived here: a read whose result got lost reads them again (and
+     * [seen] keeps them from counting twice).
+     */
+    private suspend fun markRead(ids: List<String>) {
+        if (ids.isEmpty()) return
+        val list = ids.joinToString(",") { "'" + it.filter { c -> c.isLetterOrDigit() || c == '_' } + "'" }
+        eval("[$list].forEach(function(i){var e=document.getElementById(i);if(e)e.setAttribute('data-ilay-r','1');})")
     }
 
     private fun disposeNow() {
@@ -442,7 +464,8 @@ class RedditHomeLoader(private val context: Context) {
         // snippet, media preview and flair in named slots, and the
         // recommendation reason / "Show fewer" option on its ⋯ menu. Ads are
         // separate elements. signedOut: the page is the logged-out site (the
-        // session expired). Returns null while the previous document is still
+        // session expired). Only posts not marked read yet (data-ilay-r, see
+        // markRead). Returns null while the previous document is still
         // showing during a reload. (Element and attribute names as of 2026-10.)
         private const val READ_POSTS = """
 (function () {
@@ -450,7 +473,7 @@ class RedditHomeLoader(private val context: Context) {
   var app = document.querySelector('shreddit-app');
   var signedOut = !!app && app.getAttribute('user-logged-in') !== 'true';
   var posts = Array.from(document.querySelectorAll('shreddit-post'))
-    .filter(function (e) { return !e.hasAttribute('promoted') && (e.id || '').indexOf('t3_') === 0; })
+    .filter(function (e) { return !e.hasAttribute('promoted') && !e.hasAttribute('data-ilay-r') && (e.id || '').indexOf('t3_') === 0; })
     .map(function (e) {
       function slot(n) { return e.querySelector('[slot="' + n + '"]'); }
       var media = slot('post-media-container');

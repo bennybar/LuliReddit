@@ -38,11 +38,11 @@ class ForYouModule(private val c: AppContainer) : UserScoped {
     val keywords = KeywordStore(c.prefs, track)
     val impressions = ImpressionStore(c.prefs, track, c.scope)
     val explicit = ExplicitPrefsStore(c.prefs)
-    val subStats = SubStatsStore(c.prefs, track)
+    val subStats = SubStatsStore(c.prefs, track, c.scope)
     /** The same per post type ("image", "video", "text", "link"): which kinds you open. */
-    val typeStats = SubStatsStore(c.prefs, track, "fy_typestats")
+    val typeStats = SubStatsStore(c.prefs, track, c.scope, "fy_typestats")
     val docFreq = DocFreqStore(c.prefs)
-    val metrics = ForYouMetrics(c.prefs, track)
+    val metrics = ForYouMetrics(c.prefs, track, c.scope)
 
     /** Why each placed post is in the feed (not persisted; per session). */
     val meta = MutableStateFlow<Map<String, ForYouMeta>>(emptyMap())
@@ -83,6 +83,13 @@ class ForYouModule(private val c: AppContainer) : UserScoped {
         learner.reset()
         engine.reset()
         redditHome.cancelBlend() // the other account's Home reads
+    }
+
+    /** Saves the stats waiting for their batch (the app is going to the background). */
+    fun flush() {
+        subStats.flush()
+        typeStats.flush()
+        metrics.flush()
     }
 
     /** Re-reads every store for the current account (after a backup restore). */
@@ -302,6 +309,7 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
 
     internal fun reset() {
         leftovers = emptyList()
+        dropLate()
         communityTurn = 0
         blendPlaced = 0
         knownSubs = null
@@ -316,6 +324,27 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
     // Community listings by request ("a+b+c", "all/top/day"), kept a few minutes.
     private val listingCache = HashMap<String, Pair<Long, Listing<Post>>>()
     @Volatile private var seedJob: Deferred<Unit>? = null // the cold-start seed, while it runs
+    // Secondary sources that missed a page's cutoff but kept loading (label → request):
+    // the next page takes what they brought instead of it being thrown away, which on
+    // a slow connection made feeds thin. Bounded; dropped on refresh.
+    private val late = ArrayList<Pair<String, Deferred<Listing<Post>>>>()
+
+    private fun keepLate(label: String, req: Deferred<Listing<Post>>) = synchronized(late) {
+        late.add(label to req)
+        while (late.size > 8) late.removeAt(0).second.cancel()
+    }
+
+    /** The late requests that have arrived since (the others stay for the page after). */
+    private suspend fun takeLate(): List<Pair<String, Listing<Post>>> {
+        val done = synchronized(late) { late.filter { it.second.isCompleted }.also { late.removeAll(it) } }
+        // Finished: await returns at once (a failed one is skipped).
+        return done.mapNotNull { (label, d) -> orNull { d.await() }?.let { label to it } }
+    }
+
+    private fun dropLate() = synchronized(late) {
+        for ((_, d) in late) d.cancel()
+        late.clear()
+    }
 
     /**
      * First page when [after] is null, else the page after that cursor.
@@ -327,6 +356,7 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
         if (firstPage) {
             _progress.value = 0
             m.impressions.newFeed() // a post seen again in this build counts again
+            dropLate() // a new build: the last one's stragglers don't belong to it
         }
         // Cold start's seed runs alongside the sources (it used to hold them up);
         // the ranking waits for it. One at a time: a refresh meanwhile shares it.
@@ -530,16 +560,25 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
 
         // Each source: its listing, or null if it failed / timed out. Secondary
         // sources get a short timeout so the slowest community doesn't decide how
-        // long the page takes.
+        // long the page takes; one that misses it keeps loading for the next page
+        // ([label]). /best gets a longer one of its own: with none, a stalled request
+        // held the loading deck up for the whole 30s network timeout.
         // The first real failure (not a timeout), to report if nothing at all loads.
         var firstError: Exception? = null
         var answered = false // a source answered (even with nothing new)
         var failed = false // a source failed or timed out
-        fun source(secondary: Boolean = true, f: suspend () -> Listing<Post>): Deferred<Listing<Post>?> = async {
+        fun source(label: String? = null, secondary: Boolean = true, f: suspend () -> Listing<Post>): Deferred<Listing<Post>?> = async {
+            // On the app scope, so a late one can outlive this page.
+            val req = c.scope.async { f() }
+            var kept = false
             try {
-                if (secondary) withTimeout(2500) { f() } else f()
+                withTimeout(if (secondary) 2500 else 8000) { req.await() }
             } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
                 failed = true
+                if (secondary && label != null) {
+                    keepLate(label, req)
+                    kept = true
+                }
                 null
             } catch (e: CancellationException) {
                 throw e
@@ -547,6 +586,8 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
                 if (firstError == null) firstError = e
                 failed = true
                 null
+            } finally {
+                if (!kept && !req.isCompleted) req.cancel()
             }?.also { l ->
                 answered = true
                 if (firstPage) _progress.update { it + l.items.size }
@@ -567,9 +608,9 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
             HashMap(listingCache)
         }
         val fetched = ArrayList<Pair<String, Deferred<Listing<Post>?>>>() // cache name → request
-        fun cached(name: String, f: suspend () -> Listing<Post>): Deferred<Listing<Post>?> {
+        fun cached(name: String, label: String, f: suspend () -> Listing<Post>): Deferred<Listing<Post>?> {
             cache[name]?.let { hit -> return source { hit.second } }
-            return source(f = f).also { fetched.add(name to it) }
+            return source(label, f = f).also { fetched.add(name to it) }
         }
         // Hot posts from several communities in one request (/r/a+b+c/hot) —
         // up to sixteen requests became two. Each group is at most eight names,
@@ -577,7 +618,7 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
         fun hot(subs: List<String>, perSub: Int): Deferred<Listing<Post>?> {
             if (subs.isEmpty()) return none
             val name = subs.joinToString("+")
-            return cached(name) {
+            return cached(name, "hot") {
                 try {
                     repo.getPosts(subreddit = name, sort = PostSort.HOT, limit = minOf(100, perSub * subs.size))
                 } catch (e: com.bennybar.luli_for_reddit.core.net.RedditApiException) {
@@ -625,10 +666,10 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
             }
         } else none
         val risingF = if (live("rising")) {
-            source { repo.getPosts(sort = PostSort.RISING, limit = 25, after = after("rising")) }
+            source("rising") { repo.getPosts(sort = PostSort.RISING, limit = 25, after = after("rising")) }
         } else none
         val popularF = if (live("popular")) {
-            source {
+            source("popular") {
                 repo.getPosts(subreddit = "popular", sort = PostSort.HOT, limit = if (firstPage) 20 else 15, after = after("popular"))
             }
         } else none
@@ -636,7 +677,7 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
         // Exploration beyond the communities you already touch (they were its
         // only other source): today's top posts across Reddit, ranked as discovery.
         val exploreF = if (firstPage) {
-            cached("all/top/day") { repo.getPosts(subreddit = "all", sort = PostSort.TOP, time = TopTime.DAY, limit = 25) }
+            cached("all/top/day", "explore") { repo.getPosts(subreddit = "all", sort = PostSort.TOP, time = TopTime.DAY, limit = 25) }
         } else none
 
         val (favourites, subscribed) = known ?: run {
@@ -672,6 +713,9 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
         val rising = risingF.await()
         val popular = popularF.await()
         val ids = HashSet(excludeIds)
+        // Hide read posts: out before ranking, so a page still comes back full (they
+        // used to be ranked, placed, then filtered out of it).
+        if (s.hideReadPosts) ids.addAll(c.history.ids.value)
         val pool = ArrayList<Candidate>()
         fun add(l: Listing<Post>?, src: String) {
             for (p in l?.items ?: emptyList()) if (ids.add(p.id)) pool.add(Candidate(p, src))
@@ -694,20 +738,25 @@ class ForYouEngine internal constructor(private val c: AppContainer, private val
             if (ids.add(p.id)) pool.add(Candidate(p, "home", homePos = i.toDouble() / maxOf(home.size - 1, 1)))
         }
         if (!home.isNullOrEmpty()) m.redditHome.blendPrefetch()
-        // Held over from the last page ("home" ones stay Reddit's picks).
-        for (cand in carryOver) if (ids.add(cand.post.id)) pool.add(if (cand.source == "home") cand else Candidate(cand.post, "carry"))
+        // Held over from the last page, keeping where each came from: relabelled
+        // "carry", its reason and the per-source stats lost it.
+        for (cand in carryOver) if (ids.add(cand.post.id)) pool.add(cand)
         add(best, "best")
         add(rising, "rising")
         add(popular, "popular")
         // The combined listings, each post labelled by its community's group.
-        for (l in listOf(favourite, near)) {
+        fun addHot(l: Listing<Post>?) {
             for (p in l?.items ?: emptyList()) {
                 if (!ids.add(p.id)) continue
                 val sub = p.subreddit.lowercase()
                 pool.add(Candidate(p, if (sub in topInterest) "interest" else if (sub in favourites) "favourite" else "community"))
             }
         }
+        addHot(favourite)
+        addHot(near)
         add(explore, "explore")
+        // Sources that came in after an earlier page's cutoff.
+        for ((label, l) in takeLate()) if (label == "hot") addHot(l) else add(l, label)
         for ((name, request) in fetched) {
             val l = request.await() ?: continue
             synchronized(listingCache) { listingCache[name] = System.currentTimeMillis() to l }

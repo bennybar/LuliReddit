@@ -68,7 +68,13 @@ private class Scored(
     val why: List<String>,
     val story: Set<String>, // title keywords, for same-story detection
     val topical: Double, // keyword match, freshness-discounted: what a discovery slot picks by first
-)
+) {
+    // Which story it is ([stories] index, -1 = none yet) and how many stories it has
+    // been checked against: stories are only ever added, so each check carries on
+    // from there instead of starting over for every slot.
+    var storyK = -1
+    var storyScan = 0
+}
 
 private class Story(val words: Set<String>, var count: Int, var lastPos: Int)
 
@@ -335,6 +341,21 @@ fun rankForYou(pool: List<Candidate>, i: RankInputs, pageSize: Int = 50): RankRe
         for (k in stories.indices) if (sameStory(stories[k].words, words)) return k
         return null
     }
+    // The same answer as storyOf(s.story), remembered per candidate: comparing every
+    // candidate with every story for each of the 50 slots made a later page (with
+    // 100 earlier titles) ~4× slower to rank than the first.
+    fun storyOf(s: Scored): Int? {
+        if (s.story.size < 3) return null
+        if (s.storyK >= 0) return s.storyK
+        for (k in s.storyScan until stories.size) {
+            if (sameStory(stories[k].words, s.story)) {
+                s.storyK = k
+                return k
+            }
+        }
+        s.storyScan = stories.size
+        return null
+    }
     // Earlier pages, newest first: copies of one story count together (each
     // used to be its own story, so a third copy got through), and the newest
     // keeps its real distance (j + 1 slots before this page) for the spacing.
@@ -371,7 +392,7 @@ fun rankForYou(pool: List<Candidate>, i: RankInputs, pageSize: Int = 50): RankRe
         val recentTypes = placed.asReversed().take(4).map { it.c.post.type }
         for (s in from) {
             if (s in dropped) continue
-            val k = storyOf(s.story)
+            val k = storyOf(s)
             if (k != null && (stories[k].count >= 2 || placed.size - stories[k].lastPos < 15)) {
                 if (stories[k].count >= 2) dropped.add(s)
                 continue
@@ -403,7 +424,7 @@ fun rankForYou(pool: List<Candidate>, i: RankInputs, pageSize: Int = 50): RankRe
             ?: pick(discoveryPool)
             ?: break
         (if (s.discovery) discoveryPool else primaryPool).remove(s)
-        val k = storyOf(s.story)
+        val k = storyOf(s)
         if (k != null) {
             stories[k].count += 1
             stories[k].lastPos = placed.size

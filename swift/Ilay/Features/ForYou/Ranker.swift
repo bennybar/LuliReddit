@@ -59,6 +59,10 @@ private final class Scored {
     let why: [String]
     let story: Set<String> // title keywords, for same-story detection
     let topical: Double // keyword match, freshness-discounted: what a discovery slot picks by first
+    // Which story it is (stories index, -1 = none yet) and how many stories it has been
+    // checked against: stories are only ever added, so each check carries on from there.
+    var storyK = -1
+    var storyScan = 0
 
     init(c: Candidate, score: Double, discovery: Bool, reason: String, why: [String], story: Set<String>, topical: Double) {
         self.c = c
@@ -357,6 +361,19 @@ func rankForYou(_ pool: [Candidate], _ i: RankInputs, pageSize: Int = 50) -> Ran
         for k in stories.indices where sameStory(stories[k].words, words) { return k }
         return nil
     }
+    // The same answer as storyOf(s.story), remembered per candidate: comparing every
+    // candidate with every story for each of the 50 slots made a later page (with 100
+    // earlier titles) ~4× slower to rank than the first.
+    func storyOf(_ s: Scored) -> Int? {
+        if s.story.count < 3 { return nil }
+        if s.storyK >= 0 { return s.storyK }
+        for k in s.storyScan..<stories.count where sameStory(stories[k].words, s.story) {
+            s.storyK = k
+            return k
+        }
+        s.storyScan = stories.count
+        return nil
+    }
     // Earlier pages, newest first: copies of one story count together (each
     // used to be its own story, so a third copy got through), and the newest
     // keeps its real distance (j + 1 slots before this page) for the spacing.
@@ -392,7 +409,7 @@ func rankForYou(_ pool: [Candidate], _ i: RankInputs, pageSize: Int = 50) -> Ran
         let recentTypes = placed.suffix(4).map(\.c.post.type)
         for s in from {
             if dropped.contains(ObjectIdentifier(s)) { continue }
-            if let k = storyOf(s.story), stories[k].count >= 2 || placed.count - stories[k].lastPos < 15 {
+            if let k = storyOf(s), stories[k].count >= 2 || placed.count - stories[k].lastPos < 15 {
                 if stories[k].count >= 2 { dropped.insert(ObjectIdentifier(s)) }
                 continue
             }
@@ -427,7 +444,7 @@ func rankForYou(_ pool: [Candidate], _ i: RankInputs, pageSize: Int = 50) -> Ran
         if chosen == nil { chosen = pick(discoveryPool) }
         guard let s = chosen else { break }
         if s.discovery { discoveryPool.removeAll { $0 === s } } else { primaryPool.removeAll { $0 === s } }
-        if let k = storyOf(s.story) {
+        if let k = storyOf(s) {
             stories[k].count += 1
             stories[k].lastPos = placed.count
         } else if s.story.count >= 3 {

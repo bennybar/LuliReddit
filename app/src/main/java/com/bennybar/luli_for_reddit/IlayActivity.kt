@@ -243,6 +243,7 @@ class IlayActivity : ComponentActivity() {
         super.onStop()
         // The hidden Reddit Home page keeps running its scripts otherwise.
         app.forYou.redditHome.onAppBackground()
+        app.forYou.flush() // For You's batched stats: Android may end the app from here
         Analytics.flushPostsOpened()
     }
 

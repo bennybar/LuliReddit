@@ -516,6 +516,7 @@ final class SubStatsStore {
     @ObservationIgnored private let base: String
     @ObservationIgnored private var key: String
     @ObservationIgnored private var ts: Int?
+    @ObservationIgnored private var saveScheduled = false
     private(set) var value = OrderedMap<Entry>()
 
     init(prefs: Prefs, trackHistory: @escaping () -> Bool, base: String = SubStatsStore.defaultBase) {
@@ -526,6 +527,7 @@ final class SubStatsStore {
     }
 
     func load(_ username: String) {
+        flush() // waiting changes belong to the account that made them
         key = userScopedKey(prefs, username, base)
         let m = readJson(prefs, key)
         do {
@@ -553,11 +555,25 @@ final class SubStatsStore {
         let cur = next.removeValue(forKey: k) ?? (0.0, 0.0)
         next[k] = (cur.seen + impr, cur.engaged + eng)
         while next.count > SubStatsStore.cap { next.removeFirst() }
-        let now = nowMillis()
-        ts = now
+        ts = nowMillis()
         value = next
-        var o: JsonObject = ["_ts": .int(now)]
-        for (kk, v) in next { o[kk] = [.double(v.seen), .double(v.engaged)] }
+        // Saved in a batch, as impressions are: every card seen used to rewrite it
+        // (twice: subreddits and post types) on the main thread.
+        if !saveScheduled {
+            saveScheduled = true
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(2))
+                self?.flush()
+            }
+        }
+    }
+
+    /// Saves now what's waiting for the batch (going to the background, tests).
+    func flush() {
+        guard saveScheduled, let ts else { return }
+        saveScheduled = false
+        var o: JsonObject = ["_ts": .int(ts)]
+        for (kk, v) in value { o[kk] = [.double(v.seen), .double(v.engaged)] }
         prefs.setString(key, o.encoded())
     }
 
@@ -565,6 +581,7 @@ final class SubStatsStore {
     func engaged(_ sub: String) { add(sub, impr: 0.0, eng: 1.0) }
 
     func clear() {
+        saveScheduled = false
         value = OrderedMap()
         prefs.remove(key)
     }
@@ -664,6 +681,7 @@ final class ForYouMetrics {
     @ObservationIgnored private let prefs: Prefs
     @ObservationIgnored private let trackHistory: () -> Bool
     @ObservationIgnored private var key = ForYouMetrics.base
+    @ObservationIgnored private var saveScheduled = false
     private(set) var state: [String: [String: Int]] = [:]
 
     init(prefs: Prefs, trackHistory: @escaping () -> Bool) {
@@ -679,6 +697,7 @@ final class ForYouMetrics {
     }
 
     func load(_ username: String) {
+        flush() // waiting counts belong to the account that made them
         key = userScopedKey(prefs, username, ForYouMetrics.base)
         let m = readJson(prefs, key)
         var out: [String: [String: Int]] = [:]
@@ -702,10 +721,24 @@ final class ForYouMetrics {
         var next = state.filter { keep.contains($0.key) }
         next[today, default: [:]][metric, default: 0] += n
         state = next
+        // Saved in a batch: a card seen counts three or four metrics at once.
+        if !saveScheduled {
+            saveScheduled = true
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(2))
+                self?.flush()
+            }
+        }
+    }
+
+    /// Saves now what's waiting for the batch (going to the background, tests).
+    func flush() {
+        guard saveScheduled else { return }
+        saveScheduled = false
         var o = JsonObject()
-        for d in next.keys.sorted() {
+        for d in state.keys.sorted() {
             var b = JsonObject()
-            for (k, c) in next[d]!.sorted(by: { $0.key < $1.key }) { b[k] = .int(c) }
+            for (k, c) in state[d]!.sorted(by: { $0.key < $1.key }) { b[k] = .int(c) }
             o[d] = .object(b)
         }
         prefs.setString(key, o.encoded())
@@ -733,6 +766,7 @@ final class ForYouMetrics {
     }
 
     func clear() {
+        saveScheduled = false
         state = [:]
         prefs.remove(key)
     }

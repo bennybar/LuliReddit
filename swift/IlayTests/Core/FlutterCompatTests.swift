@@ -381,11 +381,13 @@ final class FlutterPrefsCompatTests: XCTestCase {
         let stats = SubStatsStore(prefs: p, trackHistory: { true }, base: "fy_typestats")
         stats.load("bob")
         stats.impression("image")
+        stats.flush() // saved in batches
         XCTAssertEqual(json(p.getString("fy_typestats_bob")!)["image"][0].double(), 1.0)
 
         let metrics = ForYouMetrics(prefs: p, trackHistory: { true })
         metrics.load("bob")
         metrics.count("impr.primary", 2)
+        metrics.flush() // saved in batches
         XCTAssertEqual(metrics.totals()["impr.primary"], 2)
         XCTAssertEqual(metrics.discoveryAppetite(), 1.0)
         let again = ForYouMetrics(prefs: p, trackHistory: { true })

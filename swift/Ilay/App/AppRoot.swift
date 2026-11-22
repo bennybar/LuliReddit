@@ -58,6 +58,7 @@ struct AppRoot: View {
             case .background:
                 Analytics.flushPostsOpened()
                 app.forYou.redditHome.onAppBackground()
+                app.forYou.flush() // For You's batched stats: iOS may end the app from here
                 if app.settings.value.notifyInbox { app.inbox.registerPolling() }
             default: break
             }

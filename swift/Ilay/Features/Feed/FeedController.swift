@@ -102,6 +102,12 @@ private let restoredPage = "restored"
     // With the Posts tab on r/all (Settings) the frontpage is a plain pushed page.
     private var forYou: Bool { isFrontpage && !app.settings.value.postsTabAll && app.settings.value.forYouFeed && engines != nil }
 
+    /// For You with your Reddit Home blended in (it reads Home in the hidden browser too).
+    private var blendOn: Bool {
+        let s = app.settings.value
+        return forYou && s.blendHome && s.redditHomeAllowed
+    }
+
     /// Experimental Reddit Home (opt-in after a risk warning in Settings).
     private var redditHome: Bool {
         let s = app.settings.value
@@ -255,13 +261,15 @@ private let restoredPage = "restored"
             }
         }
         // Retry once: a cold-start request can fail while the token is being
-        // refreshed for the first time.
+        // refreshed for the first time. Not when Reddit said to slow down (429):
+        // For You's retry is six or more requests at once, straight back into it.
         let listing: Listing<Post>
         do {
             do {
                 listing = try await fetch()
             } catch {
                 try Task.checkCancellation()
+                if let e = error as? RedditApiException, e.statusCode == 429 { throw e }
                 listing = try await fetch()
             }
         } catch {
@@ -288,6 +296,9 @@ private let restoredPage = "restored"
     /// quick second sort change), so a slow stale page can't land on top of the newer list.
     @discardableResult private func rebuild(showLoading: Bool) -> Task<Void, Never> {
         buildJob?.cancel()
+        // Neither Home nor Blend any more (switched to Best, For You…): close the
+        // hidden browser now, not only when the feed itself goes away.
+        if isFrontpage, !redditHome, !blendOn { engines?.disposeHome() }
         let hadData = current != nil
         if showLoading, !ui.isLoading { ui = .loading }
         isBuilding = true
