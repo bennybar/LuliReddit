@@ -3,16 +3,32 @@ import SwiftUI
 /// The Inbox pager key for Reddit's own notifications (website sign-in only).
 private let redditTab = "reddit"
 
-private let kindFilters = [(key: "all", label: "All"), (key: "replies", label: "Replies"), (key: "mentions", label: "Mentions"), (key: "messages", label: "Messages")]
+/// A chip of Inbox's row (#246): Reddit's `place` list, only its `kinds` when set.
+private struct InboxPage: Hashable {
+    let label: String
+    let place: String
+    var kinds: Set<InboxKind>? = nil
+}
+
+/// All, Unread, Replies, Mentions, Messages, Sent: what were the tabs and, under All, a
+/// filter menu ("Messages" was in both). Replies are All's comment and post replies
+/// (Reddit lists those two apart); Mentions are Reddit's own list of them.
+private let inboxPages = [
+    InboxPage(label: "All", place: "inbox"),
+    InboxPage(label: "Unread", place: "unread"),
+    InboxPage(label: "Replies", place: "inbox", kinds: [.commentReply, .postReply]),
+    InboxPage(label: "Mentions", place: "mentions"),
+    InboxPage(label: "Messages", place: "messages"),
+    InboxPage(label: "Sent", place: "sent"),
+]
 
 /// The Inbox tab. Re-tapping it scrolls the current list to top (`nav.tabReselect[2]`).
 struct InboxScreen: View {
     /// A page of its own (Settings › Inbox in Profile): its title and Back, no ☰ or search bar.
     var pushed = false
     @Environment(AppNavigator.self) private var nav
-    @State private var tab = "inbox"
-    /// Kind filter, only used on the "All" tab: all | replies | mentions | messages.
-    @State private var kindFilter = "all"
+    /// The chip picked, by label (All and Replies share a list).
+    @State private var tab = "All"
     @State private var webSignIn = false
     @State private var fab = FabScroll()
     /// The top row of each tab, for coming back to it.
@@ -23,28 +39,23 @@ struct InboxScreen: View {
     private var fullBar: Bool { app.settings.value.topBarMode == .full }
 
     var body: some View {
-        // Signed in on the web: Reddit's own notifications (a tab) and Chat.
-        let tabs = InboxModule.tabs + (webSignIn ? [(label: "Reddit", key: redditTab)] : [])
+        // Signed in on the web: Reddit's own notifications (a chip) and Chat.
+        let pages = inboxPages + (webSignIn ? [InboxPage(label: "Reddit", place: redditTab)] : [])
+        let page = pages.first { $0.label == tab } ?? pages[0]
         Group {
             if anonymous {
                 List { SignInPrompt(message: "Sign in to see your messages, replies and mentions.") }
             } else {
                 Group {
-                    if tab == redditTab {
+                    if page.place == redditTab {
                         RedditNotificationsList(topId: topBinding(tab), fab: fab)
                     } else {
-                        InboxList(place: tab, kindFilter: kindFilter, topId: topBinding(tab), fab: fab)
+                        InboxList(place: page.place, kinds: page.kinds, topId: topBinding(tab), fab: fab)
                     }
                 }
                 .id(tab)
                 .safeAreaBar(edge: .top) {
-                    Picker("Inbox", selection: $tab) {
-                        ForEach(tabs, id: \.key) { Text($0.label).tag($0.key) }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 8)
+                    InboxChips(pages: pages, selected: $tab, unread: app.inbox.unreadCount)
                 }
                 .overlay(alignment: .bottomTrailing) {
                     CollapsingFab(systemImage: "square.and.pencil", label: "New message", expanded: fab.expanded) {
@@ -78,26 +89,17 @@ struct InboxScreen: View {
             }
             ToolbarItemGroup(placement: .topBarTrailing) {
                 if !anonymous {
-                    if tab == "inbox" {
-                        Menu {
-                            Picker("Show", selection: $kindFilter) {
-                                ForEach(kindFilters, id: \.key) { Text($0.label).tag($0.key) }
-                            }
-                        } label: {
-                            Label("Filter", systemImage: kindFilter == "all" ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill")
-                        }
-                    }
                     if webSignIn {
                         Button("Reddit Chat", systemImage: "bubble.left.and.bubble.right") {
                             nav.push(.redditWeb(url: RedditWeb.chat, title: "Chat"))
                         }
                     }
                     // Reddit's notifications are read-only here: nothing to mark.
-                    if tab != redditTab {
+                    if page.place != redditTab {
                         Button("Mark all read", systemImage: "envelope.open") {
                             Task {
                                 do {
-                                    try await app.inbox.markAllRead(tab)
+                                    try await app.inbox.markAllRead(page.place)
                                 } catch {
                                     nav.showSnackbar("Couldn't mark all read: \(friendlyError(error))")
                                 }
@@ -109,11 +111,46 @@ struct InboxScreen: View {
             }
         }
         .task(id: app.session.state) { webSignIn = await app.secureStore.authMode() == "web" }
-        .onChange(of: webSignIn) { if !webSignIn, tab == redditTab { tab = "inbox" } }
+        .onChange(of: webSignIn) { if !webSignIn, tab == "Reddit" { tab = "All" } }
     }
 
     private func topBinding(_ key: String) -> Binding<String?> {
         Binding(get: { tops[key] }, set: { tops[key] = $0 })
+    }
+}
+
+/// Inbox's one row of chips (#246), the one picked kept in view.
+private struct InboxChips: View {
+    let pages: [InboxPage]
+    @Binding var selected: String
+    let unread: Int
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(pages, id: \.label) { p in
+                        let on = p.label == selected
+                        Button {
+                            selected = p.label
+                        } label: {
+                            Text(p.place == "unread" && unread > 0 ? "Unread · \(unread)" : p.label)
+                                .font(.subheadline.weight(on ? .semibold : .regular))
+                                .padding(.horizontal, 14)
+                                .frame(height: 34)
+                                .foregroundStyle(on ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+                                .background(on ? AnyShapeStyle(.tint) : AnyShapeStyle(Color(.tertiarySystemFill)), in: .capsule)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(on ? .isSelected : [])
+                        .id(p.label)
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+            .padding(.bottom, 8)
+            .onChange(of: selected) { withAnimation { proxy.scrollTo(selected, anchor: .center) } }
+        }
     }
 }
 
@@ -158,7 +195,7 @@ private struct InboxScrolling: ViewModifier {
 
 private struct InboxList: View {
     let place: String
-    let kindFilter: String
+    let kinds: Set<InboxKind>?
     @Binding var topId: String?
     let fab: FabScroll
     @Environment(AppNavigator.self) private var nav
@@ -166,15 +203,8 @@ private struct InboxList: View {
 
     private var items: [InboxItem] {
         let all = app.inbox.tab(place).items
-        if place != "inbox" || kindFilter == "all" { return all }
-        return all.filter {
-            switch kindFilter {
-            case "replies": $0.kind == .commentReply || $0.kind == .postReply
-            case "mentions": $0.kind == .mention
-            case "messages": $0.kind == .message
-            default: true
-            }
-        }
+        guard let kinds else { return all }
+        return all.filter { kinds.contains($0.kind) }
     }
 
     var body: some View {

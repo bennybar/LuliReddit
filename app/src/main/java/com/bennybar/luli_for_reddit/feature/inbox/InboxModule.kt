@@ -29,7 +29,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-/** One inbox tab's list (`where` = inbox | unread | messages | sent). */
+/** One inbox list (`where` = inbox | unread | mentions | messages | sent). */
 data class InboxTabState(
     val items: List<InboxItem> = emptyList(),
     val after: String? = null,
@@ -452,7 +452,8 @@ class InboxModule(private val c: AppContainer) : UserScoped {
     }
 
     companion object {
-        val TABS = listOf("All" to "inbox", "Unread" to "unread", "Messages" to "messages", "Sent" to "sent")
+        // Reddit's lists the Inbox chips show (#246): mentions has a list of its own.
+        val TABS = listOf("All" to "inbox", "Unread" to "unread", "Mentions" to "mentions", "Messages" to "messages", "Sent" to "sent")
 
         /** Mirrors the Settings flag (same prefs key as the Flutter build). */
         const val NOTIFY_INBOX_PREF = "notifyInbox"

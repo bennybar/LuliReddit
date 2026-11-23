@@ -1,12 +1,20 @@
 package com.bennybar.luli_for_reddit.feature.inbox
 
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
+import com.bennybar.luli_for_reddit.feature.feed.FeedChip
+import com.bennybar.luli_for_reddit.feature.feed.HidingTopBar
+import com.bennybar.luli_for_reddit.feature.feed.rememberHidingBar
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import com.bennybar.luli_for_reddit.feature.home.LocalEdgeDrag
 import com.bennybar.luli_for_reddit.feature.home.SideBarEdge
 import com.bennybar.luli_for_reddit.feature.feed.rememberFabScroll
 import com.bennybar.luli_for_reddit.feature.feed.CollapsingFab
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import com.bennybar.luli_for_reddit.ui.ConnectedChoice
 import com.bennybar.luli_for_reddit.ui.RefreshBox
 import com.bennybar.luli_for_reddit.ui.Loading
 import com.bennybar.luli_for_reddit.feature.home.SideBarButton
@@ -69,9 +77,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -83,7 +89,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -130,7 +135,7 @@ fun InboxScreen(reselect: Int, selected: Boolean = true, /** A page of its own (
     }
 
     if (anonymous) {
-        Scaffold(topBar = { TopAppBar(title = title, navigationIcon = { SideBarButton() }, colors = appBarColors) }) { padding ->
+        Scaffold(Modifier.statusBarsPadding(), topBar = { TopAppBar(title = title, navigationIcon = { SideBarButton() }, colors = appBarColors) }) { padding ->
             Box(Modifier.padding(padding)) {
                 SignInPrompt("Sign in to see your messages, replies and mentions.")
             }
@@ -138,11 +143,13 @@ fun InboxScreen(reselect: Int, selected: Boolean = true, /** A page of its own (
         return
     }
 
-    // Signed in on the web: Reddit's own notifications (a tab) and Chat.
+    // Signed in on the web: Reddit's own notifications (a chip) and Chat.
     val webSignIn = rememberWebSignIn()
-    val tabs = if (webSignIn) InboxModule.TABS + ("Reddit" to REDDIT_TAB) else InboxModule.TABS
-    val pager = rememberPagerState { tabs.size }
-    val lists = tabs.map { rememberLazyListState() }
+    // One row of chips (#246), each a page you can also swipe to: what were the tabs and,
+    // under All, a second row of filters ("Messages" was in both).
+    val pages = if (webSignIn) INBOX_PAGES + InboxPage("Reddit", REDDIT_TAB) else INBOX_PAGES
+    val pager = rememberPagerState { pages.size }
+    val lists = pages.map { rememberLazyListState() }
     val scope = rememberCoroutineScope()
 
     // Opening Inbox reloads what's a minute old, and new mail (the badge going
@@ -160,79 +167,55 @@ fun InboxScreen(reselect: Int, selected: Boolean = true, /** A page of its own (
         newMail = false
     }
 
-    // Re-tapping the Inbox tab scrolls the current list to top.
-    val initialReselect = remember { reselect }
-    LaunchedEffect(reselect) {
-        if (reselect != initialReselect) lists[pager.currentPage].animateScrollToItem(0)
-    }
-
     val fab = rememberFabScroll()
     val settings by app.settings.state.collectAsStateWithLifecycle()
     val collapsing = rememberCollapsingTitle {
         val l = lists[pager.currentPage]
         l.firstVisibleItemIndex == 0 && l.firstVisibleItemScrollOffset == 0
     }
+    // The bar (and its chips) floats over the lists and slides away as they scroll, back
+    // as you scroll up, over a softly faded status bar: as Posts and Explore (#246).
+    val bar = rememberHidingBar(lists[pager.currentPage])
+    val expandable = pushed || settings.topBarMode != TopBarMode.FULL
+
+    // Re-tapping the Inbox tab scrolls the current list to top.
+    val initialReselect = remember { reselect }
+    LaunchedEffect(reselect) {
+        if (reselect != initialReselect) {
+            lists[pager.currentPage].animateScrollToItem(0)
+            bar.slide(0f)
+        }
+    }
+    // Another chip: the bar comes back out, over a list that may be anywhere, and the
+    // big title opens over one at its top (the swipe there counted as a scroll).
+    LaunchedEffect(pager.currentPage) {
+        bar.slide(0f)
+        val l = lists[pager.currentPage]
+        if (l.firstVisibleItemIndex == 0 && l.firstVisibleItemScrollOffset == 0) collapsing.expand()
+    }
+
     val openSideBar = LocalSideBar.current
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
-    Scaffold(
-        // Expandable: scrolling a list folds the title first (only that mode shows it).
-        modifier = if (settings.topBarMode == TopBarMode.FULL) Modifier else Modifier.nestedScroll(collapsing),
-        topBar = {
-            Column {
-                val barActions: @Composable RowScope.() -> Unit = {
-                        if (webSignIn) {
-                            IconButton(onClick = { nav.push(Route.RedditWeb(RedditWeb.CHAT, "Chat")) }) {
-                                Icon(Icons.AutoMirrored.Outlined.Chat, "Reddit Chat")
-                            }
-                        }
-                        // Reddit's notifications are read-only here: nothing to mark.
-                        if (tabs[pager.currentPage].second != REDDIT_TAB) IconButton(onClick = {
-                            scope.launch {
-                                try {
-                                    app.inbox.markAllRead(tabs[pager.currentPage].second)
-                                } catch (e: Exception) {
-                                    nav.showSnackbar("Couldn't mark all read: ${friendlyError(e)}")
-                                }
-                            }
-                        }) { Icon(Icons.Outlined.MarkEmailRead, "Mark all read") }
-                        // The side bar always has Settings (#145).
-                        if (openSideBar == null) SettingsButton()
-                }
-                // Settings › Appearance › Top bar, as Posts and Explore (#214): Full, the
-                // round search bar with Inbox's buttons after it; Expandable, the title.
-                if (pushed) {
-                    // A page of its own: its title, with ← (no search bar: that's the tabs').
-                    CollapsingTitleBar(
-                        collapsing, "Inbox", hasNavigation = true, underStatusBar = false,
-                        navigation = {
-                            IconButton(onClick = { nav.pop() }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
-                        },
-                        actions = barActions,
-                    )
-                } else if (settings.topBarMode == TopBarMode.FULL) {
-                    TabSearchBar("Search Reddit", onSearch = { nav.push(Route.Search()) }, actions = barActions)
-                } else {
-                    // Expandable: the big title that folds into the bar as the list scrolls.
-                    CollapsingTitleBar(
-                        collapsing, "Inbox", hasNavigation = openSideBar != null, underStatusBar = false,
-                        navigation = { SideBarButton() }, actions = barActions,
-                    )
-                }
-                PrimaryScrollableTabRow(
-                    selectedTabIndex = pager.currentPage,
-                    edgePadding = 0.dp,
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ) {
-                    tabs.forEachIndexed { i, (label, _) ->
-                        Tab(
-                            selected = pager.currentPage == i,
-                            onClick = { scope.launch { pager.animateScrollToPage(i) } },
-                            text = { Text(label) },
-                        )
-                    }
+    val barActions: @Composable RowScope.() -> Unit = {
+        if (webSignIn) {
+            IconButton(onClick = { nav.push(Route.RedditWeb(RedditWeb.CHAT, "Chat")) }) {
+                Icon(Icons.AutoMirrored.Outlined.Chat, "Reddit Chat")
+            }
+        }
+        // Reddit's notifications are read-only here: nothing to mark.
+        if (pages[pager.currentPage].where != REDDIT_TAB) IconButton(onClick = {
+            scope.launch {
+                try {
+                    app.inbox.markAllRead(pages[pager.currentPage].where)
+                } catch (e: Exception) {
+                    nav.showSnackbar("Couldn't mark all read: ${friendlyError(e)}")
                 }
             }
-        },
+        }) { Icon(Icons.Outlined.MarkEmailRead, "Mark all read") }
+        // The side bar always has Settings (#145).
+        if (openSideBar == null) SettingsButton()
+    }
+    Scaffold(
         floatingActionButton = {
             CollapsingFab(
                 Icons.Rounded.Edit,
@@ -244,9 +227,12 @@ fun InboxScreen(reselect: Int, selected: Boolean = true, /** A page of its own (
                 modifier = Modifier.aboveFloatingNav(),
             )
         },
-    ) { padding ->
+    ) { _ ->
+        // Expandable: scrolling a list folds the title first, then the bar slides away (#226).
+        Box(Modifier.fillMaxSize().clipToBounds().then(if (expandable) Modifier.nestedScroll(collapsing) else Modifier).nestedScroll(bar)) {
+        val barHeight = with(LocalDensity.current) { bar.height.toDp() }
         // A drag from the start edge goes to the side bar, which follows the finger (#158).
-        SideBarEdge(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
+        SideBarEdge(Modifier.fillMaxSize()) {
         HorizontalPager(
             pager,
             Modifier.fillMaxSize().nestedScroll(fab),
@@ -287,10 +273,69 @@ fun InboxScreen(reselect: Int, selected: Boolean = true, /** A page of its own (
                     }
                 }
             }) {
-                if (tabs[page].second == REDDIT_TAB) RedditNotificationsList(active = pager.currentPage == page, lists[page])
-                else InboxList(tabs[page].second, lists[page])
+                if (pages[page].where == REDDIT_TAB) RedditNotificationsList(active = pager.currentPage == page, lists[page], barHeight)
+                else InboxList(pages[page], lists[page], barHeight)
             }
         }
+        }
+        HidingTopBar(bar, Modifier.statusBarsPadding()) {
+            Column {
+                // Settings › Appearance › Top bar, as Posts and Explore (#214): Full, the
+                // round search bar with Inbox's buttons after it; Expandable, the title.
+                if (pushed) {
+                    // A page of its own: its title, with ← (no search bar: that's the tabs').
+                    CollapsingTitleBar(
+                        collapsing, "Inbox", hasNavigation = true, underStatusBar = false,
+                        navigation = {
+                            IconButton(onClick = { nav.pop() }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
+                        },
+                        actions = barActions,
+                    )
+                } else if (!expandable) {
+                    TabSearchBar("Search Reddit", onSearch = { nav.push(Route.Search()) }, actions = barActions)
+                } else {
+                    // Expandable: the big title that folds into the bar as the list scrolls.
+                    CollapsingTitleBar(
+                        collapsing, "Inbox", hasNavigation = openSideBar != null, underStatusBar = false,
+                        navigation = { SideBarButton() }, actions = barActions,
+                    )
+                }
+                InboxChips(pages, pager.currentPage, unread) { scope.launch { pager.animateScrollToPage(it) } }
+            }
+        }
+        }
+    }
+}
+
+/** A chip of Inbox's row (#246): Reddit's [where] list, only its [kinds] when set. */
+private data class InboxPage(val label: String, val where: String, val kinds: Set<InboxKind>? = null)
+
+/**
+ * All, Unread, Replies, Mentions, Messages, Sent. Replies are All's comment and post
+ * replies (Reddit lists those two apart); Mentions are Reddit's own list of them.
+ */
+private val INBOX_PAGES = listOf(
+    InboxPage("All", "inbox"),
+    InboxPage("Unread", "unread"),
+    InboxPage("Replies", "inbox", setOf(InboxKind.COMMENT_REPLY, InboxKind.POST_REPLY)),
+    InboxPage("Mentions", "mentions"),
+    InboxPage("Messages", "messages"),
+    InboxPage("Sent", "sent"),
+)
+
+/** The chips, the one picked kept in view as you swipe between them. */
+@Composable
+private fun InboxChips(pages: List<InboxPage>, current: Int, unread: Int, onPick: (Int) -> Unit) {
+    val row = rememberLazyListState()
+    LaunchedEffect(current) { row.animateScrollToItem((current - 1).coerceAtLeast(0)) }
+    LazyRow(
+        Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        state = row,
+        contentPadding = PaddingValues(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        itemsIndexed(pages, key = { _, p -> p.label }) { i, p ->
+            FeedChip(if (p.where == "unread" && unread > 0) "Unread · $unread" else p.label, i == current) { onPick(i) }
         }
     }
 }
@@ -302,30 +347,19 @@ fun InboxScreen(reselect: Int, selected: Boolean = true, /** A page of its own (
  */
 internal fun isSideBarDrag(dx: Float, dy: Float, rtl: Boolean): Boolean = (if (rtl) -dx else dx) > abs(dy)
 
-private val kindFilters = listOf("all" to "All", "replies" to "Replies", "mentions" to "Mentions", "messages" to "Messages")
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun InboxList(where: String, listState: LazyListState) {
+private fun InboxList(page: InboxPage, listState: LazyListState, top: Dp) {
+    val where = page.where
     val nav = LocalNavigator.current
     val state by app.inbox.tab(where).collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var refreshing by remember { mutableStateOf(false) }
-    // Kind filter, only used on the "All" tab: all | replies | mentions | messages.
-    var kindFilter by rememberSaveable { mutableStateOf("all") }
 
     LaunchedEffect(where) { app.inbox.ensureLoaded(where) }
 
-    val items = remember(state.items, kindFilter, where) {
-        if (where != "inbox" || kindFilter == "all") state.items
-        else state.items.filter {
-            when (kindFilter) {
-                "replies" -> it.kind == InboxKind.COMMENT_REPLY || it.kind == InboxKind.POST_REPLY
-                "mentions" -> it.kind == InboxKind.MENTION
-                "messages" -> it.kind == InboxKind.MESSAGE
-                else -> true
-            }
-        }
+    val items = remember(state.items, page.kinds) {
+        page.kinds?.let { kinds -> state.items.filter { it.kind in kinds } } ?: state.items
     }
 
     // Load the next page as the end comes into view (asking again whenever a
@@ -339,10 +373,8 @@ private fun InboxList(where: String, listState: LazyListState) {
         }
     }
 
+    // Under the floating bar ([top] tall): the rows start below it and run up under it.
     Column(Modifier.fillMaxSize()) {
-        if (where == "inbox") {
-            ConnectedChoice(kindFilters, kindFilter, { kindFilter = it }, Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp))
-        }
         RefreshBox(
             isRefreshing = refreshing,
             onRefresh = {
@@ -353,14 +385,15 @@ private fun InboxList(where: String, listState: LazyListState) {
                 }
             },
             modifier = Modifier.fillMaxSize(),
+            indicatorPadding = top,
         ) {
             when {
-                state.loading && state.items.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                state.loading && state.items.isEmpty() -> Box(Modifier.fillMaxSize().padding(top = top), contentAlignment = Alignment.Center) {
                     Loading()
                 }
                 // A failed (re)load shows the error even over loaded items, as in
                 // Flutter (its AsyncError replaced the list); pull to retry.
-                state.error != null -> LazyColumn(Modifier.fillMaxSize()) {
+                state.error != null -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = top)) {
                     item {
                         Text(
                             "Could not load inbox.\n${friendlyError(state.error)}",
@@ -369,7 +402,7 @@ private fun InboxList(where: String, listState: LazyListState) {
                         )
                     }
                 }
-                items.isEmpty() -> LazyColumn(Modifier.fillMaxSize()) {
+                items.isEmpty() -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = top)) {
                     item {
                         Spacer(Modifier.height(120.dp))
                         Text("Nothing here", Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
@@ -387,7 +420,7 @@ private fun InboxList(where: String, listState: LazyListState) {
                     LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 130.dp),
+                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = top + 4.dp, bottom = 130.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     items(items, key = { it.fullname }, contentType = { "inbox" }) { item ->
@@ -519,7 +552,7 @@ private const val REDDIT_TAB = "reddit"
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun RedditNotificationsList(active: Boolean, listState: LazyListState) {
+private fun RedditNotificationsList(active: Boolean, listState: LazyListState, top: Dp) {
     val nav = LocalNavigator.current
     val state by app.redditNotifications.state.collectAsStateWithLifecycle()
     // Only when you're on this tab (the pager also builds its neighbour);
@@ -539,12 +572,13 @@ private fun RedditNotificationsList(active: Boolean, listState: LazyListState) {
             app.redditNotifications.refresh(force = true)
         },
         modifier = Modifier.fillMaxSize(),
+        indicatorPadding = top,
     ) {
         when (val s = state) {
-            null, RedditNotifications.State.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            null, RedditNotifications.State.Loading -> Box(Modifier.fillMaxSize().padding(top = top), contentAlignment = Alignment.Center) {
                 Loading()
             }
-            is RedditNotifications.State.Failed -> LazyColumn(Modifier.fillMaxSize()) {
+            is RedditNotifications.State.Failed -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = top)) {
                 item {
                     Column(Modifier.fillMaxWidth().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
@@ -560,7 +594,7 @@ private fun RedditNotificationsList(active: Boolean, listState: LazyListState) {
             is RedditNotifications.State.Data -> LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 130.dp),
+                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = top + 4.dp, bottom = 130.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 if (s.items.isEmpty()) {

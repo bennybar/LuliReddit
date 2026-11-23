@@ -393,22 +393,14 @@ fun HomeScreen() {
                 // Its feed runs under the status bar; it pads its own top bar.
                 0 -> FrontpageTab(selected = index == 0)
                 1 -> ExploreTab() // runs under the status bar, with its own fade (#127)
-                2 -> Box(Modifier.statusBarsPadding()) { InboxScreen(reselect = inboxReselect, selected = index == 2) }
+                2 -> InboxScreen(reselect = inboxReselect, selected = index == 2) // under the status bar, with its own fade (#246)
                 // Only while it's a tab (it was built for everyone).
                 4 -> if (4 in order) com.bennybar.luli_for_reddit.feature.digest.DigestScreen(tab = true, selected = index == 4, reselect = digestReselect)
                 else -> Box(Modifier.statusBarsPadding()) { ProfileTab() }
             }
         }
-        // Content fades out just below the status bar, rather than being cut off (#74).
-        // (Posts and Explore have their own, softer one.)
-        val fade = MaterialTheme.colorScheme.surface
-        if (index == 2 || index == 3) Box(
-            Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .height(8.dp)
-                .background(Brush.verticalGradient(listOf(fade, fade.copy(alpha = 0f)))),
-        )
+        // No fade under the status bar here for Inbox and Profile (#74's): Inbox has its own
+        // (#246), and Profile's bar sits at the very top, so it only shaded the search bar (#248).
         if (bottomBar) {
         // A fade from the page colour behind the nav, so the pill never sits
         // directly on a post of the same tone; it hides with the nav.

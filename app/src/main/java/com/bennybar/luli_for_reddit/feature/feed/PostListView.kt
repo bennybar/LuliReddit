@@ -465,14 +465,17 @@ fun PostListView(
                 )
             }
         }
-        if (chipsAt != null && isData && past) {
+        // Kept composed while it's not on show (placed off screen): made only once the list's
+        // row went past, it missed a frame each time the two swapped, and as a header folds
+        // slowly they swap back and forth, so the chips blinked (#242, #248).
+        if (chipsAt != null && isData) {
             var height by remember { mutableIntStateOf(0) }
             val barColor = MaterialTheme.colorScheme.surface
             Box(
                 Modifier
                     .fillMaxWidth()
                     .onSizeChanged { height = it.height }
-                    .offset { IntOffset(0, chipsAt(height)) }
+                    .offset { IntOffset(0, if (past) chipsAt(height) else -100_000) }
                     // The top bar's own surface, so posts don't show between the chips;
                     // it fades in with the outline, so the swap with the list's row doesn't show.
                     // Transparent (#91): just the outlined chips over the posts, as before 2.0.58.

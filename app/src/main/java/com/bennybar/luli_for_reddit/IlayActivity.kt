@@ -1,6 +1,5 @@
 package com.bennybar.luli_for_reddit
 
-import androidx.compose.foundation.layout.statusBarsPadding
 import com.bennybar.luli_for_reddit.feature.auth.SETUP_DONE
 import com.bennybar.luli_for_reddit.feature.auth.needsSetup
 import com.bennybar.luli_for_reddit.feature.auth.SetupScreen
@@ -370,9 +369,8 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
                 screen<Route.History> { HistoryScreen() }
                 screen<Route.Summaries> { SummariesScreen() }
                 screen<Route.Inbox> {
-                    androidx.compose.foundation.layout.Box(Modifier.statusBarsPadding()) {
-                        com.bennybar.luli_for_reddit.feature.inbox.InboxScreen(reselect = 0, pushed = true)
-                    }
+                    // Runs under the status bar, with its own fade (#246).
+                    com.bennybar.luli_for_reddit.feature.inbox.InboxScreen(reselect = 0, pushed = true)
                 }
                 screen<Route.Digest> { com.bennybar.luli_for_reddit.feature.digest.DigestScreen() }
                 screen<Route.Saved> { SavedScreen() }

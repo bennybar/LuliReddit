@@ -38,7 +38,8 @@ struct UnreadItem: Equatable, Sendable {
 /// notification_service.dart).
 @MainActor @Observable
 final class InboxModule: UserScoped {
-    static let tabs = [(label: "All", key: "inbox"), (label: "Unread", key: "unread"), (label: "Messages", key: "messages"), (label: "Sent", key: "sent")]
+    /// Reddit's lists the Inbox chips show (#246): mentions has a list of its own.
+    static let tabs = [(label: "All", key: "inbox"), (label: "Unread", key: "unread"), (label: "Mentions", key: "mentions"), (label: "Messages", key: "messages"), (label: "Sent", key: "sent")]
 
     /// Mirrors the Settings flag (same prefs key as the Flutter build).
     static let notifyInboxPref = "notifyInbox"
