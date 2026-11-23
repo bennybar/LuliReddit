@@ -20,7 +20,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -44,8 +45,12 @@ import kotlin.math.roundToInt
 
 /** The bar's own row, where the title ends up. */
 private val BAR = 64.dp
-/** The room the big title takes under it, at the top of the list: tall, the title at its foot (#226). */
-private val EXTRA = 88.dp
+/**
+ * The room the big title takes under it, at the top of the list, the title at its foot
+ * (#226). 88dp left a gap under the ☰ row that read as too low (#232); this is about
+ * halfway between that and 2.0.95's title right under the row.
+ */
+private val EXTRA = 64.dp
 private const val SMALL = 22f / 32f // the title's size in the bar, against its big size
 
 /**
@@ -84,11 +89,17 @@ class CollapsingTitle(private val atTop: () -> Boolean) : NestedScrollConnection
     }
 }
 
-/** [atTop]: the list is at its very top (any list: a re-tap on the tab brings it there). */
+/**
+ * [atTop]: the list is at its very top (any list: a re-tap on the tab brings it there).
+ * How far it's folded is saved with the screen: Back from a post rebuilds the tab, and
+ * the header opened out again over a feed still scrolled down (#233).
+ */
 @Composable
 fun rememberCollapsingTitle(atTop: () -> Boolean): CollapsingTitle {
     val latest by rememberUpdatedState(atTop)
-    val state = remember { CollapsingTitle { latest() } }
+    val state = rememberSaveable(
+        saver = Saver<CollapsingTitle, Float>(save = { it.progress }, restore = { p -> CollapsingTitle { latest() }.also { it.progress = p } }),
+    ) { CollapsingTitle { latest() } }
     state.rangePx = with(LocalDensity.current) { EXTRA.toPx() }
     // Brought to the top without a finger (a re-tap, Back, a reload): open with it.
     LaunchedEffect(state) {
@@ -126,7 +137,7 @@ fun CollapsingTitleBar(
         // Big: at the foot of the header, as Sync's and Android's large bars (#226), at the
         // screen's 20dp. Small: centred in the row, after the ☰ (#231: it sat 2dp high).
         val x = lerp(20.dp, if (hasNavigation) 60.dp else 20.dp, p)
-        val y = lerp(BAR + EXTRA - 40.dp - (if (subtitle != null) 20.dp else 0.dp) - 10.dp, (BAR - 40.dp * SMALL) / 2, p)
+        val y = lerp(BAR + EXTRA - 40.dp - (if (subtitle != null) 20.dp else 0.dp) - 6.dp, (BAR - 40.dp * SMALL) / 2, p)
         val scale = 1f + (SMALL - 1f) * p
         Column(
             Modifier
