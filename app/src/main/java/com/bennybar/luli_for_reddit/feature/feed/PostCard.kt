@@ -147,7 +147,6 @@ import com.bennybar.luli_for_reddit.settings.Settings
 import com.bennybar.luli_for_reddit.settings.SwipeAction
 import com.bennybar.luli_for_reddit.state.PostOverride
 import com.bennybar.luli_for_reddit.state.PostOverrides
-import com.bennybar.luli_for_reddit.ui.popOn
 import com.bennybar.luli_for_reddit.ui.theme.LocalVoteColors
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -505,7 +504,7 @@ private fun LargeCard(p: Post, a: PostActions, s: Settings, dim: Modifier, glow:
             if (p.snippet.isNotEmpty()) SpoilerOr(p) {
                 Spacer(Modifier.height(4.dp))
                 ScaledText(TextKind.POST_TEXT) { Text(
-                    p.snippet,
+                    rememberSnippet(p),
                     Modifier.readDim(),
                         maxLines = s.textLines(3),
                     overflow = TextOverflow.Ellipsis,
@@ -546,7 +545,7 @@ private fun CardsCard(p: Post, a: PostActions, s: Settings, dim: Modifier, glow:
             if (p.snippet.isNotEmpty()) SpoilerOr(p) {
                 Spacer(Modifier.height(4.dp))
                 ScaledText(TextKind.POST_TEXT) { Text(
-                    p.snippet,
+                    rememberSnippet(p),
                     Modifier.readDim(),
                         maxLines = s.textLines(2),
                     overflow = TextOverflow.Ellipsis,
@@ -1304,7 +1303,7 @@ private fun CalmBody(p: Post, a: PostActions, s: Settings, mediaShape: androidx.
     }
     if (p.snippet.isNotEmpty()) SpoilerOr(p) {
         ScaledText(TextKind.POST_TEXT) { Text(
-            p.snippet,
+            rememberSnippet(p),
             Modifier.padding(top = 6.dp).readDim(),
             maxLines = s.textLines(2),
             overflow = TextOverflow.Ellipsis,
@@ -1347,7 +1346,6 @@ private fun CalmShareSave(live: CalmLive, a: PostActions) {
         if (live.saved) cs.primary else cs.onSurfaceVariant,
         a::toggleSave,
         size = 40.dp,
-        pop = live.saved,
     )
 }
 
@@ -1707,10 +1705,10 @@ internal fun calmSegmentShape(start: Dp, end: Dp, full: Dp, on: Boolean, interac
 /** Content on a vote colour, as on the vote swipe's background. */
 internal fun onVoteColor(vote: Color): Color = if (vote.luminance() > 0.5f) Color.Black else Color.White
 
-/** A borderless icon button (Calm's share / save). */
+/** A borderless icon button (Calm's share / save). No pop when it turns on: it looked out of place (#244). */
 @Composable
-fun CalmGhost(icon: ImageVector, label: String, tint: Color, onClick: () -> Unit, size: Dp = 36.dp, iconSize: Dp = 19.dp, pop: Boolean = false) {
+fun CalmGhost(icon: ImageVector, label: String, tint: Color, onClick: () -> Unit, size: Dp = 36.dp, iconSize: Dp = 19.dp) {
     Box(Modifier.size(size).clip(CircleShape).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
-        Icon(icon, label, Modifier.size(iconSize).popOn(pop), tint = tint)
+        Icon(icon, label, Modifier.size(iconSize), tint = tint)
     }
 }

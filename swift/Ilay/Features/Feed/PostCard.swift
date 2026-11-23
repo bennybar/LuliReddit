@@ -507,7 +507,7 @@ private struct SpoilerSnippet: View {
     var body: some View {
         Group {
             if shown {
-                Text(row.snippet)
+                Text(row.snippetText)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(row.config.postTextLines > 0 ? row.config.postTextLines : lines)
@@ -549,7 +549,7 @@ private struct CardSnippet: View {
             SpoilerSnippet(row: row, lines: lines).id(row.id)
         } else if !row.snippet.isEmpty {
             ReadDimmed(row: row) {
-                Text(row.snippet)
+                Text(row.snippetText)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(row.config.postTextLines > 0 ? row.config.postTextLines : lines)
@@ -897,7 +897,8 @@ private struct SaveButton: View {
 
     var body: some View {
         let saved = app.postOverrides.effective(post).saved
-        SymbolButton(on: saved, onSymbol: "bookmark.fill", offSymbol: "bookmark", label: saved ? "Unsave" : "Save") {
+        // No pop: it looked out of place (#244).
+        SymbolButton(on: saved, onSymbol: "bookmark.fill", offSymbol: "bookmark", label: saved ? "Unsave" : "Save", bounces: false) {
             a.toggleSave()
         }
     }
@@ -968,6 +969,6 @@ private struct CalmSavePill: View {
     var body: some View {
         let saved = app.postOverrides.effective(post).saved
         GlassPill(symbol: saved ? "bookmark.fill" : "bookmark", label: saved ? "Unsave" : "Save", on: saved,
-                  tint: IlayTheme.accent, leading: 18, trailing: 18, height: 36, font: font, haptic: true, action: a.toggleSave)
+                  tint: IlayTheme.accent, leading: 18, trailing: 18, height: 36, font: font, haptic: true, bounces: false, action: a.toggleSave)
     }
 }

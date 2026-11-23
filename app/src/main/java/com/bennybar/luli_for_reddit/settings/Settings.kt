@@ -28,7 +28,7 @@ import com.bennybar.luli_for_reddit.data.TopTime
 
 /** The app's typeface (Settings → App font). Persisted by [key] (`appFont`). */
 enum class AppFont(val key: String, val label: String, val description: String) {
-    ROBOTO("roboto", "Roboto", "Android's default"),
+    ROBOTO("roboto", "Default", "Your phone's own font"), // was "Roboto" (#245); the key stays
     GOOGLE_SANS("googlesans", "Google Sans", "The typeface of Google's own apps"),
     GOOGLE_SANS_FLEX("googlesansflex", "Google Sans Flex", "Material 3 Expressive's: rounded titles, plain text to read"),
     JAKARTA("jakarta", "Plus Jakarta Sans", "Rounder, with Unbounded for headlines");

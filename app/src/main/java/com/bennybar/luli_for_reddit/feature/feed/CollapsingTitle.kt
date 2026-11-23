@@ -104,6 +104,18 @@ class CollapsingTitle(private val atTop: () -> Boolean) : NestedScrollConnection
         return Offset(0f, now - next)
     }
 
+    /**
+     * When a finger last moved the list (or a fling did). The list reaching its top right
+     * after one isn't "brought there without a finger": the header then opens as the
+     * finger pulls, not all at once (#242).
+     */
+    internal var scrolledAt = 0L
+
+    override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+        scrolledAt = System.currentTimeMillis()
+        return Offset.Zero
+    }
+
     internal suspend fun expand() {
         animate(progress, 0f) { v, _ -> progress = v }
     }
@@ -125,7 +137,9 @@ fun rememberCollapsingTitle(atTop: () -> Boolean): CollapsingTitle {
     state.rangePx = with(LocalDensity.current) { extra.toPx() }
     // Brought to the top without a finger (a re-tap, Back, a reload): open with it.
     LaunchedEffect(state) {
-        snapshotFlow { latest() }.filter { it }.collect { if (state.progress > 0f) state.expand() }
+        snapshotFlow { latest() }.filter { it }.collect {
+            if (state.progress > 0f && System.currentTimeMillis() - state.scrolledAt > 400) state.expand()
+        }
     }
     return state
 }
@@ -156,9 +170,10 @@ fun CollapsingTitleBar(
             actions()
         }
         val density = LocalDensity.current
-        // Big: at the foot of the header, as Sync's and Android's large bars (#226), at the
-        // screen's 20dp. Small: centred in the row, after the ☰ (#231: it sat 2dp high).
-        val x = lerp(20.dp, if (hasNavigation) 60.dp else 20.dp, p)
+        // Big: at the foot of the header, as Sync's and Android's large bars (#226), its
+        // letters lined up with the chips' edge under it (#243: at 20dp it sat 8dp to the
+        // right). Small: centred in the row, after the ☰ (#231: it sat 2dp high).
+        val x = lerp(12.dp, if (hasNavigation) 60.dp else 20.dp, p)
         val y = lerp(BAR + state.extra - 40.dp - (if (subtitle != null) 20.dp else 0.dp) - 10.dp, ROW_TOP + (ROW - 40.dp * SMALL) / 2, p)
         val scale = 1f + (SMALL - 1f) * p
         Column(

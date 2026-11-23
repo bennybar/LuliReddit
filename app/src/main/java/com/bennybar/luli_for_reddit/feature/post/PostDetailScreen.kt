@@ -135,6 +135,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.collectAsState
@@ -1419,7 +1423,6 @@ private fun CalmPostHeader(
                 toggleSave,
                 size = 40.dp,
                 iconSize = 20.dp,
-                pop = saved,
             )
         }
         Text(
@@ -1699,11 +1702,11 @@ private fun CommentTile(
                 }
                 Spacer(Modifier.width(8.dp))
                 Text("· ${timeAgo(comment.createdUtc)}", fontSize = 12.5.sp, color = cs.onSurfaceVariant, maxLines = 1)
-                if (!showButtons) {
-                    // The row with the score is hidden: the score sits here (#239).
-                    Spacer(Modifier.width(6.dp))
+                // The row with the score is hidden: the score sits here (#239), fading in and
+                // out as the buttons hide and show (#244).
+                if (buttonsOnTap) AnimatedVisibility(!showButtons, enter = fadeIn() + expandHorizontally(), exit = fadeOut() + shrinkHorizontally()) {
                     Text(
-                        "· " + (if (comment.scoreHidden) "–" else compactNumber(comment.score)) + " points",
+                        "  · " + (if (comment.scoreHidden) "–" else compactNumber(comment.score)) + " points",
                         fontSize = 12.5.sp,
                         color = when (comment.likes) { true -> votes.up; false -> votes.down; null -> cs.onSurfaceVariant },
                         maxLines = 1,
@@ -1731,7 +1734,13 @@ private fun CommentTile(
                     // "Copy text" is in the ⋯ menu.
                     ScaledText(TextKind.COMMENT) { BodyWithMedia(comment.body, comment.media, nav, maxMedia = 3) }
                 }
-                if (showButtons) CommentActionsRow(comment, isOwn, actions) else Spacer(Modifier.height(8.dp))
+                if (!buttonsOnTap) {
+                    CommentActionsRow(comment, isOwn, actions)
+                } else {
+                    // Shown and hidden with a slide and fade, not a jump (#244).
+                    AnimatedVisibility(showButtons, enter = commentButtonsIn, exit = commentButtonsOut) { CommentActionsRow(comment, isOwn, actions) }
+                    AnimatedVisibility(!showButtons, enter = commentButtonsIn, exit = commentButtonsOut) { Spacer(Modifier.height(8.dp)) }
+                }
             } else {
                 Text(
                     comment.body.replace('\n', ' '),
@@ -2079,7 +2088,6 @@ private fun CalmCommentRow(
     val revealOnLongPress = buttonsOnTap && tapToCollapse
     val down = comment.likes == false
     val voteEdge = if (!settings.voteEdge) null else if (up) votes.up else if (down) votes.down else null
-    var menu by remember { mutableStateOf(false) }
 
     fun swipe(a: SwipeAction): SwipeSpec? = when (a) {
         SwipeAction.UPVOTE -> SwipeSpec(a.icon, votes.up) { actions.vote(comment, 1) }
@@ -2156,11 +2164,11 @@ private fun CalmCommentRow(
                 }
                 Spacer(Modifier.width(6.dp))
                 Text("· ${timeAgo(comment.createdUtc)}", fontSize = 13.sp, color = cs.onSurfaceVariant, maxLines = 1)
-                if (!showButtons) {
-                    // The row with the score is hidden: the score sits here (#239).
-                    Spacer(Modifier.width(6.dp))
+                // The row with the score is hidden: the score sits here (#239), fading in and
+                // out as the buttons hide and show (#244).
+                if (buttonsOnTap) AnimatedVisibility(!showButtons, enter = fadeIn() + expandHorizontally(), exit = fadeOut() + shrinkHorizontally()) {
                     Text(
-                        "· " + (if (comment.scoreHidden) "–" else compactNumber(comment.score)) + " points",
+                        "  · " + (if (comment.scoreHidden) "–" else compactNumber(comment.score)) + " points",
                         fontSize = 13.sp,
                         color = when (comment.likes) { true -> votes.up; false -> votes.down; null -> cs.onSurfaceVariant },
                         maxLines = 1,
@@ -2198,7 +2206,21 @@ private fun CalmCommentRow(
             // ↑ score ↓ · Reply · Collapse · ⋯ — small, 32dp targets. Deep in a thread the row
             // is narrow: the words go, the icons stay, so ⋯ (Edit, Delete…) isn't pushed off
             // the edge (#215: a reply you'd just posted, often the deepest, had none).
-            if (!showButtons) return@Column
+            // Shown and hidden with a slide and fade, not a jump (#244).
+            if (buttonsOnTap) AnimatedVisibility(showButtons, enter = commentButtonsIn, exit = commentButtonsOut) { CalmCommentButtons(comment, isOwn, actions, toggle) }
+            else CalmCommentButtons(comment, isOwn, actions, toggle)
+        }
+    }
+}
+
+/** Calm's ↑ score ↓ · Reply · Collapse · ⋯ under a comment. */
+@Composable
+private fun CalmCommentButtons(comment: Comment, isOwn: Boolean, actions: ThreadActions, toggle: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val votes = LocalVoteColors.current
+    val up = comment.likes == true
+    val down = comment.likes == false
+    var menu by remember { mutableStateOf(false) }
             BoxWithConstraints(Modifier.fillMaxWidth()) {
             val compact = maxWidth < 300.dp
             Row(Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -2247,8 +2269,6 @@ private fun CalmCommentRow(
                 }
             }
             }
-        }
-    }
 }
 
 /** What a tap on a comment's text does: collapse, show its buttons (#239) or nothing. */
@@ -2469,3 +2489,7 @@ internal fun TranslateButton(targets: List<String>, shownIn: String?, busy: Bool
         }
     }
 }
+
+/** Comment buttons only on tap (#239): how they come and go (#244). */
+private val commentButtonsIn = fadeIn() + expandVertically(expandFrom = Alignment.Top)
+private val commentButtonsOut = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Top)

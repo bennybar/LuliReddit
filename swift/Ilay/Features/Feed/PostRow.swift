@@ -126,6 +126,8 @@ struct PostRow: Identifiable, Equatable {
     let authorLabel: String
     let timeLabel: String
     let snippet: String
+    /// [snippet] with its inline markdown drawn (#241).
+    let snippetText: AttributedString
     let flair: [FlairRun]
     /// A flair with no images gets an icon matching its words in Calm.
     let flairSymbol: String?
@@ -171,6 +173,7 @@ struct PostRow: Identifiable, Equatable {
         authorLabel = "u/\(p.author)"
         timeLabel = timeAgo(p.createdUtc)
         snippet = p.snippet
+        snippetText = snippetMarkdown(p.snippet)
         var runs: [FlairRun] = []
         for (i, part) in (p.linkFlair?.parts ?? []).enumerated() {
             if let emoji = part.emojiUrl {

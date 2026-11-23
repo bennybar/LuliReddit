@@ -45,6 +45,15 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.105", "Nov 23, 2026",
+        listOf(
+            "Post text in feeds shows its bold, italic, strikethrough and spoilers instead of the markdown marks (#241)",
+            "Expandable top bar: scrolling back to the top opens the header as your finger moves, not all at once (#242), and the big title lines up with the chips (#243)",
+            "Comment buttons only on tap: the buttons and the score slide and fade in and out; Explore's Show all opens smoothly; no more pop on Save and the Favorites star (#244)",
+            "App font: \"Roboto\" is now called \"Default\", as it's your phone's own font (#245)",
+        ),
+    ),
+    Release(
         "2.0.104", "Nov 23, 2026",
         listOf(
             "Settings › Appearance › Header height, for the Expandable top bar: Folded (always the small bar), Medium (as now) or Tall (as in 2.0.96) (#240)",

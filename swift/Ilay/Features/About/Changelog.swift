@@ -12,6 +12,10 @@ struct Release: Identifiable {
 /// 2.0 (the native app, with Reddit Home). Add the new release at the top
 /// with every release.
 let CHANGELOG = [
+    Release(version: "2.0.105", date: "Nov 23, 2026", highlights: [
+        "Post text in feeds shows its bold, italic, strikethrough and spoilers instead of the markdown marks (#241)",
+        "Comment buttons only on tap: the comment grows and shrinks smoothly as its buttons show and hide; no more bounce on Save (#244)",
+    ]),
     Release(version: "2.0.103", date: "Nov 23, 2026", highlights: [
         "Settings › Comment buttons only on tap: comments show just their text, with the score by the time; tap a comment for Vote, Reply and the rest (#239)",
     ]),

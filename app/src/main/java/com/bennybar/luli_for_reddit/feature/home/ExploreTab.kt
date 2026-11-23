@@ -2,7 +2,6 @@ package com.bennybar.luli_for_reddit.feature.home
 
 import androidx.compose.material3.LocalContentColor
 import com.bennybar.luli_for_reddit.feature.feed.calmSegmentShape
-import com.bennybar.luli_for_reddit.ui.popOn
 import androidx.compose.ui.semantics.Role
 import androidx.compose.material3.ripple
 import androidx.compose.foundation.selection.toggleable
@@ -437,7 +436,7 @@ internal fun ExploreTab() {
                             .toggleable(favOnly, interaction, ripple(), role = Role.Switch) { favOnly = it },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(if (favOnly) Icons.Rounded.Star else Icons.Rounded.StarBorder, "Favorites only", Modifier.popOn(favOnly), tint = fg)
+                        Icon(if (favOnly) Icons.Rounded.Star else Icons.Rounded.StarBorder, "Favorites only", tint = fg)
                     }
                 }
             }
@@ -643,13 +642,14 @@ private fun LazyListScope.subscriptionSections(
                 }
             }
             // No star on ones you aren't subscribed to. Long-press: remove just this one (#123).
+            // Show all / Show less: the rows fade in and out and the rest moves, not a jump (#244).
             itemsIndexed(shown, key = { _, it -> "recent_${it.name}" }, contentType = { _, _ -> "sub" }) { i, sub ->
-                Box(Modifier.segment(first = i == 0, last = !folds && i == shown.lastIndex)) {
+                Box(Modifier.animateItem().segment(first = i == 0, last = !folds && i == shown.lastIndex)) {
                     SubredditRow(sub, onOpen, if (sub.name.lowercase() in byName) onStar else null, visits = visits[sub.name.lowercase()]) { onRemoveRecent(sub) }
                 }
             }
             if (folds) item(key = "recent_more") {
-                Box(Modifier.segment(first = false, last = true).padding(horizontal = 8.dp)) {
+                Box(Modifier.animateItem().segment(first = false, last = true).padding(horizontal = 8.dp)) {
                     TextButton(onClick = onRecentAll, Modifier.fillMaxWidth()) { Text(if (recentAll) "Show less" else "Show all ${recent.size}") }
                 }
             }

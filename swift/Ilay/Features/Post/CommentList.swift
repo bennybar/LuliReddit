@@ -325,6 +325,7 @@ final class CommentListController: UIViewController, UICollectionViewDelegate {
     private var env = ThreadRowEnv()
     private var statusText: String?
     private var lastCollapsed = Set<String>()
+    private var lastButtons = Set<String>()
     // A scroll under way: the row and where it should end up. Rows not measured yet
     // have an estimated height, so the first try lands near it and the next corrects it.
     private var scrollTarget: (id: String, fraction: CGFloat, tries: Int)?
@@ -512,10 +513,13 @@ final class CommentListController: UIViewController, UICollectionViewDelegate {
         let headerChanged = previous?.post != content.post || previous?.fresh != content.fresh || previous?.translation != content.translation || envChanged
         let statusChanged = statusText != newStatus
         let collapseChanged = (thread?.collapsed ?? []) != lastCollapsed
+        // Comment buttons only on tap: the row grows and shrinks smoothly (#244).
+        let buttonsChanged = (thread?.buttonsShown ?? []) != lastButtons
         let idsChanged = newIds != ids
         rows = newRows
         statusText = newStatus
         lastCollapsed = thread?.collapsed ?? []
+        lastButtons = thread?.buttonsShown ?? []
 
         if !idsChanged, changed.isEmpty, changedKind.isEmpty, !headerChanged, !statusChanged { return }
         var snapshot = NSDiffableDataSourceSnapshot<Int, String>()
@@ -543,7 +547,7 @@ final class CommentListController: UIViewController, UICollectionViewDelegate {
             // top of the screen stays exactly where it is, whatever changed above it.
             applyKeepingPosition(snapshot)
         } else {
-            dataSource.apply(snapshot, animatingDifferences: false)
+            dataSource.apply(snapshot, animatingDifferences: buttonsChanged && !idsChanged)
         }
     }
 
