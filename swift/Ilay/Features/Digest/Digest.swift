@@ -10,11 +10,11 @@ enum DigestSize: Int, CaseIterable, Sendable {
 
     static func of(_ i: Int) -> DigestSize { DigestSize(rawValue: i) ?? .standard }
 
-    var items: Int { [5, 12, 30][rawValue] }
+    var items: Int { [5, 20, 30][rawValue] }
     var perCommunity: Int { [2, 2, 5][rawValue] }
     var label: String { ["Brief", "Standard", "Everything notable"][rawValue] }
     var description: String {
-        ["About 5 posts, at most 2 from a community", "About 12 posts, at most 2 from a community", "Every notable post, up to 30"][rawValue]
+        ["About 5 posts, at most 2 from a community", "About 20 posts, at most 2 from a community", "Every notable post, up to 30"][rawValue]
     }
 }
 

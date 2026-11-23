@@ -45,6 +45,13 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.102", "Nov 23, 2026",
+        listOf(
+            "Digest: a post you open and come back from leaves the list too, not only one you swipe (Show read keeps them)",
+            "Digest: Standard is now about 20 posts (was 12). Rebuild today's digest from its menu to see it now",
+        ),
+    ),
+    Release(
         "2.0.101", "Nov 23, 2026",
         listOf(
             "Digest: marking a post read takes it off the list at once, as hiding a post does in your feed; Undo puts it back",

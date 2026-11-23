@@ -14,7 +14,7 @@ import kotlin.math.roundToInt
 /** How long a digest is (Settings › Feed › Digest › Size). Persisted by index (`digestSize`). */
 enum class DigestSize(val items: Int, val perCommunity: Int, val label: String, val description: String) {
     BRIEF(5, 2, "Brief", "About 5 posts, at most 2 from a community"),
-    STANDARD(12, 2, "Standard", "About 12 posts, at most 2 from a community"),
+    STANDARD(20, 2, "Standard", "About 20 posts, at most 2 from a community"),
     EVERYTHING(30, 5, "Everything notable", "Every notable post, up to 30"),
     ;
 

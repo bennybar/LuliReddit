@@ -18,7 +18,7 @@ brief disagree, this section wins.
 - **Order by** (`digestOrder`): Most notable (default), Most upvoted, Newest, AI's
   assessment (offered while Use AI is on). It sorts what was picked, not what's picked.
 - **The cut point (by the numbers):** notable at 2× a typical post; a community's top post
-  counts from 1.3×; nothing under 10 points. Standard is 12 posts, at most 2 from a
+  counts from 1.3×; nothing under 10 points. Standard is 20 posts (was 12; raised in 2.0.102), at most 2 from a
   community (was 3). A quiet day can give an empty digest.
 - **No repeats:** posts shown in an earlier day's digest are left out of a new one.
 - **AI, as built:** `digestAiBuilds` (1: the day's first build and Rebuild, default;

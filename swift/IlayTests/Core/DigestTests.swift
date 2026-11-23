@@ -57,10 +57,10 @@ final class DigestTests: XCTestCase {
         let hits = (0..<10).map { p("a", 1000 + $0) } + ordinary("a", 10, 20)
         XCTAssertEqual(build(hits, size: .brief).items.count, 2)
         XCTAssertEqual(build(hits, size: .standard).items.count, 2)
-        let many = (0..<10).flatMap { c in [p("c\(c)", 5000), p("c\(c)", 4000)] + ordinary("c\(c)", 10) }
+        let many = (0..<12).flatMap { c in [p("c\(c)", 5000), p("c\(c)", 4000)] + ordinary("c\(c)", 10) }
         XCTAssertEqual(build(many, size: .brief).items.count, 5)
-        XCTAssertEqual(build(many, size: .standard).items.count, 12)
-        XCTAssertEqual(build(many, size: .everything).items.count, 20)
+        XCTAssertEqual(build(many, size: .standard).items.count, 20)
+        XCTAssertEqual(build(many, size: .everything).items.count, 24)
     }
 
     func testOldStickiedAndAlreadyReadPostsAreLeftOut() {

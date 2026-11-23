@@ -71,10 +71,10 @@ class DigestTest {
         assertEquals(2, brief.items.size) // at most 2 from a community
         val standard = build(hits, size = DigestSize.STANDARD)
         assertEquals(2, standard.items.size)
-        val many = (0 until 10).flatMap { c -> listOf(p("c$c", 5000), p("c$c", 4000)) + ordinary("c$c", 10) }
+        val many = (0 until 12).flatMap { c -> listOf(p("c$c", 5000), p("c$c", 4000)) + ordinary("c$c", 10) }
         assertEquals(5, build(many, size = DigestSize.BRIEF).items.size)
-        assertEquals(12, build(many, size = DigestSize.STANDARD).items.size)
-        assertEquals(20, build(many, size = DigestSize.EVERYTHING).items.size)
+        assertEquals(20, build(many, size = DigestSize.STANDARD).items.size)
+        assertEquals(24, build(many, size = DigestSize.EVERYTHING).items.size)
     }
 
     @Test
