@@ -415,6 +415,12 @@ struct SettingsCatalog {
         b.toggle("Your comments button", "Jump between your own comments in threads", s.threadJumpMine, set: ctrl.setThreadJumpMine)
         b.toggle("Tap a comment to collapse it", "Otherwise long-press. Comment text can't be selected while this is on", s.tapToCollapse, set: ctrl.setTapToCollapse)
         b.toggle("Collapse only the replies", "Collapsing a comment keeps its own text and hides its replies", s.collapseRepliesOnly, set: ctrl.setCollapseRepliesOnly)
+        b.toggle(
+            "Comment buttons only on tap",
+            s.tapToCollapse ? "Vote, Reply and the rest show when you long-press a comment's name; the score stays by its time"
+                : "Vote, Reply and the rest show when you tap a comment; the score stays by its time",
+            s.commentButtonsOnTap, set: ctrl.setCommentButtonsOnTap
+        )
         b.toggle("Profile pictures in comments", "With the website sign-in: one more request per thread brings its commenters' pictures", s.commentAvatars, set: ctrl.setCommentAvatars)
         // Glow (and on the thread's post too), the edge line it replaced, or nothing (#141).
         b.picker(

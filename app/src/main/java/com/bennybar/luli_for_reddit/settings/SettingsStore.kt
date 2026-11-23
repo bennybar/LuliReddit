@@ -31,6 +31,7 @@ class SettingsStore(private val p: Prefs) {
             inAppBrowser = b("inAppBrowser", d.inAppBrowser),
             tapToCollapse = b("tapToCollapse", d.tapToCollapse),
             collapseRepliesOnly = b("collapseRepliesOnly", d.collapseRepliesOnly),
+            commentButtonsOnTap = b("commentButtonsOnTap", d.commentButtonsOnTap),
             voteEdge = b("voteEdge", d.voteEdge),
             voteGlow = b("voteGlow", d.voteGlow),
             commentAvatars = b("commentAvatars", d.commentAvatars),
@@ -270,6 +271,7 @@ class SettingsStore(private val p: Prefs) {
     }
 
     fun setTapToCollapse(v: Boolean) { p.setBool("tapToCollapse", v); set { it.copy(tapToCollapse = v) } }
+    fun setCommentButtonsOnTap(v: Boolean) { p.setBool("commentButtonsOnTap", v); set { it.copy(commentButtonsOnTap = v) } }
     fun setCollapseRepliesOnly(v: Boolean) { p.setBool("collapseRepliesOnly", v); set { it.copy(collapseRepliesOnly = v) } }
     fun setVoteEdge(v: Boolean) { p.setBool("voteEdge", v); set { it.copy(voteEdge = v) } }
     fun setVoteGlow(v: Boolean) { p.setBool("voteGlow", v); set { it.copy(voteGlow = v) } }

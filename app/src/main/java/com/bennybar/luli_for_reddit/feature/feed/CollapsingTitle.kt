@@ -55,7 +55,7 @@ private val BAR = ROW_TOP + ROW
  * (#226). 88dp left a gap under the ☰ row that read as too low (#232); this is about
  * halfway between that and 2.0.95's title right under the row.
  */
-private val EXTRA = 70.dp // (64dp with the 64dp row: the open header is as tall as before)
+private val EXTRA = 66.dp // with the title 10dp off its foot: 8dp higher than 2.0.98 (#232)
 private const val SMALL = 22f / 32f // the title's size in the bar, against its big size
 
 /**
@@ -144,7 +144,7 @@ fun CollapsingTitleBar(
         // Big: at the foot of the header, as Sync's and Android's large bars (#226), at the
         // screen's 20dp. Small: centred in the row, after the ☰ (#231: it sat 2dp high).
         val x = lerp(20.dp, if (hasNavigation) 60.dp else 20.dp, p)
-        val y = lerp(BAR + EXTRA - 40.dp - (if (subtitle != null) 20.dp else 0.dp) - 6.dp, ROW_TOP + (ROW - 40.dp * SMALL) / 2, p)
+        val y = lerp(BAR + EXTRA - 40.dp - (if (subtitle != null) 20.dp else 0.dp) - 10.dp, ROW_TOP + (ROW - 40.dp * SMALL) / 2, p)
         val scale = 1f + (SMALL - 1f) * p
         Column(
             Modifier

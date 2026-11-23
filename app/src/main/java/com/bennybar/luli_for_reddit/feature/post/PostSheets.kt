@@ -710,6 +710,7 @@ private suspend fun showCrosspostDialog(post: Post) {
                         label = { Text("Title") },
                         minLines = 1,
                         maxLines = 2,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                         shape = BloomFieldShape,
                         colors = bloomFieldColors(),
                         modifier = Modifier.fillMaxWidth(),

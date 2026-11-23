@@ -26,6 +26,7 @@ final class SettingsStore {
         s.inAppBrowser = b("inAppBrowser", s.inAppBrowser)
         s.tapToCollapse = b("tapToCollapse", s.tapToCollapse)
         s.collapseRepliesOnly = b("collapseRepliesOnly", s.collapseRepliesOnly)
+        s.commentButtonsOnTap = b("commentButtonsOnTap", s.commentButtonsOnTap)
         s.voteEdge = b("voteEdge", s.voteEdge)
         s.voteGlow = b("voteGlow", s.voteGlow)
         s.commentAvatars = b("commentAvatars", s.commentAvatars)
@@ -262,6 +263,7 @@ final class SettingsStore {
     }
 
     func setTapToCollapse(_ v: Bool) { p.setBool("tapToCollapse", v); set { $0.tapToCollapse = v } }
+    func setCommentButtonsOnTap(_ v: Bool) { p.setBool("commentButtonsOnTap", v); set { $0.commentButtonsOnTap = v } }
     func setCollapseRepliesOnly(_ v: Bool) { p.setBool("collapseRepliesOnly", v); set { $0.collapseRepliesOnly = v } }
     func setVoteEdge(_ v: Bool) { p.setBool("voteEdge", v); set { $0.voteEdge = v } }
     func setVoteGlow(_ v: Bool) { p.setBool("voteGlow", v); set { $0.voteGlow = v } }

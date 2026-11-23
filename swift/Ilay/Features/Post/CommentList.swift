@@ -467,7 +467,7 @@ final class CommentListController: UIViewController, UICollectionViewDelegate {
 
         let s = content.settings
         let newEnv = ThreadRowEnv(
-            calm: s.calmComments, tapToCollapse: s.tapToCollapse, voteEdge: s.voteEdge, voteGlow: s.voteGlow,
+            calm: s.calmComments, tapToCollapse: s.tapToCollapse, buttonsOnTap: s.commentButtonsOnTap, voteEdge: s.voteEdge, voteGlow: s.voteGlow,
             dark: traitCollection.userInterfaceStyle == .dark, textScale: s.textScale, commentTextScale: s.commentTextScale, accent: IlayTheme.accent
         )
         let envChanged = newEnv != env
@@ -558,7 +558,8 @@ final class CommentListController: UIViewController, UICollectionViewDelegate {
             isOwn: !content.me.isEmpty && c.author == content.me,
             isOp: c.author == content.post?.author && c.author != "[deleted]",
             highlighted: content.currentMatchId == c.fullname,
-            loading: thread?.loadingMore.contains(c.fullname) == true
+            loading: thread?.loadingMore.contains(c.fullname) == true,
+            buttonsShown: thread?.buttonsShown.contains(c.id) == true
         )
     }
 

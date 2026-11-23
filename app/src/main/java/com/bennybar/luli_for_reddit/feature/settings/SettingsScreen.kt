@@ -110,6 +110,7 @@ import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.ThumbsUpDown
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.UnfoldLess
+import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.FontDownload
@@ -835,6 +836,12 @@ fun SettingsList(
             "Collapse only the replies",
             "Collapsing a comment keeps its own text and hides its replies",
             Icons.Rounded.UnfoldLess, s.collapseRepliesOnly, ctrl::setCollapseRepliesOnly,
+        )
+        switch(
+            "Comment buttons only on tap",
+            if (s.tapToCollapse) "Vote, Reply and the rest show when you long-press a comment; the score stays by its time"
+            else "Vote, Reply and the rest show when you tap a comment; the score stays by its time",
+            Icons.Rounded.TouchApp, s.commentButtonsOnTap, ctrl::setCommentButtonsOnTap,
         )
         switch(
             "Profile pictures in comments",

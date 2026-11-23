@@ -91,6 +91,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -432,6 +433,8 @@ fun SubmitScreen(subreddit: String?) {
                 leadingIcon = { Icon(Icons.Rounded.Title, null) },
                 minLines = 1,
                 maxLines = 2,
+                // Capital letters to start sentences, like the reply box (a Reddit user's report).
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 shape = fieldShape,
                 colors = fieldColors,
             )
@@ -472,6 +475,7 @@ fun SubmitScreen(subreddit: String?) {
                         label = { Text("Body (Markdown, optional)") },
                         minLines = 5,
                         maxLines = 12,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                         shape = fieldShape,
                         colors = fieldColors,
                     )

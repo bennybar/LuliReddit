@@ -7,6 +7,8 @@ struct PostThread: Equatable, Sendable, Copyable {
     var comments: [Comment]
     var collapsed: Set<String> // collapsed comment ids
     var loadingMore: Set<String> // "more" node fullnames being fetched
+    /// Comments whose buttons are showing (Comment buttons only on tap, #239).
+    var buttonsShown: Set<String> = []
     /// Visible rows, depth-first (recomputed whenever the tree or collapse set changes).
     var flat: [Comment]
 
@@ -375,6 +377,15 @@ final class CommentsViewModel {
         return t.with {
             $0.comments = comments
             $0.flat = CommentTree.flatten(comments, t.collapsed)
+        }
+    }
+
+    /// Comment buttons only on tap (#239): show or hide one comment's buttons.
+    func toggleButtons(_ commentId: String) {
+        edit { t in
+            t.with {
+                if $0.buttonsShown.contains(commentId) { $0.buttonsShown.remove(commentId) } else { $0.buttonsShown.insert(commentId) }
+            }
         }
     }
 

@@ -192,6 +192,7 @@ data class Settings(
     val inAppBrowser: Boolean = false, // open web links in a Custom Tab, not the browser app
     val tapToCollapse: Boolean = false, // tap a comment to collapse it (else long-press)
     val collapseRepliesOnly: Boolean = false, // collapsing keeps the comment's own text, hides its replies
+    val commentButtonsOnTap: Boolean = false, // a comment's buttons show only when it's tapped (#239)
     val voteEdge: Boolean = true, // comments you voted on are marked in the vote's color
     val voteGlow: Boolean = true, // ...with a soft glow (and the thread's post too); false: the edge line (#141)
     val commentAvatars: Boolean = true, // commenters' profile pictures (website sign-in, #133)

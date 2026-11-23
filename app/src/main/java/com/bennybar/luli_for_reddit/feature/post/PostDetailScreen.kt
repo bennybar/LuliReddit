@@ -1610,6 +1610,13 @@ private fun CommentTile(
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val shape = RoundedCornerShape(14.dp)
     val toggle = { actions.toggle(comment) }
+    // Comment buttons only on tap (#239): a tap shows or hides them (a long-press when
+    // a tap collapses), so long-press still collapses for everyone else.
+    val buttonsOnTap = settings.commentButtonsOnTap
+    var buttonsShown by remember(comment.id) { mutableStateOf(false) }
+    val showButtons = !buttonsOnTap || buttonsShown
+    val reveal = { buttonsShown = !buttonsShown }
+    val revealOnLongPress = buttonsOnTap && tapToCollapse
 
     /** What a swipe on this comment does, per Settings → Swipe actions. */
     fun swipe(a: SwipeAction): SwipeSpec? = when (a) {
@@ -1651,10 +1658,10 @@ private fun CommentTile(
                 Modifier
                     .fillMaxWidth()
                     .combinedClickable(
-                        onClick = { if (collapsed || tapToCollapse) toggle() },
+                        onClick = { if (collapsed || tapToCollapse) toggle() else if (buttonsOnTap) reveal() },
                         onLongClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                            toggle()
+                            if (revealOnLongPress && !collapsed) reveal() else toggle()
                         },
                     )
                     .padding(start = 12.dp, top = 8.dp, end = 12.dp, bottom = 4.dp),
@@ -1692,6 +1699,16 @@ private fun CommentTile(
                 }
                 Spacer(Modifier.width(8.dp))
                 Text("· ${timeAgo(comment.createdUtc)}", fontSize = 12.5.sp, color = cs.onSurfaceVariant, maxLines = 1)
+                if (!showButtons) {
+                    // The row with the score is hidden: the score sits here (#239).
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "· " + (if (comment.scoreHidden) "–" else compactNumber(comment.score)) + " points",
+                        fontSize = 12.5.sp,
+                        color = when (comment.likes) { true -> votes.up; false -> votes.down; null -> cs.onSurfaceVariant },
+                        maxLines = 1,
+                    )
+                }
                 if (isNew) {
                     Spacer(Modifier.width(6.dp))
                     Badge("NEW", cs.tertiaryContainer, cs.onTertiaryContainer, 10.5.sp)
@@ -1705,7 +1722,7 @@ private fun CommentTile(
                 Column(
                     Modifier
                         .fillMaxWidth()
-                        .then(if (tapToCollapse) Modifier.clickable(indication = null, interactionSource = null, onClick = toggle) else Modifier)
+                        .then(commentBodyTap(tapToCollapse, buttonsOnTap, revealOnLongPress, toggle, reveal))
                         .padding(horizontal = 12.dp),
                 ) {
                     // Plain text, not selectable: a selectable paragraph is far
@@ -1714,7 +1731,7 @@ private fun CommentTile(
                     // "Copy text" is in the ⋯ menu.
                     ScaledText(TextKind.COMMENT) { BodyWithMedia(comment.body, comment.media, nav, maxMedia = 3) }
                 }
-                CommentActionsRow(comment, isOwn, actions)
+                if (showButtons) CommentActionsRow(comment, isOwn, actions) else Spacer(Modifier.height(8.dp))
             } else {
                 Text(
                     comment.body.replace('\n', ' '),
@@ -2053,6 +2070,13 @@ private fun CalmCommentRow(
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val toggle = { actions.toggle(comment) }
     val up = comment.likes == true
+    // Comment buttons only on tap (#239): a tap shows or hides them (a long-press when
+    // a tap collapses), so long-press still collapses for everyone else.
+    val buttonsOnTap = settings.commentButtonsOnTap
+    var buttonsShown by remember(comment.id) { mutableStateOf(false) }
+    val showButtons = !buttonsOnTap || buttonsShown
+    val reveal = { buttonsShown = !buttonsShown }
+    val revealOnLongPress = buttonsOnTap && tapToCollapse
     val down = comment.likes == false
     val voteEdge = if (!settings.voteEdge) null else if (up) votes.up else if (down) votes.down else null
     var menu by remember { mutableStateOf(false) }
@@ -2093,10 +2117,10 @@ private fun CalmCommentRow(
                 Modifier
                     .fillMaxWidth()
                     .combinedClickable(
-                        onClick = { if (collapsed || tapToCollapse) toggle() },
+                        onClick = { if (collapsed || tapToCollapse) toggle() else if (buttonsOnTap) reveal() },
                         onLongClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                            toggle()
+                            if (revealOnLongPress && !collapsed) reveal() else toggle()
                         },
                     ),
                 verticalAlignment = Alignment.CenterVertically,
@@ -2132,6 +2156,16 @@ private fun CalmCommentRow(
                 }
                 Spacer(Modifier.width(6.dp))
                 Text("· ${timeAgo(comment.createdUtc)}", fontSize = 13.sp, color = cs.onSurfaceVariant, maxLines = 1)
+                if (!showButtons) {
+                    // The row with the score is hidden: the score sits here (#239).
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "· " + (if (comment.scoreHidden) "–" else compactNumber(comment.score)) + " points",
+                        fontSize = 13.sp,
+                        color = when (comment.likes) { true -> votes.up; false -> votes.down; null -> cs.onSurfaceVariant },
+                        maxLines = 1,
+                    )
+                }
                 if (isNew) {
                     Spacer(Modifier.width(6.dp))
                     Badge("NEW", cs.tertiaryContainer, cs.onTertiaryContainer, 10.5.sp)
@@ -2157,13 +2191,14 @@ private fun CalmCommentRow(
                 Modifier
                     .fillMaxWidth()
                     .padding(top = 4.dp)
-                    .then(if (tapToCollapse) Modifier.clickable(indication = null, interactionSource = null, onClick = toggle) else Modifier),
+                    .then(commentBodyTap(tapToCollapse, buttonsOnTap, revealOnLongPress, toggle, reveal)),
             ) {
                 ScaledText(TextKind.COMMENT) { BodyWithMedia(comment.body, comment.media, nav, maxMedia = 3) }
             }
             // ↑ score ↓ · Reply · Collapse · ⋯ — small, 32dp targets. Deep in a thread the row
             // is narrow: the words go, the icons stay, so ⋯ (Edit, Delete…) isn't pushed off
             // the edge (#215: a reply you'd just posted, often the deepest, had none).
+            if (!showButtons) return@Column
             BoxWithConstraints(Modifier.fillMaxWidth()) {
             val compact = maxWidth < 300.dp
             Row(Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -2214,6 +2249,15 @@ private fun CalmCommentRow(
             }
         }
     }
+}
+
+/** What a tap on a comment's text does: collapse, show its buttons (#239) or nothing. */
+@OptIn(ExperimentalFoundationApi::class)
+private fun commentBodyTap(tapToCollapse: Boolean, buttonsOnTap: Boolean, revealOnLongPress: Boolean, toggle: () -> Unit, reveal: () -> Unit): Modifier = when {
+    revealOnLongPress -> Modifier.combinedClickable(indication = null, interactionSource = null, onClick = toggle, onLongClick = reveal)
+    tapToCollapse -> Modifier.clickable(indication = null, interactionSource = null, onClick = toggle)
+    buttonsOnTap -> Modifier.clickable(indication = null, interactionSource = null, onClick = reveal)
+    else -> Modifier
 }
 
 /** Calm thread's collapse / expand control: a labelled tonal pill, easy to spot and hit. */

@@ -16,6 +16,7 @@ import SwiftUI
 
     func toggle(_ c: Comment) { vm.toggleCollapse(c.id) }
     func unfold(_ c: Comment) { vm.unfold(c.id) }
+    func toggleButtons(_ c: Comment) { vm.toggleButtons(c.id) }
 
     func loadMore(_ c: Comment) {
         guard let p = post else { return }

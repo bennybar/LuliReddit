@@ -19,6 +19,8 @@ struct CommentRowModel: Equatable {
     var highlighted = false
     /// A "more" row being fetched.
     var loading = false
+    /// Its buttons are showing (Comment buttons only on tap, #239).
+    var buttonsShown = false
     /// Where it sits in its top-level thread's container (Calm).
     var first = false
     var last = false
@@ -31,6 +33,7 @@ struct CommentRowModel: Equatable {
 struct ThreadRowEnv: Equatable {
     var calm = true
     var tapToCollapse = false
+    var buttonsOnTap = false
     var voteEdge = true
     var voteGlow = true
     var dark = false
@@ -98,6 +101,10 @@ struct CommentRowView: View {
     var onHeaderBottom: (CGFloat) -> Void = { _ in }
 
     private var c: Comment { row.comment }
+    /// Comment buttons only on tap (#239): hidden until a tap (a long-press on the name,
+    /// when a tap collapses) shows them.
+    private var showButtons: Bool { !env.buttonsOnTap || row.buttonsShown }
+    private var bottomGap: Bool { row.collapsed || !showButtons }
 
     var body: some View {
         Group {
@@ -106,7 +113,7 @@ struct CommentRowView: View {
                     .padding(.leading, env.indent(c.depth))
                     .padding(.trailing, 12)
                     .padding(.top, 8)
-                    .padding(.bottom, row.collapsed ? 8 : 2)
+                    .padding(.bottom, bottomGap ? 8 : 2)
                     .padding(.top, row.first ? 5 : 0)
                     .padding(.bottom, row.last ? 15 : 0)
                     .padding(.horizontal, 12)
@@ -126,7 +133,7 @@ struct CommentRowView: View {
         content
             .padding(.horizontal, 12)
             .padding(.top, 10)
-            .padding(.bottom, row.collapsed ? 10 : 2)
+            .padding(.bottom, bottomGap ? 10 : 2)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(alignment: .leading) {
                 if c.depth > 0 {
@@ -151,8 +158,9 @@ struct CommentRowView: View {
             } else {
                 body(of: c)
                     .contentShape(.rect)
-                    .gesture(env.tapToCollapse ? TapGesture().onEnded { actions.toggle(c) } : nil)
-                CommentActionsRow(row: row, calm: env.calm, actions: actions)
+                    .gesture(env.tapToCollapse ? TapGesture().onEnded { actions.toggle(c) }
+                        : env.buttonsOnTap ? TapGesture().onEnded { actions.toggleButtons(c) } : nil)
+                if showButtons { CommentActionsRow(row: row, calm: env.calm, actions: actions) }
                 if let n = row.foldedReplies {
                     Button {
                         actions.unfold(c)
@@ -193,6 +201,15 @@ struct CommentRowView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .layoutPriority(1)
+            if !showButtons {
+                // The row with the score is hidden: the score sits here (#239).
+                let votes = IlayTheme.voteColors(dark: env.dark)
+                Text(verbatim: "· " + (c.scoreHidden ? "–" : compactNumber(c.score)) + " points")
+                    .font(.footnote)
+                    .foregroundStyle(c.likes == true ? votes.up : c.likes == false ? votes.down : .secondary)
+                    .lineLimit(1)
+                    .layoutPriority(1)
+            }
             if row.isNew { Tag("NEW", tint: .orange) }
             Spacer(minLength: 0)
             if row.collapsed {
@@ -210,11 +227,11 @@ struct CommentRowView: View {
         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(CommentRowView.space)).maxY } action: { onHeaderBottom($0) }
         .contentShape(.rect)
         .onTapGesture {
-            if row.collapsed || env.tapToCollapse { actions.toggle(c) }
+            if row.collapsed || env.tapToCollapse { actions.toggle(c) } else if env.buttonsOnTap { actions.toggleButtons(c) }
         }
         .onLongPressGesture {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            actions.toggle(c)
+            if env.buttonsOnTap && env.tapToCollapse && !row.collapsed { actions.toggleButtons(c) } else { actions.toggle(c) }
         }
     }
 
