@@ -277,6 +277,7 @@ struct Settings: Equatable, Sendable {
     var threadButtonsHideOnScroll = false // the thread's buttons step aside while you scroll (#210)
     var topBarMode: TopBarMode = .expandable // Posts-screen action layout
     var navLabels = true // show text labels on the bottom nav bar
+    var inboxInProfile = false // Inbox opens from Profile's top bar instead of being a tab
     var navStyle = 0 // 0 bottom bar, 1 side bar, 2 both (#25)
     var navOutline = true // thin outline around the floating bottom bar (#29)
     var backScrollsToTop = true // back on the Posts tab scrolls the feed to top

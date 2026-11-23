@@ -281,6 +281,7 @@ struct SettingsCatalog {
             "Navigation", value: min(max(s.navStyle, 0), 2),
             options: navStyles.indices.map { PickOption(value: $0, label: navStyles[$0].0, subtitle: navStyles[$0].1) }, set: ctrl.setNavStyle
         )
+        b.toggle("Inbox in Profile", "An envelope at the top of Profile opens Inbox, instead of Inbox being a tab", s.inboxInProfile, set: ctrl.setInboxInProfile)
         b.toggle("u/ before your name in the side bar", "Show \"u/you\" at the top of the side bar. Off: just \"you\"", s.sideBarUserPrefix, set: ctrl.setSideBarUserPrefix)
         b.link("Explore sections", s.exploreSections.filter(\.shown).map(\.section.label).joined(separator: ", "), .exploreSections)
     }

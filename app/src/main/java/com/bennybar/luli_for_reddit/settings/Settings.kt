@@ -279,6 +279,7 @@ data class Settings(
     val topBarMenuFull: List<TopBarMenuEntry> = TopBarMenuItem.parse(null, TopBarMode.FULL),
     val navLabels: Boolean = true, // show text labels on the bottom nav bar
     val navStyle: Int = 0, // 0 bottom bar, 1 side bar, 2 both (#25)
+    val inboxInProfile: Boolean = false, // Inbox opens from Profile's top bar instead of being a tab
     val sideBarItems: List<SideBarEntry> = SideBarItem.parse(null), // the side bar's entries under its tabs, and their order (#109)
     val exploreSections: List<ExploreEntry> = ExploreSection.parse(null), // Explore's sections, and their order (#161)
     val navOutline: Boolean = true, // thin outline around the floating bottom bar (#29)

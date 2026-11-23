@@ -17,6 +17,8 @@ enum Route: Hashable, Codable, Sendable {
     case history
     case summaries
     case digest
+    /// Inbox as a page of its own (Settings › Inbox in Profile).
+    case inbox
     case saved
     case offline
     case notificationActivity

@@ -1,5 +1,8 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material.icons.rounded.MailOutline
 import com.bennybar.luli_for_reddit.feature.feed.MenuGroup
 import com.bennybar.luli_for_reddit.feature.feed.MenuLabel
 import com.bennybar.luli_for_reddit.settings.SideBarItem
@@ -108,7 +111,12 @@ internal fun ProfileTab() {
                 onSearch = { nav.push(if (signedOut) Route.Search() else Route.Search(query = "author:$username")) },
             ) {
                 // The side bar always has Settings (#138).
-                if (signedOut) { if (!sideBar) SettingsButton() } else YourStuffMenu()
+                if (signedOut) {
+                    if (!sideBar) SettingsButton()
+                } else {
+                    if (settings.inboxInProfile) InboxButton()
+                    YourStuffMenu()
+                }
             }
         } else Row(
             Modifier.fillMaxWidth().padding(start = if (sideBar) 7.dp else 23.dp, top = if (sideBar) 8.dp else 10.dp, end = 11.dp),
@@ -116,6 +124,7 @@ internal fun ProfileTab() {
         ) {
             SideBarButton(Modifier.offset(x = (-3).dp))
             Text("Profile", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+            if (!signedOut && settings.inboxInProfile) InboxButton()
             // As the other tabs' (#228): your own posts, or Reddit signed out.
             IconButton(onClick = { nav.push(if (signedOut) Route.Search() else Route.Search(query = "author:$username")) }) {
                 Icon(SearchIcon, if (signedOut) "Search Reddit" else "Search your posts")
@@ -150,6 +159,18 @@ internal fun ProfileTab() {
             SideBarEdge(Modifier.weight(1f)) {
                 UserProfileBody(username, Modifier.fillMaxSize(), app.feed.tabReselect(3)) { scope.launch { showAccountSheet(username, context) } }
             }
+        }
+    }
+}
+
+/** Settings › Inbox in Profile: the envelope opening Inbox, with its unread count. */
+@Composable
+private fun InboxButton() {
+    val nav = LocalNavigator.current
+    val unread by app.inbox.unreadCount.collectAsStateWithLifecycle()
+    IconButton(onClick = { nav.push(Route.Inbox) }) {
+        BadgedBox(badge = { if (unread > 0) Badge { Text(if (unread > 99) "99+" else "$unread") } }) {
+            Icon(Icons.Rounded.MailOutline, "Inbox")
         }
     }
 }

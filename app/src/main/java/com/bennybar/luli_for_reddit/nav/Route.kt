@@ -23,6 +23,8 @@ sealed interface Route {
     @Serializable data object History : Route
     @Serializable data object Summaries : Route
     @Serializable data object Digest : Route
+    /** Inbox as a page of its own (Settings › Inbox in Profile). */
+    @Serializable data object Inbox : Route
     @Serializable data object Saved : Route
     @Serializable data object Offline : Route
     @Serializable data object NotificationActivity : Route

@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.settings
 
+import androidx.compose.material.icons.rounded.MailOutline
 import androidx.compose.material.icons.automirrored.rounded.Notes
 import com.bennybar.luli_for_reddit.feature.inbox.InboxNotifications
 import androidx.compose.material.icons.outlined.DynamicFeed
@@ -686,6 +687,10 @@ fun SettingsList(
             s.exploreSections.filter { it.shown }.joinToString { it.section.label },
             Icons.Rounded.Explore,
             onClick = ::showExploreSections,
+        )
+        switch(
+            "Inbox in Profile", "An envelope at the top of Profile opens Inbox, instead of Inbox being a tab",
+            Icons.Rounded.MailOutline, s.inboxInProfile, ctrl::setInboxInProfile,
         )
         if (s.navStyle != 1) {
             switch(

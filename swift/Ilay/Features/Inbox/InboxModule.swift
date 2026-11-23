@@ -302,8 +302,14 @@ final class InboxModule: UserScoped {
                         Overlays.dismissAll()
                         nav.paths[nav.selectedTab] = []
                         if inbox {
-                            nav.selectedTab = 2
-                            nav.paths[2] = []
+                            if app.settings.value.inboxInProfile {
+                                // Inbox lives in Profile: open its page there.
+                                nav.selectedTab = 3
+                                nav.paths[3] = [.inbox]
+                            } else {
+                                nav.selectedTab = 2
+                                nav.paths[2] = []
+                            }
                         }
                         if let route { nav.push(route) }
                         return

@@ -53,7 +53,9 @@ struct HomeScreen: View {
 
         ZStack(alignment: .leading) {
             TabView(selection: Binding(get: { nav.selectedTab }, set: selectTab)) {
-                ForEach(navItems.indices, id: \.self) { i in
+                // Inbox in Profile: no Inbox tab, and Profile carries its badge.
+                let inboxInProfile = app.settings.value.inboxInProfile
+                ForEach(navItems.indices.filter { $0 != 2 || !inboxInProfile }, id: \.self) { i in
                     Tab(value: i) {
                         NavigationStack(path: $nav.paths[i]) {
                             TabRoot(index: i)
@@ -68,9 +70,11 @@ struct HomeScreen: View {
                             Label(navItems[i].label, systemImage: navItems[i].systemImage)
                         }
                     }
-                    .badge(i == 2 ? unread : 0)
+                    .badge(i == (inboxInProfile ? 3 : 2) ? unread : 0)
                 }
             }
+            // Turned on while on Inbox: to Profile, where it now lives.
+            .onChange(of: app.settings.value.inboxInProfile) { _, on in if on && nav.selectedTab == 2 { nav.selectedTab = 3 } }
             .tabBarMinimizeBehavior(.onScrollDown)
             .task(id: app.session.username) { app.feed.loadMe() }
             .task(id: app.feed.me?.iconUrl) {
@@ -259,7 +263,7 @@ private struct SideBar: View {
                     .padding(.vertical, 6)
                 }
                 ForEach(navItems.indices, id: \.self) { i in
-                    if i != 3 || username == nil {
+                    if (i != 3 || username == nil) && (i != 2 || !app.settings.value.inboxInProfile) {
                         Button { onPick { onTab(i) } } label: {
                             Label(navItems[i].label, systemImage: navItems[i].systemImage)
                                 .foregroundStyle(.primary)

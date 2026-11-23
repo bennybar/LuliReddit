@@ -6,7 +6,7 @@ final class RouteTests: XCTestCase {
         // The tab stacks are saved as JSON (see AppRoot); a saved route must decode to itself.
         let routes: [Route] = [
             .login, .webLogin(), .webLogin(clearFirst: true), .home, .settings, .settingsSection(title: "Feed"),
-            .manageForYou, .contentFilters, .policy, .history, .summaries, .digest, .saved, .offline, .notificationActivity,
+            .manageForYou, .contentFilters, .policy, .history, .summaries, .digest, .inbox, .saved, .offline, .notificationActivity,
             .drafts, .whatsNew, .customFeeds, .redditWeb(url: "https://www.reddit.com/notifications", title: "Notifications"),
             .search(), .search(subreddit: "swift", query: "q", sort: "top", time: "week"), .submit(), .submit(subreddit: "swift"),
             .messageThread(fullname: "t4_1"), .composeMessage(), .composeMessage(to: "someone"), .subreddit(name: "swift"),

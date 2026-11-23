@@ -21,6 +21,7 @@ struct RouteView: View {
         case .history: HistoryScreen()
         case .summaries: SummariesScreen()
         case .digest: DigestScreen()
+        case .inbox: InboxScreen(pushed: true)
         case .saved: SavedScreen()
         case .offline: OfflineScreen()
         case .notificationActivity: NotificationActivityScreen()

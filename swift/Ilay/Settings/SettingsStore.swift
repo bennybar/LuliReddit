@@ -112,6 +112,7 @@ final class SettingsStore {
             s.topBarMode = TopBarMode(rawValue: min(max(m, 0), TopBarMode.allCases.count - 1))!
         }
         s.navLabels = b("navLabels", s.navLabels)
+        s.inboxInProfile = b("inboxInProfile", s.inboxInProfile)
         s.navStyle = min(max(p.getInt("navStyle") ?? s.navStyle, 0), 2)
         s.navOutline = b("navOutline", s.navOutline)
         s.backScrollsToTop = b("backScrollsToTop", s.backScrollsToTop)
@@ -277,6 +278,7 @@ final class SettingsStore {
     func setThreadButtonsHideOnScroll(_ v: Bool) { p.setBool("threadButtonsHideOnScroll", v); set { $0.threadButtonsHideOnScroll = v } }
     func setTopBarMode(_ v: TopBarMode) { p.setInt("topBarMode", v.rawValue); set { $0.topBarMode = v } }
     func setNavLabels(_ v: Bool) { p.setBool("navLabels", v); set { $0.navLabels = v } }
+    func setInboxInProfile(_ v: Bool) { p.setBool("inboxInProfile", v); set { $0.inboxInProfile = v } }
     func setNavStyle(_ v: Int) { p.setInt("navStyle", v); set { $0.navStyle = v } }
     func setNavOutline(_ v: Bool) { p.setBool("navOutline", v); set { $0.navOutline = v } }
     func setBackScrollsToTop(_ v: Bool) { p.setBool("backScrollsToTop", v); set { $0.backScrollsToTop = v } }

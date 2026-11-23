@@ -57,7 +57,14 @@ struct ProfileTab: View {
                         nav.push(signedOut ? .search() : .search(query: "author:\(username)"))
                     }
                 }
-                if !anonymous && !username.isEmpty { library }
+                if !anonymous && !username.isEmpty {
+                    if app.settings.value.inboxInProfile {
+                        // Settings › Inbox in Profile: the envelope opening Inbox, with its unread count.
+                        Button("Inbox", systemImage: app.inbox.unreadCount > 0 ? "envelope.badge" : "envelope") { nav.push(.inbox) }
+                            .badge(app.inbox.unreadCount)
+                    }
+                    library
+                }
                 SettingsButton()
             }
         }

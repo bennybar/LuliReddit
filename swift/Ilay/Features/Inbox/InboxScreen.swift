@@ -7,6 +7,8 @@ private let kindFilters = [(key: "all", label: "All"), (key: "replies", label: "
 
 /// The Inbox tab. Re-tapping it scrolls the current list to top (`nav.tabReselect[2]`).
 struct InboxScreen: View {
+    /// A page of its own (Settings › Inbox in Profile): its title and Back, no ☰ or search bar.
+    var pushed = false
     @Environment(AppNavigator.self) private var nav
     @State private var tab = "inbox"
     /// Kind filter, only used on the "All" tab: all | replies | mentions | messages.
@@ -63,11 +65,11 @@ struct InboxScreen: View {
         }
         // Settings › Appearance › Top bar, as Posts and Explore (#214): Full, the search
         // bar in the middle with Inbox's buttons after it; Expandable, the title.
-        .navigationTitle(fullBar ? "" : "Inbox")
-        .navigationBarTitleDisplayMode(fullBar ? .inline : .automatic)
+        .navigationTitle(fullBar && !pushed ? "" : "Inbox")
+        .navigationBarTitleDisplayMode(fullBar || pushed ? .inline : .automatic)
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) { SideBarButton() }
-            if fullBar {
+            if !pushed { ToolbarItem(placement: .topBarLeading) { SideBarButton() } }
+            if fullBar && !pushed {
                 ToolbarItem(placement: .principal) {
                     Button { nav.push(.search()) } label: {
                         Text("Search Reddit").foregroundStyle(.secondary).frame(maxWidth: 220)

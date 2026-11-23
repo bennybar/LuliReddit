@@ -330,7 +330,9 @@ class InboxModule(private val c: AppContainer) : UserScoped {
                         nav.viewers.clear()
                         Overlays.dismissAll()
                         nav.controller.popBackStack<Route.Home>(inclusive = false)
-                        if (inbox) app.feed.openTab.value = 2
+                        if (inbox) {
+                            if (app.settings.value.inboxInProfile) nav.push(Route.Inbox) else app.feed.openTab.value = 2
+                        }
                         route?.let(nav::push)
                     }
                     return@launch

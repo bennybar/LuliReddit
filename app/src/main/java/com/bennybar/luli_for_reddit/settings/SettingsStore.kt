@@ -122,6 +122,7 @@ class SettingsStore(private val p: Prefs) {
             topBarMenuExpandable = TopBarMenuItem.parse(p.getStringList(TopBarMenuItem.prefsKey(TopBarMode.EXPANDABLE)), TopBarMode.EXPANDABLE),
             topBarMenuFull = TopBarMenuItem.parse(p.getStringList(TopBarMenuItem.prefsKey(TopBarMode.FULL)), TopBarMode.FULL),
             navLabels = b("navLabels", d.navLabels),
+            inboxInProfile = b("inboxInProfile", d.inboxInProfile),
             navStyle = (p.getInt("navStyle") ?: d.navStyle).coerceIn(0, 2),
             sideBarItems = SideBarItem.parse(p.getStringList(SideBarItem.PREFS_KEY)),
             exploreSections = ExploreSection.parse(p.getStringList(ExploreSection.PREFS_KEY)),
@@ -294,6 +295,7 @@ class SettingsStore(private val p: Prefs) {
         set { if (mode == TopBarMode.EXPANDABLE) it.copy(topBarMenuExpandable = next) else it.copy(topBarMenuFull = next) }
     }
     fun setNavLabels(v: Boolean) { p.setBool("navLabels", v); set { it.copy(navLabels = v) } }
+    fun setInboxInProfile(v: Boolean) { p.setBool("inboxInProfile", v); set { it.copy(inboxInProfile = v) } }
     fun setNavStyle(v: Int) { p.setInt("navStyle", v); set { it.copy(navStyle = v) } }
     /** [entries] null: back to the default side bar (and whatever entries later versions add to it). */
     fun setSideBarItems(entries: List<SideBarEntry>?) {

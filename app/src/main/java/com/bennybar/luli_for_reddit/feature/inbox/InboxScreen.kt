@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.inbox
 
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import com.bennybar.luli_for_reddit.feature.home.LocalEdgeDrag
 import com.bennybar.luli_for_reddit.feature.home.SideBarEdge
 import com.bennybar.luli_for_reddit.feature.feed.rememberFabScroll
@@ -116,7 +117,7 @@ import kotlinx.coroutines.launch
 /** The Inbox tab. [reselect] bumps when the tab is re-tapped (scroll to top). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun InboxScreen(reselect: Int, selected: Boolean = true) {
+fun InboxScreen(reselect: Int, selected: Boolean = true, /** A page of its own (Inbox in Profile), with ←. */ pushed: Boolean = false) {
     val nav = LocalNavigator.current
     val session by app.session.state.collectAsStateWithLifecycle()
     val anonymous = (session as? SessionState.LoggedIn)?.session?.anonymous == true
@@ -199,7 +200,16 @@ fun InboxScreen(reselect: Int, selected: Boolean = true) {
                 }
                 // Settings › Appearance › Top bar, as Posts and Explore (#214): Full, the
                 // round search bar with Inbox's buttons after it; Expandable, the title.
-                if (settings.topBarMode == TopBarMode.FULL) {
+                if (pushed) {
+                    // A page of its own: its title, with ← (no search bar: that's the tabs').
+                    CollapsingTitleBar(
+                        collapsing, "Inbox", hasNavigation = true, underStatusBar = false,
+                        navigation = {
+                            IconButton(onClick = { nav.pop() }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
+                        },
+                        actions = barActions,
+                    )
+                } else if (settings.topBarMode == TopBarMode.FULL) {
                     TabSearchBar("Search Reddit", onSearch = { nav.push(Route.Search()) }, actions = barActions)
                 } else {
                     // Expandable: the big title that folds into the bar as the list scrolls.

@@ -181,6 +181,9 @@ fun HomeScreen() {
         maybeSuggestNotifications()
     }
 
+    // Inbox in Profile turned on while on Inbox: to Profile, where it now lives.
+    LaunchedEffect(settings.inboxInProfile) { if (settings.inboxInProfile && index == 2) index = 3 }
+
     // A notification tap asks for a tab (Inbox).
     val openTab by app.feed.openTab.collectAsStateWithLifecycle()
     LaunchedEffect(openTab) {
@@ -400,6 +403,7 @@ fun HomeScreen() {
         FloatingNav(
             selected = index,
             unread = unread,
+            inboxInProfile = settings.inboxInProfile,
             showLabels = settings.navLabels,
             outline = settings.navOutline,
             modifier = Modifier
@@ -578,6 +582,7 @@ private fun SideBar(selected: Int, current: Route?, unread: Int, open: Boolean, 
             }
             navItems.forEachIndexed { i, item ->
                 if (i == 3 && username != null) return@forEachIndexed
+                if (i == 2 && settings.inboxInProfile) return@forEachIndexed
                 NavigationDrawerItem(
                     label = { Text(item.label) },
                     icon = { Icon(if (i == selected) item.on else item.off, null) },
@@ -694,6 +699,7 @@ private fun KeepAliveTabs(
 private fun FloatingNav(
     selected: Int,
     unread: Int,
+    inboxInProfile: Boolean,
     showLabels: Boolean,
     outline: Boolean,
     onSelected: (Int) -> Unit,
@@ -745,10 +751,12 @@ private fun FloatingNav(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 navItems.forEachIndexed { i, item ->
+                    // Inbox in Profile: no Inbox tab, and Profile carries its badge.
+                    if (i == 2 && inboxInProfile) return@forEachIndexed
                     NavButton(
                         item = item,
                         selected = selected == i,
-                        badge = if (i == 2) unread else 0,
+                        badge = if (i == (if (inboxInProfile) 3 else 2)) unread else 0,
                         avatar = if (i == 3) avatar else null,
                         showLabel = showLabels,
                         onClick = { onSelected(i) },
