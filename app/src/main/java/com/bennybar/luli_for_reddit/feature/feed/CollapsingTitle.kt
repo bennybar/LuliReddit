@@ -1,6 +1,8 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
@@ -114,6 +117,22 @@ class CollapsingTitle(private val atTop: () -> Boolean) : NestedScrollConnection
     override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
         scrolledAt = System.currentTimeMillis()
         return Offset.Zero
+    }
+
+    /**
+     * A fling that reaches the top opens the header with what's left of it, at its speed,
+     * as Sync's (#249): the list stops at its top, so the header got none of it and
+     * waited for a second pull. A finger still opens it only as far as it moves (#242).
+     */
+    override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+        // A real fling only: a finger that stopped at the top leaves it where it is.
+        if (available.y > 300f && progress > 0f && rangePx > 0f && atTop()) {
+            animate(progress, 0f, initialVelocity = -available.y / rangePx, animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) { v, _ ->
+                progress = v.coerceIn(0f, 1f)
+            }
+            return available
+        }
+        return Velocity.Zero
     }
 
     internal suspend fun expand() {
