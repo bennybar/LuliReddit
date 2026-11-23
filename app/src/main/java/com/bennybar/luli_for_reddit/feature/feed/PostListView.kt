@@ -269,7 +269,14 @@ fun PostListView(
         }
     }
     val past by remember(listState) {
-        derivedStateOf { rowPast?.let { it > 0 } ?: (listState.layoutInfo.totalItemsCount > 0) }
+        derivedStateOf {
+            // At the list's very top its row is in its own place, whatever the bar does. The
+            // Expandable header folds and opens only there, and as it opened the bar grew a
+            // frame before the list moved: the row counted as past, hid, and the floating
+            // one sat under the bar's old height, behind it. No chips for a frame (#251).
+            if (listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0) false
+            else rowPast?.let { it > 0 } ?: (listState.layoutInfo.totalItemsCount > 0)
+        }
     }
     // Fades in as it leaves the list's row, so it isn't there the moment they swap.
     val floatingOutline by remember(listState) {
