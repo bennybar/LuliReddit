@@ -45,6 +45,12 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.100", "Nov 23, 2026",
+        listOf(
+            "Text sizes for post titles, post text and comments, each on its own (Settings › Appearance, under Font size). They start at today's size, and \"Reset text sizes\" puts them all back",
+        ),
+    ),
+    Release(
         "2.0.99", "Nov 23, 2026",
         listOf(
             "New: Digest. The posts that stood out in the last 24 hours in your favourite communities, in one short list. Turn it on in Settings › Digest, where \"How Digest works\" explains it",
