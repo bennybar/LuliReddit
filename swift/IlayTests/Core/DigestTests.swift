@@ -145,7 +145,7 @@ final class DigestTests: XCTestCase {
     func testWhyLinesSayHowAPostStandsOut() {
         let hit = p("pics", 3000, comments: 240)
         let r = build([hit] + ordinary("pics", 100))
-        XCTAssertTrue(r.items[0].why.hasPrefix("Top post today in r/pics"), r.items[0].why)
+        XCTAssertTrue(r.items[0].why.hasPrefix("Top post today · "), r.items[0].why)
         XCTAssertTrue(r.items[0].why.contains("240 comments"), r.items[0].why)
     }
 

@@ -78,9 +78,9 @@ private func median(_ v: [Double]) -> Double {
 
 /// The line under a post saying why it's in the digest, from the numbers.
 func digestWhy(_ p: Post, notability: Double, top: Bool) -> String {
-    let sub = "r/\(p.subreddit)"
+    // (Shown under its community's name, so it doesn't repeat it.)
     let comments = p.numComments > 0 ? " · \(compactNumber(p.numComments)) comments" : ""
-    if top && notability < digestNotable { return "Top post today in \(sub)\(comments)" }
+    if top && notability < digestNotable { return "Top post today\(comments)" }
     let times: String
     if notability >= 10 {
         times = "\(Int(notability.rounded()))×"
@@ -88,7 +88,7 @@ func digestWhy(_ p: Post, notability: Double, top: Bool) -> String {
         let v = (notability * 10).rounded() / 10
         times = v == v.rounded() ? "\(Int(v))×" : "\(v)×"
     }
-    return (top ? "Top post today in \(sub), \(times) a typical post" : "\(times) a typical post in \(sub)") + comments
+    return (top ? "Top post today · \(times) a typical post" : "\(times) a typical post") + comments
 }
 
 /// Today's digest after a build or refresh (`prev`: the day so far, nil for a first build

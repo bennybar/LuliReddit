@@ -16,6 +16,7 @@ enum Route: Hashable, Codable, Sendable {
     case policy
     case history
     case summaries
+    case digest
     case saved
     case offline
     case notificationActivity

@@ -57,6 +57,7 @@ private let translateLanguages = [
 let settingsCategories: [[(title: String, subtitle: String, icon: String, color: Color)]] = [
     [
         ("Feed", "Layout, sort, For You, what's hidden", "newspaper.fill", .blue),
+        ("Digest", "The day's notable posts from your communities", "list.star", .cyan),
         ("Appearance", "Theme, font size, app icon, navigation", "paintpalette.fill", .indigo),
         ("Posts & comments", "Comment style, collapsing, swipes", "bubble.left.and.bubble.right.fill", .green),
         ("Media", "Autoplay, NSFW blur, thumbnails", "photo.on.rectangle.angled", .pink),
@@ -97,6 +98,7 @@ struct SettingsCatalog {
     var entries: [SettingEntry] {
         let b = RowBuilder()
         feed(b)
+        digest(b)
         appearance(b)
         postsAndComments(b)
         media(b)
@@ -219,6 +221,41 @@ struct SettingsCatalog {
             "Hidden from your front page for 7 days" + (hiddenSubs == 0 ? " · none now" : " · \(hiddenSubs) now"),
             action: showHiddenSubsSheet
         )
+    }
+
+    // MARK: - Digest
+
+    private func digest(_ b: RowBuilder) {
+        b.section("Digest")
+        b.tile("How Digest works", "What it shows, how it picks, where you'll find it") {
+            Task { await showDigestExplainer(ask: false) }
+        }
+        let prompts = prompts
+        b.toggle("Digest", "The posts that stood out today in the communities you choose", s.digestEnabled) { v in
+            Task {
+                await setDigestEnabled(v)
+                prompts.refresh += 1
+            }
+        }
+        if s.digestEnabled {
+            b.tile("Communities", digestCommunitiesLabel(app.digest.chosen)) {
+                Task { await editDigestCommunities() }
+            }
+            b.picker(
+                "Size", value: s.digestSize,
+                options: DigestSize.allCases.map { PickOption(value: $0.rawValue, label: $0.label, subtitle: $0.description) },
+                set: ctrl.setDigestSize
+            )
+            b.picker(
+                "Show Digest in", value: s.digestPlace,
+                options: [
+                    PickOption(value: 0, label: "Posts chip", subtitle: "A Digest chip at the top of Posts, after your feeds"),
+                    PickOption(value: 2, label: "Menu only", subtitle: "In the side bar and the Profile menu"),
+                ],
+                set: ctrl.setDigestPlace
+            )
+            b.toggle("Show read posts", "Keep posts you've read in the digest, dimmed", s.digestShowRead, set: ctrl.setDigestShowRead)
+        }
     }
 
     // MARK: - Appearance

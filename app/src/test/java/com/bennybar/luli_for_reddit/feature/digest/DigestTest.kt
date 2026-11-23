@@ -161,7 +161,7 @@ class DigestTest {
     fun `why lines say how a post stands out`() {
         val hit = p("pics", 3000, comments = 240)
         val r = build(listOf(hit) + ordinary("pics", 100))
-        assertTrue(r.items[0].why, r.items[0].why.startsWith("Top post today in r/pics"))
+        assertTrue(r.items[0].why, r.items[0].why.startsWith("Top post today · "))
         assertTrue(r.items[0].why, r.items[0].why.contains("240 comments"))
     }
 

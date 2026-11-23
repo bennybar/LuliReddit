@@ -22,6 +22,7 @@ sealed interface Route {
     @Serializable data object Policy : Route
     @Serializable data object History : Route
     @Serializable data object Summaries : Route
+    @Serializable data object Digest : Route
     @Serializable data object Saved : Route
     @Serializable data object Offline : Route
     @Serializable data object NotificationActivity : Route

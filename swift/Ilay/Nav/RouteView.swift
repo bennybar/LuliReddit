@@ -20,6 +20,7 @@ struct RouteView: View {
         case .customFeeds: CustomFeedsScreen()
         case .history: HistoryScreen()
         case .summaries: SummariesScreen()
+        case .digest: DigestScreen()
         case .saved: SavedScreen()
         case .offline: OfflineScreen()
         case .notificationActivity: NotificationActivityScreen()

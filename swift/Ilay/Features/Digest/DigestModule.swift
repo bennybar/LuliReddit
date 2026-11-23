@@ -16,6 +16,8 @@ final class DigestModule: UserScoped {
 
     /// A build or refresh is running.
     private(set) var building = false
+    /// Posts shows the Digest (its chip picked). Not a feed choice: not saved, so a launch opens the feed.
+    var onPosts = false
     /// The communities picked in Settings (lowercase), or nil to follow your favourites.
     private(set) var chosen: [String]?
 
@@ -43,6 +45,7 @@ final class DigestModule: UserScoped {
         job?.cancel()
         job = nil
         user = username
+        onPosts = false
         chosen = c.prefs.getStringList(subsKey())
         store.onUserChanged(username)
     }
@@ -90,6 +93,7 @@ final class DigestModule: UserScoped {
 
     /// Opening the Digest: builds today's when there is none, or it's more than `staleMs` old.
     func refreshIfStale() async -> Outcome? {
+        await store.loaded()
         if let d = store.today(today()), nowMillis() - d.refreshedAt < Self.staleMs { return nil }
         return await refresh(manual: false)
     }
@@ -98,6 +102,7 @@ final class DigestModule: UserScoped {
 
     private func build(manual: Bool, rebuild: Bool) async -> Outcome {
         guard let session = c.session.session, !session.anonymous else { return .signedOut }
+        await store.loaded()
         let day = today()
         let now = nowMillis()
         let prev = rebuild ? nil : store.today(day)
@@ -144,7 +149,9 @@ final class DigestModule: UserScoped {
         if !answered { throw firstError ?? URLError(.badServerResponse) }
         var counts: [String: Int] = [:]
         for p in got { counts[p.subreddit.lowercased(), default: 0] += 1 }
-        let thin = Array(subs.filter { counts[$0, default: 0] < 3 }.prefix(max(Self.maxRequests - groups.count, 0)))
+        // (The website sign-in already asked each community on its own: nothing to top up.)
+        let web = await repo.client.isWebMode()
+        let thin = web ? [] : Array(subs.filter { counts[$0, default: 0] < 3 }.prefix(max(Self.maxRequests - groups.count, 0)))
         let more = await withTaskGroup(of: [Post].self) { g in
             for s in thin {
                 g.addTask { (try? await repo.getPosts(subreddit: s, sort: .top, time: .day, limit: 10).items) ?? [] }
@@ -159,9 +166,12 @@ final class DigestModule: UserScoped {
 
     private static func group(_ repo: RedditRepository, _ subs: [String]) async -> Result<[Post], Error> {
         do {
+            // The website sign-in gets Reddit's web page for a combined listing, never the listing.
+            if subs.count > 1, await repo.client.isWebMode() { throw RedditApiException(statusCode: 403) }
             return .success(try await repo.getPosts(subreddit: subs.joined(separator: "+"), sort: .top, time: .day, limit: 100).items)
-        } catch let e as RedditApiException where e.statusCode == 403 && subs.count > 1 {
-            // Where Reddit refuses the combined listing (403), one community at a time.
+        } catch let e as RedditApiException where (e.statusCode == 403 || e.statusCode == 200) && subs.count > 1 {
+            // Where Reddit refuses the combined listing, one community at a time: a 403, or its
+            // web page instead of the listing (a 200 that isn't JSON).
             let posts = await withTaskGroup(of: [Post].self) { g in
                 for s in subs {
                     g.addTask { (try? await repo.getPosts(subreddit: s, sort: .top, time: .day, limit: 10).items) ?? [] }

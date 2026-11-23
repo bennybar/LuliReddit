@@ -1,0 +1,346 @@
+package com.bennybar.luli_for_reddit.feature.digest
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.rounded.DoneAll
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.RemoveDone
+import androidx.compose.material.icons.rounded.RestartAlt
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.VisibilityOff
+import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.bennybar.luli_for_reddit.app
+import com.bennybar.luli_for_reddit.core.timeAgoPhrase
+import com.bennybar.luli_for_reddit.feature.feed.BloomTopBar
+import com.bennybar.luli_for_reddit.feature.feed.HidingTopBar
+import com.bennybar.luli_for_reddit.feature.feed.PostCard
+import com.bennybar.luli_for_reddit.feature.feed.PostSkeleton
+import com.bennybar.luli_for_reddit.feature.feed.SwipeSpec
+import com.bennybar.luli_for_reddit.feature.feed.historyDayLabel
+import com.bennybar.luli_for_reddit.feature.feed.rememberHidingBar
+import com.bennybar.luli_for_reddit.feature.settings.PickOption
+import com.bennybar.luli_for_reddit.feature.settings.confirmDialog
+import com.bennybar.luli_for_reddit.feature.settings.pickOption
+import com.bennybar.luli_for_reddit.nav.AppNavigator
+import com.bennybar.luli_for_reddit.nav.LocalNavigator
+import com.bennybar.luli_for_reddit.nav.Route
+import com.bennybar.luli_for_reddit.ui.ErrorView
+import com.bennybar.luli_for_reddit.ui.RefreshBox
+import com.bennybar.luli_for_reddit.ui.friendlyError
+import com.bennybar.luli_for_reddit.ui.subredditName
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import java.time.LocalDate
+
+/** The Digest on a page of its own (side bar, Profile ⋯ menu, the "menu only" choice). */
+@Composable
+fun DigestScreen() {
+    val cs = MaterialTheme.colorScheme
+    val v = rememberDigestView()
+    val listState = rememberLazyListState()
+    val bar = rememberHidingBar(listState)
+    Box(Modifier.fillMaxSize().background(cs.surface).clipToBounds().nestedScroll(bar)) {
+        val top = with(LocalDensity.current) { bar.height.toDp() }
+        RefreshBox(v.refreshing, { v.refresh(manual = true) }, Modifier.fillMaxSize(), indicatorPadding = top) {
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                state = listState,
+                contentPadding = PaddingValues(start = 7.dp, top = top, end = 7.dp, bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) { digestRows(v) }
+        }
+        HidingTopBar(bar) { BloomTopBar("Digest") }
+    }
+}
+
+/**
+ * What the Digest shows (its screen, or Posts with the Digest chip picked): the day,
+ * what's been marked read here, how the last build went.
+ */
+@Stable
+class DigestView internal constructor(private val scope: CoroutineScope, private val nav: AppNavigator) {
+    /** The day shown: null for today. */
+    var day by mutableStateOf<String?>(null)
+    var outcome by mutableStateOf<DigestModule.Outcome?>(null)
+    var refreshing by mutableStateOf(false)
+
+    /** Read when this opened: hidden unless Show read is on. Read while here, a post stays (dimmed). */
+    internal val readAtOpen: Set<String> = app.history.ids.value
+    /** Swiped read here, and the Undo window has passed: hidden too. */
+    internal var gone by mutableStateOf(emptySet<String>())
+    /** Each day's "seen" time when it was first shown here: what came after it is New. */
+    internal val seenAt = HashMap<String, Long>()
+
+    // Collected by rememberDigestView, read by the rows.
+    internal var days by mutableStateOf(emptyList<DigestDay>())
+    internal var building by mutableStateOf(false)
+    internal var readIds by mutableStateOf(emptySet<String>())
+    internal var showRead by mutableStateOf(false)
+
+    fun refresh(manual: Boolean, rebuild: Boolean = false) {
+        if (refreshing) return
+        day = null
+        scope.launch {
+            refreshing = manual
+            try {
+                val out = app.digest.refresh(manual, rebuild)
+                outcome = out
+                if (!manual) return@launch
+                when (out) {
+                    DigestModule.Outcome.UpToDate -> nav.showSnackbar("Up to date")
+                    is DigestModule.Outcome.Updated -> nav.showSnackbar(
+                        if (rebuild) "Rebuilt" else if (out.added == 0) "Nothing new yet" else "${out.added} new",
+                    )
+                    is DigestModule.Outcome.Failed -> nav.showSnackbar("Couldn't refresh: ${friendlyError(out.error)}")
+                    else -> {}
+                }
+            } finally {
+                refreshing = false
+            }
+        }
+    }
+
+    fun markRead(item: DigestItem) {
+        val id = item.post.id
+        app.history.markViewed(item.post)
+        nav.showSnackbar("Marked read", actionLabel = "Undo") { app.history.removeViewed(id) }
+        // Off the list once Undo has had its time, not under the finger.
+        scope.launch {
+            delay(4_000)
+            if (id in app.history.ids.value) gone = gone + id
+        }
+    }
+
+    fun markUnread(item: DigestItem) {
+        app.history.removeViewed(item.post.id)
+        gone = gone - item.post.id
+        nav.showSnackbar("Marked unread")
+    }
+
+    fun menu() = scope.launch {
+        val s = app.settings.value
+        val choice = pickOption(
+            listOf(
+                PickOption(0, if (s.digestShowRead) "Hide read" else "Show read", icon = if (s.digestShowRead) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility),
+                PickOption(1, "Previous digests", icon = Icons.Rounded.History),
+                PickOption(2, "Rebuild today's digest", icon = Icons.Rounded.RestartAlt),
+                PickOption(3, "Digest settings", icon = Icons.Outlined.Settings),
+            ),
+            null,
+        ) ?: return@launch
+        when (choice) {
+            0 -> app.settings.setDigestShowRead(!s.digestShowRead)
+            1 -> {
+                val today = LocalDate.now()
+                val picked = pickOption(
+                    days.map { d -> PickOption(d.day, historyDayLabel(LocalDate.parse(d.day), today), "${d.items.size} post${if (d.items.size == 1) "" else "s"}") },
+                    day ?: app.digest.today(),
+                ) ?: return@launch
+                day = picked.takeIf { it != app.digest.today() }
+            }
+            2 -> if (confirmDialog(
+                    "Rebuild today's digest?",
+                    "Today's digest starts over from the posts on Reddit now. Posts it already showed may not come back.",
+                    "Rebuild",
+                )
+            ) refresh(manual = true, rebuild = true)
+            3 -> nav.push(Route.SettingsSection("Digest"))
+        }
+    }
+}
+
+/** A [DigestView] for this screen: builds today's when it's missing or stale, and marks it seen on leaving. */
+@Composable
+fun rememberDigestView(): DigestView {
+    val nav = LocalNavigator.current
+    val scope = rememberCoroutineScope()
+    val v = remember { DigestView(scope, nav) }
+    v.days = app.digest.store.days.collectAsStateWithLifecycle().value
+    v.building = app.digest.building.collectAsStateWithLifecycle().value
+    v.readIds = app.history.ids.collectAsStateWithLifecycle().value
+    v.showRead = app.settings.state.collectAsStateWithLifecycle().value.digestShowRead
+    LaunchedEffect(Unit) { app.digest.refreshIfStale()?.let { v.outcome = it } }
+    DisposableEffect(Unit) { onDispose { app.digest.markSeen() } }
+    return v
+}
+
+/** The Digest's rows, under whatever header the list has. */
+fun LazyListScope.digestRows(v: DigestView) {
+    val today = app.digest.today()
+    val d = v.days.firstOrNull { it.day == (v.day ?: today) }
+    item(key = "digest_head", contentType = "digest_head") { DigestHead(v, d) }
+    if (d == null) {
+        val out = v.outcome
+        when {
+            out is DigestModule.Outcome.SignedOut -> item(key = "digest_state") {
+                DigestMessage("Sign in to get your digest", "It's built from communities you follow.")
+            }
+            out is DigestModule.Outcome.NoCommunities -> item(key = "digest_state") {
+                val nav = LocalNavigator.current
+                DigestMessage(
+                    "No communities yet",
+                    "Star a few favourites in your subscriptions, or choose the communities in Digest settings.",
+                    "Choose communities",
+                ) { nav.push(Route.SettingsSection("Digest")) }
+            }
+            out is DigestModule.Outcome.Failed && !v.building -> item(key = "digest_state") {
+                ErrorView(out.error, Modifier.height(360.dp), onRetry = { v.refresh(manual = false) })
+            }
+            else -> items(4, key = { "digest_sk$it" }, contentType = { "skeleton" }) { PostSkeleton() }
+        }
+        return
+    }
+    if (d.items.isEmpty()) {
+        item(key = "digest_state") {
+            DigestMessage("Nothing notable today", "No post stands out in your communities yet. Pull down to check again later.")
+        }
+        return
+    }
+    val seenAt = v.seenAt.getOrPut(d.day) { d.seenAt }
+    val shown = d.items.filter { v.showRead || it.post.id !in v.readIds || (it.post.id !in v.readAtOpen && it.post.id !in v.gone) }
+    if (shown.isEmpty()) {
+        item(key = "digest_state") {
+            DigestMessage("You're all caught up", "You've read everything in this digest.", "Show read") {
+                app.settings.setDigestShowRead(true)
+            }
+        }
+        return
+    }
+    // Grouped before hiding read posts, so a community keeps its place as they go.
+    val shownIds = shown.mapTo(HashSet()) { it.post.id }
+    for ((community, all) in groupByCommunity(d.items)) {
+        val items = all.filter { it.post.id in shownIds }
+        if (items.isEmpty()) continue
+        item(key = "digest_sub_${community.lowercase()}", contentType = "digest_sub") {
+            Text(
+                subredditName(community),
+                Modifier.padding(start = 14.dp, top = 8.dp, end = 14.dp),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+        items(items, key = { "digest_${it.post.id}" }, contentType = { "digest_post" }) { item ->
+            DigestCard(v, item, isNew = item.addedAt > d.builtAt && item.addedAt > seenAt)
+        }
+    }
+}
+
+@Composable
+private fun DigestHead(v: DigestView, d: DigestDay?) {
+    val cs = MaterialTheme.colorScheme
+    val label = d?.let { historyDayLabel(LocalDate.parse(it.day), LocalDate.now()) } ?: "Today"
+    val detail = when {
+        d == null -> if (v.building) "Building your digest…" else ""
+        v.building -> "Checking for new posts…"
+        else -> "Updated ${timeAgoPhrase(d.refreshedAt)}"
+    }
+    Row(Modifier.fillMaxWidth().padding(start = 14.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            if (detail.isNotEmpty()) Text(detail, fontSize = 12.sp, color = cs.onSurfaceVariant)
+        }
+        IconButton(onClick = { v.menu() }) { Icon(Icons.Rounded.MoreVert, "Digest menu") }
+    }
+}
+
+@Composable
+private fun DigestCard(v: DigestView, item: DigestItem, isNew: Boolean) {
+    val cs = MaterialTheme.colorScheme
+    val read = item.post.id in v.readIds
+    val tint = cs.primary
+    // Left (the end side): read / unread. The other side keeps the user's own swipe.
+    val spec = remember(item.post.id, read) {
+        if (read) SwipeSpec(Icons.Rounded.RemoveDone, tint) { v.markUnread(item) }
+        else SwipeSpec(Icons.Rounded.DoneAll, tint) { v.markRead(item) }
+    }
+    Column {
+        Row(Modifier.padding(start = 14.dp, end = 14.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (isNew) {
+                Text(
+                    "New",
+                    Modifier.background(cs.primaryContainer, RoundedCornerShape(50)).padding(horizontal = 7.dp, vertical = 1.dp),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = cs.onPrimaryContainer,
+                )
+                Spacer(Modifier.width(6.dp))
+            } else {
+                Icon(Icons.Outlined.Info, null, Modifier.size(13.dp), tint = cs.primary)
+                Spacer(Modifier.width(5.dp))
+            }
+            Text(item.why, fontSize = 12.sp, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        PostCard(item.post, swipeOverride = null to spec)
+    }
+}
+
+@Composable
+private fun DigestMessage(title: String, text: String, action: String? = null, onAction: (() -> Unit)? = null) {
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 64.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(title, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+        Spacer(Modifier.height(6.dp))
+        Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+        if (action != null && onAction != null) {
+            Spacer(Modifier.height(16.dp))
+            Button(onClick = onAction) { Text(action) }
+        }
+    }
+}
+
+/** Today's digest posts not read yet: the count on the Posts chip. */
+@Composable
+fun rememberDigestUnread(): Int {
+    val days by app.digest.store.days.collectAsStateWithLifecycle()
+    val read by app.history.ids.collectAsStateWithLifecycle()
+    return remember(days, read) {
+        days.firstOrNull { it.day == app.digest.today() }?.items?.count { it.post.id !in read } ?: 0
+    }
+}

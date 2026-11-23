@@ -2,6 +2,8 @@ package com.bennybar.luli_for_reddit.feature.home
 
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.Newspaper
+import androidx.compose.material.icons.outlined.Newspaper
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.outlined.Schedule
@@ -585,6 +587,15 @@ private fun SideBar(selected: Int, current: Route?, unread: Int, open: Boolean, 
                 )
             }
             HorizontalDivider(Modifier.padding(vertical = 12.dp, horizontal = 16.dp))
+            // The Digest, while it's on: first, as it's a daily read.
+            if (settings.digestEnabled && username != null) {
+                NavigationDrawerItem(
+                    label = { Text("Digest") },
+                    icon = { Icon(if (current == Route.Digest) Icons.Rounded.Newspaper else Icons.Outlined.Newspaper, null) },
+                    selected = current == Route.Digest,
+                    onClick = { onPick { if (current != Route.Digest) nav.openFromSideBar(Route.Digest) } },
+                )
+            }
             var afterList = false // the last thing shown was a subreddit list
             for ((item, shown) in settings.sideBarItems) {
                 if (!shown) continue

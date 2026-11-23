@@ -270,6 +270,10 @@ private struct SideBar: View {
                 }
             }
             Section {
+                // The Digest, while it's on: first, as it's a daily read.
+                if !anonymous && app.settings.value.digestEnabled {
+                    moreRow("newspaper", "Digest", .digest)
+                }
                 if !anonymous {
                     moreRow("bookmark", "Saved", .saved)
                     moreRow("rectangle.stack", "Custom feeds", .customFeeds)

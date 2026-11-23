@@ -14,6 +14,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import java.time.LocalDate
 
 /**
@@ -27,6 +28,9 @@ class DigestModule(private val c: AppContainer) : UserScoped {
 
     /** A build or refresh is running. */
     val building: StateFlow<Boolean> = _building
+
+    /** Posts shows the Digest (its chip picked). Not a feed choice: not saved, so a launch opens the feed. */
+    val onPosts = MutableStateFlow(false)
 
     private var job: Deferred<Outcome>? = null
     private var user = ""
@@ -50,6 +54,7 @@ class DigestModule(private val c: AppContainer) : UserScoped {
         job?.cancel()
         job = null
         user = username
+        onPosts.value = false
         _chosen.value = c.prefs.getStringList(subsKey())
         store.onUserChanged(username)
     }
@@ -89,6 +94,7 @@ class DigestModule(private val c: AppContainer) : UserScoped {
 
     /** Opening the Digest: builds today's when there is none, or it's more than [STALE_MS] old. */
     suspend fun refreshIfStale(): Outcome? {
+        store.loaded.first { it }
         val d = store.today(today())
         if (d != null && System.currentTimeMillis() - d.refreshedAt < STALE_MS) return null
         return refresh(manual = false)
@@ -99,6 +105,7 @@ class DigestModule(private val c: AppContainer) : UserScoped {
     private suspend fun build(manual: Boolean, rebuild: Boolean): Outcome {
         val session = c.session.session
         if (session == null || session.anonymous) return Outcome.SignedOut
+        store.loaded.first { it }
         val day = today()
         val now = System.currentTimeMillis()
         val prev = if (rebuild) null else store.today(day)
@@ -147,7 +154,8 @@ class DigestModule(private val c: AppContainer) : UserScoped {
         if (lists.all { it == null }) throw firstError ?: IllegalStateException("Couldn't load the communities")
         val got = lists.filterNotNull().flatten()
         val counts = got.groupingBy { it.subreddit.lowercase() }.eachCount()
-        val thin = subs.filter { (counts[it] ?: 0) < 3 }.take((MAX_REQUESTS - groups.size).coerceAtLeast(0))
+        // (The website sign-in already asked each community on its own: nothing to top up.)
+        val thin = if (c.client.isWebMode()) emptyList() else subs.filter { (counts[it] ?: 0) < 3 }.take((MAX_REQUESTS - groups.size).coerceAtLeast(0))
         val more = thin.map { s ->
             async {
                 try {
@@ -163,10 +171,13 @@ class DigestModule(private val c: AppContainer) : UserScoped {
     }
 
     private suspend fun group(subs: List<String>): List<Post> = try {
+        // The website sign-in gets Reddit's web page for a combined listing, never the listing.
+        if (c.client.isWebMode() && subs.size > 1) throw RedditApiException(403)
         c.repository.getPosts(subreddit = subs.joinToString("+"), sort = PostSort.TOP, time = TopTime.DAY, limit = 100).items
     } catch (e: RedditApiException) {
-        // Where Reddit refuses the combined listing (403), one community at a time.
-        if (e.statusCode != 403 || subs.size < 2) throw e
+        // Where Reddit refuses the combined listing, one community at a time: a 403, or
+        // its web page instead of the listing (a 200 that isn't JSON).
+        if ((e.statusCode != 403 && e.statusCode != 200) || subs.size < 2) throw e
         coroutineScope {
             subs.map { s ->
                 async {

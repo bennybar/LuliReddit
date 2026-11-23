@@ -367,6 +367,7 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
                 screen<Route.CustomFeeds> { CustomFeedsScreen() }
                 screen<Route.History> { HistoryScreen() }
                 screen<Route.Summaries> { SummariesScreen() }
+                screen<Route.Digest> { com.bennybar.luli_for_reddit.feature.digest.DigestScreen() }
                 screen<Route.Saved> { SavedScreen() }
                 screen<Route.Offline> { OfflineScreen() }
                 screen<Route.NotificationActivity> { NotificationActivityScreen() }

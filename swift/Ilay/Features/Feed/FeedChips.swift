@@ -1,7 +1,7 @@
 import SwiftUI
 
 private enum FeedChoice: Hashable {
-    case forYou, blend, home
+    case forYou, blend, home, digest
     case sort(PostSort)
 }
 
@@ -23,17 +23,30 @@ struct FeedChips: View {
         let blend = engines && s.forYouFeed && s.blendHome && s.redditHomeAllowed
         let forYou = engines && s.forYouFeed
         let current: FeedChoice = redditHome ? .home : blend ? .blend : forYou ? .forYou : .sort(controller.sort)
+        // The Digest's chip: it shows the digest in place of the feed (not a feed choice).
+        let digestChip = engines && s.digestEnabled && s.digestPlace == 0 && app.session.session?.anonymous == false
+        let digest = digestChip && app.digest.onPosts
 
-        let sorted = current == .sort(controller.sort)
+        let sorted = current == .sort(controller.sort) && !digest
         HStack(spacing: 10) {
             if engines {
                 // Subs is the frontpage of your subscriptions, the only feed a sort applies to.
-                let choices: [FeedChoice] = homeAllowed ? [.forYou, .blend, .home, .sort(controller.sort)] : [.forYou, .sort(controller.sort)]
+                let (choices, labels) = segments(homeAllowed: homeAllowed, digest: digestChip)
                 FeedSegments(
-                    labels: homeAllowed ? ["For You", "Blend", "Home", "Subs"] : ["For You", "Subs"],
-                    selected: choices.firstIndex(of: current) ?? 0
+                    labels: labels,
+                    selected: choices.firstIndex(of: digest ? .digest : current) ?? 0
                 ) { i in
-                    switch choices[i] {
+                    let pick = choices[i]
+                    if pick == .digest {
+                        app.digest.onPosts = true
+                        return
+                    }
+                    // Away from the Digest: back to the feed under it, or to another one.
+                    let wasDigest = app.digest.onPosts
+                    app.digest.onPosts = false
+                    if wasDigest && pick == current { return }
+                    switch pick {
+                    case .digest: break
                     case .forYou: controller.selectForYou()
                     case .blend: controller.selectBlend()
                     case .home: controller.selectRedditHome()
@@ -53,6 +66,18 @@ struct FeedChips: View {
         // The same 12 as between two cards.
         .padding(.bottom, 12)
         .animation(.easeOut(duration: 0.15), value: state.floating)
+    }
+
+    /// The segments, with the Digest's last when it has a chip (and its unread count).
+    private func segments(homeAllowed: Bool, digest: Bool) -> ([FeedChoice], [String]) {
+        var choices: [FeedChoice] = homeAllowed ? [.forYou, .blend, .home, .sort(controller.sort)] : [.forYou, .sort(controller.sort)]
+        var labels = homeAllowed ? ["For You", "Blend", "Home", "Subs"] : ["For You", "Subs"]
+        if digest {
+            let unread = digestUnread()
+            choices.append(.digest)
+            labels.append(unread > 0 ? "Digest · \(unread)" : "Digest")
+        }
+        return (choices, labels)
     }
 
     /// Over the list, an outline keeps it apart from what passes beneath (#80).

@@ -5,6 +5,7 @@ import SwiftUI
 /// native large title, with search and one button holding the rest.
 struct FrontpageTab: View {
     @State private var fab = FabScroll()
+    @State private var chips = FeedChipsState()
 
     var body: some View {
         let settings = app.settings.value
@@ -22,7 +23,20 @@ struct FrontpageTab: View {
         let nav = app.navigator
 
         let header: (() -> FrontpageTitle)? = expandable ? nil : { FrontpageTitle(title: title, subtitle: subtitle) }
-        PostListView(feedKey: settings.postsTabKey, postsTab: true, fabScroll: fab, optionalHeader: header)
+        // The Digest's chip (Settings › Digest › Show Digest in › Posts chip): the digest in place of the feed.
+        let digestChip = hasEngines && settings.digestEnabled && settings.digestPlace == 0 && app.session.session?.anonymous == false
+        Group {
+            if digestChip && app.digest.onPosts {
+                DigestList {
+                    VStack(spacing: 0) {
+                        if let header { header() }
+                        FeedChips(controller: app.feed.controller(""), state: chips)
+                    }
+                }
+            } else {
+                PostListView(feedKey: settings.postsTabKey, postsTab: true, fabScroll: fab, optionalHeader: header)
+            }
+        }
             .navigationTitle(expandable ? title : "")
             .navigationSubtitle(expandable ? subtitle : "")
             .navigationBarTitleDisplayMode(expandable ? .large : .inline)

@@ -196,6 +196,14 @@ import com.bennybar.luli_for_reddit.data.PostSort
 import com.bennybar.luli_for_reddit.feature.media.MediaFolderSettingRow
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.feature.home.LocalSideBar
+import com.bennybar.luli_for_reddit.feature.digest.DigestSize
+import com.bennybar.luli_for_reddit.feature.digest.digestCommunitiesLabel
+import com.bennybar.luli_for_reddit.feature.digest.editDigestCommunities
+import com.bennybar.luli_for_reddit.feature.digest.setDigestEnabled
+import com.bennybar.luli_for_reddit.feature.digest.showDigestExplainer
+import androidx.compose.material.icons.outlined.Newspaper
+import androidx.compose.material.icons.outlined.Groups
+import androidx.compose.material.icons.outlined.Place
 import com.bennybar.luli_for_reddit.feature.home.SideBarButton
 import androidx.compose.material.icons.rounded.Reorder
 import com.bennybar.luli_for_reddit.nav.Route
@@ -258,6 +266,7 @@ private const val CUSTOM_MODEL = "\u0000custom"
 private val SETTINGS_CATEGORIES = listOf(
     listOf(
         Triple("Feed", "Layout, sort, For You, what's hidden", Icons.Outlined.DynamicFeed),
+        Triple("Digest", "The day's notable posts from your communities", Icons.Outlined.Newspaper),
         Triple("Appearance", "Theme, font, app icon, navigation", Icons.Outlined.Palette),
         Triple("Posts & comments", "Comment style, collapsing, swipes", Icons.Outlined.Forum),
         Triple("Media", "Autoplay, NSFW blur, saving", Icons.Outlined.PermMedia),
@@ -313,6 +322,7 @@ fun SettingsList(
 ) {
     val s by app.settings.state.collectAsStateWithLifecycle()
     val ctrl = app.settings
+    val digestChosen by app.digest.chosen.collectAsStateWithLifecycle()
     val nav = LocalNavigator.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -526,6 +536,36 @@ fun SettingsList(
             Icons.Rounded.DoNotDisturbOn,
         ) { showHiddenSubsDialog() }
         divider("feed")
+
+        // ---------------------------------------------------------------- Digest
+        section("Digest")
+        tile("How Digest works", "What it shows, how it picks, where you'll find it", Icons.Outlined.Info, onClick = launch {
+            showDigestExplainer(ask = false)
+        })
+        switch(
+            "Digest", "The posts that stood out today in the communities you choose",
+            Icons.Outlined.Newspaper, s.digestEnabled,
+        ) { on -> scope.launch { setDigestEnabled(on) } }
+        if (s.digestEnabled) {
+            tile("Communities", digestCommunitiesLabel(digestChosen), Icons.Outlined.Groups, onClick = launch { editDigestCommunities() })
+            val size = DigestSize.of(s.digestSize)
+            tile("Size", size.label, Icons.Outlined.Tune, onClick = launch {
+                pickOption(DigestSize.entries.map { PickOption(it.ordinal, it.label, it.description) }, s.digestSize)
+                    ?.let(ctrl::setDigestSize)
+            })
+            val places = listOf(
+                PickOption(0, "Posts chip", "A Digest chip at the top of Posts, after your feeds"),
+                PickOption(2, "Menu only", "In the side bar and the Profile ⋯ menu"),
+            )
+            tile("Show Digest in", places.first { it.value == s.digestPlace }.label, Icons.Outlined.Place, onClick = launch {
+                pickOption(places, s.digestPlace)?.let(ctrl::setDigestPlace)
+            })
+            switch(
+                "Show read posts", "Keep posts you've read in the digest, dimmed",
+                Icons.Outlined.Visibility, s.digestShowRead, ctrl::setDigestShowRead,
+            )
+        }
+        divider("digest")
 
         // ---------------------------------------------------------------- Appearance
         section("Appearance")

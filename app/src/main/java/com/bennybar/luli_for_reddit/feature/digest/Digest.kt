@@ -75,11 +75,11 @@ private fun median(v: List<Double>): Double {
 
 /** The line under a post saying why it's in the digest, from the numbers. */
 internal fun digestWhy(p: Post, notability: Double, top: Boolean): String {
-    val sub = "r/${p.subreddit}"
+    // (Shown under its community's name, so it doesn't repeat it.)
     val comments = if (p.numComments > 0) " · ${compactNumber(p.numComments)} comments" else ""
-    if (top && notability < NOTABLE) return "Top post today in $sub$comments"
+    if (top && notability < NOTABLE) return "Top post today$comments"
     val times = if (notability >= 10) "${notability.roundToInt()}×" else "${(notability * 10).roundToInt() / 10.0}×".replace(".0×", "×")
-    return (if (top) "Top post today in $sub, $times a typical post" else "$times a typical post in $sub") + comments
+    return (if (top) "Top post today · $times a typical post" else "$times a typical post") + comments
 }
 
 /**

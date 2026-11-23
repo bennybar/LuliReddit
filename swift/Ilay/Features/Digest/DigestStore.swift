@@ -18,6 +18,8 @@ final class DigestStore {
 
     /// Newest first.
     private(set) var days: [DigestDay] = []
+    /// Reading the account's file: a build waits for it, or it would replace what's saved.
+    @ObservationIgnored private var loading: Task<Void, Never>?
 
     init(filesDir: URL = FileLocations.files, raw: @escaping (String) -> JsonElement?) {
         self.filesDir = filesDir
@@ -43,14 +45,17 @@ final class DigestStore {
         let f = filesDir.appendingPathComponent("digest_\(username.lowercased()).json")
         file = f
         days = []
-        io.async { [weak self] in
-            let json = (try? Data(contentsOf: f)).flatMap { try? AppJson.parse($0) }
-            Task { @MainActor in
-                guard let self, self.file == f, let json else { return }
-                self.days = self.decode(json)
+        loading = Task { [weak self, io] in
+            let json: JsonElement? = await withCheckedContinuation { done in
+                io.async { done.resume(returning: (try? Data(contentsOf: f)).flatMap { try? AppJson.parse($0) }) }
             }
+            guard let self, self.file == f, let json else { return }
+            self.days = self.decode(json)
         }
     }
+
+    /// Returns once the account's file has been read.
+    func loaded() async { await loading?.value }
 
     private func save() {
         let f = file

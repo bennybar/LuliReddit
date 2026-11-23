@@ -39,6 +39,10 @@ class DigestStore(private val context: Context, private val raw: (String) -> Jso
 
     /** Newest first. */
     val days: StateFlow<List<DigestDay>> = _days
+    private val _loaded = MutableStateFlow(false)
+
+    /** The account's file has been read: a build waits for it, or it would replace what's saved. */
+    val loaded: StateFlow<Boolean> = _loaded
 
     /** Raw post JSON by id, for posts loaded from the file (the repository only keeps recent ones). */
     private val rawCache = HashMap<String, JsonElement>()
@@ -60,10 +64,14 @@ class DigestStore(private val context: Context, private val raw: (String) -> Jso
     override fun onUserChanged(username: String) {
         file = fileFor(username)
         _days.value = emptyList()
+        _loaded.value = false
         val f = file
         io.launch {
             val list = runCatching { if (f.exists()) decode(AppJson.parseToJsonElement(f.readText())) else emptyList() }.getOrDefault(emptyList())
-            if (file == f) _days.value = list
+            if (file == f) {
+                _days.value = list
+                _loaded.value = true
+            }
         }
     }
 

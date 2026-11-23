@@ -12,7 +12,7 @@ final class SettingsCatalogTests: XCTestCase {
     func testTheMainPageListsCategoriesNotSettings() {
         let categories = settingsCategories.flatMap { $0 }.map(\.title)
         XCTAssertEqual(categories, [
-            "Feed", "Appearance", "Posts & comments", "Media",
+            "Feed", "Digest", "Appearance", "Posts & comments", "Media",
             "Notifications", "Translation", "AI summaries",
             "Data & storage", "Account & keys", "Power-user features",
             "About",
@@ -49,6 +49,7 @@ final class SettingsCatalogTests: XCTestCase {
     func testEveryCategoryHasSettings() {
         for (section, setting) in [
             ("Feed", "Keep feed for"),
+            ("Digest", "How Digest works"),
             ("Appearance", "Top bar"),
             ("Posts & comments", "Comment style"),
             ("Media", "Blur NSFW media"),
