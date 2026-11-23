@@ -32,6 +32,10 @@ brief disagree, this section wins.
 - **Bottom tab:** Digest's tab sits after Explore; choosing it moves Inbox into Profile
   (`inboxInProfile`, also its own Appearance switch), with a note; leaving it offers to
   bring Inbox back.
+- **Mark read** takes a post off the list at once (Show read off), as a hidden card in the
+  feed; Undo brings it back (it used to wait for the Undo window).
+- **One-time offer** (2.0.101): a card at the top of Posts, for people signed in with a
+  favourite community and Digest off, after their first day; Try it / No thanks.
 - **Progress line** while building ("Loading posts (4/15)…", "Asking the AI…").
 - **Website sign-in:** Reddit sends its web page for a combined `/r/a+b/top`, so each
   community is asked on its own there (about one request per community).

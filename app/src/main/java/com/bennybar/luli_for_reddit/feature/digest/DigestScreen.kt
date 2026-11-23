@@ -74,7 +74,6 @@ import com.bennybar.luli_for_reddit.ui.ErrorView
 import com.bennybar.luli_for_reddit.ui.RefreshBox
 import com.bennybar.luli_for_reddit.ui.friendlyError
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -120,7 +119,7 @@ class DigestView internal constructor(private val scope: CoroutineScope, private
 
     /** Read when this opened: hidden unless Show read is on. Read while here, a post stays (dimmed). */
     internal var readAtOpen: Set<String> = app.history.ids.value
-    /** Swiped read here, and the Undo window has passed: hidden too. */
+    /** Swiped read here: hidden too (until Undo). */
     internal var gone by mutableStateOf(emptySet<String>())
     /** Each day's "seen" time when it was first shown here: what came after it is New. */
     internal val seenAt = HashMap<String, Long>()
@@ -161,11 +160,11 @@ class DigestView internal constructor(private val scope: CoroutineScope, private
     fun markRead(item: DigestItem) {
         val id = item.post.id
         app.history.markViewed(item.post)
-        nav.showSnackbar("Marked read", actionLabel = "Undo") { app.history.removeViewed(id) }
-        // Off the list once Undo has had its time, not under the finger.
-        scope.launch {
-            delay(4_000)
-            if (id in app.history.ids.value) gone = gone + id
+        // Off the list at once, as a hidden card in the feed (Show read off); Undo brings it back.
+        gone = gone + id
+        nav.showSnackbar("Marked read", actionLabel = "Undo") {
+            app.history.removeViewed(id)
+            gone = gone - id
         }
     }
 
@@ -319,9 +318,10 @@ private fun DigestCard(v: DigestView, item: DigestItem, isNew: Boolean) {
     val tint = cs.primary
     // Settings › Digest › Swipe to mark read: left (the end side), right (the start side) or
     // both; a side it doesn't use keeps the user's own swipe (null).
-    val spec = remember(item.post.id, read) {
+    val spec = remember(item.post.id, read, v.showRead) {
         if (read) SwipeSpec(Icons.Rounded.RemoveDone, tint) { v.markUnread(item) }
-        else SwipeSpec(Icons.Rounded.DoneAll, tint) { v.markRead(item) }
+        // Leaving the list (Show read off): it slides all the way out, as a hidden card.
+        else SwipeSpec(Icons.Rounded.DoneAll, tint, removes = !v.showRead) { v.markRead(item) }
     }
     Column {
         Row(Modifier.padding(start = 14.dp, end = 14.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {

@@ -25,7 +25,7 @@ final class DigestModel {
     var refreshing = false
     /// Read when this opened: hidden unless Show read is on. Read while here, a post stays (dimmed).
     private(set) var readAtOpen: Set<String> = app.history.ids
-    /// Swiped read here, and the Undo window has passed: hidden too.
+    /// Swiped read here: hidden too (until Undo).
     var gone: Set<String> = []
     /// The list has its rows: from here a load of its source is a pull to refresh.
     @ObservationIgnored var shown = false
@@ -63,11 +63,11 @@ final class DigestModel {
     func markRead(_ post: Post) {
         let id = post.id
         app.history.markViewed(post)
-        app.navigator.showSnackbar("Marked read", actionLabel: "Undo") { app.history.removeViewed(id) }
-        // Off the list once Undo has had its time, not under the finger.
-        Task {
-            try? await Task.sleep(for: .seconds(4))
-            if app.history.ids.contains(id) { gone.insert(id) }
+        // Off the list at once, as a hidden card in the feed (Show read off); Undo brings it back.
+        gone.insert(id)
+        app.navigator.showSnackbar("Marked read", actionLabel: "Undo") { [self] in
+            app.history.removeViewed(id)
+            gone.remove(id)
         }
     }
 
