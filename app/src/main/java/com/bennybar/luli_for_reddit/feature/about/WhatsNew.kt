@@ -55,6 +55,8 @@ val CHANGELOG = listOf(
             "Swipe a post to mark it read (left, right or both: your choice). Pull down for what's new: a refresh only adds posts, nothing already there goes away",
             "A daily notification at the time you pick, with your digest ready",
             "Settings › Appearance › Inbox in Profile: Inbox opens from an envelope at the top of Profile, for a three-tab bottom bar",
+            "Our own subreddit: r/IlayFR, for news, help and ideas (Settings › About)",
+            "Top bar: a hidden header stays hidden when you come back from a post; the folded big title sits as snug as other bars; Profile's buttons line up with the other tabs'; pushing a pull to refresh back up no longer folds the header first",
         ),
     ),
     Release(

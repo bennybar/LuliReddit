@@ -119,7 +119,8 @@ internal fun ProfileTab() {
                 }
             }
         } else Row(
-            Modifier.fillMaxWidth().padding(start = if (sideBar) 7.dp else 23.dp, top = if (sideBar) 8.dp else 10.dp, end = 11.dp),
+            // The buttons 4dp from the edge, as the other tabs' bars (#236).
+            Modifier.fillMaxWidth().padding(start = if (sideBar) 7.dp else 20.dp, top = if (sideBar) 8.dp else 10.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             SideBarButton(Modifier.offset(x = (-3).dp))

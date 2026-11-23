@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import kotlinx.coroutines.flow.first
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.activity.compose.BackHandler
@@ -120,6 +122,16 @@ class HidingBar(private val listState: LazyListState, private val scope: Corouti
 fun rememberHidingBar(listState: LazyListState): HidingBar {
     val scope = rememberCoroutineScope()
     val bar = remember(listState) { HidingBar(listState, scope) }
+    // Hidden or not is saved with the screen: Back from a post rebuilds it, and the bar
+    // came back out over a feed still scrolled down (#238). Applied once its height is known.
+    var hidden by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(bar) {
+        if (hidden) {
+            val h = snapshotFlow { bar.height }.first { it > 0 }
+            bar.shift = -h.toFloat()
+        }
+        snapshotFlow { bar.height > 0 && bar.shift <= -bar.height }.collect { hidden = it }
+    }
     // Never hidden past the feed's top, however it got there (a re-tap on the
     // tab, Back, new posts): there'd be a blank gap above the first card.
     LaunchedEffect(bar) {

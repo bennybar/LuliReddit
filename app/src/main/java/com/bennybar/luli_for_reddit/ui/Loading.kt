@@ -1,5 +1,11 @@
 package com.bennybar.luli_for_reddit.ui
 
+import kotlinx.coroutines.flow.distinctUntilChanged
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.padding
@@ -27,11 +33,24 @@ fun Loading(modifier: Modifier = Modifier, color: Color = LoadingIndicatorDefaul
     LoadingIndicator(modifier, color = color)
 }
 
+/**
+ * A pull to refresh's indicator is out under the finger: pushing back up should put it
+ * away before the header above it folds and the list scrolls (#235).
+ */
+object PullToRefreshActivity {
+    var pulling by mutableStateOf(false)
+        internal set
+}
+
 /** Pull to refresh with the Expressive loading indicator (on its tonal container). */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun RefreshBox(isRefreshing: Boolean, onRefresh: () -> Unit, modifier: Modifier = Modifier, indicatorPadding: Dp = 0.dp, content: @Composable BoxScope.() -> Unit) {
     val state = rememberPullToRefreshState()
+    // Out (being pulled): the Expandable header leaves the scroll to it (#235).
+    LaunchedEffect(state) {
+        snapshotFlow { state.distanceFraction > 0f }.distinctUntilChanged().collect { PullToRefreshActivity.pulling = it }
+    }
     PullToRefreshBox(
         isRefreshing = isRefreshing,
         onRefresh = onRefresh,

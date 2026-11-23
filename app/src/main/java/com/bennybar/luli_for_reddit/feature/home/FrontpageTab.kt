@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.bennybar.luli_for_reddit.ui.SearchIcon
 import androidx.compose.material.icons.outlined.VideoLibrary
 import com.bennybar.luli_for_reddit.feature.feed.openMediaBrowser
@@ -125,7 +127,12 @@ internal fun FrontpageTab(selected: Boolean) {
     var hideReadRequests by remember { mutableIntStateOf(0) } // the Hide read posts floating button
     // Reloading starts a new list from the top; returning to the tab shows the bar too.
     val loaded = rememberFeedController(feedKey).ui.collectAsStateWithLifecycle().value is FeedUi.Data
-    LaunchedEffect(loaded, selected) { if (!loaded || selected) bar.slide(0f) }
+    // (Only a switch to it, not Back from a post, which rebuilds the tab too: #238.)
+    var wasSelected by rememberSaveable { mutableStateOf(selected) }
+    LaunchedEffect(loaded, selected) {
+        if (!loaded || (selected && !wasSelected)) bar.slide(0f)
+        wasSelected = selected
+    }
 
     // Full mode: Google-app style search bar with avatar.
     val actionRow: @Composable () -> Unit = {
