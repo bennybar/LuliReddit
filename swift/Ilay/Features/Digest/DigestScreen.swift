@@ -27,6 +27,8 @@ final class DigestModel {
     private(set) var readAtOpen: Set<String> = app.history.ids
     /// Swiped read here, and the Undo window has passed: hidden too.
     var gone: Set<String> = []
+    /// The list has its rows: from here a load of its source is a pull to refresh.
+    @ObservationIgnored var shown = false
     /// Each day's "seen" time when it was first shown here: what came after it is New.
     @ObservationIgnored var seenAt: [String: Int] = [:]
 
@@ -171,15 +173,11 @@ struct DigestList<Top: View>: View {
         self.top = top
         let model = DigestModel()
         _model = State(initialValue: model)
-        var first = true
         let hasTop = top != nil
         _source = State(initialValue: PagedSource { [model] _ in
-            // The first load is what's stored; a pull asks for what's new.
-            if first {
-                first = false
-            } else {
-                await model.refresh(manual: true)
-            }
+            // A pull asks for what's new. (A load before the rows were first shown is the
+            // list starting up, not a pull: the first pull used to be taken for that.)
+            if model.shown { await model.refresh(manual: true) }
             return Listing(items: model.rows(top: hasTop))
         })
     }
@@ -244,7 +242,10 @@ struct DigestList<Top: View>: View {
         }
         // The page colour that goes with the post layout (grouped for cards), as Saved's.
         .background(PagedListHook(generation: rows.count))
-        .onChange(of: rows.map(\.key), initial: true) { source.show(rows) }
+        .onChange(of: rows.map(\.key), initial: true) {
+            source.show(rows)
+            model.shown = true
+        }
         .task { await model.start() }
         .onChange(of: app.navigator.selectedTab) { _, selected in
             if let tabIndex, selected == tabIndex { Task { await model.reopen() } }

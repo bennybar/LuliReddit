@@ -13,7 +13,7 @@ let digestExplained: [(title: String, text: String)] = [
         + "(on iPhone: a reminder at that time, built when you open it). Pull down for what's new: it only adds "
         + "posts, nothing already there goes away."),
     ("Where you'll find it", "A Digest chip at the top of Posts, a tab in the bottom bar, or only the side bar and the Profile menu: your choice."),
-    ("Reading it", "Swipe a post left to mark it read. Digests stay on this phone for 7 days, with what was already checked."),
+    ("Reading it", "Swipe a post to mark it read (left, unless you change the side). A post you saw in one digest isn't repeated in the next. Digests stay on this phone for 7 days."),
 ]
 
 /// The explainer. `ask`: before Digest is first turned on, with Turn on / Not now (true

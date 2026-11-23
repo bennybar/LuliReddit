@@ -53,7 +53,7 @@ object DigestNotifications {
      * [keep]: at launch, only if none is scheduled (a run Android stopped would otherwise
      * have ended the chain).
      */
-    fun reschedule(context: Context, keep: Boolean = false) {
+    fun reschedule(context: Context, keep: Boolean = false, fromWorker: Boolean = false) {
         val s = app.settings.value
         val wm = WorkManager.getInstance(context)
         if (!s.digestEnabled || !s.digestNotify) {
@@ -64,7 +64,9 @@ object DigestNotifications {
             .setInitialDelay(delayUntil(s.digestTime), TimeUnit.MILLISECONDS)
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
             .build()
-        wm.enqueueUniqueWork(WORK, if (keep) ExistingWorkPolicy.KEEP else ExistingWorkPolicy.REPLACE, request)
+        // From the running job itself: after it (REPLACE would cancel the job that's asking).
+        val policy = if (keep) ExistingWorkPolicy.KEEP else if (fromWorker) ExistingWorkPolicy.APPEND_OR_REPLACE else ExistingWorkPolicy.REPLACE
+        wm.enqueueUniqueWork(WORK, policy, request)
     }
 
     /** Milliseconds until the next [minutes] after midnight (tomorrow's when today's has passed). */
@@ -145,7 +147,7 @@ class DigestWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         } catch (_: Exception) {
             // Tomorrow's still comes.
         } finally {
-            DigestNotifications.reschedule(applicationContext)
+            DigestNotifications.reschedule(applicationContext, fromWorker = true)
         }
         return Result.success()
     }
