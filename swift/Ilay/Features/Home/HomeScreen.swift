@@ -20,8 +20,10 @@ private let navItems = [
 /// The tabs shown, in order (by their index in `navItems`, which never changes): the
 /// Digest's after Explore when it's a tab, Inbox unless it's in Profile.
 @MainActor func tabOrder() -> [Int] {
-    let s = app.settings.value
-    let signedIn = app.session.session?.anonymous == false
+    tabOrder(app.settings.value, signedIn: app.session.session?.anonymous == false)
+}
+
+func tabOrder(_ s: Settings, signedIn: Bool) -> [Int] {
     var order = [0, 1]
     if s.digestEnabled && s.digestPlace == 1 && signedIn { order.append(4) }
     if !s.inboxInProfile { order.append(2) }

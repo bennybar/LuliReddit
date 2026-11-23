@@ -254,6 +254,20 @@ struct SettingsCatalog {
                     PickOption(value: 2, label: "Menu only", subtitle: "In the side bar and the Profile menu"),
                 ],
                 set: { [s] place in
+                    // No Digest tab any more: room for Inbox again, if they want it back.
+                    if s.digestPlace == 1 && place != 1 && s.inboxInProfile {
+                        app.settings.setDigestPlace(place)
+                        Task {
+                            if await confirmDialog(
+                                "Bring Inbox back as a tab?",
+                                "Digest no longer has a tab, so there's room for Inbox in the bottom bar again.",
+                                "Bring it back", cancel: "Keep in Profile"
+                            ) {
+                                app.settings.setInboxInProfile(false)
+                            }
+                        }
+                        return
+                    }
                     // A fifth tab crowds the bar: Inbox moves into Profile, and they're told where it went.
                     guard place == 1 && !s.inboxInProfile else {
                         app.settings.setDigestPlace(place)
@@ -285,7 +299,7 @@ struct SettingsCatalog {
             // Never on by itself, even with a key set for summaries (owner's rule).
             b.toggle(
                 "Use AI",
-                secure.aiKey ? "Your AI key picks and explains the posts. Sends post titles and your top interests to your AI provider"
+                secure.aiKey ? "Your AI key picks and explains the posts. Sends titles, the start of text posts, their numbers and your top interests to your AI provider"
                     : "Needs an AI key: Settings › AI summaries",
                 s.digestAi && secure.aiKey, enabled: secure.aiKey || s.digestAi, set: ctrl.setDigestAi
             )

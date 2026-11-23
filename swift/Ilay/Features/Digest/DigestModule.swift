@@ -109,6 +109,16 @@ final class DigestModule: UserScoped {
         let now = nowMillis()
         let prev = rebuild ? nil : store.today(day)
         if manual, let prev, now - prev.refreshedAt < Self.upToDateMs { return .upToDate }
+        let s = c.settings.value
+        let first = prev == nil
+        let key = s.digestAi && (first || s.digestAiBuilds == 0) ? await c.secureStore.openaiKey() : nil
+        let due = manual || first || now - (prev?.aiAt ?? 0) >= Self.staleMs
+        if key?.isEmpty == false, s.digestAiPick, !due, let prev {
+            // The AI picks, but an automatic build doesn't call it again within 12 hours: the
+            // new posts wait for its next build instead of being judged by the numbers.
+            store.put(DigestDay(day: prev.day, builtAt: prev.builtAt, refreshedAt: now, seenAt: prev.seenAt, items: prev.items, judged: prev.judged, overview: prev.overview, aiFailed: prev.aiFailed, aiAt: prev.aiAt))
+            return .updated(added: 0)
+        }
         building = true
         defer {
             building = false
@@ -122,15 +132,13 @@ final class DigestModule: UserScoped {
             let candidates = try await fetchCandidates(subs).filter { !hidden.contains($0.id) && !filters.hides($0) }
             let size = DigestSize.of(c.settings.value.digestSize)
             let read = c.history.ids
-            let s = c.settings.value
+            // Shown on an earlier day: not again today.
+            let shownBefore = Set(store.days.filter { $0.day != day }.flatMap { $0.items.map(\.post.id) })
             // The AI step (spec section 6), when "Use AI" is on and there's a key, for the builds
             // it's chosen for (Settings: every build, or the day's first and Rebuild), and the
             // parts chosen: picking, the "why" lines, the overview (only on the day's first build).
             // Only posts not judged yet; an automatic build calls at most once in 12 hours.
-            let first = prev == nil
             let overview = s.digestOverview && first
-            let key = s.digestAi && (first || s.digestAiBuilds == 0) ? await c.secureStore.openaiKey() : nil
-            let due = manual || first || now - (prev?.aiAt ?? 0) >= Self.staleMs
             let useAi = key?.isEmpty == false && due && (s.digestAiPick || s.digestAiWhy || overview)
             let baseUrl = s.aiUseCustomUrl ? s.aiBaseUrl : "https://api.openai.com"
             let language = s.digestLanguage ?? s.aiSummaryLanguage
@@ -145,13 +153,13 @@ final class DigestModule: UserScoped {
             let merged: DigestDay
             if useAi && s.digestAiPick {
                 // The AI picks, from the posts not judged yet.
-                let pending = digestPending(prev, day: day, candidates: candidates, readIds: read, now: now)
+                let pending = digestPending(prev, day: day, candidates: candidates, readIds: read, now: now, shownBefore: shownBefore)
                 let ai = pending.isEmpty ? nil : await ask(pending, rate: true)
-                merged = mergeDigest(prev, day: day, candidates: candidates, readIds: read, size: size, now: now, ai: ai, aiFailed: !pending.isEmpty && ai == nil)
+                merged = mergeDigest(prev, day: day, candidates: candidates, readIds: read, size: size, now: now, ai: ai, aiFailed: !pending.isEmpty && ai == nil, shownBefore: shownBefore)
             } else {
                 // The numbers pick; the AI, if wanted, only writes about the new picks.
                 progress = "Picking the notable posts…"
-                let numbers = mergeDigest(prev, day: day, candidates: candidates, readIds: read, size: size, now: now)
+                let numbers = mergeDigest(prev, day: day, candidates: candidates, readIds: read, size: size, now: now, shownBefore: shownBefore)
                 let added = numbers.items.filter { $0.addedAt == now }.map(\.post)
                 if useAi && !added.isEmpty && (s.digestAiWhy || overview) {
                     if let ai = await ask(added, rate: false) {

@@ -14,7 +14,7 @@ import kotlin.math.roundToInt
 /** How long a digest is (Settings › Feed › Digest › Size). Persisted by index (`digestSize`). */
 enum class DigestSize(val items: Int, val perCommunity: Int, val label: String, val description: String) {
     BRIEF(5, 2, "Brief", "About 5 posts, at most 2 from a community"),
-    STANDARD(12, 3, "Standard", "About 12 posts, at most 3 from a community"),
+    STANDARD(12, 2, "Standard", "About 12 posts, at most 2 from a community"),
     EVERYTHING(30, 5, "Everything notable", "Every notable post, up to 30"),
     ;
 
@@ -78,6 +78,12 @@ data class DigestDay(
 
 /** At or above this, a post is notable: twice what's usual in its community. */
 internal const val NOTABLE = 2.0
+
+/** A community's best post of the day counts even under [NOTABLE], but only above this. */
+internal const val TOP_MIN = 1.3
+
+/** Fewer points and the numbers never pick it, however it compares in a quiet community. */
+internal const val MIN_POINTS = 10
 private const val DAY_MS = 24 * 60 * 60_000L
 
 /**
@@ -112,16 +118,18 @@ internal fun digestWhy(p: Post, notability: Double, top: Boolean): String {
 /** The candidates of a build, as both the AI request and the merge see them. */
 private class Batch(val today: DigestDay?, val fresh: List<Post>, val notability: Map<String, Double>, val tops: Set<String>, val toJudge: List<Post>)
 
-private fun batch(prev: DigestDay?, day: String, candidates: List<Post>, now: Long): Batch {
+private fun batch(prev: DigestDay?, day: String, candidates: List<Post>, now: Long, shownBefore: Set<String>): Batch {
     val today = prev?.takeIf { it.day == day }
+    // (Shown on an earlier day: a morning digest doesn't repeat last night's posts.)
     val fresh = candidates
-        .filter { !it.stickied && it.createdUtc > 0 && now - it.createdUtc <= DAY_MS }
+        .filter { !it.stickied && it.createdUtc > 0 && now - it.createdUtc <= DAY_MS && it.id !in shownBefore }
         .distinctBy { it.id }
     val notability = notabilityOf(fresh)
-    // Each community's best post today is notable whatever its number.
+    // Each community's best post today counts too, when it stands out a little.
     val tops = fresh.groupBy { it.subreddit.lowercase() }
-        .mapNotNull { (_, g) -> g.maxByOrNull { notability[it.id] ?: 0.0 }?.id }
-        .toHashSet()
+        .mapNotNull { (_, g) -> g.maxByOrNull { notability[it.id] ?: 0.0 } }
+        .filter { (notability[it.id] ?: 0.0) >= TOP_MIN }
+        .mapTo(HashSet()) { it.id }
     val shown = today?.items?.mapTo(HashSet()) { it.post.id } ?: emptySet()
     val judged = today?.judged ?: emptyMap()
     // Not judged yet, or not picked and twice as notable as then (one second look).
@@ -137,8 +145,16 @@ private fun batch(prev: DigestDay?, day: String, candidates: List<Post>, now: Lo
  * What a build would send the AI: the posts to judge (never one read before it was
  * judged), most notable first, at most [max]. Empty: no AI call.
  */
-fun digestPending(prev: DigestDay?, day: String, candidates: List<Post>, readIds: Set<String>, now: Long, max: Int = AI_CANDIDATES): List<Post> {
-    val b = batch(prev, day, candidates, now)
+fun digestPending(
+    prev: DigestDay?,
+    day: String,
+    candidates: List<Post>,
+    readIds: Set<String>,
+    now: Long,
+    max: Int = AI_CANDIDATES,
+    shownBefore: Set<String> = emptySet(),
+): List<Post> {
+    val b = batch(prev, day, candidates, now, shownBefore)
     return b.toJudge.filter { it.id in (b.today?.judged ?: emptyMap()) || it.id !in readIds }.take(max)
 }
 
@@ -159,7 +175,8 @@ const val AI_CANDIDATES = 40
  * With [ai] (the AI's verdicts on [digestPending]'s posts), it picks instead of the
  * numbers: the posts it rated 2 or more, most important first, with its "why"; a post
  * it didn't rate isn't picked. [aiFailed]: the AI was wanted and failed, so this is by
- * the numbers and the screen says so.
+ * the numbers and the screen says so. [shownBefore]: posts in earlier days' digests,
+ * left out.
  */
 fun mergeDigest(
     prev: DigestDay?,
@@ -170,8 +187,9 @@ fun mergeDigest(
     now: Long,
     ai: DigestAi? = null,
     aiFailed: Boolean = false,
+    shownBefore: Set<String> = emptySet(),
 ): DigestDay {
-    val b = batch(prev, day, candidates, now)
+    val b = batch(prev, day, candidates, now, shownBefore)
     val today = b.today
     val notability = b.notability
     val tops = b.tops
@@ -204,6 +222,7 @@ fun mergeDigest(
             !again && p.id in readIds -> false
             // The AI chooses: what it rated under 2, or didn't rate, stays out.
             verdicts != null -> verdict != null && verdict.importance >= 2
+            p.score < MIN_POINTS -> false
             n < NOTABLE && p.id !in tops -> false
             else -> true
         } && when {

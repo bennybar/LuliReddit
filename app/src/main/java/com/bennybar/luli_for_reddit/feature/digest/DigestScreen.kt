@@ -230,6 +230,7 @@ fun rememberDigestView(active: Boolean = true): DigestView {
         if (!active) return@LaunchedEffect
         v.readAtOpen = app.history.ids.value
         v.gone = emptySet()
+        v.seenAt.clear() // what was New last time has been seen
         app.digest.refreshIfStale()?.let { v.outcome = it }
     }
     DisposableEffect(active) { onDispose { if (active) app.digest.markSeen() } }

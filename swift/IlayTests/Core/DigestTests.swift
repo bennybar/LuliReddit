@@ -33,15 +33,29 @@ final class DigestTests: XCTestCase {
     }
 
     func testAQuietDayGivesAShortDigestNeverPadded() {
-        let r = build(ordinary("a", 100) + ordinary("b", 50))
-        XCTAssertEqual(r.items.count, 2)
-        XCTAssertEqual(Set(r.items.map(\.post.subreddit)), ["a", "b"])
+        // Nothing stands out anywhere: nothing to show.
+        XCTAssertEqual(build(ordinary("a", 100) + ordinary("b", 50)).items.count, 0)
+    }
+
+    func testACommunitysTopPostCountsWhenItStandsOutALittle() {
+        let lead = p("a", 150) // 1.35×: under notable, over the top post's bar
+        let tiny = p("b", 8) // stands out, but under 10 points
+        let r = build(ordinary("a", 100) + [lead] + (0..<6).map { _ in p("b", 2) } + [tiny])
+        XCTAssertEqual(r.items.map(\.post.id), [lead.id])
+    }
+
+    func testPostsShownOnAnEarlierDayArentShownAgain() {
+        let hit = p("a", 5000)
+        let other = p("a", 4000)
+        let r = mergeDigest(nil, day: "2027-01-16", candidates: [hit, other] + ordinary("a", 10), readIds: [], size: .standard, now: now, shownBefore: [hit.id])
+        XCTAssertEqual(r.items.map(\.post.id), [other.id])
+        XCTAssertFalse(digestPending(nil, day: "2027-01-16", candidates: [hit, other], readIds: [], now: now, shownBefore: [hit.id]).map(\.id).contains(hit.id))
     }
 
     func testSizesCapTheTotalAndEachCommunity() {
         let hits = (0..<10).map { p("a", 1000 + $0) } + ordinary("a", 10, 20)
         XCTAssertEqual(build(hits, size: .brief).items.count, 2)
-        XCTAssertEqual(build(hits, size: .standard).items.count, 3)
+        XCTAssertEqual(build(hits, size: .standard).items.count, 2)
         let many = (0..<10).flatMap { c in [p("c\(c)", 5000), p("c\(c)", 4000)] + ordinary("c\(c)", 10) }
         XCTAssertEqual(build(many, size: .brief).items.count, 5)
         XCTAssertEqual(build(many, size: .standard).items.count, 12)

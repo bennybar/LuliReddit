@@ -42,10 +42,26 @@ class DigestTest {
 
     @Test
     fun `a quiet day gives a short digest, never padded`() {
-        // Nothing stands out: only each community's top post counts.
+        // Nothing stands out anywhere: nothing to show.
         val r = build(ordinary("a", 100) + ordinary("b", 50), size = DigestSize.STANDARD)
-        assertEquals(2, r.items.size)
-        assertEquals(setOf("a", "b"), r.items.map { it.post.subreddit }.toSet())
+        assertEquals(0, r.items.size)
+    }
+
+    @Test
+    fun `a community's top post counts when it stands out a little`() {
+        val lead = p("a", 150) // 1.35×: under notable, over the top post's bar
+        val tiny = p("b", 8) // stands out, but under 10 points
+        val r = build(ordinary("a", 100) + lead + List(6) { p("b", 2) } + tiny)
+        assertEquals(listOf(lead.id), r.items.map { it.post.id })
+    }
+
+    @Test
+    fun `posts shown on an earlier day aren't shown again`() {
+        val hit = p("a", 5000)
+        val other = p("a", 4000)
+        val r = mergeDigest(null, "2027-01-16", listOf(hit, other) + ordinary("a", 10), emptySet(), DigestSize.STANDARD, now, shownBefore = setOf(hit.id))
+        assertEquals(listOf(other.id), r.items.map { it.post.id })
+        assertFalse(hit.id in digestPending(null, "2027-01-16", listOf(hit, other), emptySet(), now, shownBefore = setOf(hit.id)).map { it.id })
     }
 
     @Test
@@ -54,7 +70,7 @@ class DigestTest {
         val brief = build(hits, size = DigestSize.BRIEF)
         assertEquals(2, brief.items.size) // at most 2 from a community
         val standard = build(hits, size = DigestSize.STANDARD)
-        assertEquals(3, standard.items.size)
+        assertEquals(2, standard.items.size)
         val many = (0 until 10).flatMap { c -> listOf(p("c$c", 5000), p("c$c", 4000)) + ordinary("c$c", 10) }
         assertEquals(5, build(many, size = DigestSize.BRIEF).items.size)
         assertEquals(12, build(many, size = DigestSize.STANDARD).items.size)

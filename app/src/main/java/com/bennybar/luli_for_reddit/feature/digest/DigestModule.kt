@@ -115,6 +115,16 @@ class DigestModule(private val c: AppContainer) : UserScoped {
         val now = System.currentTimeMillis()
         val prev = if (rebuild) null else store.today(day)
         if (manual && prev != null && now - prev.refreshedAt < UP_TO_DATE_MS) return Outcome.UpToDate
+        val s = c.settings.value
+        val first = prev == null
+        val key = if (s.digestAi && (first || s.digestAiBuilds == 0)) c.secureStore.openaiKey() else null
+        val due = manual || first || now - prev.aiAt >= STALE_MS
+        if (!key.isNullOrEmpty() && s.digestAiPick && !due) {
+            // The AI picks, but an automatic build doesn't call it again within 12 hours: the
+            // new posts wait for its next build instead of being judged by the numbers.
+            store.put(prev!!.copy(refreshedAt = now))
+            return Outcome.Updated(0)
+        }
         _building.value = true
         try {
             val subs = communities()
@@ -124,15 +134,13 @@ class DigestModule(private val c: AppContainer) : UserScoped {
             val candidates = fetchCandidates(subs).filter { it.id !in hidden && !filters.hides(it) }
             val size = DigestSize.of(c.settings.value.digestSize)
             val read = c.history.ids.value
-            val s = c.settings.value
+            // Shown on an earlier day: not again today.
+            val shownBefore = store.days.value.filter { it.day != day }.flatMapTo(HashSet()) { d -> d.items.map { it.post.id } }
             // The AI step (spec section 6), when "Use AI" is on and there's a key, for the builds
             // it's chosen for (Settings: every build, or the day's first and Rebuild), and the
             // parts chosen: picking, the "why" lines, the overview (only on the day's first build).
             // Only posts not judged yet; an automatic build calls at most once in 12 hours.
-            val first = prev == null
             val overview = s.digestOverview && first
-            val key = if (s.digestAi && (first || s.digestAiBuilds == 0)) c.secureStore.openaiKey() else null
-            val due = manual || first || now - prev.aiAt >= STALE_MS
             val useAi = !key.isNullOrEmpty() && due && (s.digestAiPick || s.digestAiWhy || overview)
             val baseUrl = if (s.aiUseCustomUrl) s.aiBaseUrl else "https://api.openai.com"
             val language = s.digestLanguage ?: s.aiSummaryLanguage
@@ -149,13 +157,13 @@ class DigestModule(private val c: AppContainer) : UserScoped {
             }
             val merged = if (useAi && s.digestAiPick) {
                 // The AI picks, from the posts not judged yet.
-                val pending = digestPending(prev, day, candidates, read, now)
+                val pending = digestPending(prev, day, candidates, read, now, shownBefore = shownBefore)
                 val ai = if (pending.isEmpty()) null else ask(pending, rate = true)
-                mergeDigest(prev, day, candidates, read, size, now, ai, aiFailed = pending.isNotEmpty() && ai == null)
+                mergeDigest(prev, day, candidates, read, size, now, ai, aiFailed = pending.isNotEmpty() && ai == null, shownBefore = shownBefore)
             } else {
                 // The numbers pick; the AI, if wanted, only writes about the new picks.
                 _progress.value = "Picking the notable posts…"
-                val numbers = mergeDigest(prev, day, candidates, read, size, now)
+                val numbers = mergeDigest(prev, day, candidates, read, size, now, shownBefore = shownBefore)
                 val added = numbers.items.filter { it.addedAt == now }.map { it.post }
                 if (useAi && added.isNotEmpty() && (s.digestAiWhy || overview)) {
                     val ai = ask(added, rate = false)

@@ -52,7 +52,9 @@ val CHANGELOG = listOf(
             "Your choice of communities (your favourites, or up to 15), how long it is, and where it shows: a chip at the top of Posts, its own tab, or only in the side bar and Profile menu",
             "Optional: with your own AI key, \"Use AI\" picks the posts, says why each matters, and can open with a short overview. It's off unless you turn it on, and a refresh only sends the new posts",
             "Order it your way: most notable, most upvoted, newest, or the AI's assessment",
-            "Swipe a post left to mark it read. Pull down for what's new: a refresh only adds posts, nothing already there goes away",
+            "Swipe a post to mark it read (left, right or both: your choice). Pull down for what's new: a refresh only adds posts, nothing already there goes away",
+            "A daily notification at the time you pick, with your digest ready",
+            "Settings › Appearance › Inbox in Profile: Inbox opens from an envelope at the top of Profile, for a three-tab bottom bar",
         ),
     ),
     Release(

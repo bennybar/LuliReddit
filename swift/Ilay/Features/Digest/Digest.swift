@@ -11,10 +11,10 @@ enum DigestSize: Int, CaseIterable, Sendable {
     static func of(_ i: Int) -> DigestSize { DigestSize(rawValue: i) ?? .standard }
 
     var items: Int { [5, 12, 30][rawValue] }
-    var perCommunity: Int { [2, 3, 5][rawValue] }
+    var perCommunity: Int { [2, 2, 5][rawValue] }
     var label: String { ["Brief", "Standard", "Everything notable"][rawValue] }
     var description: String {
-        ["About 5 posts, at most 2 from a community", "About 12 posts, at most 3 from a community", "Every notable post, up to 30"][rawValue]
+        ["About 5 posts, at most 2 from a community", "About 12 posts, at most 2 from a community", "Every notable post, up to 30"][rawValue]
     }
 }
 
@@ -83,6 +83,10 @@ struct DigestDay: Equatable, Sendable {
 
 /// At or above this, a post is notable: twice what's usual in its community.
 let digestNotable = 2.0
+/// A community's best post of the day counts even under `digestNotable`, but only above this.
+let digestTopMin = 1.3
+/// Fewer points and the numbers never pick it, however it compares in a quiet community.
+let digestMinPoints = 10
 private let dayMs = 24 * 60 * 60_000
 
 /// How a post stands out in its own community, in this batch: its points against the
@@ -131,17 +135,21 @@ private struct Batch {
     let toJudge: [Post]
 }
 
-private func batch(_ prev: DigestDay?, day: String, candidates: [Post], now: Int) -> Batch {
+private func batch(_ prev: DigestDay?, day: String, candidates: [Post], now: Int, shownBefore: Set<String>) -> Batch {
     let today = prev?.day == day ? prev : nil
     var seenIds = Set<String>()
+    // (Shown on an earlier day: a morning digest doesn't repeat last night's posts.)
     let fresh = candidates.filter {
-        !$0.stickied && $0.createdUtc > 0 && now - $0.createdUtc <= dayMs && seenIds.insert($0.id).inserted
+        !$0.stickied && $0.createdUtc > 0 && now - $0.createdUtc <= dayMs && !shownBefore.contains($0.id) && seenIds.insert($0.id).inserted
     }
     let notability = notabilityOf(fresh)
-    // Each community's best post today is notable whatever its number.
+    // Each community's best post today counts too, when it stands out a little.
     var tops = Set<String>()
     for group in Dictionary(grouping: fresh, by: { $0.subreddit.lowercased() }).values {
-        if let best = group.max(by: { (notability[$0.id] ?? 0) < (notability[$1.id] ?? 0) }) { tops.insert(best.id) }
+        if let best = group.max(by: { (notability[$0.id] ?? 0) < (notability[$1.id] ?? 0) }),
+           (notability[best.id] ?? 0) >= digestTopMin {
+            tops.insert(best.id)
+        }
     }
     let shown = Set((today?.items ?? []).map(\.post.id))
     let judged = today?.judged ?? [:]
@@ -159,8 +167,8 @@ let digestAiCandidates = 40
 
 /// What a build would send the AI: the posts to judge (never one read before it was
 /// judged), most notable first, at most `max`. Empty: no AI call.
-func digestPending(_ prev: DigestDay?, day: String, candidates: [Post], readIds: Set<String>, now: Int, max: Int = digestAiCandidates) -> [Post] {
-    let b = batch(prev, day: day, candidates: candidates, now: now)
+func digestPending(_ prev: DigestDay?, day: String, candidates: [Post], readIds: Set<String>, now: Int, max: Int = digestAiCandidates, shownBefore: Set<String> = []) -> [Post] {
+    let b = batch(prev, day: day, candidates: candidates, now: now, shownBefore: shownBefore)
     let judged = b.today?.judged ?? [:]
     return Array(b.toJudge.filter { judged[$0.id] != nil || !readIds.contains($0.id) }.prefix(max))
 }
@@ -179,8 +187,8 @@ func digestPending(_ prev: DigestDay?, day: String, candidates: [Post], readIds:
 /// numbers: the posts it rated 2 or more, most important first, with its "why"; a post it
 /// didn't rate isn't picked. `aiFailed`: the AI was wanted and failed, so this is by the
 /// numbers and the screen says so.
-func mergeDigest(_ prev: DigestDay?, day: String, candidates: [Post], readIds: Set<String>, size: DigestSize, now: Int, ai: DigestAi? = nil, aiFailed: Bool = false) -> DigestDay {
-    let b = batch(prev, day: day, candidates: candidates, now: now)
+func mergeDigest(_ prev: DigestDay?, day: String, candidates: [Post], readIds: Set<String>, size: DigestSize, now: Int, ai: DigestAi? = nil, aiFailed: Bool = false, shownBefore: Set<String> = []) -> DigestDay {
+    let b = batch(prev, day: day, candidates: candidates, now: now, shownBefore: shownBefore)
     let today = b.today
     let notability = b.notability
     let tops = b.tops
@@ -226,7 +234,7 @@ func mergeDigest(_ prev: DigestDay?, day: String, candidates: [Post], readIds: S
         } else if verdicts != nil {
             pick = (verdict?.importance ?? 0) >= 2 // the AI chooses: under 2, or unrated, stays out
         } else {
-            pick = n >= digestNotable || tops.contains(p.id)
+            pick = p.score >= digestMinPoints && (n >= digestNotable || tops.contains(p.id))
         }
         if pick {
             if items.count >= cap || perCommunity[sub, default: 0] >= size.perCommunity {

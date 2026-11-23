@@ -394,7 +394,8 @@ fun HomeScreen() {
                 0 -> FrontpageTab(selected = index == 0)
                 1 -> ExploreTab() // runs under the status bar, with its own fade (#127)
                 2 -> Box(Modifier.statusBarsPadding()) { InboxScreen(reselect = inboxReselect, selected = index == 2) }
-                4 -> com.bennybar.luli_for_reddit.feature.digest.DigestScreen(tab = true, selected = index == 4, reselect = digestReselect)
+                // Only while it's a tab (it was built for everyone).
+                4 -> if (4 in order) com.bennybar.luli_for_reddit.feature.digest.DigestScreen(tab = true, selected = index == 4, reselect = digestReselect)
                 else -> Box(Modifier.statusBarsPadding()) { ProfileTab() }
             }
         }

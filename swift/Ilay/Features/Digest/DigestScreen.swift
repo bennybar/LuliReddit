@@ -6,7 +6,7 @@ struct DigestScreen: View {
     var tab = false
 
     var body: some View {
-        DigestList()
+        DigestList(tabIndex: tab ? 4 : nil)
             .navigationTitle("Digest")
             .navigationBarTitleDisplayMode(tab ? .large : .inline)
             .toolbar {
@@ -24,11 +24,19 @@ final class DigestModel {
     var outcome: DigestModule.Outcome?
     var refreshing = false
     /// Read when this opened: hidden unless Show read is on. Read while here, a post stays (dimmed).
-    @ObservationIgnored let readAtOpen: Set<String> = app.history.ids
+    private(set) var readAtOpen: Set<String> = app.history.ids
     /// Swiped read here, and the Undo window has passed: hidden too.
     var gone: Set<String> = []
     /// Each day's "seen" time when it was first shown here: what came after it is New.
     @ObservationIgnored var seenAt: [String: Int] = [:]
+
+    /// Back on the Digest tab: what's read since goes, and a stale digest is rebuilt.
+    func reopen() async {
+        readAtOpen = app.history.ids
+        gone = []
+        seenAt = [:] // what was New last time has been seen
+        await start()
+    }
 
     func start() async {
         if let out = await app.digest.refreshIfStale() { outcome = out }
@@ -152,6 +160,8 @@ enum DigestAction {
 /// your own swipe). Builds today's when it's missing or stale, and marks it seen on leaving.
 struct DigestList<Top: View>: View {
     private let top: (() -> Top)?
+    /// The tab it's on, if it's a tab: selecting it again counts as opening it.
+    private var tabIndex: Int?
     @State private var model = DigestModel()
     @State private var source: PagedSource<DigestRowItem>
 
@@ -236,13 +246,19 @@ struct DigestList<Top: View>: View {
         .background(PagedListHook(generation: rows.count))
         .onChange(of: rows.map(\.key), initial: true) { source.show(rows) }
         .task { await model.start() }
+        .onChange(of: app.navigator.selectedTab) { _, selected in
+            if let tabIndex, selected == tabIndex { Task { await model.reopen() } }
+        }
         .onDisappear { app.digest.markSeen() }
     }
 }
 
 extension DigestList where Top == EmptyView {
     /// The Digest on its own page: no title or chips above it.
-    init() { self.init(optionalTop: nil) }
+    init(tabIndex: Int? = nil) {
+        self.init(optionalTop: nil)
+        self.tabIndex = tabIndex
+    }
 }
 
 private struct DigestWhy: View {

@@ -98,7 +98,10 @@ import UserNotifications
         try? BGTaskScheduler.shared.submit(request)
     }
 
-    static func cancelPolling() {
+    @MainActor static func cancelPolling() {
+        // The Digest's daily notification builds in the same background time: keep it for that.
+        let s = app.settings.value
+        if s.digestEnabled && s.digestNotify { return }
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: taskId)
     }
 }

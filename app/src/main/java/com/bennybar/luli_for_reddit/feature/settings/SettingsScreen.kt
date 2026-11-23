@@ -576,7 +576,15 @@ fun SettingsList(
                     )
                     ctrl.setInboxInProfile(true)
                 }
+                val leftTab = s.digestPlace == 1 && place != 1
                 ctrl.setDigestPlace(place)
+                // No Digest tab any more: room for Inbox again, if they want it back.
+                if (leftTab && s.inboxInProfile && confirmDialog(
+                        "Bring Inbox back as a tab?",
+                        "Digest no longer has a tab, so there's room for Inbox in the bottom bar again.",
+                        "Bring it back", cancel = "Keep in Profile",
+                    )
+                ) ctrl.setInboxInProfile(false)
             })
             val sides = listOf(
                 PickOption(0, "Left", "Swipe left to mark read; right keeps your own swipe"),
@@ -593,7 +601,7 @@ fun SettingsList(
             // Never on by itself, even with a key set for summaries (owner's rule).
             switch(
                 "Use AI",
-                if (aiKeySet) "Your AI key picks and explains the posts. Sends post titles and your top interests to your AI provider"
+                if (aiKeySet) "Your AI key picks and explains the posts. Sends titles, the start of text posts, their numbers and your top interests to your AI provider"
                 else "Needs an AI key: Settings › AI summaries",
                 Icons.Outlined.AutoAwesome, s.digestAi && aiKeySet, if (aiKeySet || s.digestAi) ctrl::setDigestAi else null,
             )

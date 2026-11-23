@@ -59,8 +59,10 @@ final class DigestStore {
 
     private func save() {
         let f = file
-        let json = encode(days)
+        let tree = encode(days)
         io.async {
+            // Serialized here, off the main thread: a week of posts is a lot of JSON.
+            let json = tree.encoded()
             // Atomic: written to a temp file and swapped in, so a crash mid-write can't truncate it.
             try? Data(json.utf8).write(to: f, options: .atomic)
         }
@@ -73,60 +75,66 @@ final class DigestStore {
         return r
     }
 
-    private func encode(_ days: [DigestDay]) -> String {
-        JsonElement.object([
-            "days": .array(days.map { d in
-                var judged = JsonObject()
-                for (id, j) in d.judged {
-                    judged[id] = .array([.int(j.picked ? 1 : 0), .double(j.notability), .int(j.at), .int(j.secondLook ? 1 : 0)])
-                }
-                var o: JsonObject = [
-                    "day": .string(d.day),
-                    "built": .int(d.builtAt),
-                    "refreshed": .int(d.refreshedAt),
-                    "seen": .int(d.seenAt),
-                    "items": .array(d.items.compactMap { it in
-                        guard let r = rawFor(it.post.id) else { return nil }
-                        var o: JsonObject = ["raw": r, "why": .string(it.why), "n": .double(it.notability), "at": .int(it.addedAt)]
-                if it.importance > 0 { o["imp"] = .int(it.importance) }
-                return .object(o)
-                    }),
-                    "judged": .object(judged),
-                ]
-                if let overview = d.overview { o["overview"] = .string(overview) }
-                if d.aiFailed { o["aiFailed"] = .int(1) }
-                if d.aiAt > 0 { o["aiAt"] = .int(d.aiAt) }
-                return .object(o)
-            }),
-        ]).encoded()
-    }
+    private func encode(_ days: [DigestDay]) -> JsonElement { encodeDigestDays(days) { rawFor($0) } }
 
-    private func decode(_ json: JsonElement) -> [DigestDay] {
-        (json["days"].arr() ?? []).compactMap { d in
-            guard let day = d["day"].str() else { return nil }
-            let items: [DigestItem] = (d["items"].arr() ?? []).compactMap { i in
-                guard let r = i["raw"] else { return nil }
-                let post = Post.fromData(r)
-                if post.id.isEmpty { return nil }
-                rawCache[post.id] = r
-                return DigestItem(post: post, why: i["why"].str() ?? "", notability: i["n"].double() ?? 0, addedAt: i["at"].long() ?? 0, importance: i["imp"].int() ?? 0)
+    private func decode(_ json: JsonElement) -> [DigestDay] { decodeDigestDays(json) { rawCache[$0] = $1 } }
+}
+
+/// The digest file (`digest_<user>.json`, the same on both apps); `raw`: a post's JSON by id.
+func encodeDigestDays(_ days: [DigestDay], raw: (String) -> JsonElement?) -> JsonElement {
+    JsonElement.object([
+        "days": .array(days.map { d in
+            var judged = JsonObject()
+            for (id, j) in d.judged {
+                judged[id] = .array([.int(j.picked ? 1 : 0), .double(j.notability), .int(j.at), .int(j.secondLook ? 1 : 0)])
             }
-            var judged: [String: Judged] = [:]
-            for (id, v) in d["judged"].obj() ?? JsonObject() {
-                guard let a = v.arr(), a.count >= 3 else { continue }
-                judged[id] = Judged(picked: a[0].long() == 1, notability: a[1].double() ?? 0, at: a[2].long() ?? 0, secondLook: a.count > 3 && a[3].long() == 1)
-            }
-            return DigestDay(
-                day: day,
-                builtAt: d["built"].long() ?? 0,
-                refreshedAt: d["refreshed"].long() ?? 0,
-                seenAt: d["seen"].long() ?? 0,
-                items: items,
-                judged: judged,
-                overview: d["overview"].str(),
-                aiFailed: d["aiFailed"].long() == 1,
-                aiAt: d["aiAt"].long() ?? 0
-            )
+            var o: JsonObject = [
+                "day": .string(d.day),
+                "built": .int(d.builtAt),
+                "refreshed": .int(d.refreshedAt),
+                "seen": .int(d.seenAt),
+                "items": .array(d.items.compactMap { it in
+                    guard let r = raw(it.post.id) else { return nil }
+                    var o: JsonObject = ["raw": r, "why": .string(it.why), "n": .double(it.notability), "at": .int(it.addedAt)]
+            if it.importance > 0 { o["imp"] = .int(it.importance) }
+            return .object(o)
+                }),
+                "judged": .object(judged),
+            ]
+            if let overview = d.overview { o["overview"] = .string(overview) }
+            if d.aiFailed { o["aiFailed"] = .int(1) }
+            if d.aiAt > 0 { o["aiAt"] = .int(d.aiAt) }
+            return .object(o)
+        }),
+    ])
+}
+
+/// The digest file back; `keepRaw` gets each post's JSON (to save it again).
+func decodeDigestDays(_ json: JsonElement, keepRaw: (String, JsonElement) -> Void = { _, _ in }) -> [DigestDay] {
+    (json["days"].arr() ?? []).compactMap { d in
+        guard let day = d["day"].str() else { return nil }
+        let items: [DigestItem] = (d["items"].arr() ?? []).compactMap { i in
+            guard let r = i["raw"] else { return nil }
+            let post = Post.fromData(r)
+            if post.id.isEmpty { return nil }
+            keepRaw(post.id, r)
+            return DigestItem(post: post, why: i["why"].str() ?? "", notability: i["n"].double() ?? 0, addedAt: i["at"].long() ?? 0, importance: i["imp"].int() ?? 0)
         }
+        var judged: [String: Judged] = [:]
+        for (id, v) in d["judged"].obj() ?? JsonObject() {
+            guard let a = v.arr(), a.count >= 3 else { continue }
+            judged[id] = Judged(picked: a[0].long() == 1, notability: a[1].double() ?? 0, at: a[2].long() ?? 0, secondLook: a.count > 3 && a[3].long() == 1)
+        }
+        return DigestDay(
+            day: day,
+            builtAt: d["built"].long() ?? 0,
+            refreshedAt: d["refreshed"].long() ?? 0,
+            seenAt: d["seen"].long() ?? 0,
+            items: items,
+            judged: judged,
+            overview: d["overview"].str(),
+            aiFailed: d["aiFailed"].long() == 1,
+            aiAt: d["aiAt"].long() ?? 0
+        )
     }
 }

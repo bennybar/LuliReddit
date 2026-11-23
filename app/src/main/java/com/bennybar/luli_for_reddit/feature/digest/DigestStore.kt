@@ -77,9 +77,11 @@ class DigestStore(private val context: Context, private val raw: (String) -> Jso
 
     private fun save() {
         val f = file
-        val json = encode(_days.value)
+        val days = _days.value
         io.launch {
             runCatching {
+                // Encoded here, off the main thread: a week of posts is a lot of JSON.
+                val json = encode(days)
                 // A temp file swapped in, so a crash mid-write can't truncate it.
                 val tmp = File(f.parentFile, f.name + ".tmp")
                 tmp.writeText(json)
@@ -90,67 +92,76 @@ class DigestStore(private val context: Context, private val raw: (String) -> Jso
 
     private fun fileFor(user: String) = File(context.filesDir, "digest_${user.lowercase()}.json")
 
-    private fun encode(days: List<DigestDay>): String = buildJsonObject {
-        putJsonArray("days") {
-            for (d in days) add(buildJsonObject {
-                put("day", d.day)
-                put("built", d.builtAt)
-                put("refreshed", d.refreshedAt)
-                put("seen", d.seenAt)
-                d.overview?.let { put("overview", it) }
-                if (d.aiFailed) put("aiFailed", 1)
-                if (d.aiAt > 0) put("aiAt", d.aiAt)
-                putJsonArray("items") {
-                    for (it in d.items) {
-                        val r = synchronized(rawCache) { rawCache[it.post.id] } ?: raw(it.post.id)?.also { r -> synchronized(rawCache) { rawCache[it.post.id] = r } } ?: continue
-                        add(buildJsonObject {
-                            put("raw", r)
-                            put("why", it.why)
-                            put("n", it.notability)
-                            put("at", it.addedAt)
-                            if (it.importance > 0) put("imp", it.importance)
-                        })
-                    }
-                }
-                putJsonObject("judged") {
-                    for ((id, j) in d.judged) {
-                        put(id, JsonArray(listOf(JsonPrimitive(if (j.picked) 1 else 0), JsonPrimitive(j.notability), JsonPrimitive(j.at), JsonPrimitive(if (j.secondLook) 1 else 0))))
-                    }
-                }
-            })
-        }
-    }.toString()
 
-    private fun decode(json: JsonElement): List<DigestDay> = json["days"].arr().orEmpty().mapNotNull { d ->
-        val day = d["day"].str() ?: return@mapNotNull null
-        DigestDay(
-            day = day,
-            builtAt = d["built"].long() ?: 0,
-            refreshedAt = d["refreshed"].long() ?: 0,
-            seenAt = d["seen"].long() ?: 0,
-            overview = d["overview"].str(),
-            aiFailed = d["aiFailed"].long() == 1L,
-            aiAt = d["aiAt"].long() ?: 0,
-            items = d["items"].arr().orEmpty().mapNotNull { i ->
-                val r = i["raw"] ?: return@mapNotNull null
-                val post = runCatching { Post.fromData(r) }.getOrNull() ?: return@mapNotNull null
-                synchronized(rawCache) { rawCache[post.id] = r }
-                DigestItem(post, i["why"].str().orEmpty(), i["n"].double() ?: 0.0, i["at"].long() ?: 0, importance = i["imp"].long()?.toInt() ?: 0)
-            },
-            judged = d["judged"].obj().orEmpty().mapNotNull { (id, v) ->
-                val a = v.arr() ?: return@mapNotNull null
-                if (a.size < 3) return@mapNotNull null
-                id to Judged(
-                    picked = a[0].long() == 1L,
-                    notability = a[1].double() ?: 0.0,
-                    at = a[2].long() ?: 0,
-                    secondLook = a.getOrNull(3).long() == 1L,
-                )
-            }.toMap(),
-        )
+    private fun encode(days: List<DigestDay>): String = encodeDigestDays(days) { id ->
+        synchronized(rawCache) { rawCache[id] } ?: raw(id)?.also { r -> synchronized(rawCache) { rawCache[id] = r } }
     }
+
+    private fun decode(json: JsonElement): List<DigestDay> = decodeDigestDays(json) { id, r -> synchronized(rawCache) { rawCache[id] = r } }
 
     companion object {
         const val KEEP = 7
     }
+}
+
+/** The digest file (`digest_<user>.json`, the same on both apps); [raw]: a post's JSON by id. */
+internal fun encodeDigestDays(days: List<DigestDay>, raw: (String) -> JsonElement?): String = buildJsonObject {
+    putJsonArray("days") {
+        for (d in days) add(buildJsonObject {
+            put("day", d.day)
+            put("built", d.builtAt)
+            put("refreshed", d.refreshedAt)
+            put("seen", d.seenAt)
+            d.overview?.let { put("overview", it) }
+            if (d.aiFailed) put("aiFailed", 1)
+            if (d.aiAt > 0) put("aiAt", d.aiAt)
+            putJsonArray("items") {
+                for (it in d.items) {
+                    val r = raw(it.post.id) ?: continue
+                    add(buildJsonObject {
+                        put("raw", r)
+                        put("why", it.why)
+                        put("n", it.notability)
+                        put("at", it.addedAt)
+                        if (it.importance > 0) put("imp", it.importance)
+                    })
+                }
+            }
+            putJsonObject("judged") {
+                for ((id, j) in d.judged) {
+                    put(id, JsonArray(listOf(JsonPrimitive(if (j.picked) 1 else 0), JsonPrimitive(j.notability), JsonPrimitive(j.at), JsonPrimitive(if (j.secondLook) 1 else 0))))
+                }
+            }
+        })
+    }
+}.toString()
+
+/** The digest file back; [keepRaw] gets each post's JSON (to save it again). */
+internal fun decodeDigestDays(json: JsonElement, keepRaw: (String, JsonElement) -> Unit = { _, _ -> }): List<DigestDay> = json["days"].arr().orEmpty().mapNotNull { d ->
+    val day = d["day"].str() ?: return@mapNotNull null
+    DigestDay(
+        day = day,
+        builtAt = d["built"].long() ?: 0,
+        refreshedAt = d["refreshed"].long() ?: 0,
+        seenAt = d["seen"].long() ?: 0,
+        overview = d["overview"].str(),
+        aiFailed = d["aiFailed"].long() == 1L,
+        aiAt = d["aiAt"].long() ?: 0,
+        items = d["items"].arr().orEmpty().mapNotNull { i ->
+            val r = i["raw"] ?: return@mapNotNull null
+            val post = runCatching { Post.fromData(r) }.getOrNull() ?: return@mapNotNull null
+            keepRaw(post.id, r)
+            DigestItem(post, i["why"].str().orEmpty(), i["n"].double() ?: 0.0, i["at"].long() ?: 0, importance = i["imp"].long()?.toInt() ?: 0)
+        },
+        judged = d["judged"].obj().orEmpty().mapNotNull { (id, v) ->
+            val a = v.arr() ?: return@mapNotNull null
+            if (a.size < 3) return@mapNotNull null
+            id to Judged(
+                picked = a[0].long() == 1L,
+                notability = a[1].double() ?: 0.0,
+                at = a[2].long() ?: 0,
+                secondLook = a.getOrNull(3).long() == 1L,
+            )
+        }.toMap(),
+    )
 }
