@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.DoneAll
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.MoreVert
@@ -130,6 +131,7 @@ class DigestView internal constructor(private val scope: CoroutineScope, private
     internal var building by mutableStateOf(false)
     internal var readIds by mutableStateOf(emptySet<String>())
     internal var showRead by mutableStateOf(false)
+    internal var order by mutableStateOf(DigestOrder.NOTABLE)
 
     fun refresh(manual: Boolean, rebuild: Boolean = false) {
         if (refreshing) return
@@ -215,7 +217,10 @@ fun rememberDigestView(active: Boolean = true): DigestView {
     v.days = app.digest.store.days.collectAsStateWithLifecycle().value
     v.building = app.digest.building.collectAsStateWithLifecycle().value
     v.readIds = app.history.ids.collectAsStateWithLifecycle().value
-    v.showRead = app.settings.state.collectAsStateWithLifecycle().value.digestShowRead
+    val s = app.settings.state.collectAsStateWithLifecycle().value
+    v.showRead = s.digestShowRead
+    // The AI's order only means something while it's on.
+    v.order = DigestOrder.of(s.digestOrder).let { if (it == DigestOrder.AI && !s.digestAi) DigestOrder.NOTABLE else it }
     LaunchedEffect(active) {
         if (!active) return@LaunchedEffect
         v.readAtOpen = app.history.ids.value
@@ -231,6 +236,12 @@ fun LazyListScope.digestRows(v: DigestView) {
     val today = app.digest.today()
     val d = v.days.firstOrNull { it.day == (v.day ?: today) }
     item(key = "digest_head", contentType = "digest_head") { DigestHead(v, d) }
+    if (d?.aiFailed == true) item(key = "digest_ai_failed") {
+        DigestNote("AI wasn't available; picked by activity")
+    }
+    d?.overview?.let { text ->
+        item(key = "digest_overview") { DigestOverview(text) }
+    }
     if (d == null) {
         val out = v.outcome
         when {
@@ -270,7 +281,7 @@ fun LazyListScope.digestRows(v: DigestView) {
     }
     // Grouped before hiding read posts, so a community keeps its place as they go.
     val shownIds = shown.mapTo(HashSet()) { it.post.id }
-    for ((community, all) in groupByCommunity(d.items)) {
+    for ((community, all) in orderDigest(d.items, v.order)) {
         val items = all.filter { it.post.id in shownIds }
         if (items.isEmpty()) continue
         item(key = "digest_sub_${community.lowercase()}", contentType = "digest_sub") {
@@ -333,6 +344,36 @@ private fun DigestCard(v: DigestView, item: DigestItem, isNew: Boolean) {
             Text(item.why, fontSize = 12.sp, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         PostCard(item.post, swipeOverride = null to spec)
+    }
+}
+
+/** The AI's paragraph about the day. */
+@Composable
+private fun DigestOverview(text: String) {
+    val cs = MaterialTheme.colorScheme
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp)
+            .background(cs.surfaceContainerLow, RoundedCornerShape(28.dp))
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(16.dp), tint = cs.primary)
+            Spacer(Modifier.width(6.dp))
+            Text("Today in your communities", style = MaterialTheme.typography.titleSmall, color = cs.primary)
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(text, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+private fun DigestNote(text: String) {
+    Row(Modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Outlined.Info, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.width(6.dp))
+        Text(text, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

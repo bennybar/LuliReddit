@@ -97,6 +97,9 @@ class DigestStore(private val context: Context, private val raw: (String) -> Jso
                 put("built", d.builtAt)
                 put("refreshed", d.refreshedAt)
                 put("seen", d.seenAt)
+                d.overview?.let { put("overview", it) }
+                if (d.aiFailed) put("aiFailed", 1)
+                if (d.aiAt > 0) put("aiAt", d.aiAt)
                 putJsonArray("items") {
                     for (it in d.items) {
                         val r = synchronized(rawCache) { rawCache[it.post.id] } ?: raw(it.post.id)?.also { r -> synchronized(rawCache) { rawCache[it.post.id] = r } } ?: continue
@@ -105,6 +108,7 @@ class DigestStore(private val context: Context, private val raw: (String) -> Jso
                             put("why", it.why)
                             put("n", it.notability)
                             put("at", it.addedAt)
+                            if (it.importance > 0) put("imp", it.importance)
                         })
                     }
                 }
@@ -124,11 +128,14 @@ class DigestStore(private val context: Context, private val raw: (String) -> Jso
             builtAt = d["built"].long() ?: 0,
             refreshedAt = d["refreshed"].long() ?: 0,
             seenAt = d["seen"].long() ?: 0,
+            overview = d["overview"].str(),
+            aiFailed = d["aiFailed"].long() == 1L,
+            aiAt = d["aiAt"].long() ?: 0,
             items = d["items"].arr().orEmpty().mapNotNull { i ->
                 val r = i["raw"] ?: return@mapNotNull null
                 val post = runCatching { Post.fromData(r) }.getOrNull() ?: return@mapNotNull null
                 synchronized(rawCache) { rawCache[post.id] = r }
-                DigestItem(post, i["why"].str().orEmpty(), i["n"].double() ?: 0.0, i["at"].long() ?: 0)
+                DigestItem(post, i["why"].str().orEmpty(), i["n"].double() ?: 0.0, i["at"].long() ?: 0, importance = i["imp"].long()?.toInt() ?: 0)
             },
             judged = d["judged"].obj().orEmpty().mapNotNull { (id, v) ->
                 val a = v.arr() ?: return@mapNotNull null

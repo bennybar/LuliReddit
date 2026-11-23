@@ -23,8 +23,30 @@ enum class DigestSize(val items: Int, val perCommunity: Int, val label: String, 
     }
 }
 
-/** A post in a digest, with why it's there. [addedAt]: when this day's digest gained it. */
-data class DigestItem(val post: Post, val why: String, val notability: Double, val addedAt: Long)
+/**
+ * A post in a digest, with why it's there. [addedAt]: when this day's digest gained it;
+ * [importance]: the AI's 1–5 rating (0: picked without AI).
+ */
+data class DigestItem(val post: Post, val why: String, val notability: Double, val addedAt: Long, val importance: Int = 0)
+
+/** Settings › Digest › Order by (`digestOrder`). [AI]: the AI's importance, without it as [NOTABLE]. */
+enum class DigestOrder(val label: String, val description: String) {
+    NOTABLE("Most notable", "How much a post stands out in its own community"),
+    UPVOTED("Most upvoted", "The most points first"),
+    NEWEST("Newest", "The most recent first"),
+    AI("AI's assessment", "How important the AI rated it, then how notable"),
+    ;
+
+    companion object {
+        fun of(i: Int) = entries.getOrElse(i) { NOTABLE }
+    }
+}
+
+/** The AI's answer for a build: an overview (when asked for) and its verdicts, by post id. */
+data class DigestAi(val overview: String?, val verdicts: Map<String, AiVerdict>)
+
+/** [importance]: 1–5; under 2 is never shown. */
+data class AiVerdict(val importance: Int, val why: String)
 
 /**
  * A candidate's verdict for the day, kept so a refresh doesn't judge it again (nor
@@ -44,6 +66,12 @@ data class DigestDay(
     val seenAt: Long,
     val items: List<DigestItem>,
     val judged: Map<String, Judged>,
+    /** The AI's paragraph about the day (its first build, when asked for). */
+    val overview: String? = null,
+    /** The last build wanted the AI and couldn't have it: picked by activity instead. */
+    val aiFailed: Boolean = false,
+    /** The last AI call for this day (0: none), for the automatic builds' 12-hour guard. */
+    val aiAt: Long = 0,
 ) {
     fun isNew(item: DigestItem) = item.addedAt > builtAt && item.addedAt > seenAt
 }
@@ -82,25 +110,10 @@ internal fun digestWhy(p: Post, notability: Double, top: Boolean): String {
     return (if (top) "Top post today · $times a typical post" else "$times a typical post") + comments
 }
 
-/**
- * Today's digest after a build or refresh ([prev]: the day so far, null for a first
- * build or a rebuild). [candidates]: the communities' top posts of the day, already
- * without hidden and filtered ones; [readIds]: posts the user has read.
- *
- * Posts judged earlier keep their verdict (a refresh only judges what's new), except
- * one not picked whose notability has since doubled: it gets one second look. Nothing
- * already in the digest goes away or moves; new picks go after it. The size is the
- * target for the day's first build; later ones add up to the per-community cap
- * (and Everything notable keeps its 30).
- */
-fun mergeDigest(
-    prev: DigestDay?,
-    day: String,
-    candidates: List<Post>,
-    readIds: Set<String>,
-    size: DigestSize,
-    now: Long,
-): DigestDay {
+/** The candidates of a build, as both the AI request and the merge see them. */
+private class Batch(val today: DigestDay?, val fresh: List<Post>, val notability: Map<String, Double>, val tops: Set<String>, val toJudge: List<Post>)
+
+private fun batch(prev: DigestDay?, day: String, candidates: List<Post>, now: Long): Batch {
     val today = prev?.takeIf { it.day == day }
     val fresh = candidates
         .filter { !it.stickied && it.createdUtc > 0 && now - it.createdUtc <= DAY_MS }
@@ -110,11 +123,63 @@ fun mergeDigest(
     val tops = fresh.groupBy { it.subreddit.lowercase() }
         .mapNotNull { (_, g) -> g.maxByOrNull { notability[it.id] ?: 0.0 }?.id }
         .toHashSet()
+    val shown = today?.items?.mapTo(HashSet()) { it.post.id } ?: emptySet()
+    val judged = today?.judged ?: emptyMap()
+    // Not judged yet, or not picked and twice as notable as then (one second look).
+    val toJudge = fresh.filter { p ->
+        if (p.id in shown) return@filter false
+        val j = judged[p.id] ?: return@filter true
+        !j.picked && !j.secondLook && (notability[p.id] ?: 0.0) >= 2 * j.notability
+    }.sortedByDescending { notability[it.id] ?: 0.0 }
+    return Batch(today, fresh, notability, tops, toJudge)
+}
 
-    val byId = fresh.associateBy { it.id }
+/**
+ * What a build would send the AI: the posts to judge (never one read before it was
+ * judged), most notable first, at most [max]. Empty: no AI call.
+ */
+fun digestPending(prev: DigestDay?, day: String, candidates: List<Post>, readIds: Set<String>, now: Long, max: Int = AI_CANDIDATES): List<Post> {
+    val b = batch(prev, day, candidates, now)
+    return b.toJudge.filter { it.id in (b.today?.judged ?: emptyMap()) || it.id !in readIds }.take(max)
+}
+
+/** How many posts the AI is shown: the most notable, not the final picks (it chooses). */
+const val AI_CANDIDATES = 40
+
+/**
+ * Today's digest after a build or refresh ([prev]: the day so far, null for a first
+ * build or a rebuild). [candidates]: the communities' top posts of the day, already
+ * without hidden and filtered ones; [readIds]: posts the user has read.
+ *
+ * Posts judged earlier keep their verdict (a refresh only judges what's new), except
+ * one not picked whose notability has since doubled: it gets one second look. Nothing
+ * already in the digest goes away; new picks go after it. The size is the target for
+ * the day's first build; later ones add up to the per-community cap (and Everything
+ * notable keeps its 30).
+ *
+ * With [ai] (the AI's verdicts on [digestPending]'s posts), it picks instead of the
+ * numbers: the posts it rated 2 or more, most important first, with its "why"; a post
+ * it didn't rate isn't picked. [aiFailed]: the AI was wanted and failed, so this is by
+ * the numbers and the screen says so.
+ */
+fun mergeDigest(
+    prev: DigestDay?,
+    day: String,
+    candidates: List<Post>,
+    readIds: Set<String>,
+    size: DigestSize,
+    now: Long,
+    ai: DigestAi? = null,
+    aiFailed: Boolean = false,
+): DigestDay {
+    val b = batch(prev, day, candidates, now)
+    val today = b.today
+    val notability = b.notability
+    val tops = b.tops
+
+    val byId = b.fresh.associateBy { it.id }
     // What's shown stays, with today's numbers (points, comments).
     val items = (today?.items ?: emptyList()).mapTo(ArrayList()) { item -> byId[item.post.id]?.let { item.copy(post = it) } ?: item }
-    val shown = items.mapTo(HashSet()) { it.post.id }
     val judged = HashMap(today?.judged ?: emptyMap())
 
     // One copy of a link or a story: against what's shown, then each pick.
@@ -124,11 +189,9 @@ fun mergeDigest(
     for (it in items) perCommunity.merge(it.post.subreddit.lowercase(), 1, Int::plus)
     val cap = if (today == null || size == DigestSize.EVERYTHING) size.items else Int.MAX_VALUE
 
-    val toJudge = fresh.filter { p ->
-        if (p.id in shown) return@filter false
-        val j = judged[p.id] ?: return@filter true
-        !j.picked && !j.secondLook && (notability[p.id] ?: 0.0) >= 2 * j.notability
-    }.sortedByDescending { notability[it.id] ?: 0.0 }
+    val verdicts = ai?.verdicts
+    val toJudge = if (verdicts == null) b.toJudge
+    else b.toJudge.sortedWith(compareByDescending<Post> { verdicts[it.id]?.importance ?: 0 }.thenByDescending { notability[it.id] ?: 0.0 })
 
     for (p in toJudge) {
         val n = notability[p.id] ?: 0.0
@@ -136,10 +199,15 @@ fun mergeDigest(
         val sub = p.subreddit.lowercase()
         val words = titleKeywords(p.title).toSet()
         val url = normalisedUrl(p)
+        val verdict = verdicts?.get(p.id)
         val pick = when {
             // Read before it was ever judged: it shouldn't take a place.
             !again && p.id in readIds -> false
+            // The AI chooses: what it rated under 2, or didn't rate, stays out.
+            verdicts != null -> verdict != null && verdict.importance >= 2
             n < NOTABLE && p.id !in tops -> false
+            else -> true
+        } && when {
             items.size >= cap -> false
             (perCommunity[sub] ?: 0) >= size.perCommunity -> false
             url != null && url in urls -> false
@@ -148,7 +216,8 @@ fun mergeDigest(
         }
         judged[p.id] = Judged(pick, n, now, secondLook = again)
         if (!pick) continue
-        items.add(DigestItem(p, digestWhy(p, n, p.id in tops), n, now))
+        val why = verdict?.why?.takeIf { it.isNotBlank() } ?: digestWhy(p, n, p.id in tops)
+        items.add(DigestItem(p, why, n, now, importance = verdict?.importance ?: 0))
         perCommunity.merge(sub, 1, Int::plus)
         url?.let(urls::add)
         if (words.size >= 3) stories.add(words)
@@ -160,7 +229,25 @@ fun mergeDigest(
         seenAt = today?.seenAt ?: now,
         items = items,
         judged = judged,
+        // The overview is about the day's first build; a refresh keeps it.
+        overview = today?.overview ?: ai?.overview?.takeIf { it.isNotBlank() },
+        aiFailed = aiFailed,
+        aiAt = if (ai != null || aiFailed) now else today?.aiAt ?: 0,
     )
+}
+
+/**
+ * The items in [order], grouped by community: the communities in the order of their
+ * first post, each one's posts in [order].
+ */
+fun orderDigest(items: List<DigestItem>, order: DigestOrder): List<Pair<String, List<DigestItem>>> {
+    val sorted = when (order) {
+        DigestOrder.NOTABLE -> items.sortedByDescending { it.notability }
+        DigestOrder.UPVOTED -> items.sortedByDescending { it.post.score }
+        DigestOrder.NEWEST -> items.sortedByDescending { it.post.createdUtc }
+        DigestOrder.AI -> items.sortedWith(compareByDescending<DigestItem> { it.importance }.thenByDescending { it.notability })
+    }
+    return groupByCommunity(sorted)
 }
 
 /**

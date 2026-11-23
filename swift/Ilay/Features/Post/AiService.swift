@@ -92,6 +92,11 @@ enum AiService {
     }
 
     /// One /v1/chat/completions call; returns the reply text or throws with a readable message.
+    /// The Digest's one request (DigestAiPrompt.swift builds it and parses the reply).
+    static func digest(baseUrl: String, apiKey: String, model: String, system: String, user: String) async throws -> String {
+        try await chat(baseUrl: baseUrl, apiKey: apiKey, model: model, messages: [("system", system), ("user", user)])
+    }
+
     private static func chat(baseUrl: String, apiKey: String, model: String, messages: [(String, String)]) async throws -> String {
         guard let url = URL(string: chatUrl(baseUrl)), url.host != nil else {
             throw AppException("Could not reach the AI endpoint: bad address \(baseUrl)")

@@ -4,6 +4,7 @@ import com.bennybar.luli_for_reddit.AppContainer
 import com.bennybar.luli_for_reddit.core.net.RedditApiException
 import com.bennybar.luli_for_reddit.data.PostSort
 import com.bennybar.luli_for_reddit.data.TopTime
+import com.bennybar.luli_for_reddit.feature.post.AiService
 import com.bennybar.luli_for_reddit.model.Post
 import com.bennybar.luli_for_reddit.state.UserScoped
 import com.bennybar.luli_for_reddit.state.userScopedKey
@@ -118,7 +119,33 @@ class DigestModule(private val c: AppContainer) : UserScoped {
             val hidden = c.hiddenPosts.ids.value
             val candidates = fetchCandidates(subs).filter { it.id !in hidden && !filters.hides(it) }
             val size = DigestSize.of(c.settings.value.digestSize)
-            val merged = mergeDigest(prev, day, candidates, c.history.ids.value, size, now)
+            val read = c.history.ids.value
+            val s = c.settings.value
+            // The AI step (spec section 6): only when "Use AI" is on and there's a key; only
+            // posts not judged yet (none: no call); an automatic build at most once in 12 hours.
+            var ai: DigestAi? = null
+            var aiFailed = false
+            val key = if (s.digestAi) c.secureStore.openaiKey() else null
+            val pending = if (key.isNullOrEmpty()) emptyList() else digestPending(prev, day, candidates, read, now)
+            val due = manual || prev == null || now - prev.aiAt >= STALE_MS
+            if (!key.isNullOrEmpty() && pending.isNotEmpty() && due) {
+                val (system, user) = digestAiMessages(
+                    pending, interests(), size,
+                    overview = s.digestOverview && prev == null, // the overview is about the day's first build
+                    language = s.aiSummaryLanguage, now = now,
+                )
+                ai = try {
+                    val baseUrl = if (s.aiUseCustomUrl) s.aiBaseUrl else "https://api.openai.com"
+                    parseDigestAi(AiService.digest(baseUrl, key, s.aiModel, system, user), pending)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    null
+                }
+                // Unreachable, refused or unreadable: by the numbers, and the screen says so.
+                aiFailed = ai == null
+            }
+            val merged = mergeDigest(prev, day, candidates, read, size, now, ai, aiFailed)
             if (c.session.username != session.username) return Outcome.Failed(CancellationException("Account changed"))
             store.put(merged)
             return Outcome.Updated(merged.items.size - (prev?.items?.size ?: 0))
@@ -191,6 +218,19 @@ class DigestModule(private val c: AppContainer) : UserScoped {
                 }
             }.awaitAll().flatten()
         }
+    }
+
+    /** What the AI is told about you: For You's strongest words, and your More / Less choices. */
+    private fun interests(): DigestInterests {
+        val f = c.forYou
+        val explicit = f.explicit.value
+        return DigestInterests(
+            keywords = f.keywords.value.entries.filter { it.value > 0 }.sortedByDescending { it.value }.take(15).map { it.key },
+            moreTopics = explicit.topics.filter { it.value > 0 }.keys.toList(),
+            lessTopics = explicit.topics.filter { it.value < 0 }.keys.toList(),
+            moreCommunities = explicit.subs.filter { it.value > 0 }.keys.toList(),
+            lessCommunities = explicit.subs.filter { it.value < 0 }.keys.toList(),
+        )
     }
 
     companion object {

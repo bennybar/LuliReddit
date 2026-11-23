@@ -89,6 +89,9 @@ class SettingsStore(private val p: Prefs) {
             // 0 the Posts chip, 1 a bottom tab, 2 menu only; anything else: the chip.
             digestPlace = (p.getInt("digestPlace") ?: d.digestPlace).let { if (it in 0..2) it else 0 },
             digestShowRead = b("digestShowRead", d.digestShowRead),
+            digestAi = b("digestAi", d.digestAi),
+            digestOverview = b("digestOverview", d.digestOverview),
+            digestOrder = (p.getInt("digestOrder") ?: d.digestOrder).coerceIn(0, 3),
             forYouDiscovery = (p.getInt("forYouDiscovery") ?: d.forYouDiscovery).coerceIn(-2, 2),
             midResThumbnails = b("midResThumbnails", d.midResThumbnails),
             subsCacheEnabled = b("subsCacheEnabled", d.subsCacheEnabled),
@@ -212,6 +215,9 @@ class SettingsStore(private val p: Prefs) {
     fun setDigestSize(v: Int) { p.setInt("digestSize", v); set { it.copy(digestSize = v) } }
     fun setDigestPlace(v: Int) { p.setInt("digestPlace", v); set { it.copy(digestPlace = v) } }
     fun setDigestShowRead(v: Boolean) { p.setBool("digestShowRead", v); set { it.copy(digestShowRead = v) } }
+    fun setDigestAi(v: Boolean) { p.setBool("digestAi", v); set { it.copy(digestAi = v) } }
+    fun setDigestOverview(v: Boolean) { p.setBool("digestOverview", v); set { it.copy(digestOverview = v) } }
+    fun setDigestOrder(v: Int) { p.setInt("digestOrder", v); set { it.copy(digestOrder = v) } }
     fun setAutoHideReadForYou(v: Boolean) { p.setBool("autoHideReadForYou", v); set { it.copy(autoHideReadForYou = v) } }
     fun setForYouDiscovery(v: Int) { p.setInt("forYouDiscovery", v); set { it.copy(forYouDiscovery = v) } }
     fun setAppFont(v: AppFont) {

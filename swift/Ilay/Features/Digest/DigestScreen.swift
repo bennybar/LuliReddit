@@ -94,6 +94,22 @@ struct DigestList<Top: View>: View {
                 .listRowBackground(Color.clear)
             DigestHead(model: model, day: d)
                 .listRowSeparator(.hidden)
+            if d?.aiFailed == true {
+                Label("AI wasn't available; picked by activity", systemImage: "info.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .listRowSeparator(.hidden)
+            }
+            if let overview = d?.overview {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Today in your communities", systemImage: "sparkles").font(.subheadline.weight(.semibold)).foregroundStyle(.tint)
+                    Text(overview)
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 20))
+                .listRowSeparator(.hidden)
+            }
             content(d)
         }
         .listStyle(.plain)
@@ -116,7 +132,9 @@ struct DigestList<Top: View>: View {
                 let seenAt = seenAt(d)
                 let ids = Set(shown.map(\.post.id))
                 // Grouped before hiding read posts, so a community keeps its place as they go.
-                ForEach(groupByCommunity(d.items), id: \.community) { group in
+                // The AI's order only means something while it's on.
+                let order = DigestOrder.of(app.settings.value.digestOrder)
+                ForEach(orderDigest(d.items, order == .ai && !app.settings.value.digestAi ? .notable : order), id: \.community) { group in
                     let items = group.items.filter { ids.contains($0.post.id) }
                     if !items.isEmpty {
                         Text("r/\(group.community)")

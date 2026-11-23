@@ -116,13 +116,49 @@ final class DigestModule: UserScoped {
             let hidden = c.hiddenPosts.ids
             let candidates = try await fetchCandidates(subs).filter { !hidden.contains($0.id) && !filters.hides($0) }
             let size = DigestSize.of(c.settings.value.digestSize)
-            let merged = mergeDigest(prev, day: day, candidates: candidates, readIds: c.history.ids, size: size, now: now)
+            let read = c.history.ids
+            let s = c.settings.value
+            // The AI step (spec section 6): only when "Use AI" is on and there's a key; only
+            // posts not judged yet (none: no call); an automatic build at most once in 12 hours.
+            var ai: DigestAi?
+            var aiFailed = false
+            let key = s.digestAi ? await c.secureStore.openaiKey() : nil
+            let pending = key?.isEmpty == false ? digestPending(prev, day: day, candidates: candidates, readIds: read, now: now) : []
+            let due = manual || prev == nil || now - (prev?.aiAt ?? 0) >= Self.staleMs
+            if let key, !key.isEmpty, !pending.isEmpty, due {
+                let (system, user) = digestAiMessages(
+                    pending, interests: interests(), size: size,
+                    overview: s.digestOverview && prev == nil, // the overview is about the day's first build
+                    language: s.aiSummaryLanguage, now: now
+                )
+                let baseUrl = s.aiUseCustomUrl ? s.aiBaseUrl : "https://api.openai.com"
+                if let reply = try? await AiService.digest(baseUrl: baseUrl, apiKey: key, model: s.aiModel, system: system, user: user) {
+                    ai = parseDigestAi(reply, posts: pending)
+                }
+                if Task.isCancelled { return .failed("Cancelled") }
+                // Unreachable, refused or unreadable: by the numbers, and the screen says so.
+                aiFailed = ai == nil
+            }
+            let merged = mergeDigest(prev, day: day, candidates: candidates, readIds: read, size: size, now: now, ai: ai, aiFailed: aiFailed)
             if Task.isCancelled || c.session.username != session.username { return .failed("Account changed") }
             store.put(merged)
             return .updated(added: merged.items.count - (prev?.items.count ?? 0))
         } catch {
             return .failed(friendlyError(error))
         }
+    }
+
+    /// What the AI is told about you: For You's strongest words, and your More / Less choices.
+    private func interests() -> DigestInterests {
+        let f = c.forYou
+        let explicit = f.explicit.value
+        return DigestInterests(
+            keywords: Array(f.keywords.value.filter { $0.value > 0 }.sorted { $0.value > $1.value }.prefix(15).map(\.key)),
+            moreTopics: explicit.topics.filter { $0.value > 0 }.map(\.key),
+            lessTopics: explicit.topics.filter { $0.value < 0 }.map(\.key),
+            moreCommunities: explicit.subs.filter { $0.value > 0 }.map(\.key),
+            lessCommunities: explicit.subs.filter { $0.value < 0 }.map(\.key)
+        )
     }
 
     /// The day's top posts in `subs`: up to eight communities a request (/r/a+b+c/top),

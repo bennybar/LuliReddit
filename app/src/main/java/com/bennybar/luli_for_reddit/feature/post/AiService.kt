@@ -118,6 +118,10 @@ object AiService {
         return out
     }
 
+    /** The Digest's one request (DigestAiPrompt.kt builds it and parses the reply). */
+    suspend fun digest(baseUrl: String, apiKey: String, model: String, system: String, user: String): String =
+        chat(baseUrl, apiKey, model, listOf("system" to system, "user" to user))
+
     /** One /v1/chat/completions call; returns the reply text or throws with a readable message. */
     private suspend fun chat(baseUrl: String, apiKey: String, model: String, messages: List<Pair<String, String>>): String {
         val url = chatUrl(baseUrl)

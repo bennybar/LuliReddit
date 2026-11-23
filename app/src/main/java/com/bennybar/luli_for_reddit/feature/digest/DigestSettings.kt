@@ -43,6 +43,9 @@ private val DIGEST_EXPLAINED = listOf(
     "What it is" to "The posts that stood out in the last 24 hours in the communities you choose, in one short list.",
     "How it picks" to "By how unusual a post is for its own community: its points and comments against what's " +
         "typical there. A small community's big day counts as much as a big one's, and a quiet day gives a short digest.",
+    "What AI adds" to "With \"Use AI\" on, your own AI key picks and explains the posts, and can add a short overview. " +
+        "One small request per digest, fewer on refresh since only new posts are sent. Post titles and the " +
+        "topics you read go to the AI provider you set up. Nothing is sent unless you turn it on.",
     "Your communities" to "Your starred favourites, or up to ${DigestModule.MAX_COMMUNITIES} you choose.",
     "When it's built" to "When you open it, if it's more than 12 hours old. Pull down for what's new: it only adds " +
         "posts, nothing already there goes away.",

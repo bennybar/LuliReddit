@@ -247,6 +247,9 @@ struct Settings: Equatable, Sendable {
     var digestSize = 1 // DigestSize index: 0 Brief, 1 Standard, 2 Everything notable
     var digestPlace = 0 // 0 a chip on Posts, 1 a bottom tab, 2 menu only
     var digestShowRead = false // the Digest keeps read posts (dimmed) instead of hiding them
+    var digestAi = false // the AI picks and explains (never on unless the user turns it on)
+    var digestOverview = false // with the AI: a paragraph about the day on top
+    var digestOrder = 0 // DigestOrder index: 0 Most notable, 1 Most upvoted, 2 Newest, 3 AI's assessment
     // Experimental Reddit Home: the user accepted its risk warning (allowed),
     // and the frontpage currently shows it (feed).
     var redditHomeAllowed = false

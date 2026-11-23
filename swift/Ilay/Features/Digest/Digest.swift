@@ -18,12 +18,38 @@ enum DigestSize: Int, CaseIterable, Sendable {
     }
 }
 
-/// A post in a digest, with why it's there. `addedAt`: when this day's digest gained it.
+/// A post in a digest, with why it's there. `addedAt`: when this day's digest gained it;
+/// `importance`: the AI's 1–5 rating (0: picked without AI).
 struct DigestItem: Equatable, Sendable {
     var post: Post
     let why: String
     let notability: Double
     let addedAt: Int
+    var importance = 0
+}
+
+/// Settings › Digest › Order by (`digestOrder`). `ai`: the AI's importance, without it as `notable`.
+enum DigestOrder: Int, CaseIterable, Sendable {
+    case notable, upvoted, newest, ai
+
+    static func of(_ i: Int) -> DigestOrder { DigestOrder(rawValue: i) ?? .notable }
+
+    var label: String { ["Most notable", "Most upvoted", "Newest", "AI's assessment"][rawValue] }
+    var description: String {
+        ["How much a post stands out in its own community", "The most points first", "The most recent first", "How important the AI rated it, then how notable"][rawValue]
+    }
+}
+
+/// The AI's answer for a build: an overview (when asked for) and its verdicts, by post id.
+struct DigestAi: Equatable, Sendable {
+    let overview: String?
+    let verdicts: [String: AiVerdict]
+}
+
+/// `importance`: 1–5; under 2 is never shown.
+struct AiVerdict: Equatable, Sendable {
+    let importance: Int
+    let why: String
 }
 
 /// A candidate's verdict for the day, kept so a refresh doesn't judge it again (nor send
@@ -45,6 +71,12 @@ struct DigestDay: Equatable, Sendable {
     var seenAt: Int
     let items: [DigestItem]
     let judged: [String: Judged]
+    /// The AI's paragraph about the day (its first build, when asked for).
+    var overview: String? = nil
+    /// The last build wanted the AI and couldn't have it: picked by activity instead.
+    var aiFailed = false
+    /// The last AI call for this day (0: none), for the automatic builds' 12-hour guard.
+    var aiAt = 0
 
     func isNew(_ item: DigestItem) -> Bool { item.addedAt > builtAt && item.addedAt > seenAt }
 }
@@ -91,16 +123,16 @@ func digestWhy(_ p: Post, notability: Double, top: Bool) -> String {
     return (top ? "Top post today · \(times) a typical post" : "\(times) a typical post") + comments
 }
 
-/// Today's digest after a build or refresh (`prev`: the day so far, nil for a first build
-/// or a rebuild). `candidates`: the communities' top posts of the day, already without
-/// hidden and filtered ones; `readIds`: posts the user has read.
-///
-/// Posts judged earlier keep their verdict (a refresh only judges what's new), except one
-/// not picked whose notability has since doubled: it gets one second look. Nothing
-/// already in the digest goes away or moves; new picks go after it. The size is the
-/// target for the day's first build; later ones add up to the per-community cap (and
-/// Everything notable keeps its 30).
-func mergeDigest(_ prev: DigestDay?, day: String, candidates: [Post], readIds: Set<String>, size: DigestSize, now: Int) -> DigestDay {
+/// The candidates of a build, as both the AI request and the merge see them.
+private struct Batch {
+    let today: DigestDay?
+    let fresh: [Post]
+    let notability: [String: Double]
+    let tops: Set<String>
+    let toJudge: [Post]
+}
+
+private func batch(_ prev: DigestDay?, day: String, candidates: [Post], now: Int) -> Batch {
     let today = prev?.day == day ? prev : nil
     var seenIds = Set<String>()
     let fresh = candidates.filter {
@@ -112,8 +144,49 @@ func mergeDigest(_ prev: DigestDay?, day: String, candidates: [Post], readIds: S
     for group in Dictionary(grouping: fresh, by: { $0.subreddit.lowercased() }).values {
         if let best = group.max(by: { (notability[$0.id] ?? 0) < (notability[$1.id] ?? 0) }) { tops.insert(best.id) }
     }
+    let shown = Set((today?.items ?? []).map(\.post.id))
+    let judged = today?.judged ?? [:]
+    // Not judged yet, or not picked and twice as notable as then (one second look).
+    let toJudge = fresh.filter { p in
+        if shown.contains(p.id) { return false }
+        guard let j = judged[p.id] else { return true }
+        return !j.picked && !j.secondLook && (notability[p.id] ?? 0) >= 2 * j.notability
+    }.sorted { (notability[$0.id] ?? 0) > (notability[$1.id] ?? 0) }
+    return Batch(today: today, fresh: fresh, notability: notability, tops: tops, toJudge: toJudge)
+}
 
-    let byId = Dictionary(fresh.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+/// How many posts the AI is shown: the most notable, not the final picks (it chooses).
+let digestAiCandidates = 40
+
+/// What a build would send the AI: the posts to judge (never one read before it was
+/// judged), most notable first, at most `max`. Empty: no AI call.
+func digestPending(_ prev: DigestDay?, day: String, candidates: [Post], readIds: Set<String>, now: Int, max: Int = digestAiCandidates) -> [Post] {
+    let b = batch(prev, day: day, candidates: candidates, now: now)
+    let judged = b.today?.judged ?? [:]
+    return Array(b.toJudge.filter { judged[$0.id] != nil || !readIds.contains($0.id) }.prefix(max))
+}
+
+/// Today's digest after a build or refresh (`prev`: the day so far, nil for a first build
+/// or a rebuild). `candidates`: the communities' top posts of the day, already without
+/// hidden and filtered ones; `readIds`: posts the user has read.
+///
+/// Posts judged earlier keep their verdict (a refresh only judges what's new), except one
+/// not picked whose notability has since doubled: it gets one second look. Nothing
+/// already in the digest goes away; new picks go after it. The size is the target for
+/// the day's first build; later ones add up to the per-community cap (and Everything
+/// notable keeps its 30).
+///
+/// With `ai` (the AI's verdicts on `digestPending`'s posts), it picks instead of the
+/// numbers: the posts it rated 2 or more, most important first, with its "why"; a post it
+/// didn't rate isn't picked. `aiFailed`: the AI was wanted and failed, so this is by the
+/// numbers and the screen says so.
+func mergeDigest(_ prev: DigestDay?, day: String, candidates: [Post], readIds: Set<String>, size: DigestSize, now: Int, ai: DigestAi? = nil, aiFailed: Bool = false) -> DigestDay {
+    let b = batch(prev, day: day, candidates: candidates, now: now)
+    let today = b.today
+    let notability = b.notability
+    let tops = b.tops
+
+    let byId = Dictionary(b.fresh.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
     // What's shown stays, with today's numbers (points, comments).
     var items = (today?.items ?? []).map { item -> DigestItem in
         guard let p = byId[item.post.id] else { return item }
@@ -121,7 +194,6 @@ func mergeDigest(_ prev: DigestDay?, day: String, candidates: [Post], readIds: S
         i.post = p
         return i
     }
-    let shown = Set(items.map(\.post.id))
     var judged = today?.judged ?? [:]
 
     // One copy of a link or a story: against what's shown, then each pick.
@@ -131,11 +203,16 @@ func mergeDigest(_ prev: DigestDay?, day: String, candidates: [Post], readIds: S
     for it in items { perCommunity[it.post.subreddit.lowercased(), default: 0] += 1 }
     let cap = today == nil || size == .everything ? size.items : Int.max
 
-    let toJudge = fresh.filter { p in
-        if shown.contains(p.id) { return false }
-        guard let j = judged[p.id] else { return true }
-        return !j.picked && !j.secondLook && (notability[p.id] ?? 0) >= 2 * j.notability
-    }.sorted { (notability[$0.id] ?? 0) > (notability[$1.id] ?? 0) }
+    let verdicts = ai?.verdicts
+    let toJudge: [Post]
+    if let verdicts {
+        toJudge = b.toJudge.sorted { a, c in
+            let ia = verdicts[a.id]?.importance ?? 0, ic = verdicts[c.id]?.importance ?? 0
+            return ia != ic ? ia > ic : (notability[a.id] ?? 0) > (notability[c.id] ?? 0)
+        }
+    } else {
+        toJudge = b.toJudge
+    }
 
     for p in toJudge {
         let n = notability[p.id] ?? 0
@@ -143,23 +220,28 @@ func mergeDigest(_ prev: DigestDay?, day: String, candidates: [Post], readIds: S
         let sub = p.subreddit.lowercased()
         let words = Set(titleKeywords(p.title))
         let url = normalisedUrl(p)
-        let pick: Bool
+        let verdict = verdicts?[p.id]
+        var pick: Bool
         if !again && readIds.contains(p.id) {
             pick = false // read before it was ever judged: it shouldn't take a place
-        } else if n < digestNotable && !tops.contains(p.id) {
-            pick = false
-        } else if items.count >= cap || perCommunity[sub, default: 0] >= size.perCommunity {
-            pick = false
-        } else if let url, urls.contains(url) {
-            pick = false
-        } else if words.count >= 3 && stories.contains(where: { sameStory($0, words) }) {
-            pick = false
+        } else if verdicts != nil {
+            pick = (verdict?.importance ?? 0) >= 2 // the AI chooses: under 2, or unrated, stays out
         } else {
-            pick = true
+            pick = n >= digestNotable || tops.contains(p.id)
+        }
+        if pick {
+            if items.count >= cap || perCommunity[sub, default: 0] >= size.perCommunity {
+                pick = false
+            } else if let url, urls.contains(url) {
+                pick = false
+            } else if words.count >= 3 && stories.contains(where: { sameStory($0, words) }) {
+                pick = false
+            }
         }
         judged[p.id] = Judged(picked: pick, notability: n, at: now, secondLook: again)
         if !pick { continue }
-        items.append(DigestItem(post: p, why: digestWhy(p, notability: n, top: tops.contains(p.id)), notability: n, addedAt: now))
+        let why = verdict.map(\.why).flatMap { $0.isEmpty ? nil : $0 } ?? digestWhy(p, notability: n, top: tops.contains(p.id))
+        items.append(DigestItem(post: p, why: why, notability: n, addedAt: now, importance: verdict?.importance ?? 0))
         perCommunity[sub, default: 0] += 1
         if let url { urls.insert(url) }
         if words.count >= 3 { stories.append(words) }
@@ -170,8 +252,24 @@ func mergeDigest(_ prev: DigestDay?, day: String, candidates: [Post], readIds: S
         refreshedAt: now,
         seenAt: today?.seenAt ?? now,
         items: items,
-        judged: judged
+        judged: judged,
+        // The overview is about the day's first build; a refresh keeps it.
+        overview: today?.overview ?? ai?.overview.flatMap { $0.isEmpty ? nil : $0 },
+        aiFailed: aiFailed,
+        aiAt: ai != nil || aiFailed ? now : today?.aiAt ?? 0
     )
+}
+
+/// The items in `order`, grouped by community: the communities in the order of their
+/// first post, each one's posts in `order`.
+func orderDigest(_ items: [DigestItem], _ order: DigestOrder) -> [(community: String, items: [DigestItem])] {
+    let sorted: [DigestItem] = switch order {
+    case .notable: items.sorted { $0.notability > $1.notability }
+    case .upvoted: items.sorted { $0.post.score > $1.post.score }
+    case .newest: items.sorted { $0.post.createdUtc > $1.post.createdUtc }
+    case .ai: items.sorted { $0.importance != $1.importance ? $0.importance > $1.importance : $0.notability > $1.notability }
+    }
+    return groupByCommunity(sorted)
 }
 
 /// The items grouped by community for the screen, in the order the communities first

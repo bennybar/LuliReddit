@@ -198,6 +198,7 @@ import com.bennybar.luli_for_reddit.feature.media.MediaFolderSettingRow
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.feature.home.LocalSideBar
 import com.bennybar.luli_for_reddit.feature.digest.DigestSize
+import com.bennybar.luli_for_reddit.feature.digest.DigestOrder
 import com.bennybar.luli_for_reddit.feature.digest.digestCommunitiesLabel
 import com.bennybar.luli_for_reddit.feature.digest.editDigestCommunities
 import com.bennybar.luli_for_reddit.feature.digest.setDigestEnabled
@@ -578,6 +579,24 @@ fun SettingsList(
                 "Show read posts", "Keep posts you've read in the digest, dimmed",
                 Icons.Outlined.Visibility, s.digestShowRead, ctrl::setDigestShowRead,
             )
+            // Never on by itself, even with a key set for summaries (owner's rule).
+            switch(
+                "Use AI",
+                if (aiKeySet) "Your AI key picks and explains the posts. Sends post titles and your top interests to your AI provider"
+                else "Needs an AI key: Settings › AI summaries",
+                Icons.Outlined.AutoAwesome, s.digestAi && aiKeySet, if (aiKeySet || s.digestAi) ctrl::setDigestAi else null,
+            )
+            if (s.digestAi && aiKeySet) {
+                switch(
+                    "Overview", "A few sentences on what stood out today, on top of the digest",
+                    Icons.AutoMirrored.Rounded.Notes, s.digestOverview, ctrl::setDigestOverview,
+                )
+            }
+            val orders = DigestOrder.entries.filter { it != DigestOrder.AI || s.digestAi }
+            val order = DigestOrder.of(s.digestOrder).let { if (it in orders) it else DigestOrder.NOTABLE }
+            tile("Order by", order.label, Icons.AutoMirrored.Rounded.Sort, onClick = launch {
+                pickOption(orders.map { PickOption(it.ordinal, it.label, it.description) }, order.ordinal)?.let(ctrl::setDigestOrder)
+            })
         }
         divider("digest")
 

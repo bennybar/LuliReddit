@@ -243,6 +243,9 @@ data class Settings(
     val digestSize: Int = 1, // DigestSize index: 0 Brief, 1 Standard, 2 Everything notable
     val digestPlace: Int = 0, // 0 a chip on Posts, 1 a bottom tab, 2 menu only
     val digestShowRead: Boolean = false, // the Digest keeps read posts (dimmed) instead of hiding them
+    val digestAi: Boolean = false, // the AI picks and explains (never on unless the user turns it on)
+    val digestOverview: Boolean = false, // with the AI: a paragraph about the day on top
+    val digestOrder: Int = 0, // DigestOrder index: 0 Most notable, 1 Most upvoted, 2 Newest, 3 AI's assessment
     // Experimental Reddit Home: the user accepted its risk warning (allowed),
     // and the frontpage currently shows it (feed).
     val redditHomeAllowed: Boolean = false,

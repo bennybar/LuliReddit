@@ -273,6 +273,23 @@ struct SettingsCatalog {
                 }
             )
             b.toggle("Show read posts", "Keep posts you've read in the digest, dimmed", s.digestShowRead, set: ctrl.setDigestShowRead)
+            // Never on by itself, even with a key set for summaries (owner's rule).
+            b.toggle(
+                "Use AI",
+                secure.aiKey ? "Your AI key picks and explains the posts. Sends post titles and your top interests to your AI provider"
+                    : "Needs an AI key: Settings › AI summaries",
+                s.digestAi && secure.aiKey, enabled: secure.aiKey || s.digestAi, set: ctrl.setDigestAi
+            )
+            if s.digestAi && secure.aiKey {
+                b.toggle("Overview", "A few sentences on what stood out today, on top of the digest", s.digestOverview, set: ctrl.setDigestOverview)
+            }
+            let orders = DigestOrder.allCases.filter { $0 != .ai || s.digestAi }
+            let order = orders.contains(DigestOrder.of(s.digestOrder)) ? DigestOrder.of(s.digestOrder) : .notable
+            b.picker(
+                "Order by", value: order.rawValue,
+                options: orders.map { PickOption(value: $0.rawValue, label: $0.label, subtitle: $0.description) },
+                set: ctrl.setDigestOrder
+            )
         }
     }
 

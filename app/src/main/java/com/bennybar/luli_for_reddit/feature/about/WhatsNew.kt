@@ -50,6 +50,8 @@ val CHANGELOG = listOf(
             "New: Digest. The posts that stood out in the last 24 hours in your favourite communities, in one short list. Turn it on in Settings › Digest, where \"How Digest works\" explains it",
             "It picks by how unusual a post is for its own community, so a small community's big day isn't drowned out, and a quiet day gives a short digest. No AI needed",
             "Your choice of communities (your favourites, or up to 15), how long it is, and where it shows: a chip at the top of Posts, its own tab, or only in the side bar and Profile menu",
+            "Optional: with your own AI key, \"Use AI\" picks the posts, says why each matters, and can open with a short overview. It's off unless you turn it on, and a refresh only sends the new posts",
+            "Order it your way: most notable, most upvoted, newest, or the AI's assessment",
             "Swipe a post left to mark it read. Pull down for what's new: a refresh only adds posts, nothing already there goes away",
         ),
     ),

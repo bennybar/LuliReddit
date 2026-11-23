@@ -80,17 +80,23 @@ final class DigestStore {
                 for (id, j) in d.judged {
                     judged[id] = .array([.int(j.picked ? 1 : 0), .double(j.notability), .int(j.at), .int(j.secondLook ? 1 : 0)])
                 }
-                return .object([
+                var o: JsonObject = [
                     "day": .string(d.day),
                     "built": .int(d.builtAt),
                     "refreshed": .int(d.refreshedAt),
                     "seen": .int(d.seenAt),
                     "items": .array(d.items.compactMap { it in
                         guard let r = rawFor(it.post.id) else { return nil }
-                        return .object(["raw": r, "why": .string(it.why), "n": .double(it.notability), "at": .int(it.addedAt)])
+                        var o: JsonObject = ["raw": r, "why": .string(it.why), "n": .double(it.notability), "at": .int(it.addedAt)]
+                if it.importance > 0 { o["imp"] = .int(it.importance) }
+                return .object(o)
                     }),
                     "judged": .object(judged),
-                ])
+                ]
+                if let overview = d.overview { o["overview"] = .string(overview) }
+                if d.aiFailed { o["aiFailed"] = .int(1) }
+                if d.aiAt > 0 { o["aiAt"] = .int(d.aiAt) }
+                return .object(o)
             }),
         ]).encoded()
     }
@@ -103,7 +109,7 @@ final class DigestStore {
                 let post = Post.fromData(r)
                 if post.id.isEmpty { return nil }
                 rawCache[post.id] = r
-                return DigestItem(post: post, why: i["why"].str() ?? "", notability: i["n"].double() ?? 0, addedAt: i["at"].long() ?? 0)
+                return DigestItem(post: post, why: i["why"].str() ?? "", notability: i["n"].double() ?? 0, addedAt: i["at"].long() ?? 0, importance: i["imp"].int() ?? 0)
             }
             var judged: [String: Judged] = [:]
             for (id, v) in d["judged"].obj() ?? JsonObject() {
@@ -116,7 +122,10 @@ final class DigestStore {
                 refreshedAt: d["refreshed"].long() ?? 0,
                 seenAt: d["seen"].long() ?? 0,
                 items: items,
-                judged: judged
+                judged: judged,
+                overview: d["overview"].str(),
+                aiFailed: d["aiFailed"].long() == 1,
+                aiAt: d["aiAt"].long() ?? 0
             )
         }
     }

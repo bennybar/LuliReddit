@@ -84,6 +84,9 @@ final class SettingsStore {
         // 0 the Posts chip, 1 a bottom tab, 2 menu only; anything else: the chip.
         s.digestPlace = (0...2).contains(p.getInt("digestPlace") ?? 0) ? p.getInt("digestPlace") ?? 0 : 0
         s.digestShowRead = b("digestShowRead", s.digestShowRead)
+        s.digestAi = b("digestAi", s.digestAi)
+        s.digestOverview = b("digestOverview", s.digestOverview)
+        s.digestOrder = min(max(p.getInt("digestOrder") ?? s.digestOrder, 0), 3)
         s.forYouDiscovery = min(max(p.getInt("forYouDiscovery") ?? s.forYouDiscovery, -2), 2)
         s.midResThumbnails = b("midResThumbnails", s.midResThumbnails)
         s.subsCacheEnabled = b("subsCacheEnabled", s.subsCacheEnabled)
@@ -207,6 +210,9 @@ final class SettingsStore {
     func setDigestSize(_ v: Int) { p.setInt("digestSize", v); set { $0.digestSize = v } }
     func setDigestPlace(_ v: Int) { p.setInt("digestPlace", v); set { $0.digestPlace = v } }
     func setDigestShowRead(_ v: Bool) { p.setBool("digestShowRead", v); set { $0.digestShowRead = v } }
+    func setDigestAi(_ v: Bool) { p.setBool("digestAi", v); set { $0.digestAi = v } }
+    func setDigestOverview(_ v: Bool) { p.setBool("digestOverview", v); set { $0.digestOverview = v } }
+    func setDigestOrder(_ v: Int) { p.setInt("digestOrder", v); set { $0.digestOrder = v } }
     func setAutoHideReadForYou(_ v: Bool) { p.setBool("autoHideReadForYou", v); set { $0.autoHideReadForYou = v } }
     func setForYouDiscovery(_ v: Int) { p.setInt("forYouDiscovery", v); set { $0.forYouDiscovery = v } }
     func setHideReadPosts(_ v: Bool) { p.setBool("hideReadPosts", v); set { $0.hideReadPosts = v } }
