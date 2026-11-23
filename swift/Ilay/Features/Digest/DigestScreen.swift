@@ -23,19 +23,13 @@ final class DigestModel {
     var day: String?
     var outcome: DigestModule.Outcome?
     var refreshing = false
-    /// Read when this opened: hidden unless Show read is on. Read while here, a post stays (dimmed).
-    private(set) var readAtOpen: Set<String> = app.history.ids
-    /// Swiped read here: hidden too (until Undo).
-    var gone: Set<String> = []
     /// The list has its rows: from here a load of its source is a pull to refresh.
     @ObservationIgnored var shown = false
     /// Each day's "seen" time when it was first shown here: what came after it is New.
     @ObservationIgnored var seenAt: [String: Int] = [:]
 
-    /// Back on the Digest tab: what's read since goes, and a stale digest is rebuilt.
+    /// Back on the Digest tab: a stale digest is rebuilt.
     func reopen() async {
-        readAtOpen = app.history.ids
-        gone = []
         seenAt = [:] // what was New last time has been seen
         await start()
     }
@@ -62,18 +56,13 @@ final class DigestModel {
 
     func markRead(_ post: Post) {
         let id = post.id
+        // Read: off the list at once (Show read off), as a hidden card in the feed; Undo brings it back.
         app.history.markViewed(post)
-        // Off the list at once, as a hidden card in the feed (Show read off); Undo brings it back.
-        gone.insert(id)
-        app.navigator.showSnackbar("Marked read", actionLabel: "Undo") { [self] in
-            app.history.removeViewed(id)
-            gone.remove(id)
-        }
+        app.navigator.showSnackbar("Marked read", actionLabel: "Undo") { app.history.removeViewed(id) }
     }
 
     func markUnread(_ post: Post) {
         app.history.removeViewed(post.id)
-        gone.remove(post.id)
         app.navigator.showSnackbar("Marked unread")
     }
 
@@ -101,7 +90,8 @@ final class DigestModel {
             return out
         }
         let read = app.history.ids
-        let shownIds = Set(d.items.filter { s.digestShowRead || !read.contains($0.post.id) || (!readAtOpen.contains($0.post.id) && !gone.contains($0.post.id)) }.map(\.post.id))
+        // Read (swiped, or opened and back): gone unless Show read is on.
+        let shownIds = Set(d.items.filter { s.digestShowRead || !read.contains($0.post.id) }.map(\.post.id))
         if shownIds.isEmpty {
             out.append(.message(title: "You're all caught up", text: "You've read everything in this digest.", action: .showRead))
             return out

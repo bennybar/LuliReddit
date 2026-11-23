@@ -117,10 +117,6 @@ class DigestView internal constructor(private val scope: CoroutineScope, private
     var outcome by mutableStateOf<DigestModule.Outcome?>(null)
     var refreshing by mutableStateOf(false)
 
-    /** Read when this opened: hidden unless Show read is on. Read while here, a post stays (dimmed). */
-    internal var readAtOpen: Set<String> = app.history.ids.value
-    /** Swiped read here: hidden too (until Undo). */
-    internal var gone by mutableStateOf(emptySet<String>())
     /** Each day's "seen" time when it was first shown here: what came after it is New. */
     internal val seenAt = HashMap<String, Long>()
 
@@ -159,18 +155,13 @@ class DigestView internal constructor(private val scope: CoroutineScope, private
 
     fun markRead(item: DigestItem) {
         val id = item.post.id
+        // Read: off the list at once (Show read off), as a hidden card in the feed; Undo brings it back.
         app.history.markViewed(item.post)
-        // Off the list at once, as a hidden card in the feed (Show read off); Undo brings it back.
-        gone = gone + id
-        nav.showSnackbar("Marked read", actionLabel = "Undo") {
-            app.history.removeViewed(id)
-            gone = gone - id
-        }
+        nav.showSnackbar("Marked read", actionLabel = "Undo") { app.history.removeViewed(id) }
     }
 
     fun markUnread(item: DigestItem) {
         app.history.removeViewed(item.post.id)
-        gone = gone - item.post.id
         nav.showSnackbar("Marked unread")
     }
 
@@ -227,8 +218,6 @@ fun rememberDigestView(active: Boolean = true): DigestView {
     v.order = DigestOrder.of(s.digestOrder).let { if (it == DigestOrder.AI && !s.digestAi) DigestOrder.NOTABLE else it }
     LaunchedEffect(active) {
         if (!active) return@LaunchedEffect
-        v.readAtOpen = app.history.ids.value
-        v.gone = emptySet()
         v.seenAt.clear() // what was New last time has been seen
         app.digest.refreshIfStale()?.let { v.outcome = it }
     }
@@ -275,7 +264,8 @@ fun LazyListScope.digestRows(v: DigestView) {
         return
     }
     val seenAt = v.seenAt.getOrPut(d.day) { d.seenAt }
-    val shown = d.items.filter { v.showRead || it.post.id !in v.readIds || (it.post.id !in v.readAtOpen && it.post.id !in v.gone) }
+    // Read (swiped, or opened and back): gone unless Show read is on.
+    val shown = d.items.filter { v.showRead || it.post.id !in v.readIds }
     if (shown.isEmpty()) {
         item(key = "digest_state") {
             DigestMessage("You're all caught up", "You've read everything in this digest.", "Show read") {
