@@ -193,10 +193,16 @@ struct DigestList<Top: View>: View {
                 let dark = UITraitCollection.current.userInterfaceStyle == .dark
                 let accent = UIColor(IlayTheme.accent)
                 let read = app.history.ids.contains(post.id)
-                let trailing = read
+                let mark = read
                     ? PostSwipe(systemImage: "circle", color: accent, label: "Unread") { model.markUnread(post) }
                     : PostSwipe(systemImage: "checkmark.circle", color: accent, label: "Read") { model.markRead(post) }
-                let leading = s.swipeActions ? PostSwipe.make(s.swipePostStart, post: post, dismissible: false, frontpage: false, dark: dark) : nil
+                // Settings › Digest › Swipe to mark read: left (trailing), right (leading) or
+                // both; a side it doesn't use keeps your own swipe.
+                @MainActor func own(_ action: SwipeAction) -> PostSwipe? {
+                    s.swipeActions ? PostSwipe.make(action, post: post, dismissible: false, frontpage: false, dark: dark) : nil
+                }
+                let leading = s.digestSwipe == 0 ? own(s.swipePostStart) : mark
+                let trailing = s.digestSwipe == 1 ? own(s.swipePostEnd) : mark
                 return (leading, trailing)
             })
         ) { row in

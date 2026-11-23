@@ -272,6 +272,15 @@ struct SettingsCatalog {
                     }
                 }
             )
+            b.picker(
+                "Swipe to mark read", value: s.digestSwipe,
+                options: [
+                    PickOption(value: 0, label: "Left", subtitle: "Swipe left to mark read; right keeps your own swipe"),
+                    PickOption(value: 1, label: "Right", subtitle: "Swipe right to mark read; left keeps your own swipe"),
+                    PickOption(value: 2, label: "Both sides", subtitle: "Either way marks read"),
+                ],
+                set: ctrl.setDigestSwipe
+            )
             b.toggle("Show read posts", "Keep posts you've read in the digest, dimmed", s.digestShowRead, set: ctrl.setDigestShowRead)
             // Never on by itself, even with a key set for summaries (owner's rule).
             b.toggle(

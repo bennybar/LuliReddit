@@ -131,6 +131,7 @@ class DigestView internal constructor(private val scope: CoroutineScope, private
     internal var readIds by mutableStateOf(emptySet<String>())
     internal var showRead by mutableStateOf(false)
     internal var order by mutableStateOf(DigestOrder.NOTABLE)
+    internal var swipeSide by mutableStateOf(0)
     internal var progress by mutableStateOf<String?>(null)
     internal var showOverview by mutableStateOf(false)
 
@@ -220,6 +221,7 @@ fun rememberDigestView(active: Boolean = true): DigestView {
     v.readIds = app.history.ids.collectAsStateWithLifecycle().value
     val s = app.settings.state.collectAsStateWithLifecycle().value
     v.showRead = s.digestShowRead
+    v.swipeSide = s.digestSwipe
     v.progress = app.digest.progress.collectAsStateWithLifecycle().value
     v.showOverview = s.digestAi && s.digestOverview
     // The AI's order only means something while it's on.
@@ -314,7 +316,8 @@ private fun DigestCard(v: DigestView, item: DigestItem, isNew: Boolean) {
     val cs = MaterialTheme.colorScheme
     val read = item.post.id in v.readIds
     val tint = cs.primary
-    // Left (the end side): read / unread. The other side keeps the user's own swipe.
+    // Settings › Digest › Swipe to mark read: left (the end side), right (the start side) or
+    // both; a side it doesn't use keeps the user's own swipe (null).
     val spec = remember(item.post.id, read) {
         if (read) SwipeSpec(Icons.Rounded.RemoveDone, tint) { v.markUnread(item) }
         else SwipeSpec(Icons.Rounded.DoneAll, tint) { v.markRead(item) }
@@ -336,7 +339,7 @@ private fun DigestCard(v: DigestView, item: DigestItem, isNew: Boolean) {
             }
             Text(item.why, fontSize = 12.sp, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        PostCard(item.post, swipeOverride = null to spec)
+        PostCard(item.post, swipeOverride = (spec.takeIf { v.swipeSide != 0 }) to (spec.takeIf { v.swipeSide != 1 }))
     }
 }
 

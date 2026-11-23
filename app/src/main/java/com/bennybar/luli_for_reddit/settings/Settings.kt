@@ -251,6 +251,7 @@ data class Settings(
     val digestLanguage: String? = null, // the AI's language for the Digest; null = as AI summaries
     val digestNotify: Boolean = false, // a daily notification at digestTime
     val digestTime: Int = 480, // minutes after midnight, local (08:00)
+    val digestSwipe: Int = 0, // which swipe marks read in the Digest: 0 left, 1 right, 2 both
     val digestOrder: Int = 0, // DigestOrder index: 0 Most notable, 1 Most upvoted, 2 Newest, 3 AI's assessment
     // Experimental Reddit Home: the user accepted its risk warning (allowed),
     // and the frontpage currently shows it (feed).

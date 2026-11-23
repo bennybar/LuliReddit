@@ -578,6 +578,14 @@ fun SettingsList(
                 }
                 ctrl.setDigestPlace(place)
             })
+            val sides = listOf(
+                PickOption(0, "Left", "Swipe left to mark read; right keeps your own swipe"),
+                PickOption(1, "Right", "Swipe right to mark read; left keeps your own swipe"),
+                PickOption(2, "Both sides", "Either way marks read"),
+            )
+            tile("Swipe to mark read", sides.first { it.value == s.digestSwipe }.label, Icons.Rounded.DoneAll, onClick = launch {
+                pickOption(sides, s.digestSwipe)?.let(ctrl::setDigestSwipe)
+            })
             switch(
                 "Show read posts", "Keep posts you've read in the digest, dimmed",
                 Icons.Outlined.Visibility, s.digestShowRead, ctrl::setDigestShowRead,

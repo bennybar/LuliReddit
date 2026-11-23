@@ -87,6 +87,7 @@ final class SettingsStore {
         s.digestAi = b("digestAi", s.digestAi)
         s.digestOverview = b("digestOverview", s.digestOverview)
         s.digestOrder = min(max(p.getInt("digestOrder") ?? s.digestOrder, 0), 3)
+        s.digestSwipe = min(max(p.getInt("digestSwipe") ?? s.digestSwipe, 0), 2)
         s.digestAiBuilds = min(max(p.getInt("digestAiBuilds") ?? s.digestAiBuilds, 0), 1)
         s.digestAiPick = b("digestAiPick", s.digestAiPick)
         s.digestAiWhy = b("digestAiWhy", s.digestAiWhy)
@@ -218,6 +219,7 @@ final class SettingsStore {
     func setDigestShowRead(_ v: Bool) { p.setBool("digestShowRead", v); set { $0.digestShowRead = v } }
     func setDigestAi(_ v: Bool) { p.setBool("digestAi", v); set { $0.digestAi = v } }
     func setDigestOverview(_ v: Bool) { p.setBool("digestOverview", v); set { $0.digestOverview = v } }
+    func setDigestSwipe(_ v: Int) { p.setInt("digestSwipe", v); set { $0.digestSwipe = v } }
     func setDigestOrder(_ v: Int) { p.setInt("digestOrder", v); set { $0.digestOrder = v } }
     func setDigestAiBuilds(_ v: Int) { p.setInt("digestAiBuilds", v); set { $0.digestAiBuilds = v } }
     func setDigestAiPick(_ v: Bool) { p.setBool("digestAiPick", v); set { $0.digestAiPick = v } }

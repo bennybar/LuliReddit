@@ -92,6 +92,7 @@ class SettingsStore(private val p: Prefs) {
             digestAi = b("digestAi", d.digestAi),
             digestOverview = b("digestOverview", d.digestOverview),
             digestOrder = (p.getInt("digestOrder") ?: d.digestOrder).coerceIn(0, 3),
+            digestSwipe = (p.getInt("digestSwipe") ?: d.digestSwipe).coerceIn(0, 2),
             digestAiBuilds = (p.getInt("digestAiBuilds") ?: d.digestAiBuilds).coerceIn(0, 1),
             digestAiPick = b("digestAiPick", d.digestAiPick),
             digestAiWhy = b("digestAiWhy", d.digestAiWhy),
@@ -223,6 +224,7 @@ class SettingsStore(private val p: Prefs) {
     fun setDigestShowRead(v: Boolean) { p.setBool("digestShowRead", v); set { it.copy(digestShowRead = v) } }
     fun setDigestAi(v: Boolean) { p.setBool("digestAi", v); set { it.copy(digestAi = v) } }
     fun setDigestOverview(v: Boolean) { p.setBool("digestOverview", v); set { it.copy(digestOverview = v) } }
+    fun setDigestSwipe(v: Int) { p.setInt("digestSwipe", v); set { it.copy(digestSwipe = v) } }
     fun setDigestOrder(v: Int) { p.setInt("digestOrder", v); set { it.copy(digestOrder = v) } }
     fun setDigestAiBuilds(v: Int) { p.setInt("digestAiBuilds", v); set { it.copy(digestAiBuilds = v) } }
     fun setDigestAiPick(v: Boolean) { p.setBool("digestAiPick", v); set { it.copy(digestAiPick = v) } }

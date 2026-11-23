@@ -255,6 +255,7 @@ struct Settings: Equatable, Sendable {
     var digestLanguage: String? = nil // the AI's language for the Digest; nil = as AI summaries
     var digestNotify = false // a daily notification at digestTime
     var digestTime = 480 // minutes after midnight, local (08:00)
+    var digestSwipe = 0 // which swipe marks read in the Digest: 0 left, 1 right, 2 both
     var digestOrder = 0 // DigestOrder index: 0 Most notable, 1 Most upvoted, 2 Newest, 3 AI's assessment
     // Experimental Reddit Home: the user accepted its risk warning (allowed),
     // and the frontpage currently shows it (feed).
