@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import com.bennybar.luli_for_reddit.ui.theme.ScaledText
+import com.bennybar.luli_for_reddit.ui.theme.TextKind
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -1224,7 +1226,7 @@ private fun PostHeader(post: Post, fresh: Boolean, translate: (@Composable (Dp) 
             }
         }
         Spacer(Modifier.height(12.dp))
-        Text(p.title, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, lineHeight = 1.3.em))
+        ScaledText(TextKind.TITLE) { Text(p.title, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, lineHeight = 1.3.em)) }
         p.linkFlair?.let {
             Spacer(Modifier.height(8.dp))
             com.bennybar.luli_for_reddit.feature.feed.Flair(it)
@@ -1367,14 +1369,16 @@ private fun CalmPostHeader(
                 }
             }
         }
-        Text(
-            p.title,
-            Modifier.padding(top = 14.dp),
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Normal,
-            lineHeight = 1.2.em,
-            letterSpacing = (-0.01).em,
-        )
+        ScaledText(TextKind.TITLE) {
+            Text(
+                p.title,
+                Modifier.padding(top = 14.dp),
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Normal,
+                lineHeight = 1.2.em,
+                letterSpacing = (-0.01).em,
+            )
+        }
         p.linkFlair?.let { CalmFlair(it, Modifier.padding(top = 8.dp)) }
         p.crosspostFrom?.let { from ->
             Spacer(Modifier.height(8.dp))
@@ -1708,7 +1712,7 @@ private fun CommentTile(
                     // heavier to build while scrolling through hundreds of
                     // comments (and swallows taps for tap-to-collapse).
                     // "Copy text" is in the ⋯ menu.
-                    BodyWithMedia(comment.body, comment.media, nav, maxMedia = 3)
+                    ScaledText(TextKind.COMMENT) { BodyWithMedia(comment.body, comment.media, nav, maxMedia = 3) }
                 }
                 CommentActionsRow(comment, isOwn, actions)
             } else {
@@ -2155,7 +2159,7 @@ private fun CalmCommentRow(
                     .padding(top = 4.dp)
                     .then(if (tapToCollapse) Modifier.clickable(indication = null, interactionSource = null, onClick = toggle) else Modifier),
             ) {
-                BodyWithMedia(comment.body, comment.media, nav, maxMedia = 3)
+                ScaledText(TextKind.COMMENT) { BodyWithMedia(comment.body, comment.media, nav, maxMedia = 3) }
             }
             // ↑ score ↓ · Reply · Collapse · ⋯ — small, 32dp targets. Deep in a thread the row
             // is narrow: the words go, the icons stay, so ⋯ (Edit, Delete…) isn't pushed off
@@ -2268,7 +2272,7 @@ private fun PostBody(p: Post) {
     // A spoiler's text stays covered until tapped (#204), as on reddit.com.
     var shown by rememberSaveable(p.id) { mutableStateOf(!p.spoiler) }
     if (!shown) return com.bennybar.luli_for_reddit.feature.feed.SpoilerTextCover { shown = true }
-    BodyWithMedia(p.selftext, p.bodyMedia, LocalNavigator.current, maxMedia = 10, selectable = true)
+    ScaledText(TextKind.POST_TEXT) { BodyWithMedia(p.selftext, p.bodyMedia, LocalNavigator.current, maxMedia = 10, selectable = true) }
 }
 
 /**

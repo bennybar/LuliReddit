@@ -247,13 +247,15 @@ private enum FeedItem: Hashable {
         let display: PostDisplay
         let seedColor: Int
         let textScale: Double
+        let titleTextScale: Double
+        let postTextScale: Double
         let floatingChips: Bool
     }
 
     init(model: PostListModel) {
         self.model = model
         lastSignal = model.scrollSignal
-        lastStyle = Style(display: model.config.display, seedColor: model.config.seedColor, textScale: model.config.textScale, floatingChips: model.floatingChips)
+        lastStyle = Style(display: model.config.display, seedColor: model.config.seedColor, textScale: model.config.textScale, titleTextScale: model.config.titleTextScale, postTextScale: model.config.postTextScale, floatingChips: model.floatingChips)
         // A placeholder layout: the real one needs self.
         collectionView = ListScrollView(frame: .zero, collectionViewLayout: UICollectionViewFlowLayout())
         super.init()
@@ -421,7 +423,7 @@ private enum FeedItem: Hashable {
             visibleIds = visiblePosts.map(\.id)
         }
 
-        let style = Style(display: config.display, seedColor: config.seedColor, textScale: config.textScale, floatingChips: new.floatingChips)
+        let style = Style(display: config.display, seedColor: config.seedColor, textScale: config.textScale, titleTextScale: config.titleTextScale, postTextScale: config.postTextScale, floatingChips: new.floatingChips)
         let styleChanged = style != lastStyle
         if styleChanged {
             lastStyle = style

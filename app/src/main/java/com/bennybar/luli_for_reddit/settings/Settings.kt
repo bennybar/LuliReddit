@@ -267,6 +267,11 @@ data class Settings(
     val feedKeepMinutes: Int = 30, // how long the frontpage keeps its posts before returning to it reloads
     val hiddenPostDays: Int = 7, // how long Ilay keeps posts you hid out of every feed (Reddit hides them too)
     val textScale: Double = 1.0, // global text size multiplier (0.8–1.4)
+    // #234: on top of textScale, for post titles, post text (feed previews and the post's
+    // body) and comment text; 1.0 = as before.
+    val titleTextScale: Double = 1.0,
+    val postTextScale: Double = 1.0,
+    val commentTextScale: Double = 1.0,
     val autoplayMedia: Boolean = true, // autoplay videos/GIFs in feeds
     val autoplaySound: Boolean = false, // feed videos start unmuted (#23)
     val viewerMuted: Boolean = false, // full-screen videos start muted (#51)

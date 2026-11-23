@@ -36,6 +36,24 @@ enum IlayTheme {
     /// the system's own text size, which it used to replace: someone on an accessibility
     /// size who picked 110% got smaller text, not larger. At the default size the steps
     /// land where they always did (90% small … 130% xxxLarge). At 100% the system's size applies.
+    /// #234's text sizes: [scale] (the app's size times one kind's) as one Dynamic Type
+    /// step, from the phone's own size.
+    static func typeStep(_ scale: Double) -> DynamicTypeSize {
+        let steps = switch scale {
+        case ..<0.85: -3
+        case ..<0.95: -2
+        case ..<1.05: 0
+        case ..<1.15: 1
+        case ..<1.25: 2
+        case ..<1.4: 3
+        case ..<1.6: 4
+        default: 5
+        }
+        let base = DynamicTypeSize(UIApplication.shared.preferredContentSizeCategory) ?? .large
+        let all = DynamicTypeSize.allCases
+        return all[min(max((all.firstIndex(of: base) ?? 3) + steps, 0), all.count - 1)]
+    }
+
     static func typeRange(_ scale: Double, system: DynamicTypeSize? = nil) -> ClosedRange<DynamicTypeSize> {
         let steps = switch scale {
         case ..<0.85: -3
@@ -88,4 +106,15 @@ private struct ThemeModifier: ViewModifier {
 extension View {
     /// Applied once, at the root.
     func ilayTheme() -> some View { modifier(ThemeModifier()) }
+}
+
+extension View {
+    /// Settings › Appearance › Post titles / Post text / Comments (#234): this text at the
+    /// app's size times `kind`; at 100% it keeps the app's.
+    func textSize(app appScale: Double, kind: Double) -> some View {
+        dynamicTypeSize(kind == 1 ? IlayTheme.typeRange(appScale) : {
+            let step = IlayTheme.typeStep(appScale * kind)
+            return step ... step
+        }())
+    }
 }

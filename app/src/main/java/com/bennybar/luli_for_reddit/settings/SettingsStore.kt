@@ -108,6 +108,9 @@ class SettingsStore(private val p: Prefs) {
             feedKeepMinutes = p.getInt("feedKeepMinutes") ?: d.feedKeepMinutes,
             hiddenPostDays = p.getInt("hiddenPostDays") ?: d.hiddenPostDays,
             textScale = p.getDouble("textScale") ?: d.textScale,
+            titleTextScale = (p.getDouble("titleTextScale") ?: d.titleTextScale).coerceIn(0.8, 1.6),
+            postTextScale = (p.getDouble("postTextScale") ?: d.postTextScale).coerceIn(0.8, 1.6),
+            commentTextScale = (p.getDouble("commentTextScale") ?: d.commentTextScale).coerceIn(0.8, 1.6),
             autoplayMedia = b("autoplayMedia", d.autoplayMedia),
             autoplaySound = b("autoplaySound", d.autoplaySound),
             viewerMuted = b("viewerMuted", d.viewerMuted),
@@ -290,6 +293,15 @@ class SettingsStore(private val p: Prefs) {
     fun setFeedKeepMinutes(v: Int) { p.setInt("feedKeepMinutes", v); set { it.copy(feedKeepMinutes = v) } }
     fun setHiddenPostDays(v: Int) { p.setInt("hiddenPostDays", v); set { it.copy(hiddenPostDays = v) } }
     fun setTextScale(v: Double) { p.setDouble("textScale", v); set { it.copy(textScale = v) } }
+    fun setTitleTextScale(v: Double) { p.setDouble("titleTextScale", v); set { it.copy(titleTextScale = v) } }
+    fun setPostTextScale(v: Double) { p.setDouble("postTextScale", v); set { it.copy(postTextScale = v) } }
+    fun setCommentTextScale(v: Double) { p.setDouble("commentTextScale", v); set { it.copy(commentTextScale = v) } }
+
+    /** All text sizes back to normal: the app's and the three on top of it. */
+    fun resetTextScales() {
+        for (k in listOf("textScale", "titleTextScale", "postTextScale", "commentTextScale")) p.remove(k)
+        set { it.copy(textScale = 1.0, titleTextScale = 1.0, postTextScale = 1.0, commentTextScale = 1.0) }
+    }
     fun setAutoplayMedia(v: Boolean) { p.setBool("autoplayMedia", v); set { it.copy(autoplayMedia = v) } }
     fun setAutoplaySound(v: Boolean) { p.setBool("autoplaySound", v); set { it.copy(autoplaySound = v) } }
     fun setViewerMuted(v: Boolean) { p.setBool("viewerMuted", v); set { it.copy(viewerMuted = v) } }

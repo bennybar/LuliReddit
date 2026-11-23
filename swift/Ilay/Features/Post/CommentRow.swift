@@ -35,6 +35,7 @@ struct ThreadRowEnv: Equatable {
     var voteGlow = true
     var dark = false
     var textScale = 1.0
+    var commentTextScale = 1.0
     var accent = Color.accentColor
 
     /// The flat list's (and the guides') indentation.
@@ -235,6 +236,7 @@ struct CommentRowView: View {
                 }
             }
         }
+        .textSize(app: env.textScale, kind: env.commentTextScale)
     }
 }
 

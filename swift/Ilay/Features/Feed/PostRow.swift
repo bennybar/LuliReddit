@@ -14,6 +14,8 @@ struct FeedRowConfig: Equatable {
     var dimRead: Bool
     var seedColor: Int
     var textScale: Double
+    var titleTextScale = 1.0
+    var postTextScale = 1.0
     /// The whole list's width.
     var width: CGFloat
     var scale: CGFloat
@@ -48,6 +50,8 @@ struct FeedRowConfig: Equatable {
             dimRead: s.dimRead,
             seedColor: s.seedColor,
             textScale: s.textScale,
+            titleTextScale: s.titleTextScale,
+            postTextScale: s.postTextScale,
             width: width ?? screen?.bounds.width ?? 402,
             scale: screen?.scale ?? 3,
             postTextLines: s.postTextLines

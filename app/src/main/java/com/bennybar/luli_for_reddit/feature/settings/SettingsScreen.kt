@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.settings
 
+import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.MailOutline
 import androidx.compose.material.icons.automirrored.rounded.Notes
 import com.bennybar.luli_for_reddit.feature.inbox.InboxNotifications
@@ -707,6 +708,24 @@ fun SettingsList(
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
             )
         })
+        // #234: titles, post text and comments each on top of the app's size.
+        add(Entry("t:Post titles size", "Post titles text size font bigger smaller") {
+            TextScaleRow("Post titles", s.titleTextScale, ctrl::setTitleTextScale)
+        })
+        add(Entry("t:Post text size", "Post text body description text size font bigger smaller") {
+            TextScaleRow("Post text", s.postTextScale, ctrl::setPostTextScale)
+        })
+        add(Entry("t:Comments size", "Comments text size font bigger smaller") {
+            TextScaleRow("Comments", s.commentTextScale, ctrl::setCommentTextScale)
+        })
+        val defaultSizes = s.textScale == 1.0 && s.titleTextScale == 1.0 && s.postTextScale == 1.0 && s.commentTextScale == 1.0
+        tile(
+            "Reset text sizes",
+            if (defaultSizes) "All at their normal size" else "The app's, titles', post text's and comments' back to normal",
+            Icons.Rounded.RestartAlt,
+            enabled = !defaultSizes,
+            onClick = ctrl::resetTextScales,
+        )
         divider("appearance-nav")
         tile("Top bar", s.topBarMode.label, Icons.Rounded.ViewHeadline, onClick = launch {
             pickOption(TopBarMode.entries.map { PickOption(it, it.label, it.description) }, s.topBarMode)
@@ -1747,3 +1766,18 @@ private fun ForYouMixSlider(value: Int, onChange: (Int) -> Unit) {
 private val TRANSLATE_LANGUAGES = listOf(
     "ar", "de", "en", "es", "fr", "he", "hi", "id", "it", "ja", "ko", "nl", "pl", "pt", "ru", "th", "tr", "uk", "vi", "zh",
 )
+
+/** One of #234's text sizes: its name and percentage over a slider, 80% to 160%, in 5% steps. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TextScaleRow(label: String, value: Double, onChange: (Double) -> Unit) {
+    val state = remember { SliderState(value.toFloat(), 15, 0.8f..1.6f) }
+    LaunchedEffect(value) { state.value = value.toFloat() }
+    Column(Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+            Text("${(value * 100).roundToInt()}%", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Slider(state = state, onValueChange = { onChange((it * 20).roundToInt() / 20.0) })
+    }
+}

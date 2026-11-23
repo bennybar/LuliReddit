@@ -448,6 +448,7 @@ private struct CardTitle: View {
                 .lineLimit(lines)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
+                .textSize(app: row.config.textScale, kind: row.config.titleTextScale)
         }
     }
 }
@@ -553,6 +554,7 @@ private struct CardSnippet: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(row.config.postTextLines > 0 ? row.config.postTextLines : lines)
                     .multilineTextAlignment(.leading)
+                    .textSize(app: row.config.textScale, kind: row.config.postTextScale)
             }
             .padding(.top, 6)
             .padding(.trailing, 8)

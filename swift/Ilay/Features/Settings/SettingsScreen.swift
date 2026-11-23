@@ -367,6 +367,20 @@ struct SettingsCatalog {
         b.custom("fontSize", title: "Font size", search: "Font size text \(Int((s.textScale * 100).rounded()))% of normal") {
             FontSizeRow(scale: s.textScale)
         }
+        // #234: titles, post text and comments each on top of the app's size.
+        b.custom("titleTextScale", title: "Post titles", search: "Post titles text size font bigger smaller") {
+            TextScaleRow(label: "Post titles", scale: s.titleTextScale, set: ctrl.setTitleTextScale)
+        }
+        b.custom("postTextScale", title: "Post text", search: "Post text body description text size font bigger smaller") {
+            TextScaleRow(label: "Post text", scale: s.postTextScale, set: ctrl.setPostTextScale)
+        }
+        b.custom("commentTextScale", title: "Comments", search: "Comments text size font bigger smaller") {
+            TextScaleRow(label: "Comments", scale: s.commentTextScale, set: ctrl.setCommentTextScale)
+        }
+        let defaultSizes = s.textScale == 1 && s.titleTextScale == 1 && s.postTextScale == 1 && s.commentTextScale == 1
+        b.tile("Reset text sizes", defaultSizes ? "All at their normal size" : "The app's, titles', post text's and comments' back to normal") {
+            ctrl.resetTextScales()
+        }
         b.divider()
         b.picker(
             "Top bar", value: s.topBarMode,
@@ -1293,4 +1307,33 @@ private func dayLabel(_ days: Int) -> String { days == 1 ? "1 day" : "\(days) da
     ]
     stores.forEach { $0.onUserChanged(user) }
     app.session.reload()
+}
+
+/// One of #234's text sizes: its name and percentage over a slider, 80% to 160%, in 5% steps.
+private struct TextScaleRow: View {
+    let label: String
+    let scale: Double
+    let set: (Double) -> Void
+    /// While dragging: only the label follows, so the list doesn't move under the finger.
+    @State private var dragging: Double?
+
+    var body: some View {
+        let shown = dragging ?? scale
+        VStack(alignment: .leading, spacing: 6) {
+            LabeledContent(label, value: "\(Int((shown * 100).rounded()))%")
+            Slider(
+                value: Binding(get: { shown }, set: { dragging = ($0 * 20).rounded() / 20 }),
+                in: 0.8...1.6,
+                step: 0.05,
+                onEditingChanged: { editing in
+                    if !editing, let dragging {
+                        set(dragging)
+                        self.dragging = nil
+                    }
+                },
+                label: { Text(label) }
+            )
+        }
+        .padding(.vertical, 4)
+    }
 }

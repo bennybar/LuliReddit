@@ -39,7 +39,6 @@ struct PostHeaderView: View {
 
     @Environment(\.voteColors) private var votes
     @Environment(\.layoutDirection) private var direction
-    @ScaledMetric(relativeTo: .title2) private var titleSize: CGFloat = 24
     private var nav: AppNavigator { app.navigator }
 
     var body: some View {
@@ -52,10 +51,7 @@ struct PostHeaderView: View {
 
         VStack(alignment: .leading, spacing: 0) {
             community
-            Text(verbatim: post.title)
-                .font(.system(size: titleSize))
-                .tracking(-0.24)
-                .fixedSize(horizontal: false, vertical: true)
+            PostTitleText(title: post.title)
                 .padding(.top, 14)
             if let flair = post.linkFlair { FlairChip(flair: flair).padding(.top, 8) }
             if let from = post.crosspostFrom {
@@ -488,6 +484,7 @@ private struct PostBodyView: View {
                     }
                 }
             }
+            .textSize(app: app.settings.value.textScale, kind: app.settings.value.postTextScale)
         }
     }
 }
@@ -536,5 +533,20 @@ struct TranslateButton: View {
             .frame(width: 40, height: 40)
             .contentShape(.rect)
             .accessibilityLabel(shownIn != nil ? "Show original" : "Translate")
+    }
+}
+
+/// The post's title at Settings' Post titles size (#234): its own view, so its 24pt grows
+/// with the step that size sets.
+private struct PostTitleText: View {
+    let title: String
+    @ScaledMetric(relativeTo: .title2) private var titleSize: CGFloat = 24
+
+    var body: some View {
+        Text(verbatim: title)
+            .font(.system(size: titleSize))
+            .tracking(-0.24)
+            .fixedSize(horizontal: false, vertical: true)
+            .textSize(app: app.settings.value.textScale, kind: app.settings.value.titleTextScale)
     }
 }

@@ -334,7 +334,30 @@ fun IlayTheme(settings: Settings, content: @Composable () -> Unit) {
         CompositionLocalProvider(
             LocalVoteColors provides if (dark) AppTheme.voteDark else AppTheme.voteLight,
             LocalDensity provides Density(density.density, settings.textScale.toFloat()),
+            LocalTextScales provides TextScales(settings.titleTextScale.toFloat(), settings.postTextScale.toFloat(), settings.commentTextScale.toFloat()),
             content = content,
         )
     }
+}
+
+/** Settings › Appearance › the three text sizes on top of the app's (#234). */
+@androidx.compose.runtime.Immutable
+data class TextScales(val title: Float = 1f, val postText: Float = 1f, val comment: Float = 1f)
+
+val LocalTextScales = androidx.compose.runtime.staticCompositionLocalOf { TextScales() }
+
+enum class TextKind { TITLE, POST_TEXT, COMMENT }
+
+/** [content]'s text at [kind]'s size (its sp scaled, nothing else). */
+@Composable
+fun ScaledText(kind: TextKind, content: @Composable () -> Unit) {
+    val scales = LocalTextScales.current
+    val scale = when (kind) {
+        TextKind.TITLE -> scales.title
+        TextKind.POST_TEXT -> scales.postText
+        TextKind.COMMENT -> scales.comment
+    }
+    if (scale == 1f) return content()
+    val d = LocalDensity.current
+    CompositionLocalProvider(LocalDensity provides Density(d.density, d.fontScale * scale), content = content)
 }

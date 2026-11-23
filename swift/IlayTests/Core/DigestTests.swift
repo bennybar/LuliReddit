@@ -1,3 +1,4 @@
+import SwiftUI
 import XCTest
 @testable import Ilay
 
@@ -161,6 +162,15 @@ final class DigestTests: XCTestCase {
         let r = build([hit] + ordinary("pics", 100))
         XCTAssertTrue(r.items[0].why.hasPrefix("Top post today in r/pics · "), r.items[0].why)
         XCTAssertTrue(r.items[0].why.contains("240 comments"), r.items[0].why)
+    }
+
+    func testTextSizesDefaultTo100Percent() {
+        let s = Settings()
+        XCTAssertEqual(s.titleTextScale, 1)
+        XCTAssertEqual(s.postTextScale, 1)
+        XCTAssertEqual(s.commentTextScale, 1)
+        // At 100% a kind keeps the app's size; off it, one Dynamic Type step from the phone's.
+        XCTAssertEqual(IlayTheme.typeStep(1.0), DynamicTypeSize(UIApplication.shared.preferredContentSizeCategory) ?? .large)
     }
 
     func testSettingsDefaults() {

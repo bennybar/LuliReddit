@@ -103,6 +103,9 @@ final class SettingsStore {
         s.feedKeepMinutes = p.getInt("feedKeepMinutes") ?? s.feedKeepMinutes
         s.hiddenPostDays = p.getInt("hiddenPostDays") ?? s.hiddenPostDays
         s.textScale = p.getDouble("textScale") ?? s.textScale
+        s.titleTextScale = min(max(p.getDouble("titleTextScale") ?? s.titleTextScale, 0.8), 1.6)
+        s.postTextScale = min(max(p.getDouble("postTextScale") ?? s.postTextScale, 0.8), 1.6)
+        s.commentTextScale = min(max(p.getDouble("commentTextScale") ?? s.commentTextScale, 0.8), 1.6)
         s.autoplayMedia = b("autoplayMedia", s.autoplayMedia)
         s.autoplaySound = b("autoplaySound", s.autoplaySound)
         s.viewerMuted = b("viewerMuted", s.viewerMuted)
@@ -298,6 +301,21 @@ final class SettingsStore {
     func setThreadJumpNext(_ v: Bool) { p.setBool("threadJumpNext", v); set { $0.threadJumpNext = v } }
     func setThreadButtonsHideOnScroll(_ v: Bool) { p.setBool("threadButtonsHideOnScroll", v); set { $0.threadButtonsHideOnScroll = v } }
     func setTopBarMode(_ v: TopBarMode) { p.setInt("topBarMode", v.rawValue); set { $0.topBarMode = v } }
+    func setTitleTextScale(_ v: Double) { p.setDouble("titleTextScale", v); set { $0.titleTextScale = v } }
+    func setPostTextScale(_ v: Double) { p.setDouble("postTextScale", v); set { $0.postTextScale = v } }
+    func setCommentTextScale(_ v: Double) { p.setDouble("commentTextScale", v); set { $0.commentTextScale = v } }
+
+    /// All text sizes back to normal: the app's and the three on top of it.
+    func resetTextScales() {
+        for k in ["textScale", "titleTextScale", "postTextScale", "commentTextScale"] { p.remove(k) }
+        set {
+            $0.textScale = 1
+            $0.titleTextScale = 1
+            $0.postTextScale = 1
+            $0.commentTextScale = 1
+        }
+    }
+
     func setNavLabels(_ v: Bool) { p.setBool("navLabels", v); set { $0.navLabels = v } }
     func setInboxInProfile(_ v: Bool) { p.setBool("inboxInProfile", v); set { $0.inboxInProfile = v } }
     func setNavStyle(_ v: Int) { p.setInt("navStyle", v); set { $0.navStyle = v } }

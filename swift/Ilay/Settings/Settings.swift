@@ -271,6 +271,11 @@ struct Settings: Equatable, Sendable {
     var feedKeepMinutes = 30 // how long the frontpage keeps its posts before returning to it reloads
     var hiddenPostDays = 7 // how long Ilay keeps posts you hid out of every feed (Reddit hides them too)
     var textScale = 1.0 // global text size multiplier (0.8–1.4)
+    // #234: on top of textScale, for post titles, post text (feed previews and the post's
+    // body) and comment text; 1.0 = as before.
+    var titleTextScale = 1.0
+    var postTextScale = 1.0
+    var commentTextScale = 1.0
     var autoplayMedia = true // autoplay videos/GIFs in feeds
     var autoplaySound = false // feed videos start unmuted (#23)
     var viewerMuted = false // full-screen videos start muted (#51)

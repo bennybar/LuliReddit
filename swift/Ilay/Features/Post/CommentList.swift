@@ -468,7 +468,7 @@ final class CommentListController: UIViewController, UICollectionViewDelegate {
         let s = content.settings
         let newEnv = ThreadRowEnv(
             calm: s.calmComments, tapToCollapse: s.tapToCollapse, voteEdge: s.voteEdge, voteGlow: s.voteGlow,
-            dark: traitCollection.userInterfaceStyle == .dark, textScale: s.textScale, accent: IlayTheme.accent
+            dark: traitCollection.userInterfaceStyle == .dark, textScale: s.textScale, commentTextScale: s.commentTextScale, accent: IlayTheme.accent
         )
         let envChanged = newEnv != env
         env = newEnv
