@@ -113,6 +113,19 @@ private const val EXPLAINED_KEY = "digestExplained"
  * most [DigestModule.MAX_COMMUNITIES]; "Use my favourites" follows your favourites again.
  */
 suspend fun editDigestCommunities() {
+    // A second tap while it loads or shows does nothing (it opened twice).
+    if (editingCommunities) return
+    editingCommunities = true
+    try {
+        editCommunities()
+    } finally {
+        editingCommunities = false
+    }
+}
+
+@Volatile private var editingCommunities = false
+
+private suspend fun editCommunities() {
     val subs = runCatching { app.repository.loadedSubscriptions ?: app.repository.getSubscribedSubreddits() }.getOrElse {
         app.navigator.showActionError("load your subscriptions", it)
         return

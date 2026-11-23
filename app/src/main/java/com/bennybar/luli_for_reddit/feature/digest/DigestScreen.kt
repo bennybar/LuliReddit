@@ -73,7 +73,6 @@ import com.bennybar.luli_for_reddit.nav.Route
 import com.bennybar.luli_for_reddit.ui.ErrorView
 import com.bennybar.luli_for_reddit.ui.RefreshBox
 import com.bennybar.luli_for_reddit.ui.friendlyError
-import com.bennybar.luli_for_reddit.ui.subredditName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -283,22 +282,11 @@ fun LazyListScope.digestRows(v: DigestView) {
         }
         return
     }
-    // Grouped before hiding read posts, so a community keeps its place as they go.
+    // One list, not a section per community: a digest is read across them.
     val shownIds = shown.mapTo(HashSet()) { it.post.id }
-    for ((community, all) in orderDigest(d.items, v.order)) {
-        val items = all.filter { it.post.id in shownIds }
-        if (items.isEmpty()) continue
-        item(key = "digest_sub_${community.lowercase()}", contentType = "digest_sub") {
-            Text(
-                subredditName(community),
-                Modifier.padding(start = 14.dp, top = 8.dp, end = 14.dp),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-            )
-        }
-        items(items, key = { "digest_${it.post.id}" }, contentType = { "digest_post" }) { item ->
-            DigestCard(v, item, isNew = item.addedAt > d.builtAt && item.addedAt > seenAt)
-        }
+    val items = orderDigest(d.items, v.order).filter { it.post.id in shownIds }
+    items(items, key = { "digest_${it.post.id}" }, contentType = { "digest_post" }) { item ->
+        DigestCard(v, item, isNew = item.addedAt > d.builtAt && item.addedAt > seenAt)
     }
 }
 

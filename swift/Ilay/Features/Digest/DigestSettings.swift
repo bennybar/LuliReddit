@@ -78,22 +78,15 @@ func digestCommunitiesLabel(_ chosen: [String]?) -> String {
 }
 
 /// The communities editor: your subscriptions, favourites first, as a checklist of at most
-/// `DigestModule.maxCommunities`; "Use my favourites" follows your favourites again.
+/// `DigestModule.maxCommunities`; "Use my favourites" follows your favourites again. It
+/// opens at once on Explore's list (loading it if it isn't yet), and a second tap while
+/// it's open does nothing.
 @MainActor func editDigestCommunities() async {
-    let subs: [Subreddit]
-    do {
-        subs = try await app.repository.getSubscribedSubreddits()
-    } catch {
-        app.navigator.showActionError("load your subscriptions", error)
-        return
-    }
-    let sorted = subs.sorted { a, b in
-        a.userHasFavorited != b.userHasFavorited ? a.userHasFavorited : a.name.lowercased() < b.name.lowercased()
-    }
-    let start = app.digest.chosen ?? Array(sorted.filter(\.userHasFavorited).map { $0.name.lowercased() }.prefix(DigestModule.maxCommunities))
-    // nil: cancelled.
+    if editingCommunities { return }
+    editingCommunities = true
+    defer { editingCommunities = false }
     let result: CommunitiesPick? = await Overlays.show(detents: [.large]) { done in
-        DigestCommunitiesSheet(subs: sorted, start: Set(start), done: done)
+        DigestCommunitiesSheet(chosen: app.digest.chosen, done: done)
     }
     switch result {
     case let .list(names): app.digest.setCommunities(names)
@@ -102,48 +95,69 @@ func digestCommunitiesLabel(_ chosen: [String]?) -> String {
     }
 }
 
+@MainActor private var editingCommunities = false
+
 private enum CommunitiesPick {
     case list([String])
     case favourites
 }
 
 private struct DigestCommunitiesSheet: View {
-    let subs: [Subreddit]
+    let chosen: [String]?
     let done: (CommunitiesPick?) -> Void
-    @State private var picked: Set<String>
+    /// Nil until the list is there (it starts from your favourites when none are chosen).
+    @State private var picked: Set<String>?
 
-    init(subs: [Subreddit], start: Set<String>, done: @escaping (CommunitiesPick?) -> Void) {
-        self.subs = subs
+    init(chosen: [String]?, done: @escaping (CommunitiesPick?) -> Void) {
+        self.chosen = chosen
         self.done = done
-        _picked = State(initialValue: start)
+        _picked = State(initialValue: chosen.map(Set.init))
+    }
+
+    private var subs: [Subreddit] {
+        (SubscriptionsViewModel.shared.subs.value ?? []).sorted { a, b in
+            a.userHasFavorited != b.userHasFavorited ? a.userHasFavorited : a.name.lowercased() < b.name.lowercased()
+        }
     }
 
     var body: some View {
         let max = DigestModule.maxCommunities
+        let subs = subs
+        let model = SubscriptionsViewModel.shared
+        let picked = picked ?? []
         let full = picked.count >= max
         NavigationStack {
             List {
-                Section {
-                    if subs.isEmpty { Text("You haven't joined any communities yet.").foregroundStyle(.secondary) }
-                    ForEach(subs, id: \.name) { s in
-                        let k = s.name.lowercased()
-                        let on = picked.contains(k)
-                        Button {
-                            if on { picked.remove(k) } else if !full { picked.insert(k) }
-                        } label: {
-                            HStack {
-                                Image(systemName: on ? "checkmark.circle.fill" : "circle")
-                                    .foregroundStyle(on ? Color.accentColor : .secondary)
-                                Text("r/\(s.name)").foregroundStyle(on || !full ? .primary : .secondary)
-                                Spacer()
-                                if s.userHasFavorited { Image(systemName: "star.fill").font(.caption).foregroundStyle(.tint) }
+                if case .loading = model.subs, subs.isEmpty {
+                    HStack { Spacer(); ProgressView(); Spacer() }.listRowBackground(Color.clear)
+                } else if case let .error(error) = model.subs, subs.isEmpty {
+                    Text(friendlyError(error)).foregroundStyle(.secondary)
+                    Button("Retry") { model.load(force: true) }
+                } else {
+                    Section {
+                        if subs.isEmpty { Text("You haven't joined any communities yet.").foregroundStyle(.secondary) }
+                        ForEach(subs, id: \.name) { s in
+                            let k = s.name.lowercased()
+                            let on = picked.contains(k)
+                            Button {
+                                var next = picked
+                                if on { next.remove(k) } else if !full { next.insert(k) }
+                                self.picked = next
+                            } label: {
+                                HStack {
+                                    Image(systemName: on ? "checkmark.circle.fill" : "circle")
+                                        .foregroundStyle(on ? Color.accentColor : .secondary)
+                                    Text("r/\(s.name)").foregroundStyle(on || !full ? .primary : .secondary)
+                                    Spacer()
+                                    if s.userHasFavorited { Image(systemName: "star.fill").font(.caption).foregroundStyle(.tint) }
+                                }
                             }
                         }
+                    } header: {
+                        Text(full ? "That's \(max), the most a digest takes." : "\(picked.count) of up to \(max)")
+                    } footer: {
+                        Button("Use my favourites") { done(.favourites) }.padding(.top, 8)
                     }
-                } header: {
-                    Text(full ? "That's \(max), the most a digest takes." : "\(picked.count) of up to \(max)")
-                } footer: {
-                    Button("Use my favourites") { done(.favourites) }.padding(.top, 8)
                 }
             }
             .navigationTitle("Digest communities")
@@ -152,6 +166,14 @@ private struct DigestCommunitiesSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { done(nil) } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { done(.list(subs.map { $0.name.lowercased() }.filter(picked.contains))) }
+                        .disabled(self.picked == nil)
+                }
+            }
+            .task { model.loadIfNeeded() }
+            // Following your favourites: start from them once the list is there.
+            .onChange(of: subs.count, initial: true) {
+                if self.picked == nil, !subs.isEmpty {
+                    self.picked = Set(subs.filter(\.userHasFavorited).map { $0.name.lowercased() }.prefix(max))
                 }
             }
         }

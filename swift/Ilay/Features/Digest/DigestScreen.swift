@@ -100,12 +100,9 @@ final class DigestModel {
         if let known = seenAt[d.day] { seen = known } else { seenAt[d.day] = d.seenAt; seen = d.seenAt }
         // The AI's order only means something while it's on.
         let order = DigestOrder.of(s.digestOrder)
-        // Grouped before hiding read posts, so a community keeps its place as they go.
-        for group in orderDigest(d.items, order == .ai && !s.digestAi ? .notable : order) {
-            let items = group.items.filter { shownIds.contains($0.post.id) }
-            if items.isEmpty { continue }
-            out.append(.community(group.community))
-            for item in items { out.append(.post(item, isNew: item.addedAt > d.builtAt && item.addedAt > seen)) }
+        // One list, not a section per community: a digest is read across them.
+        for item in orderDigest(d.items, order == .ai && !s.digestAi ? .notable : order) where shownIds.contains(item.post.id) {
+            out.append(.post(item, isNew: item.addedAt > d.builtAt && item.addedAt > seen))
         }
         return out
     }
@@ -128,7 +125,6 @@ enum DigestRowItem {
     case note(String)
     case overview(String)
     case message(title: String, text: String, action: DigestAction?)
-    case community(String)
     case post(DigestItem, isNew: Bool)
     case skeleton(Int)
 
@@ -139,7 +135,6 @@ enum DigestRowItem {
         case let .note(t): "note|\(t)"
         case let .overview(t): "overview|\(t.hashValue)"
         case let .message(title, _, _): "message|\(title)"
-        case let .community(c): "community|\(c.lowercased())"
         // Its line and New mark are part of it: a change re-renders the row.
         case let .post(item, isNew): "post|\(item.post.id)|\(item.why.hashValue)|\(isNew)"
         case let .skeleton(i): "skeleton|\(i)"
@@ -223,9 +218,6 @@ struct DigestList<Top: View>: View {
                 .padding(.bottom, 8)
             case let .message(title, text, action):
                 DigestMessage(title: title, text: text, action: action, model: model)
-            case let .community(name):
-                Text("r/\(name)").font(.subheadline.weight(.semibold)).foregroundStyle(.tint)
-                    .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 16).padding(.top, 10).padding(.bottom, 4)
             case let .post(item, isNew):
                 VStack(alignment: .leading, spacing: 4) {
                     DigestWhy(why: item.why, isNew: isNew).padding(.horizontal, 16)
@@ -234,6 +226,8 @@ struct DigestList<Top: View>: View {
             case .skeleton: PostSkeleton()
             }
         }
+        // The page colour that goes with the post layout (grouped for cards), as Saved's.
+        .background(PagedListHook(generation: rows.count))
         .onChange(of: rows.map(\.key), initial: true) { source.show(rows) }
         .task { await model.start() }
         .onDisappear { app.digest.markSeen() }

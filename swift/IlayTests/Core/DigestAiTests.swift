@@ -105,10 +105,10 @@ final class DigestAiTests: XCTestCase {
         }
         let a1 = item("a", 100, 1, 5, 2), a2 = item("a", 900, 9, 2, 4), b1 = item("b", 500, 5, 9, 1)
         let all = [a1, a2, b1]
-        func ids(_ o: DigestOrder) -> [String] { orderDigest(all, o).flatMap { $0.items.map(\.post.id) } }
+        func ids(_ o: DigestOrder) -> [String] { orderDigest(all, o).map(\.post.id) }
         XCTAssertEqual(ids(.notable), [b1, a1, a2].map(\.post.id))
-        XCTAssertEqual(ids(.upvoted), [a2, a1, b1].map(\.post.id))
-        XCTAssertEqual(ids(.newest), [a1, a2, b1].map(\.post.id))
+        XCTAssertEqual(ids(.upvoted), [a2, b1, a1].map(\.post.id))
+        XCTAssertEqual(ids(.newest), [a1, b1, a2].map(\.post.id))
         XCTAssertEqual(ids(.ai), [a2, a1, b1].map(\.post.id))
     }
 }

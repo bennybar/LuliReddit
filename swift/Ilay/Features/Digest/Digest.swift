@@ -110,9 +110,8 @@ private func median(_ v: [Double]) -> Double {
 
 /// The line under a post saying why it's in the digest, from the numbers.
 func digestWhy(_ p: Post, notability: Double, top: Bool) -> String {
-    // (Shown under its community's name, so it doesn't repeat it.)
     let comments = p.numComments > 0 ? " · \(compactNumber(p.numComments)) comments" : ""
-    if top && notability < digestNotable { return "Top post today\(comments)" }
+    if top && notability < digestNotable { return "Top post today in r/\(p.subreddit)\(comments)" }
     let times: String
     if notability >= 10 {
         times = "\(Int(notability.rounded()))×"
@@ -120,7 +119,7 @@ func digestWhy(_ p: Post, notability: Double, top: Bool) -> String {
         let v = (notability * 10).rounded() / 10
         times = v == v.rounded() ? "\(Int(v))×" : "\(v)×"
     }
-    return (top ? "Top post today · \(times) a typical post" : "\(times) a typical post") + comments
+    return (top ? "Top post today in r/\(p.subreddit) · \(times) a typical post" : "\(times) a typical post there") + comments
 }
 
 /// The candidates of a build, as both the AI request and the merge see them.
@@ -278,28 +277,12 @@ func explainDigest(_ day: DigestDay, ai: DigestAi, now: Int) -> DigestDay {
     return out
 }
 
-/// The items in `order`, grouped by community: the communities in the order of their
-/// first post, each one's posts in `order`.
-func orderDigest(_ items: [DigestItem], _ order: DigestOrder) -> [(community: String, items: [DigestItem])] {
-    let sorted: [DigestItem] = switch order {
+/// The items in `order`: one list across communities (each card says its community).
+func orderDigest(_ items: [DigestItem], _ order: DigestOrder) -> [DigestItem] {
+    switch order {
     case .notable: items.sorted { $0.notability > $1.notability }
     case .upvoted: items.sorted { $0.post.score > $1.post.score }
     case .newest: items.sorted { $0.post.createdUtc > $1.post.createdUtc }
     case .ai: items.sorted { $0.importance != $1.importance ? $0.importance > $1.importance : $0.notability > $1.notability }
     }
-    return groupByCommunity(sorted)
-}
-
-/// The items grouped by community for the screen, in the order the communities first
-/// appear (a first build is by notability, so the community with the day's biggest post
-/// leads; later picks join their community, or come last).
-func groupByCommunity(_ items: [DigestItem]) -> [(community: String, items: [DigestItem])] {
-    var order: [String] = []
-    var groups: [String: [DigestItem]] = [:]
-    for it in items {
-        let k = it.post.subreddit.lowercased()
-        if groups[k] == nil { order.append(k) }
-        groups[k, default: []].append(it)
-    }
-    return order.map { (groups[$0]![0].post.subreddit, groups[$0]!) }
 }

@@ -103,11 +103,10 @@ private fun median(v: List<Double>): Double {
 
 /** The line under a post saying why it's in the digest, from the numbers. */
 internal fun digestWhy(p: Post, notability: Double, top: Boolean): String {
-    // (Shown under its community's name, so it doesn't repeat it.)
     val comments = if (p.numComments > 0) " · ${compactNumber(p.numComments)} comments" else ""
-    if (top && notability < NOTABLE) return "Top post today$comments"
+    if (top && notability < NOTABLE) return "Top post today in r/${p.subreddit}$comments"
     val times = if (notability >= 10) "${notability.roundToInt()}×" else "${(notability * 10).roundToInt() / 10.0}×".replace(".0×", "×")
-    return (if (top) "Top post today · $times a typical post" else "$times a typical post") + comments
+    return (if (top) "Top post today in r/${p.subreddit} · $times a typical post" else "$times a typical post there") + comments
 }
 
 /** The candidates of a build, as both the AI request and the merge see them. */
@@ -247,27 +246,10 @@ fun explainDigest(day: DigestDay, ai: DigestAi, now: Long): DigestDay = day.copy
     aiAt = now,
 )
 
-/**
- * The items in [order], grouped by community: the communities in the order of their
- * first post, each one's posts in [order].
- */
-fun orderDigest(items: List<DigestItem>, order: DigestOrder): List<Pair<String, List<DigestItem>>> {
-    val sorted = when (order) {
-        DigestOrder.NOTABLE -> items.sortedByDescending { it.notability }
-        DigestOrder.UPVOTED -> items.sortedByDescending { it.post.score }
-        DigestOrder.NEWEST -> items.sortedByDescending { it.post.createdUtc }
-        DigestOrder.AI -> items.sortedWith(compareByDescending<DigestItem> { it.importance }.thenByDescending { it.notability })
-    }
-    return groupByCommunity(sorted)
-}
-
-/**
- * The items grouped by community for the screen, in the order the communities first
- * appear (a first build is by notability, so the community with the day's biggest
- * post leads; later picks join their community, or come last).
- */
-fun groupByCommunity(items: List<DigestItem>): List<Pair<String, List<DigestItem>>> {
-    val groups = LinkedHashMap<String, MutableList<DigestItem>>()
-    for (it in items) groups.getOrPut(it.post.subreddit.lowercase()) { ArrayList() }.add(it)
-    return groups.map { (_, list) -> list.first().post.subreddit to list }
+/** The items in [order]: one list across communities (each card says its community). */
+fun orderDigest(items: List<DigestItem>, order: DigestOrder): List<DigestItem> = when (order) {
+    DigestOrder.NOTABLE -> items.sortedByDescending { it.notability }
+    DigestOrder.UPVOTED -> items.sortedByDescending { it.post.score }
+    DigestOrder.NEWEST -> items.sortedByDescending { it.post.createdUtc }
+    DigestOrder.AI -> items.sortedWith(compareByDescending<DigestItem> { it.importance }.thenByDescending { it.notability })
 }

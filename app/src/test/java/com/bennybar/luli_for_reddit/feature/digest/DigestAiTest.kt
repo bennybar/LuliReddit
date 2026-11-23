@@ -126,10 +126,10 @@ class DigestAiTest {
         val a2 = item("a", 900, 9, 2.0, 4)
         val b1 = item("b", 500, 5, 9.0, 1)
         val all = listOf(a1, a2, b1)
-        fun ids(o: DigestOrder) = orderDigest(all, o).flatMap { (_, l) -> l.map { it.post.id } }
+        fun ids(o: DigestOrder) = orderDigest(all, o).map { it.post.id }
         assertEquals(listOf(b1, a1, a2).map { it.post.id }, ids(DigestOrder.NOTABLE))
-        assertEquals(listOf(a2, a1, b1).map { it.post.id }, ids(DigestOrder.UPVOTED))
-        assertEquals(listOf(a1, a2, b1).map { it.post.id }, ids(DigestOrder.NEWEST))
-        assertEquals(listOf(a2, a1, b1).map { it.post.id }, ids(DigestOrder.AI))
+        assertEquals(listOf(a2, b1, a1).map { it.post.id }, ids(DigestOrder.UPVOTED))
+        assertEquals(listOf(a1, b1, a2).map { it.post.id }, ids(DigestOrder.NEWEST))
+        assertEquals(listOf(a2, a1, b1).map { it.post.id }, ids(DigestOrder.AI)) // 4, 2, 1
     }
 }
