@@ -45,6 +45,14 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.106", "Nov 23, 2026",
+        listOf(
+            "Inbox: one row of chips (All, Unread, Replies, Mentions, Messages, Sent) in place of the tabs and the second row of filters. The bar and chips slide away as you scroll, and you can still swipe between them (#246)",
+            "Expandable top bar: a fling back to the top opens the header too (#249), and the chips no longer blink while it folds (#248)",
+            "Inbox and Profile: no more shading over the search bar (#248)",
+        ),
+    ),
+    Release(
         "2.0.105", "Nov 23, 2026",
         listOf(
             "Post text in feeds shows its bold, italic, strikethrough and spoilers instead of the markdown marks (#241)",
