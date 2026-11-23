@@ -84,6 +84,11 @@ class SettingsStore(private val p: Prefs) {
             autoHideReadForYou = b("autoHideReadForYou", d.autoHideReadForYou),
             blendHome = b("blendHome", d.blendHome),
             blendReddit = (p.getInt("blendReddit") ?: d.blendReddit).coerceIn(0, 2),
+            digestEnabled = b("digestEnabled", d.digestEnabled),
+            digestSize = (p.getInt("digestSize") ?: d.digestSize).coerceIn(0, 2),
+            // Unknown (1 is a bottom tab, not offered yet): the chip.
+            digestPlace = (p.getInt("digestPlace") ?: d.digestPlace).let { if (it == 2) 2 else 0 },
+            digestShowRead = b("digestShowRead", d.digestShowRead),
             forYouDiscovery = (p.getInt("forYouDiscovery") ?: d.forYouDiscovery).coerceIn(-2, 2),
             midResThumbnails = b("midResThumbnails", d.midResThumbnails),
             subsCacheEnabled = b("subsCacheEnabled", d.subsCacheEnabled),
@@ -202,6 +207,10 @@ class SettingsStore(private val p: Prefs) {
 
     fun setBlendHome(v: Boolean) { p.setBool("blendHome", v); set { it.copy(blendHome = v) } }
     fun setBlendReddit(v: Int) { p.setInt("blendReddit", v); set { it.copy(blendReddit = v) } }
+    fun setDigestEnabled(v: Boolean) { p.setBool("digestEnabled", v); set { it.copy(digestEnabled = v) } }
+    fun setDigestSize(v: Int) { p.setInt("digestSize", v); set { it.copy(digestSize = v) } }
+    fun setDigestPlace(v: Int) { p.setInt("digestPlace", v); set { it.copy(digestPlace = v) } }
+    fun setDigestShowRead(v: Boolean) { p.setBool("digestShowRead", v); set { it.copy(digestShowRead = v) } }
     fun setAutoHideReadForYou(v: Boolean) { p.setBool("autoHideReadForYou", v); set { it.copy(autoHideReadForYou = v) } }
     fun setForYouDiscovery(v: Int) { p.setInt("forYouDiscovery", v); set { it.copy(forYouDiscovery = v) } }
     fun setAppFont(v: AppFont) {

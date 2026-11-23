@@ -100,6 +100,7 @@ class AppContainer(val context: Context) {
     val forYou by lazy { ForYouModule(this) }
     val inbox by lazy { InboxModule(this) }
     val media by lazy { MediaModule(this) }
+    val digest by lazy { com.bennybar.luli_for_reddit.feature.digest.DigestModule(this) }
 
     /** The identity whose per-account stores are loaded (after a login/switch settles). */
     val loadedIdentity = MutableStateFlow<String?>(null)
@@ -109,7 +110,7 @@ class AppContainer(val context: Context) {
     val navigator: AppNavigator get() = navigatorOrNull ?: error("No activity")
 
     private val userScoped: List<UserScoped>
-        get() = listOf(postOverrides, commentVotes, redditNotifications, hiddenPosts, dismissedPosts, hiddenHomeSubs, summaries, history, recentSubreddits, threadVisits, contentFilters, offline, feed, post, forYou, inbox, media)
+        get() = listOf(postOverrides, commentVotes, redditNotifications, hiddenPosts, dismissedPosts, hiddenHomeSubs, summaries, history, recentSubreddits, threadVisits, contentFilters, offline, feed, post, forYou, inbox, media, digest)
 
     /** Called once by [IlayApp] after [app] is assigned (modules may use it). */
     fun start() {

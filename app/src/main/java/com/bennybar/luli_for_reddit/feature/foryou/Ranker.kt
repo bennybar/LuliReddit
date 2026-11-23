@@ -451,8 +451,8 @@ fun rankForYou(pool: List<Candidate>, i: RankInputs, pageSize: Int = 50): RankRe
     return RankResult(ranked, leftovers, meta)
 }
 
-/** Same story: at least 3 shared title keywords, half of both titles' keywords. */
-private fun sameStory(a: Set<String>, b: Set<String>): Boolean {
+/** Same story: at least 3 shared title keywords, half of both titles' keywords (For You, Digest). */
+internal fun sameStory(a: Set<String>, b: Set<String>): Boolean {
     val shared = a.intersect(b).size
     return shared >= 3 && shared.toDouble() / (a union b).size >= 0.5
 }

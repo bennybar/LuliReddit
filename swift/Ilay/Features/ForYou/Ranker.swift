@@ -472,7 +472,7 @@ func rankForYou(_ pool: [Candidate], _ i: RankInputs, pageSize: Int = 50) -> Ran
 }
 
 /// Same story: at least 3 shared title keywords, half of both titles' keywords.
-private func sameStory(_ a: Set<String>, _ b: Set<String>) -> Bool {
+func sameStory(_ a: Set<String>, _ b: Set<String>) -> Bool { // For You, Digest
     let shared = a.intersection(b).count
     return shared >= 3 && Double(shared) / Double(a.union(b).count) >= 0.5
 }

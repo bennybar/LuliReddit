@@ -238,6 +238,11 @@ data class Settings(
     val postsTabAll: Boolean = false, // the Posts tab shows r/all instead of the frontpage, which Explore's All button opens then
     val blendHome: Boolean = false, // with forYouFeed + Reddit Home allowed: "Blend (Beta)", For You ranking over your Reddit Home too
     val blendReddit: Int = 1, // Blend: Reddit ↔ Ilay — 0 mostly Ilay, 1 balanced, 2 mostly Reddit
+    // The Digest (docs/digest-spec.md). Its communities are per account (DigestModule).
+    val digestEnabled: Boolean = false,
+    val digestSize: Int = 1, // DigestSize index: 0 Brief, 1 Standard, 2 Everything notable
+    val digestPlace: Int = 0, // 0 a chip on Posts, 2 menu only (1 is kept for a bottom tab)
+    val digestShowRead: Boolean = false, // the Digest keeps read posts (dimmed) instead of hiding them
     // Experimental Reddit Home: the user accepted its risk warning (allowed),
     // and the frontpage currently shows it (feed).
     val redditHomeAllowed: Boolean = false,

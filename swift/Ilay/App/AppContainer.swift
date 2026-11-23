@@ -49,6 +49,7 @@ final class AppContainer {
     @ObservationIgnored lazy var notificationLog = NotificationLog(prefs: prefs)
     @ObservationIgnored lazy var media = MediaModule()
     @ObservationIgnored lazy var post = PostModule(self)
+    @ObservationIgnored lazy var digest = DigestModule(self)
 
     /// The identity whose per-account stores are loaded (after a login/switch settles).
     var loadedIdentity: String?
@@ -58,7 +59,7 @@ final class AppContainer {
     @ObservationIgnored private var loadedLoggedOutEarly = false
 
     private var userScoped: [UserScoped] {
-        [postOverrides, commentVotes, hiddenPosts, dismissedPosts, hiddenHomeSubs, summaries, history, recentSubreddits, threadVisits, contentFilters, offline, feed, forYou, inbox, redditNotifications]
+        [postOverrides, commentVotes, hiddenPosts, dismissedPosts, hiddenHomeSubs, summaries, history, recentSubreddits, threadVisits, contentFilters, offline, feed, forYou, inbox, redditNotifications, digest]
     }
 
     init() {

@@ -78,6 +78,11 @@ final class SettingsStore {
         s.autoHideReadForYou = b("autoHideReadForYou", s.autoHideReadForYou)
         s.blendHome = b("blendHome", s.blendHome)
         s.blendReddit = min(max(p.getInt("blendReddit") ?? s.blendReddit, 0), 2)
+        s.digestEnabled = b("digestEnabled", s.digestEnabled)
+        s.digestSize = min(max(p.getInt("digestSize") ?? s.digestSize, 0), 2)
+        // Unknown (1 is a bottom tab, not offered yet): the chip.
+        s.digestPlace = p.getInt("digestPlace") == 2 ? 2 : 0
+        s.digestShowRead = b("digestShowRead", s.digestShowRead)
         s.forYouDiscovery = min(max(p.getInt("forYouDiscovery") ?? s.forYouDiscovery, -2), 2)
         s.midResThumbnails = b("midResThumbnails", s.midResThumbnails)
         s.subsCacheEnabled = b("subsCacheEnabled", s.subsCacheEnabled)
@@ -196,6 +201,10 @@ final class SettingsStore {
 
     func setBlendHome(_ v: Bool) { p.setBool("blendHome", v); set { $0.blendHome = v } }
     func setBlendReddit(_ v: Int) { p.setInt("blendReddit", v); set { $0.blendReddit = v } }
+    func setDigestEnabled(_ v: Bool) { p.setBool("digestEnabled", v); set { $0.digestEnabled = v } }
+    func setDigestSize(_ v: Int) { p.setInt("digestSize", v); set { $0.digestSize = v } }
+    func setDigestPlace(_ v: Int) { p.setInt("digestPlace", v); set { $0.digestPlace = v } }
+    func setDigestShowRead(_ v: Bool) { p.setBool("digestShowRead", v); set { $0.digestShowRead = v } }
     func setAutoHideReadForYou(_ v: Bool) { p.setBool("autoHideReadForYou", v); set { $0.autoHideReadForYou = v } }
     func setForYouDiscovery(_ v: Int) { p.setInt("forYouDiscovery", v); set { $0.forYouDiscovery = v } }
     func setHideReadPosts(_ v: Bool) { p.setBool("hideReadPosts", v); set { $0.hideReadPosts = v } }

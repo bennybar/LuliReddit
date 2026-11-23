@@ -242,6 +242,11 @@ struct Settings: Equatable, Sendable {
     var postsTabAll = false // the Posts tab shows r/all instead of the frontpage, which Explore's All button opens then
     var blendHome = false // with forYouFeed + Reddit Home allowed: "Blend (Beta)", For You ranking over your Reddit Home too
     var blendReddit = 1 // Blend: Reddit ↔ Ilay — 0 mostly Ilay, 1 balanced, 2 mostly Reddit
+    // The Digest (docs/digest-spec.md). Its communities are per account (DigestModule).
+    var digestEnabled = false
+    var digestSize = 1 // DigestSize index: 0 Brief, 1 Standard, 2 Everything notable
+    var digestPlace = 0 // 0 a chip on Posts, 2 menu only (1 is kept for a bottom tab)
+    var digestShowRead = false // the Digest keeps read posts (dimmed) instead of hiding them
     // Experimental Reddit Home: the user accepted its risk warning (allowed),
     // and the frontpage currently shows it (feed).
     var redditHomeAllowed = false
