@@ -45,6 +45,13 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.98", "Nov 23, 2026",
+        listOf(
+            "Expandable top bar: the big title sits a little higher, and it stays folded when you come back from a post",
+            "Settings › Feed: one \"Posts tab feed\" choice (For You, Blend, Reddit Home, Subscriptions) instead of the \"Home shows…\" switches",
+        ),
+    ),
+    Release(
         "2.0.97", "Nov 22, 2026",
         listOf(
             "Home and Blend scroll more smoothly as you go deeper: Ilay reads only the new posts from your Reddit Home",
