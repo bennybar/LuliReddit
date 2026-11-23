@@ -12,6 +12,233 @@ struct Release: Identifiable {
 /// 2.0 (the native app, with Reddit Home). Add the new release at the top
 /// with every release.
 let CHANGELOG = [
+    Release(version: "2.0.103", date: "Nov 23, 2026", highlights: [
+        "Settings › Comment buttons only on tap: comments show just their text, with the score by the time; tap a comment for Vote, Reply and the rest (#239)",
+    ]),
+    Release(version: "2.0.102", date: "Nov 23, 2026", highlights: [
+        "Digest: a post you open and come back from leaves the list too, not only one you swipe (Show read keeps them)",
+        "Digest: Standard is now about 20 posts (was 12). Rebuild today's digest from its menu to see it now",
+    ]),
+    Release(version: "2.0.101", date: "Nov 23, 2026", highlights: [
+        "Digest: marking a post read takes it off the list at once, as hiding a post does in your feed; Undo puts it back",
+        "Haven't tried Digest yet? A card at the top of Posts offers it, once",
+    ]),
+    Release(version: "2.0.100", date: "Nov 23, 2026", highlights: [
+        "Text sizes for post titles, post text and comments, each on its own (Settings › Appearance, under Font size). They start at today's size, and \"Reset text sizes\" puts them all back",
+    ]),
+    Release(version: "2.0.99", date: "Nov 23, 2026", highlights: [
+        "New: Digest. The posts that stood out in the last 24 hours in your favourite communities, in one short list. Turn it on in Settings › Digest, where \"How Digest works\" explains it",
+        "It picks by how unusual a post is for its own community, so a small community's big day isn't drowned out, and a quiet day gives a short digest. No AI needed",
+        "Your choice of communities (your favourites, or up to 15), how long it is, and where it shows: a chip at the top of Posts, its own tab, or only in the side bar and Profile menu",
+        "Optional: with your own AI key, \"Use AI\" picks the posts, says why each matters, and can open with a short overview. It's off unless you turn it on, and a refresh only sends the new posts",
+        "Order it your way: most notable, most upvoted, newest, or the AI's assessment",
+        "Swipe a post to mark it read (left, right or both: your choice). Pull down for what's new: a refresh only adds posts, nothing already there goes away",
+        "A daily notification at the time you pick, with your digest ready",
+        "Settings › Appearance › Inbox in Profile: Inbox opens from an envelope at the top of Profile, for a three-tab bottom bar",
+        "Our own subreddit: r/IlayFR, for news, help and ideas (Settings › About)",
+    ]),
+    Release(version: "2.0.97", date: "Nov 22, 2026", highlights: [
+        "Home and Blend scroll more smoothly as you go deeper: Ilay reads only the new posts from your Reddit Home",
+        "For You loads its later pages faster, and a slow source no longer holds up the first one",
+        "On a slow connection, For You keeps what arrives late for the next page instead of dropping it",
+        "With Hide read posts on, For You pages come back full",
+    ]),
+    Release(version: "2.0.95", date: "Nov 22, 2026", highlights: [
+        "Comments deep in a thread keep their ⋯ menu (Edit, Delete…): on narrow rows Reply and Collapse show just their icons",
+        "Polls: \"Vote on reddit.com\" opens the post on Reddit's site, where you can vote",
+    ]),
+    Release(version: "2.0.93", date: "Nov 22, 2026", highlights: [
+        "Long threads reopen where you left off after using the jump buttons too, and \"Back where you left off\" sits at the top instead of over the buttons",
+        "More commenters' pictures show in long threads, and your own on your comments",
+        "A reply with an image no longer says it failed when Reddit posted it",
+        "Collapse AutoModerator and pinned comments: every pinned comment now starts collapsed",
+        "New comment in the thread's ⋯ menu, your picture on the Profile tab, and Report for comments and users",
+    ]),
+    Release(version: "2.0.92", date: "Nov 17, 2026", highlights: [
+        "The screen stays on while a video plays full screen",
+        "Tap a user flair that's cut short to read all of it",
+        "New setting: Hide thread buttons while scrolling (Posts & comments). They step aside while your finger scrolls a thread",
+    ]),
+    Release(version: "2.0.91", date: "Nov 16, 2026", highlights: [
+        "Shorter For You tags: \"From r/x\" for communities you engage with, \"Subscribed · r/x\" for yours, and a fire icon for Trending",
+        "When the next page fails to load, the feed says so with a Retry button instead of just stopping. Profile, Saved and Search lists show where they end",
+        "Swiping to delete a message asks first",
+    ]),
+    Release(version: "2.0.90", date: "Nov 16, 2026", highlights: [
+        "Spoiler posts keep their text covered, in feeds and in the thread, until you tap it",
+        "Threads in contest mode say so above the comments: random order, scores hidden",
+    ]),
+    Release(version: "2.0.89", date: "Nov 16, 2026", highlights: [
+        "Collapse AutoModerator and bots is only in Settings › Posts & comments now: it was also in Content filters, the same switch twice",
+    ]),
+    Release(version: "2.0.88", date: "Nov 16, 2026", highlights: [
+        "Translation: DeepL with your own API key, as a service for languages your phone can't translate (Settings › Translation service)",
+    ]),
+    Release(version: "2.0.87", date: "Nov 16, 2026", highlights: [
+        "Settings › Feed › Post text in feeds: show 5 or 10 lines of a post's text in feeds",
+        "Your own comments have Edit and Delete at the top of their ⋯ menu",
+        "Removing an entry from History slides it all the way out before it goes",
+    ]),
+    Release(version: "2.0.86", date: "Nov 16, 2026", highlights: [
+        "A comment's ⋯ menu has Select text, to copy just part of it",
+        "Names in comments have their own softer colour, so they stand apart from the text",
+    ]),
+    Release(version: "2.0.85", date: "Nov 16, 2026", highlights: [
+        "Tapping the top bar's empty space no longer opens the post under it",
+        "Flairs beside long names shorten or step aside instead of showing as an empty chip, and their images are bigger",
+        "Links in a community's description, About and rules open",
+        "Search suggests communities as you type",
+        "Profile pictures in comments also work when signed in with an API key",
+        "Mark read on scroll now marks a post once you've scrolled past it",
+        "Collapse AutoModerator also collapses pinned bot comments, and it's in Posts & comments settings too",
+        "The bottom bar hides with the same scroll as the floating buttons",
+        "One Back gesture leaves the media viewer; Tune For You has the new menu look",
+        "Settings: the For You and Blend switches say what they are: what Home shows",
+    ]),
+    Release(version: "2.0.84", date: "Nov 15, 2026", highlights: [
+        "Explore: Popular and All are separate sections, so you can move or hide each one (side by side, they stay a pair)",
+        "Filtering your communities shows Favorites, Recently visited and Subscriptions under their own headers",
+        "The filter bar is one connected piece: its filter icon opens the sort, and the Favorites star is attached to it",
+    ]),
+    Release(version: "2.0.83", date: "Nov 15, 2026", highlights: [
+        "Threads reopen where you left off, with a button to jump back to the top",
+        "Menus have a fresh look: options in rounded groups with icons, and what's picked as a tinted pill",
+        "Profile's sort: Top's time ranges show in the same menu",
+    ]),
+    Release(version: "2.0.82", date: "Nov 15, 2026", highlights: [
+        "Posts you voted on glow in the vote's colour, as comments do (Settings › Mark what you voted on › Glow)",
+        "Floating buttons fold only once you really scroll, open with a little bounce, and have less rounded corners",
+        "Explore: each community in a list is its own segment, and the community rows move like the gallery carousel",
+        "Explore's Full top bar is the same as Home's; with the side bar on, your picture is smaller and the search bar centred",
+    ]),
+    Release(version: "2.0.81", date: "Nov 15, 2026", highlights: [
+        "Calm comments: swiping a comment to vote no longer hides its thread lines; they slide with it",
+        "History and Summaries: the selection bar's × and count line up with the title",
+        "For You's subtitle is now \"On your phone\", so it fits beside the title",
+    ]),
+    Release(version: "2.0.80", date: "Nov 12, 2026", highlights: [
+        "Explore: Popular communities, a row of Reddit's popular communities you haven't joined, with Join",
+        "It's loaded at most once a day, and you can hide or move it in Settings › Appearance › Explore sections",
+    ]),
+    Release(version: "2.0.79", date: "Nov 12, 2026", highlights: [
+        "Explore redesign: each section sits in its own rounded card",
+        "Recommended communities show their banner, with the picture over it",
+        "Favorites is a row of community pictures; long press one to remove it",
+        "Recently visited shows the first three, with Show all for the rest",
+        "Explore's top bar follows Settings › Appearance › Top bar, like Home, and hides as you scroll",
+    ]),
+    Release(version: "2.0.78", date: "Nov 12, 2026", highlights: [
+        "Settings › Appearance › Explore sections: show, hide and reorder Explore's sections",
+        "Recommended for you is a carousel of up to 10 communities, each with its picture and a Join button",
+    ]),
+    Release(version: "2.0.77", date: "Nov 12, 2026", highlights: [
+        "Spoiler and NSFW galleries cover each image, so you can still swipe through them; one tap reveals them all",
+        "Spoiler covers have the same rounded corners as the media under them",
+        "Calm comment threads: the lines run unbroken, each depth in its own soft colour, with rounded ends",
+    ]),
+    Release(version: "2.0.76", date: "Nov 11, 2026", highlights: [
+        "Drafts gets the new look: a top bar that hides as you scroll and rounded containers",
+        "Selecting in History flips the picture over to a tick",
+        "Softer placeholder pictures, and people's profile pictures in search",
+        "The side bar shows your name and karma beside your picture, with an option to hide the u/",
+        "The full top bar keeps the ☰ and your picture outside the search bar; calm posts show round community pictures",
+    ]),
+    Release(version: "2.0.75", date: "Nov 11, 2026", highlights: [
+        "Explore: Recommended for you, communities you enjoy in For You but haven't joined, with a Join button",
+        "History is split by day: Today, Yesterday, then the date",
+    ]),
+    Release(version: "2.0.74", date: "Nov 11, 2026", highlights: [
+        "Settings › Media › Loop videos: turn it off and full-screen videos stop at the end, with a replay button (GIFs still loop)",
+    ]),
+    Release(version: "2.0.73", date: "Nov 11, 2026", highlights: [
+        "History shows each community's picture; tap the name to open the community",
+        "History: tap a picture to select posts, then remove them together",
+        "Removing from History offers Undo",
+        "Profile: its ⋯ menu puts short entries side by side, and its header lines up with Home's",
+    ]),
+    Release(version: "2.0.72", date: "Nov 11, 2026", highlights: [
+        "A subreddit or custom feed you open again after a few minutes loads its latest posts, no pull needed",
+        "Inbox reloads when you open it and when new mail arrives, and new items show at the top",
+    ]),
+    Release(version: "2.0.71", date: "Nov 11, 2026", highlights: [
+        "Read posts stay read: Hide read posts remembers far more of them, covers For You too, and a page of only read posts loads the next",
+        "Saved and History: the top bar hides as you scroll, with a 🔍 to bring the search back; Saved's chips have room and float under the bar",
+        "History looks like Gmail: one connected list with each community's letter and when you read it; swipe a row left to remove it",
+        "Search: Recent in connected cards; a community or user you open from the results takes its search's place, with its picture; long-press one to remove it",
+        "Profile: tap your name (▾) to switch accounts, now with their pictures; History, Read later, Drafts and more are in the ⋯ menu",
+        "Full top bar without New post: one round bar, Search Reddit in the middle, a smaller picture",
+        "With the side bar on, Inbox and Explore leave out the Settings button too",
+        "The search tab you pick before searching shows as picked",
+    ]),
+    Release(version: "2.0.70", date: "Nov 10, 2026", highlights: [
+        "The side bar slides fully closed before the next page opens",
+        "Swiping a post to vote springs back smoothly, even after a quick flick",
+        "Votes: no circle or pop on the arrows, just their colour; the glow fades in softly in Calm and shows on the thread's post too",
+        "Settings › Posts & comments › Mark what you voted on: Glow, the old edge line, or Off",
+        "With the side bar on, Profile leaves out the Settings button and the shortcuts the side bar already has",
+    ]),
+    Release(version: "2.0.69", date: "Nov 9, 2026", highlights: [
+        "Settings › Appearance opens normally again (it jumped straight into Theme & colours, and Back couldn't leave)",
+        "The side bar closes again after you pick a page or a tab",
+    ]),
+    Release(version: "2.0.68", date: "Nov 9, 2026", highlights: [
+        "A short setup on a fresh install: restore a backup, pick your look, navigation and front page, then sign in. Every step can be skipped",
+    ]),
+    Release(version: "2.0.67", date: "Nov 9, 2026", highlights: [
+        "Comments show their authors' profile pictures (with the website sign-in), in place of the letter dot. Settings → Posts & comments can turn it off",
+    ]),
+    Release(version: "2.0.66", date: "Nov 9, 2026", highlights: [
+        "Comments you voted on glow softly in the vote's colour instead of a line down the side",
+        "Threads: put the floating buttons left, middle or right; jump between OP's or your own comments (long-press goes back); hide the next-comment button; link posts show their picture at the top",
+        "Unread inbox items stand out with a coloured card, and flairs sit on a light tint so they're easier to read",
+        "Explore: a softer fade under the status bar, a search bar that lines up with Search, and long-press a Recently visited subreddit to remove it",
+        "The side bar's pages open without a slide and their icons fill in; the floating buttons move down with the bottom bar as it hides",
+    ]),
+    Release(version: "2.0.65", date: "Nov 5, 2026", highlights: [
+        "Reposts made with a Reddit share link now show the original post's photo or video instead of a reddit.com link",
+    ]),
+    Release(version: "2.0.64", date: "Nov 5, 2026", highlights: [
+        "Crossposts that showed up as a bare reddit.com link now show the original post's photo or video",
+        "A link to a Reddit post opens it in the app, and crossposts from someone's profile say \"from u/name\"",
+    ]),
+    Release(version: "2.0.63", date: "Nov 5, 2026", highlights: [
+        "Subreddits and custom feeds: a tidier top bar (more actions under ⋯) that hides as you scroll down and comes back when you scroll up, like Home's",
+    ]),
+    Release(version: "2.0.62", date: "Nov 5, 2026", highlights: [
+        "Pages you open from the side bar act like side-bar tabs: ☰ instead of the back arrow, and the side bar shows where you are",
+        "Choose and order the side bar's entries, and the buttons in the top bar's menu (Settings → Appearance)",
+        "Dim read posts can be turned off while keeping your history",
+        "Browse media: closing it no longer makes the feed jump",
+    ]),
+    Release(version: "2.0.61", date: "Nov 5, 2026", highlights: [
+        "Search shows community and user icons, and letter avatars get their own colour",
+        "Mini cards: tap the thumbnail to open the photo or video full screen",
+        "Clear Recently visited from Explore, or hide it (Settings → Data & storage). Thanks, Nath5!",
+        "New option: the Posts tab can show r/all (Settings → Feed)",
+    ]),
+    Release(version: "2.0.60", date: "Nov 5, 2026", highlights: [
+        "Browse media: swipe up through a feed's photos, galleries and videos full screen, with votes, comments and saving at hand. Find it in a subreddit's top bar or the Home menu",
+    ]),
+    Release(version: "2.0.59", date: "Nov 5, 2026", highlights: [
+        "r/ and u/ mentions in comments and posts are links, and \"Crossposted from\" opens the original post",
+        "Hide NSFW posts now also hides them in search, profiles, Saved and History",
+        "Recently visited counts your visits, and can list the most visited first (Settings → Data & storage)",
+        "The floating button can hide the posts you've read, and floating chips can be transparent or solid",
+        "Comments: a small pin instead of the PINNED badge, and long flairs no longer hide the username",
+        "Calm vote buttons fill with the vote colour and change shape when tapped",
+    ]),
+    Release(version: "2.0.58", date: "Nov 3, 2026", highlights: [
+        "Choose the floating button on Home and in subreddits: New post, Search, Scroll to top, Refresh or none. Threads have their own choice (Settings → Appearance)",
+        "Filter chips float back under the top bar in subreddits and custom feeds too, on a solid background",
+        "Edit the text of your image and gallery posts, not only text posts",
+    ]),
+    Release(version: "2.0.57", date: "Nov 3, 2026", highlights: [
+        "For You and Blend: Blend shows more of your Reddit Home, fewer repeats on top, stories you've read step aside, and communities you enjoy but haven't joined show up",
+        "Swiping a post or comment only starts on a clearly sideways swipe, so diagonal scrolls stay scrolls",
+        "A new flair picker you can search, and Edit flair on your own posts",
+        "Replies wait for an attachment to finish preparing, ask before discarding, and show a counter near the length limit",
+        "Floating filter chips line up and no longer jump with the Full top bar; the search box is fully round",
+    ]),
     Release(version: "2.0.56", date: "Nov 2, 2026", highlights: [
         "Full top bar: a wider search bar, and your profile picture opens the menu. New post beside it is optional (Settings → Appearance)",
         "Floating filter chips have an outline and settle into place smoothly, and you can turn them off (Settings → Feed)",
