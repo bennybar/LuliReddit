@@ -29,6 +29,10 @@ class DigestModule(private val c: AppContainer) : UserScoped {
 
     /** A build or refresh is running. */
     val building: StateFlow<Boolean> = _building
+    private val _progress = MutableStateFlow<String?>(null)
+
+    /** What the running build is doing ("Loading posts (4/15)…"), for the screen. */
+    val progress: StateFlow<String?> = _progress
 
     /** Posts shows the Digest (its chip picked). Not a feed choice: not saved, so a launch opens the feed. */
     val onPosts = MutableStateFlow(false)
@@ -121,33 +125,48 @@ class DigestModule(private val c: AppContainer) : UserScoped {
             val size = DigestSize.of(c.settings.value.digestSize)
             val read = c.history.ids.value
             val s = c.settings.value
-            // The AI step (spec section 6): only when "Use AI" is on and there's a key; only
-            // posts not judged yet (none: no call); an automatic build at most once in 12 hours.
-            var ai: DigestAi? = null
-            var aiFailed = false
-            val key = if (s.digestAi) c.secureStore.openaiKey() else null
-            val pending = if (key.isNullOrEmpty()) emptyList() else digestPending(prev, day, candidates, read, now)
-            val due = manual || prev == null || now - prev.aiAt >= STALE_MS
-            if (!key.isNullOrEmpty() && pending.isNotEmpty() && due) {
-                val (system, user) = digestAiMessages(
-                    pending, interests(), size,
-                    overview = s.digestOverview && prev == null, // the overview is about the day's first build
-                    language = s.aiSummaryLanguage, now = now,
-                )
-                ai = try {
-                    val baseUrl = if (s.aiUseCustomUrl) s.aiBaseUrl else "https://api.openai.com"
-                    parseDigestAi(AiService.digest(baseUrl, key, s.aiModel, system, user), pending)
+            // The AI step (spec section 6), when "Use AI" is on and there's a key, for the builds
+            // it's chosen for (Settings: every build, or the day's first and Rebuild), and the
+            // parts chosen: picking, the "why" lines, the overview (only on the day's first build).
+            // Only posts not judged yet; an automatic build calls at most once in 12 hours.
+            val first = prev == null
+            val overview = s.digestOverview && first
+            val key = if (s.digestAi && (first || s.digestAiBuilds == 0)) c.secureStore.openaiKey() else null
+            val due = manual || first || now - prev.aiAt >= STALE_MS
+            val useAi = !key.isNullOrEmpty() && due && (s.digestAiPick || s.digestAiWhy || overview)
+            val baseUrl = if (s.aiUseCustomUrl) s.aiBaseUrl else "https://api.openai.com"
+            val language = s.digestLanguage ?: s.aiSummaryLanguage
+            suspend fun ask(posts: List<Post>, rate: Boolean): DigestAi? {
+                _progress.value = if (rate) "Asking the AI about ${posts.size} posts…" else "The AI is writing about ${posts.size} posts…"
+                val (system, user) = digestAiMessages(posts, interests(), size, overview, language, now, rate = rate, why = s.digestAiWhy)
+                return try {
+                    parseDigestAi(AiService.digest(baseUrl, key!!, s.aiModel, system, user), posts, rated = rate)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: Exception) {
-                    null
+                    null // unreachable, refused or unreadable: by the numbers, and the screen says so
                 }
-                // Unreachable, refused or unreadable: by the numbers, and the screen says so.
-                aiFailed = ai == null
             }
-            val merged = mergeDigest(prev, day, candidates, read, size, now, ai, aiFailed)
+            val merged = if (useAi && s.digestAiPick) {
+                // The AI picks, from the posts not judged yet.
+                val pending = digestPending(prev, day, candidates, read, now)
+                val ai = if (pending.isEmpty()) null else ask(pending, rate = true)
+                mergeDigest(prev, day, candidates, read, size, now, ai, aiFailed = pending.isNotEmpty() && ai == null)
+            } else {
+                // The numbers pick; the AI, if wanted, only writes about the new picks.
+                _progress.value = "Picking the notable posts…"
+                val numbers = mergeDigest(prev, day, candidates, read, size, now)
+                val added = numbers.items.filter { it.addedAt == now }.map { it.post }
+                if (useAi && added.isNotEmpty() && (s.digestAiWhy || overview)) {
+                    val ai = ask(added, rate = false)
+                    if (ai == null) numbers.copy(aiFailed = true, aiAt = now) else explainDigest(numbers, ai, now)
+                } else {
+                    numbers
+                }
+            }
             if (c.session.username != session.username) return Outcome.Failed(CancellationException("Account changed"))
             store.put(merged)
+            _progress.value = null
             return Outcome.Updated(merged.items.size - (prev?.items?.size ?: 0))
         } catch (e: CancellationException) {
             throw e
@@ -155,6 +174,7 @@ class DigestModule(private val c: AppContainer) : UserScoped {
             return Outcome.Failed(e)
         } finally {
             _building.value = false
+            _progress.value = null
         }
     }
 
@@ -164,6 +184,9 @@ class DigestModule(private val c: AppContainer) : UserScoped {
      * one request of its own while the build stays within [MAX_REQUESTS].
      */
     private suspend fun fetchCandidates(subs: List<String>): List<Post> = coroutineScope {
+        _progress.value = "Loading posts from ${subs.size} communities…"
+        loaded.set(0)
+        communitiesLoading = subs.size
         val groups = subs.chunked(8)
         var firstError: Exception? = null
         val lists = groups.map { g ->
@@ -197,6 +220,9 @@ class DigestModule(private val c: AppContainer) : UserScoped {
         (got + more.flatten()).distinctBy { it.id }
     }
 
+    private val loaded = java.util.concurrent.atomic.AtomicInteger()
+    @Volatile private var communitiesLoading = 0
+
     private suspend fun group(subs: List<String>): List<Post> = try {
         // The website sign-in gets Reddit's web page for a combined listing, never the listing.
         if (c.client.isWebMode() && subs.size > 1) throw RedditApiException(403)
@@ -214,6 +240,9 @@ class DigestModule(private val c: AppContainer) : UserScoped {
                         throw e
                     } catch (_: Exception) {
                         emptyList()
+                    } finally {
+                        // One community at a time: count them.
+                        _progress.value = "Loading posts (${loaded.incrementAndGet()}/${communitiesLoading})…"
                     }
                 }
             }.awaitAll().flatten()

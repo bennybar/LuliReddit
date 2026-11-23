@@ -199,6 +199,9 @@ import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.feature.home.LocalSideBar
 import com.bennybar.luli_for_reddit.feature.digest.DigestSize
 import com.bennybar.luli_for_reddit.feature.digest.DigestOrder
+import com.bennybar.luli_for_reddit.feature.digest.DigestNotifications
+import com.bennybar.luli_for_reddit.feature.digest.setDigestNotify
+import com.bennybar.luli_for_reddit.feature.digest.pickDigestTime
 import com.bennybar.luli_for_reddit.feature.digest.digestCommunitiesLabel
 import com.bennybar.luli_for_reddit.feature.digest.editDigestCommunities
 import com.bennybar.luli_for_reddit.feature.digest.setDigestEnabled
@@ -587,10 +590,39 @@ fun SettingsList(
                 Icons.Outlined.AutoAwesome, s.digestAi && aiKeySet, if (aiKeySet || s.digestAi) ctrl::setDigestAi else null,
             )
             if (s.digestAi && aiKeySet) {
+                val builds = listOf(
+                    PickOption(1, "The day's first build", "And Rebuild. Refreshes go by the numbers, so they're quick"),
+                    PickOption(0, "Every build", "Refreshes ask the AI about the new posts too (slower)"),
+                )
+                tile("Use AI for", builds.first { it.value == s.digestAiBuilds }.label, Icons.Outlined.Schedule, onClick = launch {
+                    pickOption(builds, s.digestAiBuilds)?.let(ctrl::setDigestAiBuilds)
+                })
                 switch(
-                    "Overview", "A few sentences on what stood out today, on top of the digest",
+                    "AI picks the posts", "Off: the numbers pick, and the AI only writes",
+                    Icons.Outlined.AutoAwesome, s.digestAiPick, ctrl::setDigestAiPick,
+                )
+                switch(
+                    "AI explains each post", "Off: the line under a post is the numbers (\"3× a typical post\")",
+                    Icons.AutoMirrored.Rounded.Notes, s.digestAiWhy, ctrl::setDigestAiWhy,
+                )
+                switch(
+                    "Overview: Today in your communities", "A few sentences on what stood out today, on top of the digest",
                     Icons.AutoMirrored.Rounded.Notes, s.digestOverview, ctrl::setDigestOverview,
                 )
+                // Its own, or as AI summaries'.
+                val sameAsSummaries = "\u0000"
+                val langs = listOf(PickOption(sameAsSummaries, "Same as AI summaries")) + SUMMARY_LANGUAGES.map { PickOption(it.first, it.second) }
+                val current = s.digestLanguage ?: sameAsSummaries
+                tile("Digest language", langs.firstOrNull { it.value == current }?.label ?: current, Icons.Outlined.Translate, onClick = launch {
+                    pickOption(langs, current)?.let { ctrl.setDigestLanguage(it.takeIf { v -> v != sameAsSummaries }) }
+                })
+            }
+            switch(
+                "Daily notification", "Builds your digest at the time below and tells you it's ready",
+                Icons.Outlined.Notifications, s.digestNotify,
+            ) { on -> scope.launch { setDigestNotify(on) } }
+            if (s.digestNotify) {
+                tile("Time", DigestNotifications.timeLabel(context, s.digestTime), Icons.Outlined.Schedule, onClick = launch { pickDigestTime() })
             }
             val orders = DigestOrder.entries.filter { it != DigestOrder.AI || s.digestAi }
             val order = DigestOrder.of(s.digestOrder).let { if (it in orders) it else DigestOrder.NOTABLE }

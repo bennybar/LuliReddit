@@ -132,6 +132,8 @@ class DigestView internal constructor(private val scope: CoroutineScope, private
     internal var readIds by mutableStateOf(emptySet<String>())
     internal var showRead by mutableStateOf(false)
     internal var order by mutableStateOf(DigestOrder.NOTABLE)
+    internal var progress by mutableStateOf<String?>(null)
+    internal var showOverview by mutableStateOf(false)
 
     fun refresh(manual: Boolean, rebuild: Boolean = false) {
         if (refreshing) return
@@ -219,6 +221,8 @@ fun rememberDigestView(active: Boolean = true): DigestView {
     v.readIds = app.history.ids.collectAsStateWithLifecycle().value
     val s = app.settings.state.collectAsStateWithLifecycle().value
     v.showRead = s.digestShowRead
+    v.progress = app.digest.progress.collectAsStateWithLifecycle().value
+    v.showOverview = s.digestAi && s.digestOverview
     // The AI's order only means something while it's on.
     v.order = DigestOrder.of(s.digestOrder).let { if (it == DigestOrder.AI && !s.digestAi) DigestOrder.NOTABLE else it }
     LaunchedEffect(active) {
@@ -239,7 +243,7 @@ fun LazyListScope.digestRows(v: DigestView) {
     if (d?.aiFailed == true) item(key = "digest_ai_failed") {
         DigestNote("AI wasn't available; picked by activity")
     }
-    d?.overview?.let { text ->
+    d?.overview?.takeIf { v.showOverview }?.let { text ->
         item(key = "digest_overview") { DigestOverview(text) }
     }
     if (d == null) {
@@ -303,6 +307,7 @@ private fun DigestHead(v: DigestView, d: DigestDay?) {
     val cs = MaterialTheme.colorScheme
     val label = d?.let { historyDayLabel(LocalDate.parse(it.day), LocalDate.now()) } ?: "Today"
     val detail = when {
+        v.building && v.progress != null -> v.progress!!
         d == null -> if (v.building) "Building your digest…" else ""
         v.building -> "Checking for new posts…"
         else -> "Updated ${timeAgoPhrase(d.refreshedAt)}"

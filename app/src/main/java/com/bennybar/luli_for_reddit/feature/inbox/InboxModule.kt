@@ -296,6 +296,8 @@ class InboxModule(private val c: AppContainer) : UserScoped {
                 val post = intent.getStringExtra(InboxNotifications.EXTRA_POST_ID)
                 openFromNotification(if (sub != null && post != null) Route.Post(sub, post) else null, inbox = false)
             }
+            // The daily Digest: open it where you are.
+            com.bennybar.luli_for_reddit.feature.digest.DigestNotifications.TARGET -> openFromNotification(Route.Digest, inbox = false)
             InboxNotifications.TARGET_MESSAGE ->
                 openFromNotification(intent.getStringExtra(InboxNotifications.EXTRA_MESSAGE)?.let { Route.MessageThread(it) }, inbox = true)
             // A Reddit app notification Ilay took over: find its post / comment first.

@@ -281,7 +281,48 @@ struct SettingsCatalog {
                 s.digestAi && secure.aiKey, enabled: secure.aiKey || s.digestAi, set: ctrl.setDigestAi
             )
             if s.digestAi && secure.aiKey {
-                b.toggle("Overview", "A few sentences on what stood out today, on top of the digest", s.digestOverview, set: ctrl.setDigestOverview)
+                b.picker(
+                    "Use AI for", value: s.digestAiBuilds,
+                    options: [
+                        PickOption(value: 1, label: "The day's first build", subtitle: "And Rebuild. Refreshes go by the numbers, so they're quick"),
+                        PickOption(value: 0, label: "Every build", subtitle: "Refreshes ask the AI about the new posts too (slower)"),
+                    ],
+                    set: ctrl.setDigestAiBuilds
+                )
+                b.toggle("AI picks the posts", "Off: the numbers pick, and the AI only writes", s.digestAiPick, set: ctrl.setDigestAiPick)
+                b.toggle("AI explains each post", "Off: the line under a post is the numbers (\"3× a typical post\")", s.digestAiWhy, set: ctrl.setDigestAiWhy)
+                b.toggle("Overview: Today in your communities", "A few sentences on what stood out today, on top of the digest", s.digestOverview, set: ctrl.setDigestOverview)
+                // Its own, or as AI summaries'.
+                let same = "\u{0}"
+                b.picker(
+                    "Digest language", value: s.digestLanguage ?? same,
+                    options: [PickOption(value: same, label: "Same as AI summaries")] + summaryLanguages.map { PickOption(value: $0.0, label: $0.1) }
+                ) { ctrl.setDigestLanguage($0 == same ? nil : $0) }
+            }
+            b.toggle(
+                "Daily notification", "A reminder at the time below. iPhone builds the digest when you open it, or earlier when iOS gives Ilay background time",
+                s.digestNotify
+            ) { v in
+                Task {
+                    await setDigestNotify(v)
+                    prompts.refresh += 1
+                }
+            }
+            if s.digestNotify {
+                b.custom("digestTime", title: "Time", search: "Digest time notification") {
+                    DatePicker(
+                        "Time",
+                        selection: Binding(
+                            get: { Calendar.current.date(bySettingHour: s.digestTime / 60, minute: s.digestTime % 60, second: 0, of: Date()) ?? Date() },
+                            set: { d in
+                                let c = Calendar.current.dateComponents([.hour, .minute], from: d)
+                                app.settings.setDigestTime((c.hour ?? 8) * 60 + (c.minute ?? 0))
+                                DigestNotifications.reschedule()
+                            }
+                        ),
+                        displayedComponents: .hourAndMinute
+                    )
+                }
             }
             let orders = DigestOrder.allCases.filter { $0 != .ai || s.digestAi }
             let order = orders.contains(DigestOrder.of(s.digestOrder)) ? DigestOrder.of(s.digestOrder) : .notable

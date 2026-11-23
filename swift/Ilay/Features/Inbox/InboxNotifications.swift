@@ -31,14 +31,19 @@ import UserNotifications
         BGTaskScheduler.shared.register(forTaskWithIdentifier: taskId, using: .main) { task in
             MainActor.assumeIsolated {
                 let job = Task {
+                    // Also the Digest's chance to build ahead of its daily reminder.
+                    let s = app.settings.value
+                    let digest = s.digestEnabled && s.digestNotify
+                    let inbox = app.prefs.getBool(InboxModule.notifyInboxPref) == true
                     // Turned off but the request survived (e.g. restored backup): stop polling.
-                    guard app.prefs.getBool(InboxModule.notifyInboxPref) == true else {
+                    guard inbox || digest else {
                         cancelPolling()
                         task.setTaskCompleted(success: true)
                         return
                     }
                     registerPolling() // A request runs once: ask for the next one.
-                    _ = await app.inbox.pollInbox(notify: true)
+                    if inbox { _ = await app.inbox.pollInbox(notify: true) }
+                    if digest { _ = await app.digest.refreshIfStale() }
                     // Success anyway unless time ran out; we retry next tick.
                     task.setTaskCompleted(success: !Task.isCancelled)
                 }

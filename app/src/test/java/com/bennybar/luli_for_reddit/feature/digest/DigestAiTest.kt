@@ -100,6 +100,25 @@ class DigestAiTest {
     }
 
     @Test
+    fun `only writing, no ratings needed, an overview alone is fine`() {
+        val r = parseDigestAi("""{"items":[{"i":1,"why":"Worth it."}]}""", posts, rated = false)!!
+        assertEquals(AiVerdict(0, "Worth it."), r.verdicts[posts[1].id])
+        assertEquals("Calm day.", parseDigestAi("""{"overview":"Calm day."}""", posts, rated = false)!!.overview)
+        assertNull(parseDigestAi("""{"items":[{"i":1,"why":"x"}]}""", posts)) // rating asked for and missing
+    }
+
+    @Test
+    fun `the AI's lines on the numbers' picks`() {
+        val big = p("a", 5000)
+        val day = mergeDigest(null, "2027-01-15", List(6) { p("a", 10) } + big, emptySet(), DigestSize.STANDARD, now)
+        val out = explainDigest(day, DigestAi("Calm.", mapOf(big.id to AiVerdict(0, "A big one."))), now)
+        assertEquals("A big one.", out.items[0].why)
+        assertEquals(0, out.items[0].importance)
+        assertEquals("Calm.", out.overview)
+        assertEquals(day.items.map { it.post.id }, out.items.map { it.post.id })
+    }
+
+    @Test
     fun `orders`() {
         fun item(sub: String, score: Int, hoursOld: Int, notability: Double, importance: Int) =
             DigestItem(p(sub, score, hoursOld = hoursOld), "", notability, now, importance)

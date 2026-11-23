@@ -92,6 +92,12 @@ class SettingsStore(private val p: Prefs) {
             digestAi = b("digestAi", d.digestAi),
             digestOverview = b("digestOverview", d.digestOverview),
             digestOrder = (p.getInt("digestOrder") ?: d.digestOrder).coerceIn(0, 3),
+            digestAiBuilds = (p.getInt("digestAiBuilds") ?: d.digestAiBuilds).coerceIn(0, 1),
+            digestAiPick = b("digestAiPick", d.digestAiPick),
+            digestAiWhy = b("digestAiWhy", d.digestAiWhy),
+            digestLanguage = p.getString("digestLanguage"),
+            digestNotify = b("digestNotify", d.digestNotify),
+            digestTime = (p.getInt("digestTime") ?: d.digestTime).coerceIn(0, 24 * 60 - 1),
             forYouDiscovery = (p.getInt("forYouDiscovery") ?: d.forYouDiscovery).coerceIn(-2, 2),
             midResThumbnails = b("midResThumbnails", d.midResThumbnails),
             subsCacheEnabled = b("subsCacheEnabled", d.subsCacheEnabled),
@@ -218,6 +224,12 @@ class SettingsStore(private val p: Prefs) {
     fun setDigestAi(v: Boolean) { p.setBool("digestAi", v); set { it.copy(digestAi = v) } }
     fun setDigestOverview(v: Boolean) { p.setBool("digestOverview", v); set { it.copy(digestOverview = v) } }
     fun setDigestOrder(v: Int) { p.setInt("digestOrder", v); set { it.copy(digestOrder = v) } }
+    fun setDigestAiBuilds(v: Int) { p.setInt("digestAiBuilds", v); set { it.copy(digestAiBuilds = v) } }
+    fun setDigestAiPick(v: Boolean) { p.setBool("digestAiPick", v); set { it.copy(digestAiPick = v) } }
+    fun setDigestAiWhy(v: Boolean) { p.setBool("digestAiWhy", v); set { it.copy(digestAiWhy = v) } }
+    fun setDigestLanguage(v: String?) { if (v == null) p.remove("digestLanguage") else p.setString("digestLanguage", v); set { it.copy(digestLanguage = v) } }
+    fun setDigestNotify(v: Boolean) { p.setBool("digestNotify", v); set { it.copy(digestNotify = v) } }
+    fun setDigestTime(v: Int) { p.setInt("digestTime", v); set { it.copy(digestTime = v) } }
     fun setAutoHideReadForYou(v: Boolean) { p.setBool("autoHideReadForYou", v); set { it.copy(autoHideReadForYou = v) } }
     fun setForYouDiscovery(v: Int) { p.setInt("forYouDiscovery", v); set { it.copy(forYouDiscovery = v) } }
     fun setAppFont(v: AppFont) {

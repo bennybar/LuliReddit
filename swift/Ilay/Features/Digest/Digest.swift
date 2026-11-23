@@ -260,6 +260,24 @@ func mergeDigest(_ prev: DigestDay?, day: String, candidates: [Post], readIds: S
     )
 }
 
+/// `day` with the AI's lines for the posts it was shown (picked by the numbers, so its
+/// ratings don't count) and its overview, when the day has none yet.
+func explainDigest(_ day: DigestDay, ai: DigestAi, now: Int) -> DigestDay {
+    var out = day
+    out = DigestDay(
+        day: day.day, builtAt: day.builtAt, refreshedAt: day.refreshedAt, seenAt: day.seenAt,
+        items: day.items.map { item in
+            guard let why = ai.verdicts[item.post.id]?.why, !why.isEmpty else { return item }
+            return DigestItem(post: item.post, why: why, notability: item.notability, addedAt: item.addedAt, importance: item.importance)
+        },
+        judged: day.judged,
+        overview: day.overview ?? ai.overview.flatMap { $0.isEmpty ? nil : $0 },
+        aiFailed: false,
+        aiAt: now
+    )
+    return out
+}
+
 /// The items in `order`, grouped by community: the communities in the order of their
 /// first post, each one's posts in `order`.
 func orderDigest(_ items: [DigestItem], _ order: DigestOrder) -> [(community: String, items: [DigestItem])] {

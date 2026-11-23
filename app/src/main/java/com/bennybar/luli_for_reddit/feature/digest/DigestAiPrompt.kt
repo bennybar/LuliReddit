@@ -25,7 +25,12 @@ data class DigestInterests(
     val lessCommunities: List<String> = emptyList(),
 )
 
-/** The system and user messages for [posts] (indexed in order). [language]: "" for the posts' own. */
+/**
+ * The system and user messages for [posts] (indexed in order). What's asked: [rate] (the
+ * AI picks: importance 1–5, only posts worth reading listed), [why] (a line for each), and
+ * [overview]. Without [rate] the posts are already picked and it only writes. [language]:
+ * "" for the posts' own.
+ */
 fun digestAiMessages(
     posts: List<Post>,
     interests: DigestInterests,
@@ -33,17 +38,32 @@ fun digestAiMessages(
     overview: Boolean,
     language: String,
     now: Long,
+    rate: Boolean = true,
+    why: Boolean = true,
 ): Pair<String, String> {
     val lang = if (language.isEmpty()) "Write in the language most of the titles are in." else "Write in $language."
-    val system = "You pick the most important Reddit posts of the last day for one reader, from communities " +
-        "they follow. Rate each post's importance to this reader from 1 (skip) to 5 (must read), weighing " +
-        "real news and substance over jokes and reposts, and the reader's interests. For each post worth " +
-        "reading (2 or more), write \"why\": one plain sentence under 140 characters saying what it is " +
-        "and why it matters. " +
-        (if (overview) "Also write \"overview\": 2 to 4 sentences on what stood out today across these communities. " else "") +
-        "$lang Reply with only JSON, no other text: " +
-        (if (overview) "{\"overview\": \"…\", \"items\": [{\"i\": 0, \"importance\": 4, \"why\": \"…\"}]}"
-        else "{\"items\": [{\"i\": 0, \"importance\": 4, \"why\": \"…\"}]}")
+    val whyAsk = "\"why\": one plain sentence under 140 characters saying what it is and why it matters"
+    val system = buildString {
+        if (rate) {
+            append("You pick the most important Reddit posts of the last day for one reader, from communities they follow. ")
+            append("Rate each post's importance to this reader from 1 (skip) to 5 (must read), weighing real news and substance ")
+            append("over jokes and reposts, and the reader's interests. List only the posts rated 2 or more; leave the rest out. ")
+            if (why) append("For each, write $whyAsk. ")
+        } else {
+            append("These Reddit posts from the last day were picked for one reader, from communities they follow. ")
+            if (why) append("For each post, write $whyAsk. ")
+        }
+        if (overview) append("Also write \"overview\": 2 to 4 sentences on what stood out today across these communities. ")
+        append("$lang Reply with only JSON, no other text: ")
+        val item = buildList {
+            add("\"i\": 0")
+            if (rate) add("\"importance\": 4")
+            if (why) add("\"why\": \"…\"")
+        }.joinToString(", ")
+        append("{")
+        if (overview) append("\"overview\": \"…\", ")
+        append("\"items\": [{$item}]}")
+    }
     val user = buildJsonObject {
         put("wanted", "about ${size.items} posts, at most ${size.perCommunity} from one community")
         put("interests", buildJsonObject {
@@ -76,18 +96,19 @@ fun digestAiMessages(
  * code fence or words around the JSON are fine, unknown indices and broken items are
  * skipped. Null when there's nothing usable (the build then goes by the numbers).
  */
-fun parseDigestAi(reply: String, posts: List<Post>): DigestAi? {
+fun parseDigestAi(reply: String, posts: List<Post>, rated: Boolean = true): DigestAi? {
     val start = reply.indexOf('{')
     val end = reply.lastIndexOf('}')
     if (start < 0 || end <= start) return null
     val obj = runCatching { AppJson.parseToJsonElement(reply.substring(start, end + 1)) as? JsonObject }.getOrNull() ?: return null
-    val list = obj["items"] as? JsonArray ?: return null
+    val list = obj["items"] as? JsonArray ?: if (rated || obj["overview"] == null) return null else JsonArray(emptyList())
     val verdicts = LinkedHashMap<String, AiVerdict>()
     for (el in list) {
         val o = el as? JsonObject ?: continue
         val i = (o["i"] as? JsonPrimitive)?.intOrNull ?: continue
         val post = posts.getOrNull(i) ?: continue
-        val importance = (o["importance"] as? JsonPrimitive)?.intOrNull?.coerceIn(1, 5) ?: continue
+        // Not asked to rate: 0, the order then goes by the numbers.
+        val importance = (o["importance"] as? JsonPrimitive)?.intOrNull?.coerceIn(1, 5) ?: if (rated) continue else 0
         val why = (o["why"] as? JsonPrimitive)?.contentOrNull?.trim().orEmpty()
         verdicts[post.id] = AiVerdict(importance, why)
     }

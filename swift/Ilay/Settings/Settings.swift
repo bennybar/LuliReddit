@@ -249,6 +249,12 @@ struct Settings: Equatable, Sendable {
     var digestShowRead = false // the Digest keeps read posts (dimmed) instead of hiding them
     var digestAi = false // the AI picks and explains (never on unless the user turns it on)
     var digestOverview = false // with the AI: a paragraph about the day on top
+    var digestAiBuilds = 1 // which builds use the AI: 0 every build, 1 the day's first and Rebuild (refreshes stay quick)
+    var digestAiPick = true // with the AI: it picks the posts (off: the numbers pick)
+    var digestAiWhy = true // with the AI: it writes each post's "why"
+    var digestLanguage: String? = nil // the AI's language for the Digest; nil = as AI summaries
+    var digestNotify = false // a daily notification at digestTime
+    var digestTime = 480 // minutes after midnight, local (08:00)
     var digestOrder = 0 // DigestOrder index: 0 Most notable, 1 Most upvoted, 2 Newest, 3 AI's assessment
     // Experimental Reddit Home: the user accepted its risk warning (allowed),
     // and the frontpage currently shows it (feed).

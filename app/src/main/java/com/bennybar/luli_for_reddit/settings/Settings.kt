@@ -245,6 +245,12 @@ data class Settings(
     val digestShowRead: Boolean = false, // the Digest keeps read posts (dimmed) instead of hiding them
     val digestAi: Boolean = false, // the AI picks and explains (never on unless the user turns it on)
     val digestOverview: Boolean = false, // with the AI: a paragraph about the day on top
+    val digestAiBuilds: Int = 1, // which builds use the AI: 0 every build, 1 the day's first and Rebuild (refreshes stay quick)
+    val digestAiPick: Boolean = true, // with the AI: it picks the posts (off: the numbers pick)
+    val digestAiWhy: Boolean = true, // with the AI: it writes each post's "why"
+    val digestLanguage: String? = null, // the AI's language for the Digest; null = as AI summaries
+    val digestNotify: Boolean = false, // a daily notification at digestTime
+    val digestTime: Int = 480, // minutes after midnight, local (08:00)
     val digestOrder: Int = 0, // DigestOrder index: 0 Most notable, 1 Most upvoted, 2 Newest, 3 AI's assessment
     // Experimental Reddit Home: the user accepted its risk warning (allowed),
     // and the frontpage currently shows it (feed).

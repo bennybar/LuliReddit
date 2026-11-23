@@ -237,6 +237,17 @@ fun mergeDigest(
 }
 
 /**
+ * [day] with the AI's lines for the posts it was shown (picked by the numbers, so its
+ * ratings don't count) and its overview, when the day has none yet.
+ */
+fun explainDigest(day: DigestDay, ai: DigestAi, now: Long): DigestDay = day.copy(
+    items = day.items.map { item -> ai.verdicts[item.post.id]?.why?.takeIf { it.isNotBlank() }?.let { item.copy(why = it) } ?: item },
+    overview = day.overview ?: ai.overview?.takeIf { it.isNotBlank() },
+    aiFailed = false,
+    aiAt = now,
+)
+
+/**
  * The items in [order], grouped by community: the communities in the order of their
  * first post, each one's posts in [order].
  */

@@ -87,6 +87,12 @@ final class SettingsStore {
         s.digestAi = b("digestAi", s.digestAi)
         s.digestOverview = b("digestOverview", s.digestOverview)
         s.digestOrder = min(max(p.getInt("digestOrder") ?? s.digestOrder, 0), 3)
+        s.digestAiBuilds = min(max(p.getInt("digestAiBuilds") ?? s.digestAiBuilds, 0), 1)
+        s.digestAiPick = b("digestAiPick", s.digestAiPick)
+        s.digestAiWhy = b("digestAiWhy", s.digestAiWhy)
+        s.digestLanguage = p.getString("digestLanguage")
+        s.digestNotify = b("digestNotify", s.digestNotify)
+        s.digestTime = min(max(p.getInt("digestTime") ?? s.digestTime, 0), 24 * 60 - 1)
         s.forYouDiscovery = min(max(p.getInt("forYouDiscovery") ?? s.forYouDiscovery, -2), 2)
         s.midResThumbnails = b("midResThumbnails", s.midResThumbnails)
         s.subsCacheEnabled = b("subsCacheEnabled", s.subsCacheEnabled)
@@ -213,6 +219,12 @@ final class SettingsStore {
     func setDigestAi(_ v: Bool) { p.setBool("digestAi", v); set { $0.digestAi = v } }
     func setDigestOverview(_ v: Bool) { p.setBool("digestOverview", v); set { $0.digestOverview = v } }
     func setDigestOrder(_ v: Int) { p.setInt("digestOrder", v); set { $0.digestOrder = v } }
+    func setDigestAiBuilds(_ v: Int) { p.setInt("digestAiBuilds", v); set { $0.digestAiBuilds = v } }
+    func setDigestAiPick(_ v: Bool) { p.setBool("digestAiPick", v); set { $0.digestAiPick = v } }
+    func setDigestAiWhy(_ v: Bool) { p.setBool("digestAiWhy", v); set { $0.digestAiWhy = v } }
+    func setDigestLanguage(_ v: String?) { if let v { p.setString("digestLanguage", v) } else { p.remove("digestLanguage") }; set { $0.digestLanguage = v } }
+    func setDigestNotify(_ v: Bool) { p.setBool("digestNotify", v); set { $0.digestNotify = v } }
+    func setDigestTime(_ v: Int) { p.setInt("digestTime", v); set { $0.digestTime = v } }
     func setAutoHideReadForYou(_ v: Bool) { p.setBool("autoHideReadForYou", v); set { $0.autoHideReadForYou = v } }
     func setForYouDiscovery(_ v: Int) { p.setInt("forYouDiscovery", v); set { $0.forYouDiscovery = v } }
     func setHideReadPosts(_ v: Bool) { p.setBool("hideReadPosts", v); set { $0.hideReadPosts = v } }

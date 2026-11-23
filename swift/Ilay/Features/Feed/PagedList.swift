@@ -69,6 +69,13 @@ struct PagedState<T> {
         if !state.loading && nowMillis() - lastLoaded > maxAgeMillis { load(silent: true) }
     }
 
+    /// A list that isn't fetched page by page (the Digest): its rows, as they are now.
+    func show(_ items: [T]) {
+        started = true
+        state = PagedState(items: items, after: nil, loading: false)
+        lastLoaded = nowMillis()
+    }
+
     func loadMore() {
         let s = state
         if s.loading || s.loadingMore || !s.hasMore { return }

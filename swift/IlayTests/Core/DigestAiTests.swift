@@ -82,6 +82,23 @@ final class DigestAiTests: XCTestCase {
         XCTAssertTrue(d.aiFailed)
     }
 
+    func testOnlyWritingNeedsNoRatings() {
+        let posts = [p("a", 100), p("a", 50)]
+        let r = parseDigestAi(#"{"items":[{"i":1,"why":"Worth it."}]}"#, posts: posts, rated: false)!
+        XCTAssertEqual(r.verdicts[posts[1].id], AiVerdict(importance: 0, why: "Worth it."))
+        XCTAssertEqual(parseDigestAi(#"{"overview":"Calm day."}"#, posts: posts, rated: false)?.overview, "Calm day.")
+        XCTAssertNil(parseDigestAi(#"{"items":[{"i":1,"why":"x"}]}"#, posts: posts)) // rating asked for and missing
+    }
+
+    func testTheAiLinesOnTheNumbersPicks() {
+        let big = p("a", 5000)
+        let day = mergeDigest(nil, day: "2027-01-15", candidates: ordinary("a", 10) + [big], readIds: [], size: .standard, now: now)
+        let out = explainDigest(day, ai: DigestAi(overview: "Calm.", verdicts: [big.id: AiVerdict(importance: 0, why: "A big one.")]), now: now)
+        XCTAssertEqual(out.items[0].why, "A big one.")
+        XCTAssertEqual(out.overview, "Calm.")
+        XCTAssertEqual(out.items.map(\.post.id), day.items.map(\.post.id))
+    }
+
     func testOrders() {
         func item(_ sub: String, _ score: Int, _ hoursOld: Int, _ notability: Double, _ importance: Int) -> DigestItem {
             DigestItem(post: p(sub, score, hoursOld: hoursOld), why: "", notability: notability, addedAt: now, importance: importance)

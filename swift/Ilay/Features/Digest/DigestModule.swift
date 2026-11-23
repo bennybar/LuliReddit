@@ -16,6 +16,8 @@ final class DigestModule: UserScoped {
 
     /// A build or refresh is running.
     private(set) var building = false
+    /// What the running build is doing ("Loading posts (4/15)…"), for the screen.
+    private(set) var progress: String?
     /// Posts shows the Digest (its chip picked). Not a feed choice: not saved, so a launch opens the feed.
     var onPosts = false
     /// The communities picked in Settings (lowercase), or nil to follow your favourites.
@@ -108,7 +110,10 @@ final class DigestModule: UserScoped {
         let prev = rebuild ? nil : store.today(day)
         if manual, let prev, now - prev.refreshedAt < Self.upToDateMs { return .upToDate }
         building = true
-        defer { building = false }
+        defer {
+            building = false
+            progress = nil
+        }
         do {
             let subs = try await communities()
             if subs.isEmpty { return .noCommunities }
@@ -118,28 +123,49 @@ final class DigestModule: UserScoped {
             let size = DigestSize.of(c.settings.value.digestSize)
             let read = c.history.ids
             let s = c.settings.value
-            // The AI step (spec section 6): only when "Use AI" is on and there's a key; only
-            // posts not judged yet (none: no call); an automatic build at most once in 12 hours.
-            var ai: DigestAi?
-            var aiFailed = false
-            let key = s.digestAi ? await c.secureStore.openaiKey() : nil
-            let pending = key?.isEmpty == false ? digestPending(prev, day: day, candidates: candidates, readIds: read, now: now) : []
-            let due = manual || prev == nil || now - (prev?.aiAt ?? 0) >= Self.staleMs
-            if let key, !key.isEmpty, !pending.isEmpty, due {
-                let (system, user) = digestAiMessages(
-                    pending, interests: interests(), size: size,
-                    overview: s.digestOverview && prev == nil, // the overview is about the day's first build
-                    language: s.aiSummaryLanguage, now: now
-                )
-                let baseUrl = s.aiUseCustomUrl ? s.aiBaseUrl : "https://api.openai.com"
-                if let reply = try? await AiService.digest(baseUrl: baseUrl, apiKey: key, model: s.aiModel, system: system, user: user) {
-                    ai = parseDigestAi(reply, posts: pending)
-                }
-                if Task.isCancelled { return .failed("Cancelled") }
+            // The AI step (spec section 6), when "Use AI" is on and there's a key, for the builds
+            // it's chosen for (Settings: every build, or the day's first and Rebuild), and the
+            // parts chosen: picking, the "why" lines, the overview (only on the day's first build).
+            // Only posts not judged yet; an automatic build calls at most once in 12 hours.
+            let first = prev == nil
+            let overview = s.digestOverview && first
+            let key = s.digestAi && (first || s.digestAiBuilds == 0) ? await c.secureStore.openaiKey() : nil
+            let due = manual || first || now - (prev?.aiAt ?? 0) >= Self.staleMs
+            let useAi = key?.isEmpty == false && due && (s.digestAiPick || s.digestAiWhy || overview)
+            let baseUrl = s.aiUseCustomUrl ? s.aiBaseUrl : "https://api.openai.com"
+            let language = s.digestLanguage ?? s.aiSummaryLanguage
+            let interests = interests()
+            func ask(_ posts: [Post], rate: Bool) async -> DigestAi? {
+                progress = rate ? "Asking the AI about \(posts.count) posts…" : "The AI is writing about \(posts.count) posts…"
+                let (system, user) = digestAiMessages(posts, interests: interests, size: size, overview: overview, language: language, now: now, rate: rate, why: s.digestAiWhy)
                 // Unreachable, refused or unreadable: by the numbers, and the screen says so.
-                aiFailed = ai == nil
+                guard let key, let reply = try? await AiService.digest(baseUrl: baseUrl, apiKey: key, model: s.aiModel, system: system, user: user) else { return nil }
+                return parseDigestAi(reply, posts: posts, rated: rate)
             }
-            let merged = mergeDigest(prev, day: day, candidates: candidates, readIds: read, size: size, now: now, ai: ai, aiFailed: aiFailed)
+            let merged: DigestDay
+            if useAi && s.digestAiPick {
+                // The AI picks, from the posts not judged yet.
+                let pending = digestPending(prev, day: day, candidates: candidates, readIds: read, now: now)
+                let ai = pending.isEmpty ? nil : await ask(pending, rate: true)
+                merged = mergeDigest(prev, day: day, candidates: candidates, readIds: read, size: size, now: now, ai: ai, aiFailed: !pending.isEmpty && ai == nil)
+            } else {
+                // The numbers pick; the AI, if wanted, only writes about the new picks.
+                progress = "Picking the notable posts…"
+                let numbers = mergeDigest(prev, day: day, candidates: candidates, readIds: read, size: size, now: now)
+                let added = numbers.items.filter { $0.addedAt == now }.map(\.post)
+                if useAi && !added.isEmpty && (s.digestAiWhy || overview) {
+                    if let ai = await ask(added, rate: false) {
+                        merged = explainDigest(numbers, ai: ai, now: now)
+                    } else {
+                        var failed = numbers
+                        failed.aiFailed = true
+                        failed.aiAt = now
+                        merged = failed
+                    }
+                } else {
+                    merged = numbers
+                }
+            }
             if Task.isCancelled || c.session.username != session.username { return .failed("Account changed") }
             store.put(merged)
             return .updated(added: merged.items.count - (prev?.items.count ?? 0))
@@ -166,12 +192,15 @@ final class DigestModule: UserScoped {
     /// request of its own while the build stays within `maxRequests`.
     private func fetchCandidates(_ subs: [String]) async throws -> [Post] {
         let repo = c.repository
+        progress = "Loading posts from \(subs.count) communities…"
+        loadedCount = 0
+        loadingCount = subs.count
         let groups = stride(from: 0, to: subs.count, by: 8).map { Array(subs[$0..<min($0 + 8, subs.count)]) }
         var got: [Post] = []
         var firstError: Error?
         var answered = false
         await withTaskGroup(of: Result<[Post], Error>.self) { g in
-            for group in groups { g.addTask { await Self.group(repo, group) } }
+            for group in groups { g.addTask { await Self.group(repo, group) { [weak self] in await self?.countLoaded() } } }
             for await r in g {
                 switch r {
                 case .success(let posts):
@@ -200,7 +229,16 @@ final class DigestModule: UserScoped {
         return (got + more).filter { seen.insert($0.id).inserted }
     }
 
-    private static func group(_ repo: RedditRepository, _ subs: [String]) async -> Result<[Post], Error> {
+    @ObservationIgnored private var loadedCount = 0
+    @ObservationIgnored private var loadingCount = 0
+
+    /// One community at a time: count them.
+    private func countLoaded() {
+        loadedCount += 1
+        progress = "Loading posts (\(loadedCount)/\(loadingCount))…"
+    }
+
+    private static func group(_ repo: RedditRepository, _ subs: [String], loaded: @escaping @Sendable () async -> Void) async -> Result<[Post], Error> {
         do {
             // The website sign-in gets Reddit's web page for a combined listing, never the listing.
             if subs.count > 1, await repo.client.isWebMode() { throw RedditApiException(statusCode: 403) }
@@ -210,7 +248,11 @@ final class DigestModule: UserScoped {
             // web page instead of the listing (a 200 that isn't JSON).
             let posts = await withTaskGroup(of: [Post].self) { g in
                 for s in subs {
-                    g.addTask { (try? await repo.getPosts(subreddit: s, sort: .top, time: .day, limit: 10).items) ?? [] }
+                    g.addTask {
+                        let posts = (try? await repo.getPosts(subreddit: s, sort: .top, time: .day, limit: 10).items) ?? []
+                        await loaded()
+                        return posts
+                    }
                 }
                 var all: [Post] = []
                 for await l in g { all += l }

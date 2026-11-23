@@ -47,7 +47,8 @@ private val DIGEST_EXPLAINED = listOf(
         "One small request per digest, fewer on refresh since only new posts are sent. Post titles and the " +
         "topics you read go to the AI provider you set up. Nothing is sent unless you turn it on.",
     "Your communities" to "Your starred favourites, or up to ${DigestModule.MAX_COMMUNITIES} you choose.",
-    "When it's built" to "When you open it, if it's more than 12 hours old. Pull down for what's new: it only adds " +
+    "When it's built" to "When you open it, if it's more than 12 hours old, or daily at your time with the notification on " +
+        "(on iPhone: a reminder at that time, built when you open it). Pull down for what's new: it only adds " +
         "posts, nothing already there goes away.",
     "Where you'll find it" to "A Digest chip at the top of Posts, a tab in the bottom bar, or only the side bar and the Profile menu: your choice.",
     "Reading it" to "Swipe a post left to mark it read. Digests stay on this phone for 7 days, with what was already checked.",
@@ -86,6 +87,23 @@ suspend fun setDigestEnabled(on: Boolean) {
         app.prefs.setBool(EXPLAINED_KEY, true)
     }
     app.settings.setDigestEnabled(on)
+    DigestNotifications.reschedule(app.context)
+}
+
+/** The daily notification: needs notifications allowed; scheduled (or cancelled) at once. */
+suspend fun setDigestNotify(on: Boolean) {
+    if (on && !app.inbox.requestPermission()) {
+        app.navigator.showSnackbar("Allow Ilay's notifications to get your digest")
+        return
+    }
+    app.settings.setDigestNotify(on)
+    DigestNotifications.reschedule(app.context)
+}
+
+suspend fun pickDigestTime() {
+    val t = DigestNotifications.pickTime(app.settings.value.digestTime) ?: return
+    app.settings.setDigestTime(t)
+    DigestNotifications.reschedule(app.context)
 }
 
 private const val EXPLAINED_KEY = "digestExplained"

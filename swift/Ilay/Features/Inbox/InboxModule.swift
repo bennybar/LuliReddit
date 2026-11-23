@@ -278,6 +278,9 @@ final class InboxModule: UserScoped {
         case PostReminders.target:
             let route = sub.flatMap { s in post.map { Route.post(subreddit: s, postId: $0) } }
             openFromNotification(route, inbox: false)
+        // The daily Digest: open it where you are.
+        case DigestNotifications.target:
+            openFromNotification(.digest, inbox: false)
         case InboxNotifications.targetMessage:
             openFromNotification((info[InboxNotifications.extraMessage] as? String).map { .messageThread(fullname: $0) }, inbox: true)
         default:
