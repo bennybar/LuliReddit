@@ -241,7 +241,7 @@ data class Settings(
     // The Digest (docs/digest-spec.md). Its communities are per account (DigestModule).
     val digestEnabled: Boolean = false,
     val digestSize: Int = 1, // DigestSize index: 0 Brief, 1 Standard, 2 Everything notable
-    val digestPlace: Int = 0, // 0 a chip on Posts, 2 menu only (1 is kept for a bottom tab)
+    val digestPlace: Int = 0, // 0 a chip on Posts, 1 a bottom tab, 2 menu only
     val digestShowRead: Boolean = false, // the Digest keeps read posts (dimmed) instead of hiding them
     // Experimental Reddit Home: the user accepted its risk warning (allowed),
     // and the frontpage currently shows it (feed).

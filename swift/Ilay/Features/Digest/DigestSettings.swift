@@ -8,7 +8,7 @@ let digestExplained: [(title: String, text: String)] = [
     ("Your communities", "Your starred favourites, or up to \(DigestModule.maxCommunities) you choose."),
     ("When it's built", "When you open it, if it's more than 12 hours old. Pull down for what's new: it only adds "
         + "posts, nothing already there goes away."),
-    ("Where you'll find it", "A Digest chip at the top of Posts, or only in the side bar and the Profile menu: your choice."),
+    ("Where you'll find it", "A Digest chip at the top of Posts, a tab in the bottom bar, or only the side bar and the Profile menu: your choice."),
     ("Reading it", "Swipe a post left to mark it read. Digests stay on this phone for 7 days, with what was already checked."),
 ]
 

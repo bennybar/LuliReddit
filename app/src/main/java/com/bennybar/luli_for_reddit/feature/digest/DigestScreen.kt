@@ -61,6 +61,7 @@ import com.bennybar.luli_for_reddit.feature.feed.PostCard
 import com.bennybar.luli_for_reddit.feature.feed.PostSkeleton
 import com.bennybar.luli_for_reddit.feature.feed.SwipeSpec
 import com.bennybar.luli_for_reddit.feature.feed.historyDayLabel
+import com.bennybar.luli_for_reddit.feature.home.SideBarButton
 import com.bennybar.luli_for_reddit.feature.feed.rememberHidingBar
 import com.bennybar.luli_for_reddit.feature.settings.PickOption
 import com.bennybar.luli_for_reddit.feature.settings.confirmDialog
@@ -77,24 +78,32 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
-/** The Digest on a page of its own (side bar, Profile ⋯ menu, the "menu only" choice). */
+/**
+ * The Digest on a page of its own (side bar, Profile ⋯ menu, the "menu only" choice), or
+ * as a tab ([tab]: Show Digest in › Bottom tab), built when [selected] and scrolled to
+ * the top when re-tapped ([reselect]).
+ */
 @Composable
-fun DigestScreen() {
+fun DigestScreen(tab: Boolean = false, selected: Boolean = true, reselect: Int = 0) {
     val cs = MaterialTheme.colorScheme
-    val v = rememberDigestView()
+    val v = rememberDigestView(active = selected)
     val listState = rememberLazyListState()
     val bar = rememberHidingBar(listState)
+    val firstReselect = remember { reselect }
+    LaunchedEffect(reselect) { if (reselect != firstReselect) listState.animateScrollToItem(0) }
     Box(Modifier.fillMaxSize().background(cs.surface).clipToBounds().nestedScroll(bar)) {
         val top = with(LocalDensity.current) { bar.height.toDp() }
         RefreshBox(v.refreshing, { v.refresh(manual = true) }, Modifier.fillMaxSize(), indicatorPadding = top) {
             LazyColumn(
                 Modifier.fillMaxSize(),
                 state = listState,
-                contentPadding = PaddingValues(start = 7.dp, top = top, end = 7.dp, bottom = 32.dp),
+                // A tab's list ends clear of the floating bottom bar.
+                contentPadding = PaddingValues(start = 7.dp, top = top, end = 7.dp, bottom = if (tab) 130.dp else 32.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) { digestRows(v) }
         }
-        HidingTopBar(bar) { BloomTopBar("Digest") }
+        // A tab has ☰ (with the side bar) where a page has ←.
+        HidingTopBar(bar) { if (tab) BloomTopBar("Digest", navigation = { SideBarButton() }) else BloomTopBar("Digest") }
     }
 }
 
@@ -110,7 +119,7 @@ class DigestView internal constructor(private val scope: CoroutineScope, private
     var refreshing by mutableStateOf(false)
 
     /** Read when this opened: hidden unless Show read is on. Read while here, a post stays (dimmed). */
-    internal val readAtOpen: Set<String> = app.history.ids.value
+    internal var readAtOpen: Set<String> = app.history.ids.value
     /** Swiped read here, and the Undo window has passed: hidden too. */
     internal var gone by mutableStateOf(emptySet<String>())
     /** Each day's "seen" time when it was first shown here: what came after it is New. */
@@ -194,9 +203,12 @@ class DigestView internal constructor(private val scope: CoroutineScope, private
     }
 }
 
-/** A [DigestView] for this screen: builds today's when it's missing or stale, and marks it seen on leaving. */
+/**
+ * A [DigestView] for this screen: while [active] (a tab: selected), builds today's when it's
+ * missing or stale, and marks it seen on leaving.
+ */
 @Composable
-fun rememberDigestView(): DigestView {
+fun rememberDigestView(active: Boolean = true): DigestView {
     val nav = LocalNavigator.current
     val scope = rememberCoroutineScope()
     val v = remember { DigestView(scope, nav) }
@@ -204,8 +216,13 @@ fun rememberDigestView(): DigestView {
     v.building = app.digest.building.collectAsStateWithLifecycle().value
     v.readIds = app.history.ids.collectAsStateWithLifecycle().value
     v.showRead = app.settings.state.collectAsStateWithLifecycle().value.digestShowRead
-    LaunchedEffect(Unit) { app.digest.refreshIfStale()?.let { v.outcome = it } }
-    DisposableEffect(Unit) { onDispose { app.digest.markSeen() } }
+    LaunchedEffect(active) {
+        if (!active) return@LaunchedEffect
+        v.readAtOpen = app.history.ids.value
+        v.gone = emptySet()
+        app.digest.refreshIfStale()?.let { v.outcome = it }
+    }
+    DisposableEffect(active) { onDispose { if (active) app.digest.markSeen() } }
     return v
 }
 

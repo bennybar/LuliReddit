@@ -250,9 +250,27 @@ struct SettingsCatalog {
                 "Show Digest in", value: s.digestPlace,
                 options: [
                     PickOption(value: 0, label: "Posts chip", subtitle: "A Digest chip at the top of Posts, after your feeds"),
+                    PickOption(value: 1, label: "Bottom tab", subtitle: "A Digest tab after Explore; Inbox moves into Profile"),
                     PickOption(value: 2, label: "Menu only", subtitle: "In the side bar and the Profile menu"),
                 ],
-                set: ctrl.setDigestPlace
+                set: { [s] place in
+                    // A fifth tab crowds the bar: Inbox moves into Profile, and they're told where it went.
+                    guard place == 1 && !s.inboxInProfile else {
+                        app.settings.setDigestPlace(place)
+                        return
+                    }
+                    Task {
+                        await infoDialog(
+                            "Inbox moves to Profile",
+                            "To keep the bottom bar uncluttered, Digest takes Inbox's place there, and Inbox moves into Profile: "
+                                + "the envelope at the top of Profile opens it.\n\n"
+                                + "You can bring it back as a tab in Settings › Appearance › Inbox in Profile.",
+                            close: "Got it"
+                        )
+                        app.settings.setInboxInProfile(true)
+                        app.settings.setDigestPlace(place)
+                    }
+                }
             )
             b.toggle("Show read posts", "Keep posts you've read in the digest, dimmed", s.digestShowRead, set: ctrl.setDigestShowRead)
         }

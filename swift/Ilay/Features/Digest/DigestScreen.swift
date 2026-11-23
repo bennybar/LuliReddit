@@ -1,11 +1,17 @@
 import SwiftUI
 
-/// The Digest on a page of its own (side bar, Profile menu, the "menu only" choice).
+/// The Digest on a page of its own (side bar, Profile menu, the "menu only" choice), or as
+/// a tab (`tab`: Show Digest in › Bottom tab), with ☰ where a page has Back.
 struct DigestScreen: View {
+    var tab = false
+
     var body: some View {
         DigestList { EmptyView() }
             .navigationTitle("Digest")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(tab ? .large : .inline)
+            .toolbar {
+                if tab { ToolbarItem(placement: .topBarLeading) { SideBarButton() } }
+            }
     }
 }
 

@@ -81,7 +81,8 @@ final class SettingsStore {
         s.digestEnabled = b("digestEnabled", s.digestEnabled)
         s.digestSize = min(max(p.getInt("digestSize") ?? s.digestSize, 0), 2)
         // Unknown (1 is a bottom tab, not offered yet): the chip.
-        s.digestPlace = p.getInt("digestPlace") == 2 ? 2 : 0
+        // 0 the Posts chip, 1 a bottom tab, 2 menu only; anything else: the chip.
+        s.digestPlace = (0...2).contains(p.getInt("digestPlace") ?? 0) ? p.getInt("digestPlace") ?? 0 : 0
         s.digestShowRead = b("digestShowRead", s.digestShowRead)
         s.forYouDiscovery = min(max(p.getInt("forYouDiscovery") ?? s.forYouDiscovery, -2), 2)
         s.midResThumbnails = b("midResThumbnails", s.midResThumbnails)

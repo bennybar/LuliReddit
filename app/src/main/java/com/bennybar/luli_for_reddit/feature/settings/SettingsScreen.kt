@@ -556,10 +556,23 @@ fun SettingsList(
             })
             val places = listOf(
                 PickOption(0, "Posts chip", "A Digest chip at the top of Posts, after your feeds"),
+                PickOption(1, "Bottom tab", "A Digest tab after Explore; Inbox moves into Profile"),
                 PickOption(2, "Menu only", "In the side bar and the Profile ⋯ menu"),
             )
             tile("Show Digest in", places.first { it.value == s.digestPlace }.label, Icons.Outlined.Place, onClick = launch {
-                pickOption(places, s.digestPlace)?.let(ctrl::setDigestPlace)
+                val place = pickOption(places, s.digestPlace) ?: return@launch
+                // A fifth tab crowds the bar: Inbox moves into Profile, and they're told where it went.
+                if (place == 1 && !s.inboxInProfile) {
+                    infoDialog(
+                        "Inbox moves to Profile",
+                        "To keep the bottom bar uncluttered, Digest takes Inbox's place there, and Inbox moves into Profile: " +
+                            "the envelope at the top of Profile opens it, with your unread count.\n\n" +
+                            "You can bring it back as a tab in Settings › Appearance › Inbox in Profile.",
+                        close = "Got it",
+                    )
+                    ctrl.setInboxInProfile(true)
+                }
+                ctrl.setDigestPlace(place)
             })
             switch(
                 "Show read posts", "Keep posts you've read in the digest, dimmed",

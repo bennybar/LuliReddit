@@ -10,7 +10,7 @@ import SwiftUI
     /// The selected tab: 0 Posts, 1 Explore, 2 Inbox, 3 Profile.
     var selectedTab = 0
     /// Each tab's `NavigationStack` path.
-    var paths: [[Route]] = [[], [], [], []]
+    var paths: [[Route]] = [[], [], [], [], []] // Posts, Explore, Inbox, Profile, Digest
     /// The stack shown instead of the tabs while signed out (Login, website sign-in).
     var loginPath: [Route] = []
     /// Whether the tabs are on screen, rather than the login stack (set by `AppRoot`).
@@ -30,7 +30,7 @@ import SwiftUI
     /// Bumped when a tab is re-tapped while already active, so that tab's list can
     /// scroll to top. Per tab index. (The Posts tab uses `frontpageScrollSignal`,
     /// which also refreshes when already at the top.)
-    var tabReselect = [0, 0, 0, 0]
+    var tabReselect = [0, 0, 0, 0, 0]
 
     private init() {}
 
@@ -67,7 +67,7 @@ import SwiftUI
     /// tabs from the session state; `route` only matters when it's more than those.
     func resetTo(_ route: Route) {
         viewers.clear()
-        paths = [[], [], [], []]
+        paths = [[], [], [], [], []]
         selectedTab = 0
         loginPath = []
         switch route {

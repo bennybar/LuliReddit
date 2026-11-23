@@ -187,12 +187,13 @@ private struct ShellRestoration: ViewModifier {
             .onAppear {
                 if restored { return }
                 restored = true
-                guard let state = try? JSONDecoder().decode(Saved.self, from: Data(saved.utf8)), state.paths.count == 4 else { return }
+                guard let state = try? JSONDecoder().decode(Saved.self, from: Data(saved.utf8)), (4...5).contains(state.paths.count) else { return }
                 let nav = app.navigator
                 // Feeds show their saved page if it's still fresh rather than loading anew.
                 nav.restoredProcess = true
                 nav.selectedTab = state.tab
-                nav.paths = state.paths
+                // (Saved before the Digest's tab: one stack fewer.)
+                nav.paths = state.paths + Array(repeating: [], count: 5 - state.paths.count)
                 nav.viewers.restore(state.viewers)
             }
             .onChange(of: current) { if restored { saved = current } }

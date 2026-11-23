@@ -46,7 +46,7 @@ private val DIGEST_EXPLAINED = listOf(
     "Your communities" to "Your starred favourites, or up to ${DigestModule.MAX_COMMUNITIES} you choose.",
     "When it's built" to "When you open it, if it's more than 12 hours old. Pull down for what's new: it only adds " +
         "posts, nothing already there goes away.",
-    "Where you'll find it" to "A Digest chip at the top of Posts, or only in the side bar and the Profile menu: your choice.",
+    "Where you'll find it" to "A Digest chip at the top of Posts, a tab in the bottom bar, or only the side bar and the Profile menu: your choice.",
     "Reading it" to "Swipe a post left to mark it read. Digests stay on this phone for 7 days, with what was already checked.",
 )
 

@@ -189,7 +189,7 @@ private fun YourStuffMenu() {
     val sideBar = LocalSideBar.current != null
     val inSideBar = if (!sideBar) emptySet() else settings.sideBarItems.filter { it.shown }.map { it.item }.toSet()
     val actions = listOfNotNull(
-        MenuAction(Icons.Rounded.Newspaper, "Digest", half = true) { nav.push(Route.Digest) }.takeIf { settings.digestEnabled && !sideBar },
+        MenuAction(Icons.Rounded.Newspaper, "Digest", half = true) { nav.push(Route.Digest) }.takeIf { settings.digestEnabled && settings.digestPlace != 1 && !sideBar },
         MenuAction(Icons.Rounded.History, "History", half = true) { nav.push(Route.History) }.takeIf { SideBarItem.HISTORY !in inSideBar },
         MenuAction(Icons.Rounded.OfflinePin, "Read later", half = true) { nav.push(Route.Offline) }.takeIf { SideBarItem.OFFLINE !in inSideBar },
         MenuAction(Icons.Rounded.EditNote, if (drafts == 0) "Drafts" else "Drafts · $drafts", half = true) { nav.push(Route.Drafts) }.takeIf { SideBarItem.DRAFTS !in inSideBar },

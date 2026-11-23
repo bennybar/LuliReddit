@@ -245,7 +245,7 @@ struct Settings: Equatable, Sendable {
     // The Digest (docs/digest-spec.md). Its communities are per account (DigestModule).
     var digestEnabled = false
     var digestSize = 1 // DigestSize index: 0 Brief, 1 Standard, 2 Everything notable
-    var digestPlace = 0 // 0 a chip on Posts, 2 menu only (1 is kept for a bottom tab)
+    var digestPlace = 0 // 0 a chip on Posts, 1 a bottom tab, 2 menu only
     var digestShowRead = false // the Digest keeps read posts (dimmed) instead of hiding them
     // Experimental Reddit Home: the user accepted its risk warning (allowed),
     // and the frontpage currently shows it (feed).

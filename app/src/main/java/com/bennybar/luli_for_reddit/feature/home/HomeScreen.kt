@@ -154,7 +154,20 @@ private val navItems = listOf(
     NavItem(Icons.Outlined.Explore, Icons.Rounded.Explore, "Explore"),
     NavItem(Icons.Rounded.MailOutline, Icons.Rounded.Mail, "Inbox"),
     NavItem(Icons.Outlined.AccountCircle, Icons.Rounded.AccountCircle, "Profile"),
+    NavItem(Icons.Outlined.Newspaper, Icons.Rounded.Newspaper, "Digest"), // 4: Settings › Show Digest in › Bottom tab
 )
+
+/**
+ * The tabs shown, in order (by their index in [navItems], which never changes): the
+ * Digest's after Explore when it's a tab, Inbox unless it's in Profile.
+ */
+internal fun tabOrder(s: com.bennybar.luli_for_reddit.settings.Settings, signedIn: Boolean): List<Int> = buildList {
+    add(0)
+    add(1)
+    if (s.digestEnabled && s.digestPlace == 1 && signedIn) add(4)
+    if (!s.inboxInProfile) add(2)
+    add(3)
+}
 
 /** The home shell: Posts / Explore / Inbox / Profile tabs with the floating "Pop" pill nav. */
 @Composable
@@ -181,8 +194,14 @@ fun HomeScreen() {
         maybeSuggestNotifications()
     }
 
-    // Inbox in Profile turned on while on Inbox: to Profile, where it now lives.
-    LaunchedEffect(settings.inboxInProfile) { if (settings.inboxInProfile && index == 2) index = 3 }
+    // Inbox in Profile turned on while on Inbox: to Profile, where it now lives;
+    // the Digest's tab gone while on it: to Posts.
+    val signedIn = app.session.session?.anonymous == false
+    val order = tabOrder(settings, signedIn)
+    LaunchedEffect(order) {
+        if (index !in order) index = if (index == 2) 3 else 0
+    }
+    val digestReselect by app.feed.tabReselect(4).collectAsStateWithLifecycle()
 
     // A notification tap asks for a tab (Inbox).
     val openTab by app.feed.openTab.collectAsStateWithLifecycle()
@@ -222,7 +241,7 @@ fun HomeScreen() {
             // How far each tab's list is from its top, tracked from the
             // scroll deltas (lists start at the top; null = unknown). Snapshot state,
             // so whether Back leaves the app follows it (#230).
-            val fromTop = mutableStateListOf<Float?>(0f, 0f, 0f, 0f)
+            val fromTop = mutableStateListOf<Float?>(0f, 0f, 0f, 0f, 0f)
             var direction = 0 // last user direction: -1 down the list, 1 up, 0 idle
             var travelDir = 0 // the way the finger is going now, and how far it has gone
             var travel = 0f
@@ -365,7 +384,7 @@ fun HomeScreen() {
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
         KeepAliveTabs(
             selected = index,
-            count = 4,
+            count = 5,
             composeAll = allTabs,
             modifier = Modifier.fillMaxSize().nestedScroll(scrollConnection),
         ) { i ->
@@ -374,13 +393,14 @@ fun HomeScreen() {
                 0 -> FrontpageTab(selected = index == 0)
                 1 -> ExploreTab() // runs under the status bar, with its own fade (#127)
                 2 -> Box(Modifier.statusBarsPadding()) { InboxScreen(reselect = inboxReselect, selected = index == 2) }
+                4 -> com.bennybar.luli_for_reddit.feature.digest.DigestScreen(tab = true, selected = index == 4, reselect = digestReselect)
                 else -> Box(Modifier.statusBarsPadding()) { ProfileTab() }
             }
         }
         // Content fades out just below the status bar, rather than being cut off (#74).
         // (Posts and Explore have their own, softer one.)
         val fade = MaterialTheme.colorScheme.surface
-        if (index >= 2) Box(
+        if (index == 2 || index == 3) Box(
             Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
@@ -403,6 +423,7 @@ fun HomeScreen() {
         FloatingNav(
             selected = index,
             unread = unread,
+            order = order,
             inboxInProfile = settings.inboxInProfile,
             showLabels = settings.navLabels,
             outline = settings.navOutline,
@@ -580,9 +601,9 @@ private fun SideBar(selected: Int, current: Route?, unread: Int, open: Boolean, 
                     }
                 }
             }
-            navItems.forEachIndexed { i, item ->
-                if (i == 3 && username != null) return@forEachIndexed
-                if (i == 2 && settings.inboxInProfile) return@forEachIndexed
+            for (i in tabOrder(settings, username != null)) {
+                val item = navItems[i]
+                if (i == 3 && username != null) continue
                 NavigationDrawerItem(
                     label = { Text(item.label) },
                     icon = { Icon(if (i == selected) item.on else item.off, null) },
@@ -592,8 +613,8 @@ private fun SideBar(selected: Int, current: Route?, unread: Int, open: Boolean, 
                 )
             }
             HorizontalDivider(Modifier.padding(vertical = 12.dp, horizontal = 16.dp))
-            // The Digest, while it's on: first, as it's a daily read.
-            if (settings.digestEnabled && username != null) {
+            // The Digest, while it's on: first, as it's a daily read (with the tabs when it's one).
+            if (settings.digestEnabled && settings.digestPlace != 1 && username != null) {
                 NavigationDrawerItem(
                     label = { Text("Digest") },
                     icon = { Icon(if (current == Route.Digest) Icons.Rounded.Newspaper else Icons.Outlined.Newspaper, null) },
@@ -699,6 +720,7 @@ private fun KeepAliveTabs(
 private fun FloatingNav(
     selected: Int,
     unread: Int,
+    order: List<Int>,
     inboxInProfile: Boolean,
     showLabels: Boolean,
     outline: Boolean,
@@ -711,6 +733,8 @@ private fun FloatingNav(
     val haptic = LocalHapticFeedback.current
     // Each tab's horizontal span in the row, for drag hit-testing.
     val spans = remember { arrayOfNulls<ClosedFloatingPointRange<Float>>(navItems.size) }
+    // A tab that left the bar keeps no span to be dragged onto.
+    LaunchedEffect(order) { for (i in spans.indices) if (i !in order) spans[i] = null }
     val current by rememberUpdatedState(selected)
     val select by rememberUpdatedState(onSelected)
     // Your picture as the Profile tab's icon, signed in (#219).
@@ -750,13 +774,18 @@ private fun FloatingNav(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                navItems.forEachIndexed { i, item ->
-                    // Inbox in Profile: no Inbox tab, and Profile carries its badge.
-                    if (i == 2 && inboxInProfile) return@forEachIndexed
+                val digestUnread = if (4 in order) com.bennybar.luli_for_reddit.feature.digest.rememberDigestUnread() else 0
+                // Inbox in Profile: no Inbox tab, and Profile carries its badge.
+                for (i in order) {
+                    val item = navItems[i]
                     NavButton(
                         item = item,
                         selected = selected == i,
-                        badge = if (i == (if (inboxInProfile) 3 else 2)) unread else 0,
+                        badge = when (i) {
+                            (if (inboxInProfile) 3 else 2) -> unread
+                            4 -> digestUnread
+                            else -> 0
+                        },
                         avatar = if (i == 3) avatar else null,
                         showLabel = showLabels,
                         onClick = { onSelected(i) },

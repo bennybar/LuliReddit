@@ -14,7 +14,20 @@ private let navItems = [
     NavItem(systemImage: "safari", label: "Explore"),
     NavItem(systemImage: "envelope", label: "Inbox"),
     NavItem(systemImage: "person.crop.circle", label: "Profile"),
+    NavItem(systemImage: "newspaper", label: "Digest"), // 4: Settings › Show Digest in › Bottom tab
 ]
+
+/// The tabs shown, in order (by their index in `navItems`, which never changes): the
+/// Digest's after Explore when it's a tab, Inbox unless it's in Profile.
+@MainActor func tabOrder() -> [Int] {
+    let s = app.settings.value
+    let signedIn = app.session.session?.anonymous == false
+    var order = [0, 1]
+    if s.digestEnabled && s.digestPlace == 1 && signedIn { order.append(4) }
+    if !s.inboxInProfile { order.append(2) }
+    order.append(3)
+    return order
+}
 
 /// Each tab's root, one line per tab: a feature swaps its screen in here.
 private struct TabRoot: View {
@@ -25,6 +38,7 @@ private struct TabRoot: View {
         case 0: FrontpageTab()
         case 1: ExploreTab()
         case 2: InboxScreen()
+        case 4: DigestScreen(tab: true)
         default: ProfileTab()
         }
     }
@@ -55,7 +69,7 @@ struct HomeScreen: View {
             TabView(selection: Binding(get: { nav.selectedTab }, set: selectTab)) {
                 // Inbox in Profile: no Inbox tab, and Profile carries its badge.
                 let inboxInProfile = app.settings.value.inboxInProfile
-                ForEach(navItems.indices.filter { $0 != 2 || !inboxInProfile }, id: \.self) { i in
+                ForEach(tabOrder(), id: \.self) { i in
                     Tab(value: i) {
                         NavigationStack(path: $nav.paths[i]) {
                             TabRoot(index: i)
@@ -70,11 +84,14 @@ struct HomeScreen: View {
                             Label(navItems[i].label, systemImage: navItems[i].systemImage)
                         }
                     }
-                    .badge(i == (inboxInProfile ? 3 : 2) ? unread : 0)
+                    .badge(i == (inboxInProfile ? 3 : 2) ? unread : i == 4 ? digestUnread() : 0)
                 }
             }
-            // Turned on while on Inbox: to Profile, where it now lives.
-            .onChange(of: app.settings.value.inboxInProfile) { _, on in if on && nav.selectedTab == 2 { nav.selectedTab = 3 } }
+            // Inbox in Profile turned on while on Inbox: to Profile, where it now lives;
+            // the Digest's tab gone while on it: to Posts.
+            .onChange(of: tabOrder(), initial: true) { _, order in
+                if !order.contains(nav.selectedTab) { nav.selectedTab = nav.selectedTab == 2 ? 3 : 0 }
+            }
             .tabBarMinimizeBehavior(.onScrollDown)
             .task(id: app.session.username) { app.feed.loadMe() }
             .task(id: app.feed.me?.iconUrl) {
@@ -262,8 +279,8 @@ private struct SideBar: View {
                     }
                     .padding(.vertical, 6)
                 }
-                ForEach(navItems.indices, id: \.self) { i in
-                    if (i != 3 || username == nil) && (i != 2 || !app.settings.value.inboxInProfile) {
+                ForEach(tabOrder(), id: \.self) { i in
+                    if i != 3 || username == nil {
                         Button { onPick { onTab(i) } } label: {
                             Label(navItems[i].label, systemImage: navItems[i].systemImage)
                                 .foregroundStyle(.primary)
@@ -275,7 +292,7 @@ private struct SideBar: View {
             }
             Section {
                 // The Digest, while it's on: first, as it's a daily read.
-                if !anonymous && app.settings.value.digestEnabled {
+                if !anonymous && app.settings.value.digestEnabled && app.settings.value.digestPlace != 1 {
                     moreRow("newspaper", "Digest", .digest)
                 }
                 if !anonymous {

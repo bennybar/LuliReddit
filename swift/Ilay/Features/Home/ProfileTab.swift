@@ -94,7 +94,7 @@ struct ProfileTab: View {
                 Button("Downvoted", systemImage: "arrow.down") { tab = "Downvoted" }
             }
             Section {
-                if app.settings.value.digestEnabled {
+                if app.settings.value.digestEnabled && app.settings.value.digestPlace != 1 {
                     Button("Digest", systemImage: "newspaper") { nav.push(.digest) }
                 }
                 Button("History", systemImage: "clock.arrow.circlepath") { nav.push(.history) }

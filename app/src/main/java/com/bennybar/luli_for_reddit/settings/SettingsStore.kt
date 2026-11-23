@@ -86,8 +86,8 @@ class SettingsStore(private val p: Prefs) {
             blendReddit = (p.getInt("blendReddit") ?: d.blendReddit).coerceIn(0, 2),
             digestEnabled = b("digestEnabled", d.digestEnabled),
             digestSize = (p.getInt("digestSize") ?: d.digestSize).coerceIn(0, 2),
-            // Unknown (1 is a bottom tab, not offered yet): the chip.
-            digestPlace = (p.getInt("digestPlace") ?: d.digestPlace).let { if (it == 2) 2 else 0 },
+            // 0 the Posts chip, 1 a bottom tab, 2 menu only; anything else: the chip.
+            digestPlace = (p.getInt("digestPlace") ?: d.digestPlace).let { if (it in 0..2) it else 0 },
             digestShowRead = b("digestShowRead", d.digestShowRead),
             forYouDiscovery = (p.getInt("forYouDiscovery") ?: d.forYouDiscovery).coerceIn(-2, 2),
             midResThumbnails = b("midResThumbnails", d.midResThumbnails),
