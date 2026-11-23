@@ -58,6 +58,13 @@ enum class TopBarMode(val label: String, val description: String) {
     EXPANDABLE("Expandable", "A big title that shrinks into the bar as you scroll, with search and ⋯ beside it"),
 }
 
+/** How tall the Expandable top bar's header opens (#240). Persisted by index (never reorder). */
+enum class HeaderHeight(val label: String, val description: String) {
+    FOLDED("Folded", "Always the small bar, the title in it"),
+    MEDIUM("Medium", "The big title under the bar's buttons"),
+    TALL("Tall", "More room above the big title, as in 2.0.96"),
+}
+
 /**
  * A button in the top bar's menu panel (#108). Persisted by [id] (never change one) in
  * `topBarMenuExpandable` / `topBarMenuFull`: the panel's order, a hidden one as "-id".
@@ -290,6 +297,7 @@ data class Settings(
     val threadJumpNext: Boolean = true, // the thread toolbar's next top-level comment button (#121)
     val threadButtonsHideOnScroll: Boolean = false, // the thread's buttons step aside while you scroll (#210)
     val topBarMode: TopBarMode = TopBarMode.EXPANDABLE, // Posts-screen action layout
+    val headerHeight: HeaderHeight = HeaderHeight.MEDIUM, // the Expandable bar's open header (#240)
     // The top bar menu panel's buttons and order, per mode (#108).
     val topBarMenuExpandable: List<TopBarMenuEntry> = TopBarMenuItem.parse(null, TopBarMode.EXPANDABLE),
     val topBarMenuFull: List<TopBarMenuEntry> = TopBarMenuItem.parse(null, TopBarMode.FULL),

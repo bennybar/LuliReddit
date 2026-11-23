@@ -26,6 +26,7 @@ import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material.icons.rounded.Tag
 import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.AlternateEmail
+import com.bennybar.luli_for_reddit.settings.HeaderHeight
 import com.bennybar.luli_for_reddit.settings.HomeFab
 import com.bennybar.luli_for_reddit.settings.ThreadFab
 import com.bennybar.luli_for_reddit.settings.ThreadFabPosition
@@ -118,6 +119,7 @@ import androidx.compose.material.icons.rounded.FormatSize
 import androidx.compose.material.icons.rounded.Gavel
 import androidx.compose.material.icons.rounded.Gif
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Height
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.OpenInBrowser
@@ -732,6 +734,12 @@ fun SettingsList(
             pickOption(TopBarMode.entries.map { PickOption(it, it.label, it.description) }, s.topBarMode)
                 ?.let(ctrl::setTopBarMode)
         })
+        if (s.topBarMode == TopBarMode.EXPANDABLE) {
+            tile("Header height", s.headerHeight.label, Icons.Rounded.Height, onClick = launch {
+                pickOption(HeaderHeight.entries.map { PickOption(it, it.label, it.description) }, s.headerHeight)
+                    ?.let(ctrl::setHeaderHeight)
+            })
+        }
         if (s.topBarMode == TopBarMode.FULL) {
             switch(
                 "New post in the top bar", "A New post button beside your profile picture",

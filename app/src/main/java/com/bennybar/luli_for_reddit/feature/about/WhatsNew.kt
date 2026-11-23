@@ -45,6 +45,12 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.104", "Nov 23, 2026",
+        listOf(
+            "Settings › Appearance › Header height, for the Expandable top bar: Folded (always the small bar), Medium (as now) or Tall (as in 2.0.96) (#240)",
+        ),
+    ),
+    Release(
         "2.0.103", "Nov 23, 2026",
         listOf(
             "Settings › Comment buttons only on tap: comments show just their text, with the score by the time; tap a comment for Vote, Reply and the rest (#239)",

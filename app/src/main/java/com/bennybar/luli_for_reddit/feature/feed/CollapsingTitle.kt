@@ -20,6 +20,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberUpdatedState
@@ -40,6 +41,9 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.bennybar.luli_for_reddit.app
+import com.bennybar.luli_for_reddit.settings.HeaderHeight
 import kotlinx.coroutines.flow.filter
 import kotlin.math.roundToInt
 
@@ -51,11 +55,15 @@ private val ROW_TOP = 10.dp
 private val ROW = 48.dp
 private val BAR = ROW_TOP + ROW
 /**
- * The room the big title takes under it, at the top of the list, the title at its foot
- * (#226). 88dp left a gap under the ☰ row that read as too low (#232); this is about
- * halfway between that and 2.0.95's title right under the row.
+ * The room the big title takes under it, at the top of the list, the title 10dp off its
+ * foot (#226), per Settings › Header height (#240). Medium is 2.0.103's (#232); Tall
+ * 2.0.96's whole height; Folded none: the title starts, and stays, in the bar.
  */
-private val EXTRA = 66.dp // with the title 10dp off its foot: 8dp higher than 2.0.98 (#232)
+private fun extraFor(h: HeaderHeight): Dp = when (h) {
+    HeaderHeight.FOLDED -> 0.dp
+    HeaderHeight.MEDIUM -> 66.dp
+    HeaderHeight.TALL -> 94.dp
+}
 private const val SMALL = 22f / 32f // the title's size in the bar, against its big size
 
 /**
@@ -73,12 +81,17 @@ class CollapsingTitle(private val atTop: () -> Boolean) : NestedScrollConnection
     var progress by mutableFloatStateOf(0f)
         internal set
     internal var rangePx = 1f
+    internal var extra by mutableStateOf(extraFor(HeaderHeight.MEDIUM))
 
-    /** The bar's height now, between [BAR] + [EXTRA] and [BAR]. */
-    val height: Dp get() = BAR + EXTRA * (1f - progress)
+    /** How far it's folded as drawn: always folded when there's no room to open into. */
+    internal val shown: Float get() = if (extra == 0.dp) 1f else progress
+
+    /** The bar's height now, between [BAR] + [extra] and [BAR]. */
+    val height: Dp get() = BAR + extra * (1f - shown)
 
     override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
         val y = available.y
+        if (rangePx <= 0f) return Offset.Zero // Folded: nothing to fold
         // A pull to refresh's indicator goes back first (#235).
         if (y < 0f && com.bennybar.luli_for_reddit.ui.PullToRefreshActivity.pulling) return Offset.Zero
         val now = progress * rangePx
@@ -107,7 +120,9 @@ fun rememberCollapsingTitle(atTop: () -> Boolean): CollapsingTitle {
     val state = rememberSaveable(
         saver = Saver<CollapsingTitle, Float>(save = { it.progress }, restore = { p -> CollapsingTitle { latest() }.also { it.progress = p } }),
     ) { CollapsingTitle { latest() } }
-    state.rangePx = with(LocalDensity.current) { EXTRA.toPx() }
+    val extra = extraFor(app.settings.state.collectAsStateWithLifecycle().value.headerHeight)
+    state.extra = extra
+    state.rangePx = with(LocalDensity.current) { extra.toPx() }
     // Brought to the top without a finger (a re-tap, Back, a reload): open with it.
     LaunchedEffect(state) {
         snapshotFlow { latest() }.filter { it }.collect { if (state.progress > 0f) state.expand() }
@@ -133,7 +148,7 @@ fun CollapsingTitleBar(
     actions: @Composable RowScope.() -> Unit,
 ) {
     val cs = MaterialTheme.colorScheme
-    val p = state.progress
+    val p = state.shown
     Box(modifier.fillMaxWidth().background(cs.surface).then(if (underStatusBar) Modifier.statusBarsPadding() else Modifier).height(state.height)) {
         Row(Modifier.fillMaxWidth().padding(top = ROW_TOP).height(ROW).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             navigation()
@@ -144,7 +159,7 @@ fun CollapsingTitleBar(
         // Big: at the foot of the header, as Sync's and Android's large bars (#226), at the
         // screen's 20dp. Small: centred in the row, after the ☰ (#231: it sat 2dp high).
         val x = lerp(20.dp, if (hasNavigation) 60.dp else 20.dp, p)
-        val y = lerp(BAR + EXTRA - 40.dp - (if (subtitle != null) 20.dp else 0.dp) - 10.dp, ROW_TOP + (ROW - 40.dp * SMALL) / 2, p)
+        val y = lerp(BAR + state.extra - 40.dp - (if (subtitle != null) 20.dp else 0.dp) - 10.dp, ROW_TOP + (ROW - 40.dp * SMALL) / 2, p)
         val scale = 1f + (SMALL - 1f) * p
         Column(
             Modifier
