@@ -537,7 +537,9 @@ private fun FeedList(
     val decodeWidth = feedDecodeWidth()
     val prefetched = remember { HashSet<String>() }
     val latestPosts by rememberUpdatedState(posts)
-    val headerCount = if (header != null) 2 else 1 // header + sort bar
+    // Posts only: the one-time Digest offer under the chips.
+    val offer = postsTab && com.bennybar.luli_for_reddit.feature.digest.rememberDigestOffer()
+    val headerCount = (if (header != null) 2 else 1) + (if (offer) 1 else 0) // header + sort bar (+ the offer)
     // Back from Browse media (#103): the post it was on comes to the top.
     val firstPostRow by rememberUpdatedState(headerCount + if (homeStatus is HomeStatus.Saved || homeStatus is HomeStatus.FellBack) 1 else 0)
     LaunchedEffect(controller) {
@@ -598,6 +600,7 @@ private fun FeedList(
     ) {
         if (header != null) item(key = "header", contentType = "header") { header() }
         item(key = "sortbar", contentType = "sortbar") { chips() }
+        if (offer) item(key = "digest_offer", contentType = "digest_offer") { com.bennybar.luli_for_reddit.feature.digest.DigestOfferCard() }
         // Not your live Home: say what this is instead (until the next load works).
         if (homeStatus is HomeStatus.Saved || homeStatus is HomeStatus.FellBack) {
             item(key = "homestatus", contentType = "homestatus") { HomeStatusStrip(homeStatus, onRetry) }

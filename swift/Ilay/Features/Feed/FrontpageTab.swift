@@ -22,7 +22,11 @@ struct FrontpageTab: View {
         let subtitle = !homeOn && forYou ? (blend ? blendSubtitle(engines?.blendState) : "On your phone") : ""
         let nav = app.navigator
 
-        let header: (() -> FrontpageTitle)? = expandable ? nil : { FrontpageTitle(title: title, subtitle: subtitle) }
+        // The title (Full mode) and the Digest's one-time offer, above the chips.
+        let offer = !postsAll && DigestOffer.shared.shown
+        let header: (() -> FrontpageHeader)? = expandable && !offer ? nil : {
+            FrontpageHeader(title: expandable ? nil : title, subtitle: subtitle, offer: offer)
+        }
         // The Digest's chip (Settings › Digest › Show Digest in › Posts chip): the digest in place of the feed.
         let digestChip = hasEngines && settings.digestEnabled && settings.digestPlace == 0 && app.session.session?.anonymous == false
         Group {
@@ -80,6 +84,8 @@ struct FrontpageTab: View {
                     }
                 }
             }
+            // The Digest offer needs to know about favourites (Explore's list, usually loaded already).
+            .task { if !DigestOffer.shared.done && !settings.digestEnabled { SubscriptionsViewModel.shared.loadIfNeeded() } }
             .overlay(alignment: .bottomTrailing) {
                 if settings.homeFab != .off {
                     let newPost = settings.homeFab == .newPost
@@ -92,6 +98,20 @@ struct FrontpageTab: View {
                     .padding(.bottom, 12) // a little clear of the tab bar, as every floating button over it
                 }
             }
+    }
+}
+
+/// What scrolls above the chips: Full mode's title, and the Digest's offer.
+private struct FrontpageHeader: View {
+    let title: String?
+    let subtitle: String
+    let offer: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if let title { FrontpageTitle(title: title, subtitle: subtitle) }
+            if offer { DigestOfferCard() }
+        }
     }
 }
 
