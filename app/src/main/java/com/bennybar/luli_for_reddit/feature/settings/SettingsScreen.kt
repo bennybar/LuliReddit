@@ -399,11 +399,38 @@ fun SettingsList(
             "Posts tab shows r/all", "Instead of your frontpage, which Explore's All button opens then. For You, Blend and Reddit Home don't apply.",
             Icons.Rounded.Public, s.postsTabAll, ctrl::setPostsTabAll,
         )
-        // What Home shows, as the chips at its top (#199): picking Best there turns it off.
-        switch(
-            "Home shows For You",
-            "Your personalized frontpage, built on your phone. Same as picking For You at the top of Home",
-            Icons.Rounded.AutoAwesome, s.forYouFeed, ctrl::setForYouFeed,
+        // Which feed the Posts tab shows: the same choice as the chips at its top, and
+        // picking here does what tapping one does (saves it and reloads the feed). It
+        // was two switches, "Home shows For You / Blend", which read like settings of
+        // the Home chip and didn't reload anything.
+        val homeOn = s.redditHomeAllowed
+        val feedNow = when {
+            homeOn && s.redditHomeFeed -> "home"
+            homeOn && s.forYouFeed && s.blendHome -> "blend"
+            s.forYouFeed -> "foryou"
+            else -> "subs"
+        }
+        val feedOptions = buildList {
+            add(PickOption("foryou", "For You", "Ranked on your phone from your subscriptions, what you engage with and more"))
+            if (homeOn) add(PickOption("blend", "Blend (Beta)", "For You, with your Reddit Home's recommendations ranked in"))
+            if (homeOn) add(PickOption("home", "Reddit Home", "Your reddit.com Home, as Reddit ranks it"))
+            add(PickOption("subs", "Subscriptions", "Your subscriptions, sorted ${s.defaultSort.label}"))
+        }
+        tile(
+            "Posts tab feed",
+            if (s.postsTabAll) "r/all, while Posts tab shows r/all is on" else feedOptions.first { it.value == feedNow }.label,
+            Icons.Rounded.AutoAwesome,
+            onClick = launch {
+                val pick = pickOption(feedOptions, feedNow) ?: return@launch
+                if (pick == feedNow) return@launch
+                val front = app.feed.controller("")
+                when (pick) {
+                    "foryou" -> front.selectForYou()
+                    "blend" -> front.selectBlend()
+                    "home" -> front.selectRedditHome()
+                    else -> front.changeSort(s.defaultSort)
+                }
+            },
         )
         switch(
             "Auto-hide read items in \"For You\"", "Hide posts you've marked/opened as read",
@@ -428,14 +455,6 @@ fun SettingsList(
             )
         })
         if (s.redditHomeAllowed) {
-            switch(
-                "Home shows Blend (Beta)",
-                "For You also ranks your Reddit Home: Reddit's recommendations, under your For You choices. Same as picking Blend on Home",
-                Icons.Rounded.Merge, s.forYouFeed && s.blendHome,
-            ) { v ->
-                ctrl.setBlendHome(v)
-                if (v) ctrl.setForYouFeed(true)
-            }
             if (s.forYouFeed && s.blendHome) {
                 val blendLabels = listOf("Mostly Ilay", "Balanced", "Mostly Reddit")
                 val blendHints = listOf(

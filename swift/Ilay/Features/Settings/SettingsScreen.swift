@@ -134,8 +134,31 @@ struct SettingsCatalog {
             "Posts tab shows r/all", "Instead of your frontpage, which Explore's All button opens then. For You, Blend and Reddit Home don't apply.",
             s.postsTabAll, set: ctrl.setPostsTabAll
         )
-        // What Home shows, as the chips at its top (#199): picking Best there turns it off.
-        b.toggle("Home shows For You", "Your personalized frontpage, built on your phone. Same as picking For You at the top of Home", s.forYouFeed, set: ctrl.setForYouFeed)
+        // Which feed the Posts tab shows: the same choice as the chips at its top, and
+        // picking here does what tapping one does (saves it and reloads the feed). It was
+        // two switches, "Home shows For You / Blend", which read like settings of the Home
+        // chip and didn't reload anything.
+        let homeOn = s.redditHomeAllowed
+        let feedNow = homeOn && s.redditHomeFeed ? "home" : homeOn && s.forYouFeed && s.blendHome ? "blend" : s.forYouFeed ? "foryou" : "subs"
+        var feedOptions = [PickOption(value: "foryou", label: "For You", subtitle: "Ranked on your phone from your subscriptions, what you engage with and more")]
+        if homeOn {
+            feedOptions.append(PickOption(value: "blend", label: "Blend (Beta)", subtitle: "For You, with your Reddit Home's recommendations ranked in"))
+            feedOptions.append(PickOption(value: "home", label: "Reddit Home", subtitle: "Your reddit.com Home, as Reddit ranks it"))
+        }
+        feedOptions.append(PickOption(value: "subs", label: "Subscriptions", subtitle: "Your subscriptions, sorted \(s.defaultSort.label)"))
+        b.picker(
+            "Posts tab feed", s.postsTabAll ? "r/all, while Posts tab shows r/all is on" : nil,
+            value: feedNow, options: feedOptions
+        ) { pick in
+            if pick == feedNow { return }
+            let front = app.feed.controller("")
+            switch pick {
+            case "foryou": front.selectForYou()
+            case "blend": front.selectBlend()
+            case "home": front.selectRedditHome()
+            default: front.changeSort(s.defaultSort)
+            }
+        }
         b.toggle("Auto-hide read items in \"For You\"", "Hide posts you've marked/opened as read", s.autoHideReadForYou, set: ctrl.setAutoHideReadForYou)
         b.custom("forYouDiscovery", title: "For You mix", search: "For You mix familiar discover new communities") {
             ForYouMixSlider(value: s.forYouDiscovery)
@@ -158,13 +181,6 @@ struct SettingsCatalog {
             }
         }
         if s.redditHomeAllowed {
-            b.toggle(
-                "Home shows Blend (Beta)", "For You also ranks your Reddit Home: Reddit's recommendations, under your For You choices. Same as picking Blend on Home",
-                s.forYouFeed && s.blendHome
-            ) { v in
-                app.settings.setBlendHome(v)
-                if v { app.settings.setForYouFeed(true) }
-            }
             if s.forYouFeed && s.blendHome {
                 let labels = ["Mostly Ilay", "Balanced", "Mostly Reddit"]
                 let hints = [
