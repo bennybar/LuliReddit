@@ -192,6 +192,7 @@ fun HomeScreen() {
         maybeCheckUpdates(context)
         maybeShowWhatsNew()
         maybeSuggestNotifications()
+        maybeAnnounceIlaySubreddit()
     }
 
     // Inbox in Profile turned on while on Inbox: to Profile, where it now lives;

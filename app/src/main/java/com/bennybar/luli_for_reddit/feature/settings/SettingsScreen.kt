@@ -1245,6 +1245,13 @@ fun SettingsList(
                 "enable it under system app settings › Open by default.",
             Icons.Rounded.Link,
         )
+        val inSub = com.bennybar.luli_for_reddit.feature.home.inIlaySubreddit()
+        tile(
+            "r/${com.bennybar.luli_for_reddit.feature.home.ILAY_SUBREDDIT}",
+            if (inSub) "Ilay's subreddit: news, help and ideas. You're in" else "Ilay's subreddit: news, help and ideas. Tap to join",
+            Icons.Outlined.Forum,
+            onClick = launch { com.bennybar.luli_for_reddit.feature.home.joinIlaySubreddit() },
+        )
         tile("Content & conduct policy", icon = Icons.Rounded.Gavel) { nav.push(Route.Policy) }
         tile("Open-source licenses", "Fonts: Google Sans, Plus Jakarta Sans, Unbounded (SIL OFL 1.1)", Icons.Rounded.Description, onClick = launch {
             val text = withContext(Dispatchers.IO) {

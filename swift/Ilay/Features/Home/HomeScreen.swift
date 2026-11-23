@@ -152,6 +152,7 @@ struct HomeScreen: View {
             startupChecksDone = true
             await maybeShowWhatsNew()
             await maybeSuggestNotifications()
+            await maybeAnnounceIlaySubreddit()
         }
     }
 
