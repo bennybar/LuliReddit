@@ -45,15 +45,6 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
-        "2.0.99", "Nov 23, 2026",
-        listOf(
-            "New: Digest. The posts that stood out in the last 24 hours in your favourite communities, in one short list. Turn it on in Settings › Digest, where \"How Digest works\" explains it",
-            "It picks by how unusual a post is for its own community, so a small community's big day isn't drowned out, and a quiet day gives a short digest. No AI needed",
-            "Your choice of communities (your favourites, or up to 15), how long it is, and where it shows: a chip at the top of Posts, or only in the side bar and Profile menu",
-            "Swipe a post left to mark it read. Pull down for what's new: a refresh only adds posts, nothing already there goes away",
-        ),
-    ),
-    Release(
         "2.0.98", "Nov 23, 2026",
         listOf(
             "Expandable top bar: the big title sits a little higher, and it stays folded when you come back from a post",
