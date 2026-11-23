@@ -45,6 +45,14 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.103", "Nov 23, 2026",
+        listOf(
+            "Settings › Comment buttons only on tap: comments show just their text, with the score by the time; tap a comment for Vote, Reply and the rest (#239)",
+            "New posts: the title and text start sentences with a capital letter",
+            "The big title sits a little higher in the expanded header (#232)",
+        ),
+    ),
+    Release(
         "2.0.102", "Nov 23, 2026",
         listOf(
             "Digest: a post you open and come back from leaves the list too, not only one you swipe (Show read keeps them)",
