@@ -392,7 +392,7 @@ private struct PostActionsSheet: View {
                         item("minus.circle", "Hide r/\(post.subreddit) for 7 days", "From your front page: Home, For You, Best / Hot / New") {
                             hideFromHome(post)
                         }
-                        item("line.3.horizontal.decrease.circle", "Filter out r/\(post.subreddit)", "From every feed, for good (Settings → Content filters)") {
+                        item("line.3.horizontal.decrease.circle", "Filter out r/\(post.subreddit)", "From every feed, for good (Settings → Read & hidden → Content filters)") {
                             filterOut(post)
                         }
                     }

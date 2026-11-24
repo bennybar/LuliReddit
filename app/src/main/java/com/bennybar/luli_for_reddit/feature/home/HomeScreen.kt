@@ -498,7 +498,22 @@ private fun SideBarDrawer(
             },
         ) {
             MaterialTheme(motionScheme = motion) {
-                CompositionLocalProvider(LocalSideBar provides if (enabled) ({ scope.launch { drawer.open() } }) else null, content = content)
+                // How far open it is: its offset, from where it rests closed (off the screen's edge) to 0.
+                val closedAt = remember { floatArrayOf(0f) }
+                val progress = remember(drawer) {
+                    {
+                        val x = drawer.currentOffset
+                        if (x.isNaN()) 0f else {
+                            if (x < closedAt[0]) closedAt[0] = x
+                            if (closedAt[0] == 0f) 0f else (1f - x / closedAt[0]).coerceIn(0f, 1f)
+                        }
+                    }
+                }
+                CompositionLocalProvider(
+                    LocalSideBar provides if (enabled) ({ scope.launch { drawer.open() } }) else null,
+                    LocalSideBarProgress provides progress,
+                    content = content,
+                )
             }
         }
     }

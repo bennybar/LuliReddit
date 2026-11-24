@@ -43,7 +43,7 @@ enum AiService {
 
     /// Returns the assistant's summary text, or throws with a readable message.
     static func summarize(baseUrl: String, apiKey: String, model: String, style: SummaryStyle, threadText: String, language: String = "") async throws -> String {
-        // Settings → AI summaries → Summary language ("" = the thread's own).
+        // Settings → AI → Summary language ("" = the thread's own).
         let lang = language.isEmpty ? "Write the summary in the same language as the thread."
             : "Write the summary in \(language), whatever language the thread is in."
         let system = "You summarize Reddit threads accurately and neutrally. Do not invent details. \(style.instruction) \(lang)"

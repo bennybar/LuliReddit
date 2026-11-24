@@ -56,23 +56,53 @@ private let translateLanguages = [
 /// The main page's categories (#68), in groups: a section of the list, what's in it, its icon and colour.
 let settingsCategories: [[(title: String, subtitle: String, icon: String, color: Color)]] = [
     [
-        ("Feed", "Layout, sort, For You, what's hidden", "newspaper.fill", .blue),
+        ("Feed", "Posts tab feed, For You, sort", "newspaper.fill", .blue),
+        ("Read & hidden", "Read posts, history, filters, NSFW", "eye.slash.fill", .mint),
         ("Digest", "The day's notable posts from your communities", "list.star", .cyan),
-        ("Appearance", "Theme, font size, app icon, navigation", "paintpalette.fill", .indigo),
-        ("Posts & comments", "Comment style, collapsing, swipes", "bubble.left.and.bubble.right.fill", .green),
+        ("Appearance", "Theme, text sizes, post layout", "paintpalette.fill", .indigo),
+        ("Navigation", "Tab bar or side bar, top bar", "sidebar.left", .yellow),
+        ("Posts & comments", "Comments, swipes, thread buttons, links", "bubble.left.and.bubble.right.fill", .green),
         ("Media", "Autoplay, NSFW blur, thumbnails", "photo.on.rectangle.angled", .pink),
     ],
     [
         ("Notifications", "Inbox alerts", "bell.badge.fill", .red),
         ("Translation", "Languages and service", "translate", .teal),
-        ("AI summaries", "Key, model, style", "sparkles", .purple),
+        ("AI", "Key and model, for summaries and Digest", "sparkles", .purple),
     ],
     [
-        ("Data & storage", "History, cache, backup", "internaldrive.fill", .gray),
-        ("Account & keys", "Login, API keys, clear data", "person.badge.key.fill", .orange),
-        ("Power-user features", "API usage", "slider.horizontal.3", .brown),
+        ("Data & storage", "Recently visited, cache, backup", "internaldrive.fill", .gray),
+        ("Account", "Login, Reddit and Giphy keys, API usage", "person.badge.key.fill", .orange),
     ],
     [("About", "Version, updates, licenses", "info.circle.fill", .gray)],
+]
+
+/// 2.0.108's layout (the Kotlin app's): rows built in their old sections, each moved to
+/// its category and list section here. A section's own rows keep their order.
+private let settingsSectionOrder = settingsCategories.flatMap { $0 }.map(\.title)
+private let settingsRenamed = ["AI summaries": "AI", "Account & keys": "Account", "Power-user features": "Account"]
+private let settingsMoves: [String: (section: String, group: Int)] = [
+    // Feed: what the Posts tab shows, and For You.
+    "Keep feed for": ("Feed", 0),
+    // Read & hidden: history, then hiding what you've read, then what's kept out.
+    "Track history": ("Read & hidden", 0), "Dim read posts": ("Read & hidden", 0),
+    "Hide read posts": ("Read & hidden", 1), "Also in subreddits": ("Read & hidden", 1),
+    "Mark read as you scroll": ("Read & hidden", 1), "Auto-hide read items in \"For You\"": ("Read & hidden", 1),
+    "Content filters": ("Read & hidden", 2), "Hide posts for": ("Read & hidden", 2),
+    "Hidden subreddits": ("Read & hidden", 2), "Hide NSFW posts": ("Read & hidden", 2),
+    // Appearance: how posts look in feeds, after theme and text.
+    "u/ before your name in the side bar": ("Appearance", 0),
+    "Post display": ("Appearance", 1), "Post text in feeds": ("Appearance", 1),
+    "Subreddit icons": ("Appearance", 1), "Floating filter chips": ("Appearance", 1),
+    // Navigation: the tabs and side bar, then the top bar.
+    "Navigation": ("Navigation", 0), "Inbox in Profile": ("Navigation", 0), "Explore sections": ("Navigation", 0),
+    "Top bar": ("Navigation", 1), "New post in the top bar": ("Navigation", 1), "Floating button on Home": ("Navigation", 1),
+    // Posts & comments: opening links, then the thread's floating buttons.
+    "Open reddit links in Ilay": ("Posts & comments", 1), "Safari extension: ask which app": ("Posts & comments", 1),
+    "Thread buttons position": ("Posts & comments", 2), "Next comment button": ("Posts & comments", 2),
+    "Hide thread buttons while scrolling": ("Posts & comments", 2), "OP's comments button": ("Posts & comments", 2),
+    "Your comments button": ("Posts & comments", 2),
+    // Account: API usage, then clearing everything last.
+    "Show API usage instead of search": ("Account", 1), "API usage": ("Account", 1), "Clear all data": ("Account", 2),
 ]
 
 /// Whether each key is set, and how the account signed in: read from the keychain by the screen.
@@ -109,7 +139,15 @@ struct SettingsCatalog {
         account(b)
         powerUser(b)
         about(b)
-        return b.rows
+        // Each row to its place, then the sections in the main page's order.
+        let placed = b.rows.enumerated().map { i, e -> (Int, SettingEntry) in
+            let to = settingsMoves[e.title] ?? (settingsRenamed[e.section] ?? e.section, e.group)
+            return (i, SettingEntry(id: e.id, section: to.section, group: to.group, title: e.title, search: e.search, content: e.content))
+        }
+        func rank(_ s: String) -> Int { settingsSectionOrder.firstIndex(of: s) ?? .max }
+        return placed.sorted {
+            (rank($0.1.section), $0.1.group, $0.0) < (rank($1.1.section), $1.1.group, $1.0)
+        }.map(\.1)
     }
 
     /// One section's rows.
@@ -278,7 +316,7 @@ struct SettingsCatalog {
                             "Inbox moves to Profile",
                             "To keep the bottom bar uncluttered, Digest takes Inbox's place there, and Inbox moves into Profile: "
                                 + "the envelope at the top of Profile opens it.\n\n"
-                                + "You can bring it back as a tab in Settings › Appearance › Inbox in Profile.",
+                                + "You can bring it back as a tab in Settings › Navigation › Inbox in Profile.",
                             close: "Got it"
                         )
                         app.settings.setInboxInProfile(true)
@@ -300,7 +338,7 @@ struct SettingsCatalog {
             b.toggle(
                 "Use AI",
                 secure.aiKey ? "Your AI key picks and explains the posts. Sends titles, the start of text posts, their numbers and your top interests to your AI provider"
-                    : "Needs an AI key: Settings › AI summaries",
+                    : "Needs an AI key: Settings › AI",
                 s.digestAi && secure.aiKey, enabled: secure.aiKey || s.digestAi, set: ctrl.setDigestAi
             )
             if s.digestAi && secure.aiKey {

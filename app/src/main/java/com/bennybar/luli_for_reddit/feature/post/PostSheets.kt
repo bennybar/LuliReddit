@@ -491,7 +491,7 @@ private fun PostActionsSheet(post: Post, onComment: (() -> Unit)?, done: () -> U
                     act(Icons.Rounded.DoNotDisturbOn, "Hide r/${post.subreddit} for 7 days", "From your front page: Home, For You, Best / Hot / New") {
                         hideSubFromHome(post)
                     }
-                    act(Icons.Outlined.FilterAlt, "Filter out r/${post.subreddit}", "From every feed, for good (Settings → Content filters)") {
+                    act(Icons.Outlined.FilterAlt, "Filter out r/${post.subreddit}", "From every feed, for good (Settings → Read & hidden → Content filters)") {
                         filterOutSub(post)
                     }
                 }

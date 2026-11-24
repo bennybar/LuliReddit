@@ -12,6 +12,7 @@ import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.ManageAccounts
+import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.FormatPaint
@@ -272,23 +273,26 @@ private const val CUSTOM_MODEL = "\u0000custom"
 // gallery's "Ilay" album.
 
 /** The main page's categories (#68), in groups: a section of the list, what's in it, its icon. */
+// Each row of Settings lives in one of these (2.0.108's layout): what the Posts tab shows,
+// what's read or hidden, how things look, how you get around, then threads and media.
 private val SETTINGS_CATEGORIES = listOf(
     listOf(
-        Triple("Feed", "Layout, sort, For You, what's hidden", Icons.Outlined.DynamicFeed),
+        Triple("Feed", "Posts tab feed, For You, sort", Icons.Outlined.DynamicFeed),
+        Triple("Read & hidden", "Read posts, history, filters, NSFW", Icons.Outlined.VisibilityOff),
         Triple("Digest", "The day's notable posts from your communities", Icons.Outlined.Newspaper),
-        Triple("Appearance", "Theme, font, app icon, navigation", Icons.Outlined.Palette),
-        Triple("Posts & comments", "Comment style, collapsing, swipes", Icons.Outlined.Forum),
+        Triple("Appearance", "Theme, font, text sizes, post layout", Icons.Outlined.Palette),
+        Triple("Navigation", "Bottom bar or side bar, top bar, Back", Icons.Outlined.Explore),
+        Triple("Posts & comments", "Comments, swipes, thread buttons, links", Icons.Outlined.Forum),
         Triple("Media", "Autoplay, NSFW blur, saving", Icons.Outlined.PermMedia),
     ),
     listOf(
         Triple("Notifications", "Inbox alerts", Icons.Outlined.Notifications),
         Triple("Translation", "Languages and service", Icons.Outlined.Translate),
-        Triple("AI summaries", "Key, model, style", Icons.Outlined.AutoAwesome),
+        Triple("AI", "Key and model, for summaries and Digest", Icons.Outlined.AutoAwesome),
     ),
     listOf(
-        Triple("Data & storage", "History, cache, backup", Icons.Outlined.Storage),
-        Triple("Account & keys", "Login, API keys, clear data", Icons.Outlined.ManageAccounts),
-        Triple("Power-user features", "API usage", Icons.Outlined.Tune),
+        Triple("Data & storage", "Recently visited, cache, backup", Icons.Outlined.Storage),
+        Triple("Account", "Login, Reddit and Giphy keys, API usage", Icons.Outlined.ManageAccounts),
     ),
     listOf(Triple("About", "Version, updates, licenses", Icons.Outlined.Info)),
 )
@@ -398,19 +402,7 @@ fun SettingsList(
 
         // ---------------------------------------------------------------- Feed
         section("Feed")
-        tile("Post display", s.postDisplay.label, s.postDisplay.icon, onClick = launch {
-            pickOption(PostDisplay.entries.map { PickOption(it, it.label, icon = it.icon) }, s.postDisplay)
-                ?.let(ctrl::setPostDisplay)
-        })
-        // How much of a post's text feeds show (#186).
-        val textLines = listOf(PickOption(0, "Layout's default", "2 or 3 lines"), PickOption(5, "5 lines"), PickOption(10, "10 lines"))
-        tile("Post text in feeds", textLines.first { it.value == s.postTextLines }.label, Icons.AutoMirrored.Rounded.Notes, onClick = launch {
-            pickOption(textLines, s.postTextLines)?.let(ctrl::setPostTextLines)
-        })
-        switch(
-            "Subreddit icons", "Show each community's icon on posts instead of its first letter",
-            Icons.Rounded.Image, s.subredditIcons, ctrl::setSubredditIcons,
-        )
+        // What the Posts tab shows, and For You.
         tile("Default sort", s.defaultSort.label, Icons.AutoMirrored.Rounded.Sort, onClick = launch {
             pickOption(PostSort.entries.map { PickOption(it, it.label) }, s.defaultSort)?.let(ctrl::setDefaultSort)
         })
@@ -451,10 +443,6 @@ fun SettingsList(
                 }
             },
         )
-        switch(
-            "Auto-hide read items in \"For You\"", "Hide posts you've marked/opened as read",
-            Icons.Outlined.MarkEmailRead, s.autoHideReadForYou, ctrl::setAutoHideReadForYou,
-        )
         add(Entry("forYouDiscovery", "For You mix familiar discover new communities") {
             ForYouMixSlider(s.forYouDiscovery, ctrl::setForYouDiscovery)
         })
@@ -491,59 +479,10 @@ fun SettingsList(
                 )
             }
         }
-        switch(
-            "Floating filter chips", "On Home, subreddits and custom feeds, show the chips under the top bar when you scroll back up",
-            Icons.Rounded.FilterList, s.floatingChips, ctrl::setFloatingChips,
-        )
-        if (s.floatingChips) {
-            // #91: the solid top-bar background of 2.0.58, or the outlined chips over the posts as before.
-            tile("Floating chips background", if (s.floatingChipsSolid) "Solid" else "Transparent", Icons.Rounded.FilterList, onClick = launch {
-                pickOption(
-                    listOf(
-                        PickOption(false, "Transparent", "Just the outlined chips, over the posts"),
-                        PickOption(true, "Solid", "On the top bar's background, so posts don't show between the chips"),
-                    ),
-                    s.floatingChipsSolid,
-                )?.let(ctrl::setFloatingChipsSolid)
-            })
-        }
-        divider("feed-lists")
         tile("Keep feed for", "Home / For You: ${keepLabel(s.feedKeepMinutes)}, then a new feed (pull down to refresh anytime)", Icons.Outlined.Timer, onClick = launch {
             pickOption(listOf(10, 30, 60, 180).map { PickOption(it, keepLabel(it)) }, s.feedKeepMinutes)
                 ?.let(ctrl::setFeedKeepMinutes)
         })
-        switch(
-            "Hide read posts", "Skip posts you've already read when your front page, For You and custom feeds load or refresh",
-            Icons.Outlined.VisibilityOff, s.hideReadPosts, ctrl::setHideReadPosts,
-        )
-        if (s.hideReadPosts) {
-            switch(
-                "Also in subreddits", "Hide read posts when browsing a single subreddit too",
-                Icons.Outlined.VisibilityOff, s.hideReadInSubreddits, ctrl::setHideReadInSubreddits,
-            )
-        }
-        switch(
-            "Mark read as you scroll",
-            if (s.trackHistory) "A post you scroll past counts as read" else "Needs history tracking turned on",
-            Icons.Rounded.DoneAll, s.markReadOnScroll, if (s.trackHistory) ctrl::setMarkReadOnScroll else null,
-        )
-        tile("Content filters", "Hide posts by keyword, domain, flair or subreddit", Icons.Outlined.FilterAlt) {
-            nav.push(Route.ContentFilters)
-        }
-        tile(
-            "Hide posts for",
-            "Posts you hide stay out of every feed for ${dayLabel(s.hiddenPostDays)}",
-            Icons.Outlined.VisibilityOff,
-            onClick = launch {
-                pickOption(listOf(1, 3, 7, 30, 90).map { PickOption(it, dayLabel(it)) }, s.hiddenPostDays)
-                    ?.let(ctrl::setHiddenPostDays)
-            },
-        )
-        tile(
-            "Hidden subreddits",
-            "Hidden from your front page for 7 days" + (if (hiddenSubs.isEmpty()) " · none now" else " · ${hiddenSubs.size} now"),
-            Icons.Rounded.DoNotDisturbOn,
-        ) { showHiddenSubsDialog() }
         divider("feed")
 
         // ---------------------------------------------------------------- Digest
@@ -575,7 +514,7 @@ fun SettingsList(
                         "Inbox moves to Profile",
                         "To keep the bottom bar uncluttered, Digest takes Inbox's place there, and Inbox moves into Profile: " +
                             "the envelope at the top of Profile opens it, with your unread count.\n\n" +
-                            "You can bring it back as a tab in Settings › Appearance › Inbox in Profile.",
+                            "You can bring it back as a tab in Settings › Navigation › Inbox in Profile.",
                         close = "Got it",
                     )
                     ctrl.setInboxInProfile(true)
@@ -606,7 +545,7 @@ fun SettingsList(
             switch(
                 "Use AI",
                 if (aiKeySet) "Your AI key picks and explains the posts. Sends titles, the start of text posts, their numbers and your top interests to your AI provider"
-                else "Needs an AI key: Settings › AI summaries",
+                else "Needs an AI key: Settings › AI",
                 Icons.Outlined.AutoAwesome, s.digestAi && aiKeySet, if (aiKeySet || s.digestAi) ctrl::setDigestAi else null,
             )
             if (s.digestAi && aiKeySet) {
@@ -651,6 +590,74 @@ fun SettingsList(
             })
         }
         divider("digest")
+
+        // ---------------------------------------------------------------- Read & hidden
+        section("Read & hidden")
+        // What counts as read and what it does, then what's kept out of your feeds.
+        switch(
+            "Track history", if (s.dimRead) "Remember and dim viewed posts (local only)" else "Remember viewed posts (local only)",
+            Icons.Outlined.Visibility, s.trackHistory, ctrl::setTrackHistory,
+        )
+        if (s.trackHistory) {
+            tile(
+                "Dim read posts",
+                when (s.readDim) {
+                    ReadDim.OFF -> "Off: read posts look like new ones"
+                    ReadDim.CARD -> "Whole card"
+                    ReadDim.TEXT -> "Text only: titles and text fade, images stay bright"
+                },
+                Icons.Outlined.Visibility,
+                onClick = launch {
+                    pickOption(
+                        listOf(PickOption(ReadDim.CARD, "Whole card"), PickOption(ReadDim.TEXT, "Text only", "Images and videos stay bright"), PickOption(ReadDim.OFF, "Off", "History is still kept")),
+                        s.readDim,
+                    )?.let(ctrl::setReadDim)
+                },
+            )
+        }
+        switch(
+            "Hide read posts", "Skip posts you've already read when your front page, For You and custom feeds load or refresh",
+            Icons.Outlined.VisibilityOff, s.hideReadPosts, ctrl::setHideReadPosts,
+        )
+        if (s.hideReadPosts) {
+            switch(
+                "Also in subreddits", "Hide read posts when browsing a single subreddit too",
+                Icons.Outlined.VisibilityOff, s.hideReadInSubreddits, ctrl::setHideReadInSubreddits,
+            )
+        }
+        switch(
+            "Mark read as you scroll",
+            if (s.trackHistory) "A post you scroll past counts as read" else "Needs history tracking turned on",
+            Icons.Rounded.DoneAll, s.markReadOnScroll, if (s.trackHistory) ctrl::setMarkReadOnScroll else null,
+        )
+        switch(
+            "Auto-hide read items in \"For You\"", "Hide posts you've marked/opened as read",
+            Icons.Outlined.MarkEmailRead, s.autoHideReadForYou, ctrl::setAutoHideReadForYou,
+        )
+        divider("read-filters")
+        tile("Content filters", "Hide posts by keyword, domain, flair or subreddit", Icons.Outlined.FilterAlt) {
+            nav.push(Route.ContentFilters)
+        }
+        tile(
+            "Hide posts for",
+            "Posts you hide stay out of every feed for ${dayLabel(s.hiddenPostDays)}",
+            Icons.Outlined.VisibilityOff,
+            onClick = launch {
+                pickOption(listOf(1, 3, 7, 30, 90).map { PickOption(it, dayLabel(it)) }, s.hiddenPostDays)
+                    ?.let(ctrl::setHiddenPostDays)
+            },
+        )
+        tile(
+            "Hidden subreddits",
+            "Hidden from your front page for 7 days" + (if (hiddenSubs.isEmpty()) " · none now" else " · ${hiddenSubs.size} now"),
+            Icons.Rounded.DoNotDisturbOn,
+        ) { showHiddenSubsDialog() }
+        // Content filters' switch, here too: beside the blur is where people look for it (#94).
+        switch(
+            "Hide NSFW posts", "Remove them from feeds and search instead of blurring",
+            Icons.Rounded.NoAdultContent, filters.hideNsfw, app.contentFilters::setHideNsfw,
+        )
+        divider("read")
 
         // ---------------------------------------------------------------- Appearance
         section("Appearance")
@@ -729,56 +736,42 @@ fun SettingsList(
             enabled = !defaultSizes,
             onClick = ctrl::resetTextScales,
         )
-        divider("appearance-nav")
-        tile("Top bar", s.topBarMode.label, Icons.Rounded.ViewHeadline, onClick = launch {
-            pickOption(TopBarMode.entries.map { PickOption(it, it.label, it.description) }, s.topBarMode)
-                ?.let(ctrl::setTopBarMode)
+        divider("appearance-feeds")
+        // How posts look in feeds.
+        tile("Post display", s.postDisplay.label, s.postDisplay.icon, onClick = launch {
+            pickOption(PostDisplay.entries.map { PickOption(it, it.label, icon = it.icon) }, s.postDisplay)
+                ?.let(ctrl::setPostDisplay)
         })
-        if (s.topBarMode == TopBarMode.EXPANDABLE) {
-            tile("Header height", s.headerHeight.label, Icons.Rounded.Height, onClick = launch {
-                pickOption(HeaderHeight.entries.map { PickOption(it, it.label, it.description) }, s.headerHeight)
-                    ?.let(ctrl::setHeaderHeight)
+        // How much of a post's text feeds show (#186).
+        val textLines = listOf(PickOption(0, "Layout's default", "2 or 3 lines"), PickOption(5, "5 lines"), PickOption(10, "10 lines"))
+        tile("Post text in feeds", textLines.first { it.value == s.postTextLines }.label, Icons.AutoMirrored.Rounded.Notes, onClick = launch {
+            pickOption(textLines, s.postTextLines)?.let(ctrl::setPostTextLines)
+        })
+        switch(
+            "Subreddit icons", "Show each community's icon on posts instead of its first letter",
+            Icons.Rounded.Image, s.subredditIcons, ctrl::setSubredditIcons,
+        )
+        switch(
+            "Floating filter chips", "On Home, subreddits and custom feeds, show the chips under the top bar when you scroll back up",
+            Icons.Rounded.FilterList, s.floatingChips, ctrl::setFloatingChips,
+        )
+        if (s.floatingChips) {
+            // #91: the solid top-bar background of 2.0.58, or the outlined chips over the posts as before.
+            tile("Floating chips background", if (s.floatingChipsSolid) "Solid" else "Transparent", Icons.Rounded.FilterList, onClick = launch {
+                pickOption(
+                    listOf(
+                        PickOption(false, "Transparent", "Just the outlined chips, over the posts"),
+                        PickOption(true, "Solid", "On the top bar's background, so posts don't show between the chips"),
+                    ),
+                    s.floatingChipsSolid,
+                )?.let(ctrl::setFloatingChipsSolid)
             })
         }
-        if (s.topBarMode == TopBarMode.FULL) {
-            switch(
-                "New post in the top bar", "A New post button beside your profile picture",
-                Icons.Outlined.PostAdd, s.fullBarNewPost, ctrl::setFullBarNewPost,
-            )
-        }
-        tile(
-            "Top bar menu", "Choose and order the buttons in the menu " + if (s.topBarMode == TopBarMode.EXPANDABLE) "⋯ opens" else "your profile picture opens",
-            Icons.Rounded.Tune,
-        ) { showTopBarMenuSettings(s.topBarMode) }
-        tile("Floating button", s.homeFab.label, Icons.Rounded.Edit, onClick = launch {
-            pickOption(HomeFab.entries.map { PickOption(it, it.label) }, s.homeFab)?.let(ctrl::setHomeFab)
-        })
-        tile("Floating button in threads", s.threadFab.label, Icons.Outlined.ModeComment, onClick = launch {
-            pickOption(ThreadFab.entries.map { PickOption(it, it.label) }, s.threadFab)?.let(ctrl::setThreadFab)
-        })
-        tile("Jump button position in threads", s.threadFabPosition.label, Icons.Rounded.KeyboardArrowDown, onClick = launch {
-            pickOption(ThreadFabPosition.entries.map { PickOption(it, it.label) }, s.threadFabPosition)?.let(ctrl::setThreadFabPosition)
-        })
-        switch(
-            "Next comment button",
-            "Jump to the next top-level comment in threads (long-press: the previous one)",
-            Icons.Rounded.KeyboardArrowDown, s.threadJumpNext, ctrl::setThreadJumpNext,
-        )
-        switch(
-            "Hide thread buttons while scrolling",
-            "They step aside while your finger scrolls a thread and come back when it stops",
-            Icons.Rounded.UnfoldLess, s.threadButtonsHideOnScroll, ctrl::setThreadButtonsHideOnScroll,
-        )
-        switch(
-            "Jump to OP's comments button",
-            "Show a button in threads to jump between comments by the original poster",
-            Icons.Rounded.RecordVoiceOver, s.threadJumpOp, ctrl::setThreadJumpOp,
-        )
-        switch(
-            "Jump to your comments button",
-            "Show a button in threads to jump between your own comments",
-            Icons.Rounded.Person, s.threadJumpMine, ctrl::setThreadJumpMine,
-        )
+        divider("appearance")
+
+        // ---------------------------------------------------------------- Navigation
+        section("Navigation")
+        // Bottom bar or side bar, the tabs, and the top bar.
         tile("Navigation", NAV_STYLES[s.navStyle.coerceIn(0, 2)].first, Icons.Rounded.Menu, onClick = launch {
             pickOption(NAV_STYLES.mapIndexed { i, (l, d) -> PickOption(i, l, d) }, s.navStyle)?.let(ctrl::setNavStyle)
         })
@@ -818,7 +811,31 @@ fun SettingsList(
             "Back leaves the app", "On the Posts tab, once there's nothing else for back to do. Off: back never leaves the app",
             Icons.AutoMirrored.Rounded.ExitToApp, s.backLeavesApp, ctrl::setBackLeavesApp,
         )
-        divider("appearance")
+        divider("navigation-bar")
+        tile("Top bar", s.topBarMode.label, Icons.Rounded.ViewHeadline, onClick = launch {
+            pickOption(TopBarMode.entries.map { PickOption(it, it.label, it.description) }, s.topBarMode)
+                ?.let(ctrl::setTopBarMode)
+        })
+        if (s.topBarMode == TopBarMode.EXPANDABLE) {
+            tile("Header height", s.headerHeight.label, Icons.Rounded.Height, onClick = launch {
+                pickOption(HeaderHeight.entries.map { PickOption(it, it.label, it.description) }, s.headerHeight)
+                    ?.let(ctrl::setHeaderHeight)
+            })
+        }
+        if (s.topBarMode == TopBarMode.FULL) {
+            switch(
+                "New post in the top bar", "A New post button beside your profile picture",
+                Icons.Outlined.PostAdd, s.fullBarNewPost, ctrl::setFullBarNewPost,
+            )
+        }
+        tile(
+            "Top bar menu", "Choose and order the buttons in the menu " + if (s.topBarMode == TopBarMode.EXPANDABLE) "⋯ opens" else "your profile picture opens",
+            Icons.Rounded.Tune,
+        ) { showTopBarMenuSettings(s.topBarMode) }
+        tile("Floating button", s.homeFab.label, Icons.Rounded.Edit, onClick = launch {
+            pickOption(HomeFab.entries.map { PickOption(it, it.label) }, s.homeFab)?.let(ctrl::setHomeFab)
+        })
+        divider("navigation")
 
         // ---------------------------------------------------------------- Posts & comments
         section("Posts & comments")
@@ -911,6 +928,40 @@ fun SettingsList(
             "Web links open in an in-app browser tab instead of your browser app",
             Icons.Rounded.OpenInBrowser, s.inAppBrowser, ctrl::setInAppBrowser,
         )
+        tile(
+            "Open reddit links in Ilay",
+            "Already supported via the Android \"open with\" chooser. To make Ilay the verified default, " +
+                "enable it under system app settings › Open by default.",
+            Icons.Rounded.Link,
+        )
+        divider("posts-threads")
+        // The floating buttons in a thread.
+        tile("Floating button in threads", s.threadFab.label, Icons.Outlined.ModeComment, onClick = launch {
+            pickOption(ThreadFab.entries.map { PickOption(it, it.label) }, s.threadFab)?.let(ctrl::setThreadFab)
+        })
+        tile("Jump button position in threads", s.threadFabPosition.label, Icons.Rounded.KeyboardArrowDown, onClick = launch {
+            pickOption(ThreadFabPosition.entries.map { PickOption(it, it.label) }, s.threadFabPosition)?.let(ctrl::setThreadFabPosition)
+        })
+        switch(
+            "Next comment button",
+            "Jump to the next top-level comment in threads (long-press: the previous one)",
+            Icons.Rounded.KeyboardArrowDown, s.threadJumpNext, ctrl::setThreadJumpNext,
+        )
+        switch(
+            "Hide thread buttons while scrolling",
+            "They step aside while your finger scrolls a thread and come back when it stops",
+            Icons.Rounded.UnfoldLess, s.threadButtonsHideOnScroll, ctrl::setThreadButtonsHideOnScroll,
+        )
+        switch(
+            "Jump to OP's comments button",
+            "Show a button in threads to jump between comments by the original poster",
+            Icons.Rounded.RecordVoiceOver, s.threadJumpOp, ctrl::setThreadJumpOp,
+        )
+        switch(
+            "Jump to your comments button",
+            "Show a button in threads to jump between your own comments",
+            Icons.Rounded.Person, s.threadJumpMine, ctrl::setThreadJumpMine,
+        )
         divider("posts")
 
         // ---------------------------------------------------------------- Media
@@ -938,11 +989,6 @@ fun SettingsList(
             Icons.Rounded.ViewCarousel, s.feedGalleryCarousel, ctrl::setFeedGalleryCarousel,
         )
         switch("Blur NSFW media", "Tap to reveal blurred images", Icons.Rounded.BlurOn, s.blurNsfw, ctrl::setBlurNsfw)
-        // Content filters' switch, here too: beside the blur is where people look for it (#94).
-        switch(
-            "Hide NSFW posts", "Remove them from feeds and search instead of blurring",
-            Icons.Rounded.NoAdultContent, filters.hideNsfw, app.contentFilters::setHideNsfw,
-        )
         switch(
             "Data-saver thumbnails", "Load smaller preview images in feeds (faster, less data)",
             Icons.Outlined.Image, s.midResThumbnails, ctrl::setMidResThumbnails,
@@ -1062,7 +1108,7 @@ fun SettingsList(
         divider("translation")
 
         // ---------------------------------------------------------------- AI
-        section("AI summaries")
+        section("AI")
         // With a custom endpoint the key is that provider's (Groq, OpenRouter, a LiteLLM key…).
         val keyLabel = if (s.aiUseCustomUrl) "API key" else "OpenAI API key"
         tile(
@@ -1141,10 +1187,6 @@ fun SettingsList(
 
         // ---------------------------------------------------------------- Data & storage
         section("Data & storage")
-        switch(
-            "Track history", if (s.dimRead) "Remember and dim viewed posts (local only)" else "Remember viewed posts (local only)",
-            Icons.Outlined.Visibility, s.trackHistory, ctrl::setTrackHistory,
-        )
         if (s.trackHistory) {
             // Like Sync for Reddit's: the subreddits you open most stay on top (#92).
             tile(
@@ -1154,21 +1196,6 @@ fun SettingsList(
                         listOf(PickOption(false, "Most recent first"), PickOption(true, "Most visited first", "The subreddits you open most stay on top")),
                         s.recentSubsByVisits,
                     )?.let(ctrl::setRecentSubsByVisits)
-                },
-            )
-            tile(
-                "Dim read posts",
-                when (s.readDim) {
-                    ReadDim.OFF -> "Off: read posts look like new ones"
-                    ReadDim.CARD -> "Whole card"
-                    ReadDim.TEXT -> "Text only: titles and text fade, images stay bright"
-                },
-                Icons.Outlined.Visibility,
-                onClick = launch {
-                    pickOption(
-                        listOf(PickOption(ReadDim.CARD, "Whole card"), PickOption(ReadDim.TEXT, "Text only", "Images and videos stay bright"), PickOption(ReadDim.OFF, "Off", "History is still kept")),
-                        s.readDim,
-                    )?.let(ctrl::setReadDim)
                 },
             )
         }
@@ -1217,7 +1244,7 @@ fun SettingsList(
         divider("data")
 
         // ---------------------------------------------------------------- Account
-        section("Account & keys")
+        section("Account")
         tile(
             "Login method",
             if (web) "Website session (no API key) — unofficial" else "Reddit API key (recommended)",
@@ -1251,6 +1278,12 @@ fun SettingsList(
                 secureVersion++
             },
         )
+        switch(
+            "Show API usage instead of search",
+            "Replace the search bar on the Posts screen with your live Reddit API rate-limit usage",
+            Icons.Rounded.Speed, s.showApiUsage, ctrl::setShowApiUsage,
+        )
+        add(Entry("rateLimit", "API usage") { RateLimitTile() })
         tile(
             "Clear all data", "Wipes credentials, tokens and login", Icons.Rounded.DeleteForever,
             titleColor = cs.error, iconTint = cs.error,
@@ -1269,16 +1302,6 @@ fun SettingsList(
         )
         divider("account")
 
-        // ---------------------------------------------------------------- Power-user
-        section("Power-user features")
-        switch(
-            "Show API usage instead of search",
-            "Replace the search bar on the Posts screen with your live Reddit API rate-limit usage",
-            Icons.Rounded.Speed, s.showApiUsage, ctrl::setShowApiUsage,
-        )
-        add(Entry("rateLimit", "API usage") { RateLimitTile() })
-        divider("power")
-
         // ---------------------------------------------------------------- About
         section("About")
         tile("What's new", "Ilay ${BuildConfig.VERSION_NAME} · what changed in each release", Icons.Rounded.NewReleases) { nav.push(Route.WhatsNew) }
@@ -1288,12 +1311,6 @@ fun SettingsList(
             "Send anonymous usage stats",
             "App starts, which feed you use, whether Reddit Home loads. Never your account or what you read",
             Icons.Outlined.Insights, s.analytics, ctrl::setAnalytics,
-        )
-        tile(
-            "Open reddit links in Ilay",
-            "Already supported via the Android \"open with\" chooser. To make Ilay the verified default, " +
-                "enable it under system app settings › Open by default.",
-            Icons.Rounded.Link,
         )
         val inSub = com.bennybar.luli_for_reddit.feature.home.inIlaySubreddit()
         tile(

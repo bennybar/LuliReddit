@@ -101,7 +101,6 @@ import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.SearchOff
-import androidx.compose.material.icons.rounded.SubdirectoryArrowRight
 import androidx.compose.material.icons.rounded.UnfoldLess
 import androidx.compose.material.icons.rounded.UnfoldMore
 import androidx.compose.material.icons.rounded.Delete
@@ -135,6 +134,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkHorizontally
@@ -470,7 +471,6 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
         Box(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()).nestedScroll(fab)) {
             when {
                 thread != null -> Column(Modifier.fillMaxSize()) {
-                    if (focusCommentId != null) FocusBanner { nav.pop(); nav.push(Route.Post(subreddit, postId)) }
                     RefreshBox(isRefreshing = ui.refreshing, onRefresh = vm::refresh, modifier = Modifier.weight(1f)) {
                         CommentList(
                             thread = thread,
@@ -480,6 +480,8 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
                             currentMatchId = currentMatchId,
                             settings = settings,
                             actions = actions,
+                            // Room above the post for the floating "single thread" capsule.
+                            topPadding = if (focusCommentId != null) 60.dp else 6.dp,
                         )
                     }
                 }
@@ -500,6 +502,9 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
                         Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { Loading() }
                     }
                 }
+            }
+            if (thread != null && focusCommentId != null) {
+                SingleThreadPill(fab.expanded) { nav.pop(); nav.push(Route.Post(subreddit, postId)) }
             }
             BackWhereYouLeftOff(
                 backNotice,
@@ -792,6 +797,7 @@ private fun CommentList(
     currentMatchId: String?,
     settings: Settings,
     actions: ThreadActions,
+    topPadding: Dp = 6.dp,
 ) {
     val flat = thread.flat
     // Animated images in the thread pause while it scrolls (see rememberPauseWhileScrolling).
@@ -809,7 +815,7 @@ private fun CommentList(
             Modifier.fillMaxSize(),
             state = listState,
             // Room for the floating buttons, so the last comment clears them.
-            contentPadding = PaddingValues(top = 6.dp, bottom = 160.dp),
+            contentPadding = PaddingValues(top = topPadding, bottom = 160.dp),
         ) {
             item(key = "header", contentType = "header") {
                 Column {
@@ -900,21 +906,25 @@ private fun FoldedReplies(c: Comment, actions: ThreadActions) {
     }
 }
 
-/** Single-comment view (from an inbox reply / permalink): "Show all" opens the whole thread. */
+/**
+ * Single-comment view (from an inbox reply / permalink): "Show all" opens the whole thread.
+ * A floating capsule like "Back where you left off" (#253), not a full-width banner; it steps
+ * aside as you scroll down and comes back as you scroll up, with the thread's buttons.
+ */
 @Composable
-private fun FocusBanner(onShowAll: () -> Unit) {
+private fun BoxScope.SingleThreadPill(visible: Boolean, onShowAll: () -> Unit) {
     val cs = MaterialTheme.colorScheme
-    Surface(color = cs.secondaryContainer, modifier = Modifier.fillMaxWidth().clickable(onClick = onShowAll)) {
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Rounded.SubdirectoryArrowRight, null, Modifier.size(18.dp), tint = cs.onSecondaryContainer)
-            Spacer(Modifier.width(8.dp))
-            Text(
-                "Viewing a single comment thread",
-                Modifier.weight(1f),
-                color = cs.onSecondaryContainer,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text("Show all", color = cs.primary, fontWeight = FontWeight.Bold)
+    AnimatedVisibility(
+        visible,
+        Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
+        enter = fadeIn() + slideInVertically { -it },
+        exit = fadeOut() + slideOutVertically { -it },
+    ) {
+        Surface(shape = CircleShape, color = cs.secondaryContainer, shadowElevation = 3.dp) {
+            Row(Modifier.padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Viewing a single thread", style = MaterialTheme.typography.labelLarge, color = cs.onSecondaryContainer)
+                TextButton(onClick = onShowAll) { Text("Show all") }
+            }
         }
     }
 }

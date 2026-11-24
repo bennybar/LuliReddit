@@ -107,7 +107,7 @@ private fun aiBaseUrl(): String = app.settings.value.let { if (it.aiUseCustomUrl
 fun showSummarySheet(post: Post, comments: List<Comment>) {
     val key = app.post.aiKey.value
     if (key.isNullOrEmpty()) {
-        snack("Add an OpenAI key in Settings → AI summaries.")
+        snack("Add an OpenAI key in Settings → AI.")
         return
     }
     val s = app.settings.value
@@ -130,7 +130,7 @@ fun SharedSummarySheet(link: String?, onOpen: (Post) -> Unit, done: () -> Unit) 
     val style = SummaryStyle.entries[s.aiSummaryStyle.coerceIn(0, SummaryStyle.entries.size - 1)]
     SummarySheet(aiBaseUrl(), s.aiModel, style, s.aiSummaryLanguage, load = {
         val key = app.secureStore.openaiKey()
-        if (key.isNullOrEmpty()) throw Exception("Add an OpenAI key in Ilay's Settings → AI summaries.")
+        if (key.isNullOrEmpty()) throw Exception("Add an OpenAI key in Ilay's Settings → AI.")
         var uri = Uri.parse(link ?: throw Exception("There's no Reddit link in what was shared."))
         // Share links (/r/<sub>/s/<code>) redirect to the real post first.
         if (isShareLink(uri)) uri = resolveShareLink(uri) ?: throw Exception("Couldn't open that link.")

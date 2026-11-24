@@ -29,6 +29,9 @@ import com.bennybar.luli_for_reddit.nav.Route
 /** Opens the side bar (Settings › Navigation: side bar / both); null when it's off. */
 val LocalSideBar = staticCompositionLocalOf<(() -> Unit)?> { null }
 
+/** How far the side bar is open, 0 to 1, read as it draws: the ☰ turns with it (#252). */
+val LocalSideBarProgress = staticCompositionLocalOf<() -> Float> { { 0f } }
+
 /**
  * True while a touch that went down at the start edge is held (#158): that drag is the
  * side bar's, whose own gesture follows the finger. A tab's pager and swipe rows leave
@@ -94,7 +97,12 @@ fun Modifier.aboveFloatingNav(): Modifier {
 @Composable
 fun SideBarButton(modifier: Modifier = Modifier) {
     val open = LocalSideBar.current ?: return
-    IconButton(onClick = open, shapes = IconButtonDefaults.shapes(), modifier = modifier) { Icon(Icons.Rounded.Menu, "Open menu") }
+    val progress = LocalSideBarProgress.current
+    IconButton(onClick = open, shapes = IconButtonDefaults.shapes(), modifier = modifier) {
+        // A half turn as the side bar slides over it, back as it closes, with the bar's own
+        // movement (#252): three lines look the same upside down, so it ends where it began.
+        Icon(Icons.Rounded.Menu, "Open menu", Modifier.graphicsLayer { rotationZ = progress() * 180f })
+    }
 }
 
 /** The ⚙ at the top of a tab's main screen: straight to Settings. */

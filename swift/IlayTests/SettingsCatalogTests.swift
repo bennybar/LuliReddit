@@ -12,9 +12,9 @@ final class SettingsCatalogTests: XCTestCase {
     func testTheMainPageListsCategoriesNotSettings() {
         let categories = settingsCategories.flatMap { $0 }.map(\.title)
         XCTAssertEqual(categories, [
-            "Feed", "Digest", "Appearance", "Posts & comments", "Media",
-            "Notifications", "Translation", "AI summaries",
-            "Data & storage", "Account & keys", "Power-user features",
+            "Feed", "Read & hidden", "Digest", "Appearance", "Navigation", "Posts & comments", "Media",
+            "Notifications", "Translation", "AI",
+            "Data & storage", "Account",
             "About",
         ])
         XCTAssertFalse(categories.contains("Post display"))
@@ -22,7 +22,7 @@ final class SettingsCatalogTests: XCTestCase {
 
     func testSearchFindsSettingsAcrossEveryCategory() {
         func found(_ q: String) -> [String] { catalog.matching(q).map(\.title) }
-        XCTAssertEqual(catalog.matching("post display").map(\.section), ["Feed"])
+        XCTAssertEqual(catalog.matching("post display").map(\.section), ["Appearance"])
         XCTAssertTrue(found("post display").contains("Post display"))
         XCTAssertTrue(found("top bar").contains("Top bar"))
         // Case and spaces around it don't matter; subtitles count.
@@ -31,10 +31,11 @@ final class SettingsCatalogTests: XCTestCase {
         XCTAssertEqual(found("no such setting anywhere"), [])
         // One from each category.
         for (query, section) in [
-            ("post display", "Feed"), ("accent", "Appearance"), ("comment style", "Posts & comments"),
+            ("posts tab feed", "Feed"), ("content filters", "Read & hidden"), ("accent", "Appearance"),
+            ("top bar", "Navigation"), ("comment style", "Posts & comments"),
             ("autoplay", "Media"), ("inbox notifications", "Notifications"), ("second language", "Translation"),
-            ("summary style", "AI summaries"), ("clear cache", "Data & storage"), ("giphy", "Account & keys"),
-            ("api usage", "Power-user features"), ("licenses", "About"),
+            ("summary style", "AI"), ("clear cache", "Data & storage"), ("giphy", "Account"),
+            ("api usage", "Account"), ("licenses", "About"),
         ] {
             XCTAssertTrue(catalog.matching(query).contains { $0.section == section }, query)
         }
@@ -42,23 +43,48 @@ final class SettingsCatalogTests: XCTestCase {
 
     func testACategoryShowsOnlyItsOwnSettings() {
         let feed = titles(section: "Feed")
-        XCTAssertTrue(feed.contains("Post display"))
+        XCTAssertTrue(feed.contains("Posts tab feed"))
+        XCTAssertFalse(feed.contains("Post display"))
         XCTAssertFalse(feed.contains("Top bar"))
+    }
+
+    /// 2.0.108's layout: what drifted into the wrong category is with its kind.
+    func testSettingsSitWithTheirKind() {
+        var s = Settings()
+        s.hideReadPosts = true
+        s.trackHistory = true
+        let c = SettingsCatalog(s: s)
+        func section(_ title: String) -> String? { c.entries.first { $0.title == title }?.section }
+        for (title, expected) in [
+            ("Track history", "Read & hidden"), ("Dim read posts", "Read & hidden"), ("Hide read posts", "Read & hidden"),
+            ("Mark read as you scroll", "Read & hidden"), ("Hide NSFW posts", "Read & hidden"), ("Content filters", "Read & hidden"),
+            ("Post display", "Appearance"), ("Floating filter chips", "Appearance"),
+            ("Navigation", "Navigation"), ("Top bar", "Navigation"), ("Inbox in Profile", "Navigation"),
+            ("Next comment button", "Posts & comments"), ("Open reddit links in Ilay", "Posts & comments"),
+            ("Recently visited", "Data & storage"), ("Show API usage instead of search", "Account"),
+        ] {
+            XCTAssertEqual(section(title), expected, title)
+        }
+        // A category's rows stay together: its list sections in order, none split apart.
+        let sections = c.entries.map(\.section)
+        XCTAssertEqual(sections.reduce(into: [String]()) { if $0.last != $1 { $0.append($1) } }, settingsCategories.flatMap { $0 }.map(\.title).filter(sections.contains))
     }
 
     func testEveryCategoryHasSettings() {
         for (section, setting) in [
             ("Feed", "Keep feed for"),
+            ("Read & hidden", "Content filters"),
+            ("Navigation", "Top bar"),
             ("Digest", "How Digest works"),
-            ("Appearance", "Top bar"),
+            ("Appearance", "Post display"),
             ("Posts & comments", "Comment style"),
             ("Media", "Blur NSFW media"),
             ("Notifications", "Inbox notifications"),
             ("Translation", "Translation service"),
-            ("AI summaries", "OpenAI API key"),
-            ("Data & storage", "Track history"),
-            ("Account & keys", "Clear all data"),
-            ("Power-user features", "API usage"),
+            ("AI", "OpenAI API key"),
+            ("Data & storage", "Recently visited"),
+            ("Account", "Clear all data"),
+            ("Account", "API usage"),
             ("About", "Content & conduct policy"),
         ] {
             XCTAssertTrue(titles(section: section).contains(setting), section)
@@ -84,7 +110,7 @@ final class SettingsCatalogTests: XCTestCase {
         XCTAssertTrue(SettingsCatalog(s: s).entries.contains { $0.title == "Also in subreddits" })
         // The custom endpoint's key is that provider's.
         s.aiUseCustomUrl = true
-        XCTAssertTrue(SettingsCatalog(s: s).rows(section: "AI summaries").contains { $0.title == "API key" })
+        XCTAssertTrue(SettingsCatalog(s: s).rows(section: "AI").contains { $0.title == "API key" })
         // Reddit's own settings need the website sign-in.
         XCTAssertFalse(SettingsCatalog(s: s).entries.contains { $0.title == "Reddit account settings" })
         XCTAssertTrue(SettingsCatalog(s: s, secure: SecureFlags(web: true)).entries.contains { $0.title == "Reddit account settings" })

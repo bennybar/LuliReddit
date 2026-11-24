@@ -178,7 +178,13 @@ struct PostDetailScreen: View {
                     }
                 if searchOpen, thread != nil { searchBar }
                 if focusCommentId != nil {
-                    focusBanner.frame(maxHeight: .infinity, alignment: .top)
+                    focusBanner
+                        .padding(.top, 8)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        // Out of the way while a finger scrolls, as the thread's buttons.
+                        .opacity(toolbarScroll.userScrolling ? 0 : 1)
+                        .allowsHitTesting(!toolbarScroll.userScrolling)
+                        .animation(.easeOut(duration: 0.2), value: toolbarScroll.userScrolling)
                 }
                 if backNotice {
                     // At the top for a few seconds or until you scroll. It was a toast,
@@ -321,28 +327,22 @@ struct PostDetailScreen: View {
         }
     }
 
-    /// Single-comment view (from an inbox reply / permalink): "Show all" opens the whole thread.
+    /// Single-comment view (from an inbox reply / permalink): "Show all" opens the whole
+    /// thread. A capsule like "Back where you left off", not a full-width bar (#253).
     private var focusBanner: some View {
-        Button {
-            let nav = app.navigator
-            nav.pop()
-            nav.push(.post(subreddit: subreddit, postId: postId))
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "arrow.turn.down.right")
-                Text("Viewing a single comment thread").lineLimit(1)
-                Spacer(minLength: 0)
-                Text("Show all").bold().foregroundStyle(.tint)
+        HStack(spacing: 4) {
+            Text("Viewing a single thread").font(.subheadline.weight(.medium)).lineLimit(1)
+            Button("Show all") {
+                let nav = app.navigator
+                nav.pop()
+                nav.push(.post(subreddit: subreddit, postId: postId))
             }
-            .font(.footnote)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .contentShape(.capsule)
+            .font(.subheadline.weight(.semibold))
         }
-        .buttonStyle(.plain)
-        .glassEffect(.regular.interactive(), in: .capsule)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.leading, 16)
+        .padding(.trailing, 12)
+        .padding(.vertical, 10)
+        .glassEffect(.regular, in: .capsule)
     }
 
     /// Find in this thread, like Safari's find on page: over the keyboard.

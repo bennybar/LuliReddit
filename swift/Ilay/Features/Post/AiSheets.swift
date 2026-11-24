@@ -8,7 +8,7 @@ import SwiftUI
 /// Runs an AI thread summary and shows the result (markdown) with copy.
 @MainActor func showSummarySheet(_ post: Post, _ comments: [Comment]) {
     guard let key = app.post.aiKey, !key.isEmpty else {
-        snack("Add an OpenAI key in Settings → AI summaries.")
+        snack("Add an OpenAI key in Settings → AI.")
         return
     }
     let s = app.settings.value

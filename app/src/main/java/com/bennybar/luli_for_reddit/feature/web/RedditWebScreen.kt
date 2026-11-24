@@ -126,7 +126,7 @@ fun RedditWebScreen(url: String, title: String) {
                 ) {
                     Text(
                         if (crashed) "The page stopped working."
-                        else "This page needs the website sign-in (Settings → Login method).",
+                        else "This page needs the website sign-in (Settings → Account → Login method).",
                         textAlign = TextAlign.Center,
                     )
                     Spacer(Modifier.height(12.dp))
