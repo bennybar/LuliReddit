@@ -45,6 +45,12 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.107", "Nov 24, 2026",
+        listOf(
+            "Expandable top bar: the filter chips no longer vanish for a moment while you pull the header open (#251)",
+        ),
+    ),
+    Release(
         "2.0.106", "Nov 23, 2026",
         listOf(
             "Inbox: one row of chips (All, Unread, Replies, Mentions, Messages, Sent) in place of the tabs and the second row of filters. The bar and chips slide away as you scroll, and you can still swipe between them (#246)",
