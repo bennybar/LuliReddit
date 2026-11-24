@@ -86,13 +86,16 @@ struct GalleryM3Carousel: View {
                 ) { i in
                     RemoteImage(url: URL(string: images[i].url)).zoomSource()
                         // Just the eye: the carousel lays every image out full size and masks
-                        // the narrow ones, so a label would be cut off; the caption says it.
+                        // the narrow ones, so a label would be cut off; the caption says it
+                        // (only then: no "tap one to view" under every gallery, #256).
                         .overlay { if covered, let cover { MediaCover(label: cover, iconOnly: true) } }
                 }
-                Label(covered ? "\(cover ?? "") · \(images.count) images · tap one to view" : "\(images.count) images · tap one to view", systemImage: "photo.on.rectangle")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, 4)
+                if covered, let cover {
+                    Label("\(cover) · \(images.count) images", systemImage: "photo.on.rectangle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 4)
+                }
             }
         }
     }

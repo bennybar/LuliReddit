@@ -195,11 +195,6 @@ fun GalleryM3Carousel(images: List<GalleryImage>, modifier: Modifier = Modifier,
                 ) { revealed = true }
             }
         }
-        Row(Modifier.padding(start = 4.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Rounded.Collections, null, Modifier.size(14.dp), tint = cs.onSurfaceVariant)
-            Spacer(Modifier.width(6.dp))
-            Text("${images.size} images · tap one to view", fontSize = 12.sp, color = cs.onSurfaceVariant)
-        }
     }
 }
 

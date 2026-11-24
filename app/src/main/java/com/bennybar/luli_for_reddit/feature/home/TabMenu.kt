@@ -3,7 +3,15 @@ package com.bennybar.luli_for_reddit.feature.home
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -17,7 +25,6 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
-import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
@@ -29,7 +36,7 @@ import com.bennybar.luli_for_reddit.nav.Route
 /** Opens the side bar (Settings › Navigation: side bar / both); null when it's off. */
 val LocalSideBar = staticCompositionLocalOf<(() -> Unit)?> { null }
 
-/** How far the side bar is open, 0 to 1, read as it draws: the ☰ turns with it (#252). */
+/** How far the side bar is open, 0 to 1, read as it draws: the ☰ fans with it (#252, #258). */
 val LocalSideBarProgress = staticCompositionLocalOf<() -> Float> { { 0f } }
 
 /**
@@ -98,10 +105,31 @@ fun Modifier.aboveFloatingNav(): Modifier {
 fun SideBarButton(modifier: Modifier = Modifier) {
     val open = LocalSideBar.current ?: return
     val progress = LocalSideBarProgress.current
+    val color = LocalContentColor.current
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     IconButton(onClick = open, shapes = IconButtonDefaults.shapes(), modifier = modifier) {
-        // A half turn as the side bar slides over it, back as it closes, with the bar's own
-        // movement (#252): three lines look the same upside down, so it ends where it began.
-        Icon(Icons.Rounded.Menu, "Open menu", Modifier.graphicsLayer { rotationZ = progress() * 180f })
+        // The ☰ fans as the side bar slides over it, with the bar's own movement (#252, #258):
+        // the lines' far ends pinch together, their near ends spread, and the whole tilts,
+        // as if pushed at its far side. Drawn, not an icon, so each line can move; the
+        // progress is read as it draws, so the drag doesn't recompose.
+        Canvas(Modifier.size(24.dp).semantics { contentDescription = "Open menu" }) {
+            val p = progress().coerceIn(0f, 1f)
+            val u = size.width / 24f // the icon's 24-unit grid
+            withTransform({
+                if (rtl) scale(-1f, 1f)
+                rotate(15f * p)
+            }) {
+                for (d in listOf(-6f, 0f, 6f)) {
+                    drawLine(
+                        color,
+                        Offset(4f * u, (12f + d * (1f + 0.35f * p)) * u),
+                        Offset(20f * u, (12f + d * (1f - 0.5f * p)) * u),
+                        strokeWidth = 2f * u,
+                        cap = StrokeCap.Round,
+                    )
+                }
+            }
+        }
     }
 }
 
