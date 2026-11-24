@@ -45,6 +45,15 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.109", "Nov 24, 2026",
+        listOf(
+            "Search: pick a time range (Hour to All time) with any sort, not only Top (#255)",
+            "AI: Gemini's OpenAI-compatible URL works as the custom base URL (#254)",
+            "Galleries: no more \"X images · tap one to view\" line under them (#256)",
+            "Side bar: the ☰ now fans out as the side bar opens, instead of spinning (#258)",
+        ),
+    ),
+    Release(
         "2.0.108", "Nov 24, 2026",
         listOf(
             "Settings regrouped: new Read & hidden and Navigation pages, \"AI summaries\" is now AI, and Account holds your account, keys and API usage. Nothing was changed or removed, and search finds every setting",

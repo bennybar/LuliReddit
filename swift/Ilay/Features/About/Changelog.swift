@@ -12,6 +12,11 @@ struct Release: Identifiable {
 /// 2.0 (the native app, with Reddit Home). Add the new release at the top
 /// with every release.
 let CHANGELOG = [
+    Release(version: "2.0.109", date: "Nov 24, 2026", highlights: [
+        "Search: a time range (Hour to All time) beside the sort, for any sort, not only Top (#255)",
+        "AI: Gemini's OpenAI-compatible URL works as the custom base URL (#254)",
+        "Galleries: no more \"X images · tap one to view\" line under them (#256)",
+    ]),
     Release(version: "2.0.108", date: "Nov 24, 2026", highlights: [
         "Settings regrouped: new Read & hidden and Navigation pages, \"AI summaries\" is now AI, and Account holds your account, keys and API usage. Nothing was changed or removed, and search finds every setting",
         "Viewing a single thread: a floating capsule with Show all that fades while you scroll (#253)",
