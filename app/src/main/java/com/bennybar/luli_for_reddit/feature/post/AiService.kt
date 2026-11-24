@@ -223,9 +223,10 @@ object AiService {
 /**
  * The chat endpoint under [baseUrl]. Providers document their base either
  * without the version (api.openai.com, a LiteLLM host) or with it
- * (api.groq.com/openai/v1): don't add a second /v1.
+ * (api.groq.com/openai/v1, or Gemini's generativelanguage.googleapis.com/v1beta/openai,
+ * #254): don't add a second /v1.
  */
 internal fun chatUrl(baseUrl: String): String {
     val base = baseUrl.trim().replace(Regex("/+$"), "")
-    return if (Regex("/v\\d+$").containsMatchIn(base)) "$base/chat/completions" else "$base/v1/chat/completions"
+    return if (Regex("/v\\d+[a-z]*(/openai)?$").containsMatchIn(base)) "$base/chat/completions" else "$base/v1/chat/completions"
 }

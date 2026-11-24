@@ -16,5 +16,10 @@ class AiChatUrlTest {
         assertEquals("https://api.groq.com/openai/v1/chat/completions", chatUrl("https://api.groq.com/openai/v1"))
         assertEquals("https://openrouter.ai/api/v1/chat/completions", chatUrl(" https://openrouter.ai/api/v1/ "))
         assertEquals("https://example.com/v2/chat/completions", chatUrl("https://example.com/v2"))
+        // #254: Gemini's OpenAI-compatible base.
+        assertEquals(
+            "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+            chatUrl("https://generativelanguage.googleapis.com/v1beta/openai/"),
+        )
     }
 }

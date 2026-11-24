@@ -572,7 +572,7 @@ private fun EmptySearch(
                             listOfNotNull(
                                 s.subreddit?.let { "in r/$it" } ?: "all of Reddit",
                                 SEARCH_SORTS[s.sort] ?: s.sort,
-                                s.time.takeIf { s.sort == "top" }?.let { SEARCH_TIMES[it] ?: it },
+                                s.time.takeIf { it != "all" }?.let { SEARCH_TIMES[it] ?: it },
                             ).joinToString(" · "),
                         )
                     },
@@ -730,32 +730,31 @@ private fun FilterBar(state: SearchState, vm: SearchViewModel) {
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // The sort as one connected button group (#35); the time range sits beside it.
+        // The sort as one connected button group (#35); the time range sits beside it,
+        // for every sort: Reddit's search filters any sort by time (#255).
         item(key = "sort") {
             ConnectedChoice(SEARCH_SORTS.entries.map { it.key to it.value }, state.sort, vm::setSort, fill = false)
         }
-        if (state.sort == "top") {
-            item(key = "time") {
-                Box(Modifier.padding(start = 6.dp)) {
-                    AssistChip(
-                        onClick = { timeOpen = true },
-                        label = { Text(SEARCH_TIMES[state.time] ?: "All time") },
-                        leadingIcon = { Icon(Icons.Rounded.Schedule, null, Modifier.size(16.dp)) },
-                        shape = CircleShape,
-                        border = null,
-                        colors = AssistChipDefaults.assistChipColors(containerColor = cs.surfaceContainerHigh),
-                    )
-                    DropdownMenu(timeOpen, onDismissRequest = { timeOpen = false }) {
-                        for ((k, label) in SEARCH_TIMES) {
-                            DropdownMenuItem(
-                                text = { Text(label) },
-                                trailingIcon = if (k == state.time) ({ Icon(Icons.Rounded.Check, null, Modifier.size(18.dp)) }) else null,
-                                onClick = {
-                                    timeOpen = false
-                                    vm.setTime(k)
-                                },
-                            )
-                        }
+        item(key = "time") {
+            Box(Modifier.padding(start = 6.dp)) {
+                AssistChip(
+                    onClick = { timeOpen = true },
+                    label = { Text(SEARCH_TIMES[state.time] ?: "All time") },
+                    leadingIcon = { Icon(Icons.Rounded.Schedule, null, Modifier.size(16.dp)) },
+                    shape = CircleShape,
+                    border = null,
+                    colors = AssistChipDefaults.assistChipColors(containerColor = cs.surfaceContainerHigh),
+                )
+                DropdownMenu(timeOpen, onDismissRequest = { timeOpen = false }) {
+                    for ((k, label) in SEARCH_TIMES) {
+                        DropdownMenuItem(
+                            text = { Text(label) },
+                            trailingIcon = if (k == state.time) ({ Icon(Icons.Rounded.Check, null, Modifier.size(18.dp)) }) else null,
+                            onClick = {
+                                timeOpen = false
+                                vm.setTime(k)
+                            },
+                        )
                     }
                 }
             }

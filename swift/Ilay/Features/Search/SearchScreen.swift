@@ -359,53 +359,58 @@ struct SearchScreen: View {
         }
     }
 
-    /// The sort as one button that opens the list, Top with its time range, like the feed's.
+    /// The sort and, beside it, the time range: Reddit's search filters any sort by
+    /// time, not only Top (#255).
     private var filterBar: some View {
-        let label = SEARCH_SORTS.first { $0.key == vm.sort }?.label ?? vm.sort
-        let name = vm.sort == "top" ? "\(label) · \(SEARCH_TIMES.first { $0.key == vm.time }?.label ?? "All time")" : label
-        return Menu {
-            ForEach(SEARCH_SORTS, id: \.key) { sort in
-                let on = sort.key == vm.sort
-                if sort.key == "top" {
-                    Menu {
-                        ForEach(SEARCH_TIMES, id: \.key) { t in
-                            Button {
-                                // One search for the pair, not one per setter.
-                                vm.setFilters(sort: "top", time: t.key)
-                                vm.search(vm.query, saveRecent: false)
-                            } label: {
-                                if on && t.key == vm.time { Label(t.label, systemImage: "checkmark") } else { Text(t.label) }
-                            }
-                        }
-                    } label: {
-                        if on { Label(sort.label, systemImage: "checkmark") } else { Text(sort.label) }
-                    }
-                } else {
+        let sortName = SEARCH_SORTS.first { $0.key == vm.sort }?.label ?? vm.sort
+        let timeName = SEARCH_TIMES.first { $0.key == vm.time }?.label ?? "All time"
+        return HStack(spacing: 8) {
+            Menu {
+                ForEach(SEARCH_SORTS, id: \.key) { sort in
+                    let on = sort.key == vm.sort
                     Button {
                         if !on { vm.setSort(sort.key) }
                     } label: {
                         if on { Label(sort.label, systemImage: "checkmark") } else { Text(sort.label) }
                     }
                 }
+            } label: {
+                filterCapsule(sortName, icon: "arrow.up.arrow.down")
             }
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "arrow.up.arrow.down")
-                Text(name).lineLimit(1).fixedSize()
+            .accessibilityLabel("Sort")
+            .accessibilityValue(sortName)
+            Menu {
+                ForEach(SEARCH_TIMES, id: \.key) { t in
+                    let on = t.key == vm.time
+                    Button {
+                        if !on { vm.setTime(t.key) }
+                    } label: {
+                        if on { Label(t.label, systemImage: "checkmark") } else { Text(t.label) }
+                    }
+                }
+            } label: {
+                filterCapsule(timeName, icon: "clock")
             }
-            .font(.subheadline.weight(.medium))
-            .foregroundStyle(.primary)
-            .padding(.horizontal, 14)
-            .frame(minHeight: 36)
-            .glassEffect(.regular.interactive(), in: .capsule)
+            .accessibilityLabel("Time")
+            .accessibilityValue(timeName)
         }
-        // A menu's label takes the app tint; the sort stays in the label colour.
+        // A menu's label takes the app tint; the filters stay in the label colour.
         .tint(.primary)
-        .accessibilityLabel("Sort")
-        .accessibilityValue(name)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)
         .padding(.vertical, 4)
+    }
+
+    private func filterCapsule(_ text: String, icon: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+            Text(text).lineLimit(1).fixedSize()
+        }
+        .font(.subheadline.weight(.medium))
+        .foregroundStyle(.primary)
+        .padding(.horizontal, 14)
+        .frame(minHeight: 36)
+        .glassEffect(.regular.interactive(), in: .capsule)
     }
 }
 
@@ -560,7 +565,7 @@ private struct EmptySearch: View {
         [
             s.subreddit.map { "in r/\($0)" } ?? "all of Reddit",
             SEARCH_SORTS.first { $0.key == s.sort }?.label ?? s.sort,
-            s.sort == "top" ? (SEARCH_TIMES.first { $0.key == s.time }?.label ?? s.time) : nil,
+            s.time != "all" ? (SEARCH_TIMES.first { $0.key == s.time }?.label ?? s.time) : nil,
         ].compactMap { $0 }.joined(separator: " · ")
     }
 }

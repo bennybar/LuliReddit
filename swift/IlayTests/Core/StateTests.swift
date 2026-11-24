@@ -300,6 +300,9 @@ final class AiChatUrlTests: XCTestCase {
         XCTAssertEqual(chatUrl("https://api.groq.com/openai/v1"), "https://api.groq.com/openai/v1/chat/completions")
         XCTAssertEqual(chatUrl(" https://openrouter.ai/api/v1/ "), "https://openrouter.ai/api/v1/chat/completions")
         XCTAssertEqual(chatUrl("https://example.com/v2"), "https://example.com/v2/chat/completions")
+        // #254: Gemini's OpenAI-compatible base.
+        XCTAssertEqual(chatUrl("https://generativelanguage.googleapis.com/v1beta/openai/"),
+                       "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions")
     }
 }
 

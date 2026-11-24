@@ -205,11 +205,12 @@ enum AiService {
 }
 
 private let trailingSlashes = Re("/+$")
-private let versionEnd = Re(#"/v\d+$"#)
+private let versionEnd = Re(#"/v\d+[a-z]*(/openai)?$"#)
 
 /// The chat endpoint under [baseUrl]. Providers document their base either
 /// without the version (api.openai.com, a LiteLLM host) or with it
-/// (api.groq.com/openai/v1): don't add a second /v1.
+/// (api.groq.com/openai/v1, or Gemini's generativelanguage.googleapis.com/v1beta/openai,
+/// #254): don't add a second /v1.
 func chatUrl(_ baseUrl: String) -> String {
     let base = trailingSlashes.replace(baseUrl.trimmed, with: "")
     return versionEnd.contains(base) ? "\(base)/chat/completions" : "\(base)/v1/chat/completions"
