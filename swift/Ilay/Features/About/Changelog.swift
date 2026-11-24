@@ -12,6 +12,10 @@ struct Release: Identifiable {
 /// 2.0 (the native app, with Reddit Home). Add the new release at the top
 /// with every release.
 let CHANGELOG = [
+    Release(version: "2.0.108", date: "Nov 24, 2026", highlights: [
+        "Settings regrouped: new Read & hidden and Navigation pages, \"AI summaries\" is now AI, and Account holds your account, keys and API usage. Nothing was changed or removed, and search finds every setting",
+        "Viewing a single thread: a floating capsule with Show all that fades while you scroll (#253)",
+    ]),
     Release(version: "2.0.106", date: "Nov 23, 2026", highlights: [
         "Inbox: one row of chips (All, Unread, Replies, Mentions, Messages, Sent) in place of the tabs and the filter menu (#246)",
     ]),

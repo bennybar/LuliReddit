@@ -45,6 +45,14 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.108", "Nov 24, 2026",
+        listOf(
+            "Settings regrouped: new Read & hidden and Navigation pages, \"AI summaries\" is now AI, and Account holds your account, keys and API usage. Nothing was changed or removed, and search finds every setting",
+            "Viewing a single thread: a floating capsule with Show all, like the scroll-to-top one, that slides away as you scroll (#253)",
+            "Side bar: the ☰ turns as the side bar opens and closes (#252)",
+        ),
+    ),
+    Release(
         "2.0.107", "Nov 24, 2026",
         listOf(
             "Expandable top bar: the filter chips no longer vanish for a moment while you pull the header open (#251)",
