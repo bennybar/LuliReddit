@@ -151,7 +151,7 @@ struct SubredditScreen: View {
     }
 }
 
-private let bannerHeight: CGFloat = 120
+private let bannerHeight: CGFloat = 64
 
 /// The banner (or a band in the community's colour), behind the bar's buttons (#257).
 private struct BannerBackdrop: View {
@@ -159,7 +159,8 @@ private struct BannerBackdrop: View {
 
     var body: some View {
         Rectangle()
-            .fill(bandColor(about.keyColor) ?? Color(.secondarySystemFill))
+            // Without a banner or a colour of its own: a soft band of the app's accent, not a grey block.
+            .fill(bandColor(about.keyColor).map(AnyShapeStyle.init) ?? AnyShapeStyle(IlayTheme.accent.opacity(0.35).gradient))
             .overlay {
                 if let url = about.bannerUrl.flatMap(URL.init(string:)) {
                     RemoteImage(url: url) { Color.clear }
@@ -190,11 +191,15 @@ private struct SubredditBannerHeader: View {
     var body: some View {
         let subscribed = vm.subOverride ?? about.userIsSubscriber ?? false
         let snippet = snippetMarkdown(about.description)
+        // The feed's own colours: its cards', and the page's behind them.
+        let carded = FeedRowConfig.current().isCarded
+        let page = Color(carded ? .systemGroupedBackground : .systemBackground)
+        let card = Color(carded ? .secondarySystemGroupedBackground : .secondarySystemBackground)
         VStack(alignment: .leading, spacing: 10) {
             Color.clear.frame(height: bannerHeight)
             HStack(alignment: .top, spacing: 12) {
                 LetterAvatar(name: about.name, size: 64, imageUrl: about.iconUrl)
-                    .overlay(Circle().stroke(Color(.systemBackground), lineWidth: 3))
+                    .overlay(Circle().stroke(page, lineWidth: 3))
                     .padding(.top, -42)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(about.namePrefixed).font(.title2.bold()).lineLimit(1)
@@ -234,7 +239,7 @@ private struct SubredditBannerHeader: View {
                 }
             }
             .padding(14)
-            .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 22))
+            .background(card, in: .rect(cornerRadius: 22))
             .padding(.horizontal, 12)
             .padding(.bottom, 4)
         }

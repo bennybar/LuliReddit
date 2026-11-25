@@ -260,7 +260,8 @@ private fun BannerTitleBar(state: CollapsingTitle, name: String, about: Subreddi
     val sideBar = LocalSideBar.current != null
     val p = state.progress
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val band = about?.keyColor?.let { runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull() } ?: cs.surfaceContainerHigh
+    // Without a banner or a colour of its own: the theme's soft accent, not a grey block.
+    val band = about?.keyColor?.let { runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull() } ?: cs.primaryContainer
     val onBanner = androidx.compose.ui.graphics.lerp(Color.White, cs.onSurface, p)
     BoxWithConstraints(Modifier.fillMaxWidth().height(top + state.height).background(cs.surface).clipToBounds()) {
         val width = maxWidth
