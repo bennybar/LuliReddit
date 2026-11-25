@@ -103,9 +103,9 @@ struct SubredditScreen: View {
         }
             .overlay(alignment: .top) {
                 if banner, case let .data(s) = vm.about, restTop > 0 {
-                    // From the screen's top to the banner's foot, moving with the list.
-                    BannerBackdrop(about: s)
-                        .frame(height: restTop + bannerHeight)
+                    // From the screen's top to the banner's foot, moving with the list; the
+                    // icon over its foot is drawn here too, so the banner never covers it.
+                    BannerBackdrop(about: s, height: restTop + bannerHeight)
                         .offset(y: headerTop - restTop)
                         .ignoresSafeArea()
                         .allowsHitTesting(false)
@@ -153,11 +153,24 @@ struct SubredditScreen: View {
 
 private let bannerHeight: CGFloat = 64
 
-/// The banner (or a band in the community's colour), behind the bar's buttons (#257).
+/// The banner (or a band in the community's colour), behind the bar's buttons, and the
+/// icon over its foot (#257).
 private struct BannerBackdrop: View {
     let about: Subreddit
+    let height: CGFloat
 
     var body: some View {
+        let page = Color(FeedRowConfig.current().isCarded ? .systemGroupedBackground : .systemBackground)
+        ZStack(alignment: .topLeading) {
+            band.frame(height: height)
+            LetterAvatar(name: about.name, size: 64, imageUrl: about.iconUrl)
+                .overlay(Circle().stroke(page, lineWidth: 3))
+                .offset(x: 16, y: height - 42)
+        }
+        .frame(height: height + 22, alignment: .top)
+    }
+
+    private var band: some View {
         Rectangle()
             // Without a banner or a colour of its own: a soft band of the app's accent, not a grey block.
             .fill(bandColor(about.keyColor).map(AnyShapeStyle.init) ?? AnyShapeStyle(IlayTheme.accent.opacity(0.35).gradient))
@@ -193,14 +206,12 @@ private struct SubredditBannerHeader: View {
         let snippet = snippetMarkdown(about.description)
         // The feed's own colours: its cards', and the page's behind them.
         let carded = FeedRowConfig.current().isCarded
-        let page = Color(carded ? .systemGroupedBackground : .systemBackground)
         let card = Color(carded ? .secondarySystemGroupedBackground : .secondarySystemBackground)
         VStack(alignment: .leading, spacing: 10) {
             Color.clear.frame(height: bannerHeight)
             HStack(alignment: .top, spacing: 12) {
-                LetterAvatar(name: about.name, size: 64, imageUrl: about.iconUrl)
-                    .overlay(Circle().stroke(page, lineWidth: 3))
-                    .padding(.top, -42)
+                // The icon's place: it's drawn over the banner, with it (BannerBackdrop).
+                Color.clear.frame(width: 64, height: 22)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(about.namePrefixed).font(.title2.bold()).lineLimit(1)
                     Text("\(compactNumber(about.subscribers)) members").font(.subheadline).foregroundStyle(.secondary)
