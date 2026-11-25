@@ -180,7 +180,9 @@ private struct BannerBackdrop: View {
             .fill(bandColor(about.keyColor).map(AnyShapeStyle.init) ?? AnyShapeStyle(IlayTheme.accent.opacity(0.35).gradient))
             .overlay {
                 if let url = about.bannerUrl.flatMap(URL.init(string:)) {
-                    RemoteImage(url: url) { Color.clear }
+                    // Full size: a banner is far wider than this box, and decoded to the
+                    // slot's longest side it was stretched blurry (Reddit feedback, r/Howtomen).
+                    RemoteImage(url: url, maxPixelSize: 0) { Color.clear }
                         .scaledToFill()
                 }
             }
@@ -294,7 +296,7 @@ private struct SubredditHeader: View {
             let subscribed = vm.subOverride ?? s.userIsSubscriber ?? false
             VStack(alignment: .leading, spacing: 12) {
                 if let banner = s.bannerUrl.flatMap(URL.init(string:)) {
-                    RemoteImage(url: banner) { Color(.secondarySystemFill) }
+                    RemoteImage(url: banner, maxPixelSize: 0) { Color(.secondarySystemFill) }
                         .frame(height: 110)
                         .clipShape(.rect(cornerRadius: 20))
                 }

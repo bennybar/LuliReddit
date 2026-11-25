@@ -171,6 +171,19 @@ fun rememberSizedRequest(url: String?, widthPx: Int, standIn: String? = null): I
     }
 }
 
+/**
+ * A Coil request for [url] decoded to cover a [widthPx] × [heightPx] box (cropped to it).
+ * A subreddit banner is far wider than its box: decoded to the width alone, too few rows
+ * were left for the box's height and it was stretched blurry (Reddit feedback, r/Howtomen).
+ */
+@Composable
+fun rememberCoverRequest(url: String?, widthPx: Int, heightPx: Int): ImageRequest? {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    return remember(url, widthPx, heightPx) {
+        url?.let { ImageRequest.Builder(context).data(it).size(widthPx, heightPx).scale(coil3.size.Scale.FILL).build() }
+    }
+}
+
 /** Haptics with Flutter's Android mapping (HapticFeedback.* → View constants). */
 object Haptics {
     fun medium(view: View) = view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)

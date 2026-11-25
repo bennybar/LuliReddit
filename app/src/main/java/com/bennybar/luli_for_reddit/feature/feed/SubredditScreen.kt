@@ -298,7 +298,8 @@ private fun BannerTitleBar(state: CollapsingTitle, name: String, about: Subreddi
     // Gone, not covered, once folded: a covered banner left a line under the status bar (#268).
     val bannerAlpha = 1f - (p * 1.2f).coerceAtMost(1f)
     val scope = rememberCoroutineScope()
-    val request = about?.bannerUrl?.let { rememberSizedRequest(it, feedDecodeWidth()) }
+    val bannerPx = with(LocalDensity.current) { (top + BANNER.dp).roundToPx() }
+    val request = rememberCoverRequest(about?.bannerUrl, feedDecodeWidth(), bannerPx)
     // The round buttons' places in the header, for the blurred banner behind them.
     var root by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val holes = remember { mutableStateMapOf<Int, Rect>() }
@@ -480,7 +481,7 @@ private fun SubredditHeader(s: Subreddit, vm: SubredditAboutViewModel) {
     Column(Modifier.padding(start = 6.dp, top = 8.dp, end = 6.dp)) {
         if (s.bannerUrl != null) {
             AsyncImage(
-                model = rememberSizedRequest(s.bannerUrl, feedDecodeWidth()),
+                model = rememberCoverRequest(s.bannerUrl, feedDecodeWidth(), with(LocalDensity.current) { 110.dp.roundToPx() }),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxWidth().height(110.dp).clip(RoundedCornerShape(20.dp)),
