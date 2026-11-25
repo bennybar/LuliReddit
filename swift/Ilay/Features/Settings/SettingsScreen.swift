@@ -172,6 +172,7 @@ struct SettingsCatalog {
                  options: [PickOption(value: 0, label: "Layout's default"), PickOption(value: 5, label: "5 lines"), PickOption(value: 10, label: "10 lines")],
                  set: ctrl.setPostTextLines)
         b.toggle("Subreddit icons", "Show each community's icon on posts instead of its first letter", s.subredditIcons, set: ctrl.setSubredditIcons)
+        b.toggle("Poster's picture on posts", "A small profile picture on the community's icon. One more Reddit request per page of posts", s.postAvatars, set: ctrl.setPostAvatars)
         b.picker("Default sort", value: s.defaultSort, options: PostSort.allCases.map { PickOption(value: $0, label: $0.label) }, set: ctrl.setDefaultSort)
         b.toggle(
             "Posts tab shows r/all", "Instead of your frontpage, which Explore's All button opens then. For You, Blend and Reddit Home don't apply.",
@@ -507,7 +508,10 @@ struct SettingsCatalog {
 
     private func media(_ b: RowBuilder) {
         b.section("Media")
-        b.toggle("Autoplay videos", s.autoplaySound ? "Play videos as you scroll the feed" : "Play videos muted as you scroll the feed", s.autoplayMedia, set: ctrl.setAutoplayMedia)
+        // Off, on Wi-Fi only, or always: the old switch plus the network (Reddit feedback).
+        b.picker("Autoplay videos", s.autoplaySound ? "Play videos as you scroll the feed" : "Play videos muted as you scroll the feed",
+                 value: AutoplayMode(media: s.autoplayMedia, wifiOnly: s.autoplayWifiOnly),
+                 options: AutoplayMode.allCases.map { PickOption(value: $0, label: $0.label) }, set: ctrl.setAutoplayMode)
         if s.autoplayMedia {
             b.toggle("Autoplay with sound", "Feed videos start with sound; tap the speaker to mute one", s.autoplaySound, set: ctrl.setAutoplaySound)
         }

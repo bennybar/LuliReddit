@@ -1,4 +1,5 @@
 import AVFoundation
+import Network
 import SwiftUI
 
 /// True under a cover (e.g. an unrevealed NSFW blur): inline videos don't autoplay there.
@@ -10,6 +11,27 @@ extension EnvironmentValues {
 private let visibleThreshold = 0.6
 
 /// One card's claim on the shared player.
+/// Whether the current network is unmetered (Wi-Fi), for Autoplay "On Wi-Fi only".
+/// Observable, so playing cards react when it changes; true until known.
+@MainActor @Observable final class Unmetered {
+    static let shared = Unmetered()
+    private(set) var now = true
+    @ObservationIgnored private let monitor = NWPathMonitor()
+
+    private init() {
+        monitor.pathUpdateHandler = { path in
+            let free = path.status == .satisfied ? !path.isExpensive && !path.isConstrained : true
+            Task { @MainActor in Unmetered.shared.now = free }
+        }
+        monitor.start(queue: DispatchQueue(label: "ilay.unmetered"))
+    }
+}
+
+/// Whether feed videos autoplay right now (Settings › Autoplay videos, and the network).
+@MainActor func autoplayNow(_ s: Settings) -> Bool {
+    AutoplayMode(media: s.autoplayMedia, wifiOnly: s.autoplayWifiOnly).allows(unmetered: Unmetered.shared.now)
+}
+
 @MainActor @Observable final class InlineCard {
     /// Holding the player.
     fileprivate(set) var active = false
@@ -374,7 +396,7 @@ private struct InlineVideoImpl: View {
     @Environment(\.mediaCovered) private var covered
     @State private var card = InlineCard()
 
-    private var canPlay: Bool { app.settings.value.autoplayMedia && !covered }
+    private var canPlay: Bool { autoplayNow(app.settings.value) && !covered }
 
     var body: some View {
         ZStack {

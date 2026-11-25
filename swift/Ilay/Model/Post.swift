@@ -18,6 +18,8 @@ struct Post: Identifiable, Equatable, Sendable, Copyable {
     /// The subreddit's icon (from `sr_detail`), or nil: the card shows its first letter.
     var subredditIcon: String? = nil
     var author: String
+    /// The author's account id (t2_…), for their picture on cards (#270); empty when unknown.
+    var authorFullname: String = ""
     var score: Int
     var numComments: Int
     /// Nil when the source doesn't say (a card read from the Home page; GraphQL without the field).
@@ -137,6 +139,7 @@ struct Post: Identifiable, Equatable, Sendable, Copyable {
             subredditPrefixed: d["subreddit_name_prefixed"].str() ?? "",
             subredditIcon: (d["sr_detail"]["community_icon"].str()?.nilIfEmpty ?? d["sr_detail"]["icon_img"].str()?.nilIfEmpty)?.htmlAmpFixed(),
             author: d["author"].str() ?? "[deleted]",
+            authorFullname: d["author_fullname"].str() ?? "",
             score: d["score"].int() ?? 0,
             numComments: d["num_comments"].int() ?? 0,
             upvoteRatio: d["upvote_ratio"].double(),

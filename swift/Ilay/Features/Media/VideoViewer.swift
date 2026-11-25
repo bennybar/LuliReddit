@@ -380,21 +380,93 @@ private struct VideoSurface: UIViewRepresentable {
     let state: DismissState
     let onShowControls: () -> Void
 
+    /// Pinch zooms, one finger pans while zoomed, a double tap zooms in or back out.
     final class Surface: DismissableContentView {
         let playerLayer = AVPlayerLayer()
         var onShowControls: () -> Void = {}
+        private let zoomView = UIView()
+        private let pinch = UIPinchGestureRecognizer()
+        private let zoomPan = UIPanGestureRecognizer()
+        private let doubleTap = UITapGestureRecognizer()
+        private var scale: CGFloat = 1
+        private var offset = CGPoint.zero
+
+        override init(state: DismissState) {
+            super.init(state: state)
+            contentRoot.addSubview(zoomView)
+            zoomView.layer.addSublayer(playerLayer)
+            pinch.addTarget(self, action: #selector(pinched))
+            pinch.delegate = self
+            addGestureRecognizer(pinch)
+            zoomPan.addTarget(self, action: #selector(zoomPanned))
+            zoomPan.delegate = self
+            addGestureRecognizer(zoomPan)
+            doubleTap.numberOfTapsRequired = 2
+            doubleTap.addTarget(self, action: #selector(doubleTapped))
+            addGestureRecognizer(doubleTap)
+            singleTap.require(toFail: doubleTap)
+        }
+
+        required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
         override func layoutSubviews() {
             super.layoutSubviews()
             CATransaction.begin()
             CATransaction.setDisableActions(true)
-            playerLayer.frame = contentRoot.bounds
+            zoomView.bounds = contentRoot.bounds
+            zoomView.center = CGPoint(x: contentRoot.bounds.midX, y: contentRoot.bounds.midY)
+            playerLayer.frame = zoomView.bounds
             CATransaction.commit()
+            applyZoom()
         }
 
         override func tappedContent() {
             super.tappedContent()
             if state.showControls { onShowControls() }
+        }
+
+        /// Keeps the zoomed video covering the screen: it pans at most to its edges.
+        private func applyZoom() {
+            let maxX = bounds.width * (scale - 1) / 2, maxY = bounds.height * (scale - 1) / 2
+            offset = CGPoint(x: min(max(offset.x, -maxX), maxX), y: min(max(offset.y, -maxY), maxY))
+            zoomView.transform = CGAffineTransform(translationX: offset.x, y: offset.y).scaledBy(x: scale, y: scale)
+            if state.zoomed != (scale > 1) { state.zoomed = scale > 1 }
+        }
+
+        @objc private func pinched(_ g: UIPinchGestureRecognizer) {
+            scale = min(max(scale * g.scale, 1), 5)
+            g.scale = 1
+            if scale <= 1 { offset = .zero }
+            applyZoom()
+        }
+
+        @objc private func zoomPanned(_ g: UIPanGestureRecognizer) {
+            let t = g.translation(in: self)
+            g.setTranslation(.zero, in: self)
+            offset = CGPoint(x: offset.x + t.x, y: offset.y + t.y)
+            applyZoom()
+        }
+
+        @objc private func doubleTapped(_ g: UITapGestureRecognizer) {
+            if scale > 1 {
+                scale = 1
+                offset = .zero
+            } else {
+                scale = 2.5
+                let at = g.location(in: self)
+                offset = CGPoint(x: (bounds.midX - at.x) * (scale - 1), y: (bounds.midY - at.y) * (scale - 1))
+            }
+            UIView.animate(springDuration: 0.3) { applyZoom() }
+        }
+
+        override func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
+            // One finger only pans once zoomed in, so it doesn't take the swipe to close.
+            if gesture === zoomPan { return scale > 1 || zoomPan.numberOfTouches > 1 }
+            return super.gestureRecognizerShouldBegin(gesture)
+        }
+
+        @objc func gestureRecognizer(_ a: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith b: UIGestureRecognizer) -> Bool {
+            (a === pinch && b === zoomPan) || (a === zoomPan && b === pinch)
         }
     }
 
@@ -402,7 +474,6 @@ private struct VideoSurface: UIViewRepresentable {
         let view = Surface(state: state)
         view.playerLayer.player = player
         view.playerLayer.videoGravity = .resizeAspect
-        view.contentRoot.layer.addSublayer(view.playerLayer)
         view.onShowControls = onShowControls
         return view
     }

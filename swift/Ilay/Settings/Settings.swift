@@ -5,6 +5,25 @@ import Foundation
 // `appFont`, `jakartaFont`, `volumeKeyNavigation`, `redditAppNotifications`.
 
 /// Order matters: persisted by index (`themeMode`), same as Flutter's ThemeMode.
+/// Feed autoplay: off, only on an unmetered network (Wi-Fi), or always.
+enum AutoplayMode: Int, CaseIterable, Sendable {
+    case off, wifi, always
+    var label: String {
+        switch self {
+        case .off: "Off"
+        case .wifi: "On Wi-Fi only"
+        case .always: "Always"
+        }
+    }
+
+    /// The mode from its two prefs: the old switch (`autoplayMedia`) and, added
+    /// later, `autoplayWifiOnly`, so a stored on is Always and off is Off.
+    init(media: Bool, wifiOnly: Bool) { self = !media ? .off : wifiOnly ? .wifi : .always }
+
+    /// Whether feed videos play now: on, and on Wi-Fi when that's asked for.
+    func allows(unmetered: Bool) -> Bool { self == .always || (self == .wifi && unmetered) }
+}
+
 enum ThemeMode: Int, CaseIterable, Sendable { case system, light, dark }
 
 /// Where the Posts-screen actions (search, new post, profile) live. Persisted by index.
@@ -214,6 +233,7 @@ struct Settings: Equatable, Sendable {
     var dimReadTextOnly = false // read posts: dim only title / text (images stay bright), else the whole card
     var dimRead = true // read posts dim at all (#106); off: history is still kept, nothing fades
     var subredditIcons = true // cards show the subreddit's icon (else its first letter)
+    var postAvatars = false // the poster's picture on the subreddit icon (#270): one more request per page
     var sideBarUserPrefix = true // the side bar shows your name as "u/name" (else just "name", #167)
     var markReadOnScroll = false // a post scrolled past counts as read
     // What swiping does: "start" = from the start edge (rightward in LTR).
@@ -278,6 +298,7 @@ struct Settings: Equatable, Sendable {
     var postTextScale = 1.0
     var commentTextScale = 1.0
     var autoplayMedia = true // autoplay videos/GIFs in feeds
+    var autoplayWifiOnly = false // ...only on an unmetered network (Wi-Fi); see AutoplayMode
     var autoplaySound = false // feed videos start unmuted (#23)
     var viewerMuted = false // full-screen videos start muted (#51)
     var loopVideos = true // full-screen and Browse media videos start over at the end; off: they stop, with a replay button (#156). GIFs always loop

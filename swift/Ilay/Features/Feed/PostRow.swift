@@ -9,6 +9,7 @@ struct FeedRowConfig: Equatable {
     var autoplayMedia: Bool
     var feedGalleryCarousel: Bool
     var subredditIcons: Bool
+    var postAvatars = false
     var trackHistory: Bool
     var dimReadTextOnly: Bool
     var dimRead: Bool
@@ -45,6 +46,7 @@ struct FeedRowConfig: Equatable {
             autoplayMedia: s.autoplayMedia,
             feedGalleryCarousel: s.feedGalleryCarousel,
             subredditIcons: s.subredditIcons,
+            postAvatars: s.postAvatars,
             trackHistory: s.trackHistory,
             dimReadTextOnly: s.dimReadTextOnly,
             dimRead: s.dimRead,

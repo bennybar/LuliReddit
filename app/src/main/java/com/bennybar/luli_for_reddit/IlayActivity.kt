@@ -120,6 +120,7 @@ class IlayActivity : ComponentActivity() {
         val splash = installSplashScreen()
         super.onCreate(savedInstanceState)
         com.bennybar.luli_for_reddit.feature.digest.DigestNotifications.reschedule(this, keep = true)
+        com.bennybar.luli_for_reddit.feature.media.Unmetered.watch(applicationContext)
         // Keep the splash up until the stored session is read (one keystore read).
         splash.setKeepOnScreenCondition { app.session.state.value == SessionState.Loading }
         enableEdgeToEdge(

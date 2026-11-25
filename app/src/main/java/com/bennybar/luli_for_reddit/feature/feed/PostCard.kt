@@ -1,5 +1,8 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.offset
+import androidx.compose.runtime.LaunchedEffect
 import com.bennybar.luli_for_reddit.ui.theme.ScaledText
 import com.bennybar.luli_for_reddit.ui.theme.TextKind
 import androidx.compose.material.icons.outlined.VisibilityOff
@@ -135,6 +138,7 @@ import com.bennybar.luli_for_reddit.feature.media.GalleryCarousel
 import com.bennybar.luli_for_reddit.feature.media.InlineVideo
 import com.bennybar.luli_for_reddit.feature.media.NsfwBlur
 import com.bennybar.luli_for_reddit.feature.media.postVideoUrl
+import com.bennybar.luli_for_reddit.feature.media.autoplayNow
 import com.bennybar.luli_for_reddit.feature.post.hidePost
 import com.bennybar.luli_for_reddit.feature.post.showPostActionsSheet
 import com.bennybar.luli_for_reddit.feature.post.showReplySheet
@@ -623,7 +627,7 @@ private fun BannerMedia(p: Post, a: PostActions, s: Settings, height: Dp) {
     }
     val url = feedImageUrl(p, s)
     // Inline autoplay for videos (when enabled and not NSFW-blurred).
-    if (p.type == PostType.VIDEO && !blur && s.autoplayMedia && !isExternalVideo(p)) {
+    if (p.type == PostType.VIDEO && !blur && autoplayNow(s) && !isExternalVideo(p)) {
         val vurl = postVideoUrl(p)
         if (vurl.isNotEmpty() && !vurl.lowercase().endsWith(".gif")) {
             Box(Modifier.padding(bottom = 4.dp).clip(RoundedCornerShape(16.dp))) {
@@ -701,15 +705,18 @@ private fun Thumb(p: Post, a: PostActions, s: Settings, size: Dp) {
 private fun Header(p: Post, a: PostActions, s: Settings) {
     val cs = MaterialTheme.colorScheme
     Row(verticalAlignment = Alignment.CenterVertically) {
-        LetterAvatar(
-            p.subreddit,
-            imageUrl = p.subredditIcon.takeIf { s.subredditIcons },
-            size = 28.dp,
-            container = cs.secondaryContainer,
-            content = cs.onSecondaryContainer,
-            fontSize = 13.sp,
-            modifier = Modifier.clickable(onClick = a::openSubreddit),
-        )
+        Box {
+            LetterAvatar(
+                p.subreddit,
+                imageUrl = p.subredditIcon.takeIf { s.subredditIcons },
+                size = 28.dp,
+                container = cs.secondaryContainer,
+                content = cs.onSecondaryContainer,
+                fontSize = 13.sp,
+                modifier = Modifier.clickable(onClick = a::openSubreddit),
+            )
+            if (s.postAvatars) PosterBadge(p, 13.dp, cs.surfaceContainerLow, Modifier.align(Alignment.BottomEnd).offset(3.dp, 3.dp))
+        }
         Spacer(Modifier.width(10.dp))
         // Tapping the "u/author" part of the header opens their profile; the
         // rest opens the subreddit.
@@ -923,7 +930,7 @@ private fun MediaPreview(p: Post, a: PostActions, s: Settings) {
     val aspect = if (w != null && h != null && h > 0) w.toFloat() / h else 16f / 9f
     // Inline autoplay for videos (when enabled and not NSFW-blurred), as in
     // the Cards and Calm layouts — Default only ever showed the poster.
-    if (p.type == PostType.VIDEO && !blurOf(p, s) && s.autoplayMedia && !isExternalVideo(p)) {
+    if (p.type == PostType.VIDEO && !blurOf(p, s) && autoplayNow(s) && !isExternalVideo(p)) {
         val vurl = postVideoUrl(p)
         if (vurl.isNotEmpty() && !vurl.lowercase().endsWith(".gif")) {
             BoxWithConstraints(Modifier.padding(bottom = 4.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp))) {
@@ -1391,6 +1398,28 @@ private fun CalmButtonGroup(buttons: List<CalmButton>) {
     }
 }
 
+/**
+ * The poster's profile picture on the community's icon, by the username line (#270).
+ * Asked for in one request with the other cards on screen; nothing until it's in, or
+ * when they have none. A ring in the card's colour sets it off the icon.
+ */
+@Composable
+private fun PosterBadge(p: Post, size: androidx.compose.ui.unit.Dp, ring: Color, modifier: Modifier) {
+    LaunchedEffect(p.authorFullname) { app.authorAvatars.wantPoster(p) }
+    val icons by app.authorAvatars.icons.collectAsState()
+    val url = icons[p.author.lowercase()] ?: return
+    AsyncImage(
+        url,
+        null,
+        modifier
+            .size(size)
+            .border(1.5.dp, ring, CircleShape)
+            .padding(1.5.dp)
+            .clip(CircleShape),
+        contentScale = ContentScale.Crop,
+    )
+}
+
 @Composable
 private fun CalmHeader(p: Post, a: PostActions, s: Settings) {
     val cs = MaterialTheme.colorScheme
@@ -1404,14 +1433,20 @@ private fun CalmHeader(p: Post, a: PostActions, s: Settings) {
             1 -> cs.secondaryContainer to cs.onSecondaryContainer
             else -> cs.tertiaryContainer to cs.onTertiaryContainer
         }
-        LetterAvatar(
-            p.subreddit,
-            imageUrl = p.subredditIcon.takeIf { s.subredditIcons },
-            size = 36.dp,
-            container = bg,
-            content = fg,
-            modifier = Modifier.clickable(onClick = a::openSubreddit),
-        )
+        Box {
+            LetterAvatar(
+                p.subreddit,
+                imageUrl = p.subredditIcon.takeIf { s.subredditIcons },
+                size = 36.dp,
+                container = bg,
+                content = fg,
+                modifier = Modifier.clickable(onClick = a::openSubreddit),
+            )
+            if (s.postAvatars) {
+                val ring = if (LocalCalmOnCard.current) calmCardColor() else cs.surface
+                PosterBadge(p, 16.dp, ring, Modifier.align(Alignment.BottomEnd).offset(3.dp, 3.dp))
+            }
+        }
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(
@@ -1522,7 +1557,7 @@ private fun CalmMedia(p: Post, a: PostActions, s: Settings, shape: androidx.comp
         }
         val url = feedImageUrl(p, s)
         // Inline autoplay for videos (when enabled and not NSFW-blurred).
-        if (p.type == PostType.VIDEO && !blur && s.autoplayMedia && !isExternalVideo(p)) {
+        if (p.type == PostType.VIDEO && !blur && autoplayNow(s) && !isExternalVideo(p)) {
             val vurl = postVideoUrl(p)
             if (vurl.isNotEmpty() && !vurl.lowercase().endsWith(".gif")) {
                 Box(Modifier.clip(shape)) {

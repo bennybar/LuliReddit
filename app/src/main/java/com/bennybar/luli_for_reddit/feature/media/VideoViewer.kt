@@ -1,6 +1,12 @@
 package com.bennybar.luli_for_reddit.feature.media
 
 import android.net.Uri
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenu
@@ -22,7 +28,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -175,6 +180,16 @@ private fun fmt(ms: Long): String {
 }
 
 /** Full-screen video player, with sound unless Settings → Open videos muted. */
+private const val MAX_VIDEO_ZOOM = 5f
+private const val DOUBLE_TAP_ZOOM = 2.5f
+
+/** Keeps a zoomed video covering the screen: it pans at most to its edges. */
+internal fun clampPan(pan: Offset, zoom: Float, width: Float, height: Float): Offset {
+    val maxX = width * (zoom - 1f) / 2f
+    val maxY = height * (zoom - 1f) / 2f
+    return Offset(pan.x.coerceIn(-maxX, maxX), pan.y.coerceIn(-maxY, maxY))
+}
+
 @Composable
 internal fun VideoViewer(route: MediaViewer.Video) {
     ImmersiveMode()
@@ -319,12 +334,44 @@ internal fun VideoViewer(route: MediaViewer.Video) {
             }
         } else {
             // Tapping the video only toggles the overlay — it never changes play state.
+            // Pinch zooms, one finger pans while zoomed, a double tap zooms in or back out.
+            var zoom by remember { mutableFloatStateOf(1f) }
+            var pan by remember { mutableStateOf(Offset.Zero) }
             Box(
                 Modifier
                     .fillMaxSize()
-                    .clickable(remember { MutableInteractionSource() }, null) {
-                        controls = !controls
-                        if (controls) hideTick++
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onTap = {
+                                controls = !controls
+                                if (controls) hideTick++
+                            },
+                            onDoubleTap = { at ->
+                                if (zoom > 1f) {
+                                    zoom = 1f
+                                    pan = Offset.Zero
+                                } else {
+                                    zoom = DOUBLE_TAP_ZOOM
+                                    val center = Offset(size.width / 2f, size.height / 2f)
+                                    pan = clampPan((center - at) * (zoom - 1f), zoom, size.width.toFloat(), size.height.toFloat())
+                                }
+                            },
+                        )
+                    }
+                    .pointerInput(Unit) {
+                        awaitEachGesture {
+                            awaitFirstDown(requireUnconsumed = false)
+                            do {
+                                val event = awaitPointerEvent()
+                                // One finger only pans once zoomed in, so it doesn't take over other drags.
+                                if (event.changes.size > 1 || zoom > 1f) {
+                                    zoom = (zoom * event.calculateZoom()).coerceIn(1f, MAX_VIDEO_ZOOM)
+                                    pan = if (zoom <= 1f) Offset.Zero
+                                    else clampPan(pan + event.calculatePan(), zoom, size.width.toFloat(), size.height.toFloat())
+                                    event.changes.forEach { if (it.positionChanged()) it.consume() }
+                                }
+                            } while (event.changes.any { it.pressed })
+                        }
                     },
                 contentAlignment = Alignment.Center,
             ) {
@@ -332,6 +379,12 @@ internal fun VideoViewer(route: MediaViewer.Video) {
                     factory = { ctx -> TextureView(ctx).also { player.setVideoTextureView(it) } },
                     onRelease = { player.clearVideoTextureView(it) },
                     modifier = (if (aspect > 0f) Modifier.aspectRatio(aspect) else Modifier.fillMaxSize())
+                        .graphicsLayer {
+                            scaleX = zoom
+                            scaleY = zoom
+                            translationX = pan.x
+                            translationY = pan.y
+                        }
                         .alpha(if (ready) 1f else 0f),
                 )
             }

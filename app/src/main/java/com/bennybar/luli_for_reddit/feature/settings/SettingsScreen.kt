@@ -233,6 +233,8 @@ import com.bennybar.luli_for_reddit.settings.TopBarMode
 import com.bennybar.luli_for_reddit.settings.TopBarMenuItem
 import com.bennybar.luli_for_reddit.settings.ReadDim
 import com.bennybar.luli_for_reddit.settings.readDim
+import com.bennybar.luli_for_reddit.settings.AutoplayMode
+import com.bennybar.luli_for_reddit.settings.autoplayMode
 import com.bennybar.luli_for_reddit.settings.topBarMenu
 import com.bennybar.luli_for_reddit.ui.switchThumb
 import com.bennybar.luli_for_reddit.ui.Overlays
@@ -769,6 +771,10 @@ fun SettingsList(
             Icons.Rounded.Image, s.subredditIcons, ctrl::setSubredditIcons,
         )
         switch(
+            "Poster's picture on posts", "A small profile picture on the community's icon. One more Reddit request per page of posts",
+            Icons.Rounded.AccountCircle, s.postAvatars, ctrl::setPostAvatars,
+        )
+        switch(
             "Floating filter chips", "On Home, subreddits and custom feeds, show the chips under the top bar when you scroll back up",
             Icons.Rounded.FilterList, s.floatingChips, ctrl::setFloatingChips,
         )
@@ -988,9 +994,17 @@ fun SettingsList(
 
         // ---------------------------------------------------------------- Media
         section("Media")
-        switch(
-            "Autoplay videos", if (s.autoplaySound) "Play videos as you scroll the feed" else "Play videos muted as you scroll the feed",
-            Icons.Outlined.PlayCircleOutline, s.autoplayMedia, ctrl::setAutoplayMedia,
+        // Off, on Wi-Fi only, or always: the old switch plus the network (Reddit feedback).
+        val autoplay = autoplayMode(s.autoplayMedia, s.autoplayWifiOnly)
+        tile(
+            "Autoplay videos",
+            when (autoplay) {
+                AutoplayMode.OFF -> "Off"
+                AutoplayMode.WIFI -> "On Wi-Fi only: play videos${if (s.autoplaySound) "" else " muted"} as you scroll the feed"
+                AutoplayMode.ALWAYS -> if (s.autoplaySound) "Play videos as you scroll the feed" else "Play videos muted as you scroll the feed"
+            },
+            Icons.Outlined.PlayCircleOutline,
+            onClick = launch { pickOption(AutoplayMode.entries.map { PickOption(it, it.label) }, autoplay)?.let(ctrl::setAutoplayMode) },
         )
         if (s.autoplayMedia) {
             switch(
