@@ -27,7 +27,8 @@ struct RouteView: View {
         case .notificationActivity: NotificationActivityScreen()
         case .drafts: DraftsScreen()
         case let .redditWeb(url, title): RedditWebScreen(url: url, title: title)
-        case let .search(subreddit, query, sort, time): SearchScreen(subreddit: subreddit, query: query, sort: sort, time: time)
+        case let .search(subreddit, query, sort, time):
+            SearchScreen(subreddit: subreddit, query: query, sort: sort, time: time).modifier(SearchZoom())
         case let .submit(subreddit): SubmitScreen(subreddit: subreddit)
         case let .messageThread(fullname): MessageThreadScreen(fullname: fullname)
         case let .composeMessage(to): ComposeMessageScreen(to: to)
@@ -37,6 +38,30 @@ struct RouteView: View {
         case let .multireddit(username, name): MultiredditScreen(username: username, name: name)
         case let .manageMultireddit(username, name): ManageMultiredditScreen(username: username, name: name)
         case let .post(subreddit, postId, focusCommentId): PostDetailScreen(subreddit: subreddit, postId: postId, focusCommentId: focusCommentId)
+        }
+    }
+}
+
+extension EnvironmentValues {
+    /// The namespace the Posts tab's search button and the Search screen share (#271).
+    @Entry var searchZoom: Namespace.ID? = nil
+}
+
+/// The id a search button gives `matchedTransitionSource` for the Search screen to grow out of.
+let searchZoomSource = "search"
+
+/// Search opened from the Posts tab's search button grows out of it and shrinks back
+/// into it, as Gmail's does (#271). Opened from anywhere else, it keeps its fade (#77).
+private struct SearchZoom: ViewModifier {
+    @Environment(\.searchZoom) private var namespace
+    /// Decided once, as this screen is pushed (`AppNavigator.push(_:zoom:)`).
+    @State private var zoom = app.navigator.zoomsNextSearch
+
+    func body(content: Content) -> some View {
+        if zoom, let namespace {
+            content.navigationTransition(.zoom(sourceID: searchZoomSource, in: namespace))
+        } else {
+            content
         }
     }
 }

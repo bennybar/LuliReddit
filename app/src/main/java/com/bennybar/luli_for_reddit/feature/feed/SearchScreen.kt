@@ -80,6 +80,7 @@ import com.bennybar.luli_for_reddit.model.Post
 import com.bennybar.luli_for_reddit.model.RedditUser
 import com.bennybar.luli_for_reddit.model.Subreddit
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
+import com.bennybar.luli_for_reddit.nav.searchMorphField
 import com.bennybar.luli_for_reddit.ui.ErrorView
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -377,7 +378,8 @@ fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time:
                             value = text,
                             onValueChange = { text = it },
                             placeholder = if (restricted) "Search in r/$subreddit" else "Search Reddit",
-                            modifier = Modifier.fillMaxWidth().padding(end = 16.dp).focusRequester(focus),
+                            // Grows out of the search box it was opened from (#271).
+                            modifier = Modifier.fillMaxWidth().padding(end = 16.dp).searchMorphField().focusRequester(focus),
                             onSearch = { doSearch(withAuthor(it)) },
                             leadingChip = author?.let { a ->
                                 {
