@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.feature.media.SpeedButton
 import androidx.compose.material.icons.rounded.Replay
 import android.content.Context
 import android.view.TextureView
@@ -200,6 +201,9 @@ private class BrowserVideo(context: Context, muted: Boolean) {
     var playing by mutableStateOf(false)
     var muted by mutableStateOf(muted)
         private set
+    /** Playback speed (#260): each clip starts at 1×. */
+    var speed by mutableFloatStateOf(1f)
+        private set
 
     init {
         player.addListener(object : Player.Listener {
@@ -233,6 +237,11 @@ private class BrowserVideo(context: Context, muted: Boolean) {
         player.play()
     }
 
+    fun changeSpeed(s: Float) {
+        speed = s
+        player.setPlaybackSpeed(s)
+    }
+
     fun toggleMute() {
         muted = !muted
         player.volume = if (muted) 0f else 1f
@@ -254,6 +263,7 @@ private class BrowserVideo(context: Context, muted: Boolean) {
         failed = false
         ended = false
         aspect = 0f
+        changeSpeed(1f)
         // Settings › Loop videos (#156); a GIF always loops.
         player.repeatMode = if (p.type == PostType.GIF || app.settings.value.loopVideos) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
         // Carry on from where the feed card was (its chunks are cached).
@@ -615,6 +625,7 @@ private fun PostOverlay(p: Post, video: BrowserVideo?, modifier: Modifier) {
             }
             Spacer(Modifier.weight(1f))
             if (video != null) {
+                SpeedButton(video.speed, onPick = video::changeSpeed)
                 IconButton(onClick = video::toggleMute, shapes = IconButtonDefaults.shapes(), colors = iconColors) {
                     Icon(
                         if (video.muted) Icons.AutoMirrored.Rounded.VolumeOff else Icons.AutoMirrored.Rounded.VolumeUp,

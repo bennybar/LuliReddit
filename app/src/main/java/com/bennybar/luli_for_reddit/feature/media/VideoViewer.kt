@@ -1,6 +1,10 @@
 package com.bennybar.luli_for_reddit.feature.media
 
 import android.net.Uri
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Replay
 import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
@@ -191,6 +195,9 @@ internal fun VideoViewer(route: MediaViewer.Video) {
         player.volume = if (muted) 0f else 1f
         player.setAudioAttributes(player.audioAttributes, !muted)
     }
+    // Playback speed (#260): each video starts at 1×.
+    var speed by remember { mutableFloatStateOf(1f) }
+    var speedMenu by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var ready by remember { mutableStateOf(false) }
     var playing by remember { mutableStateOf(false) }
@@ -269,9 +276,10 @@ internal fun VideoViewer(route: MediaViewer.Video) {
             delay(200)
         }
     }
-    // Only auto-hide while playing; keep controls up when paused.
-    LaunchedEffect(controls, playing, hideTick) {
-        if (controls && playing) {
+    // Only auto-hide while playing; keep controls up when paused, and while the speed
+    // menu is open (it goes with them).
+    LaunchedEffect(controls, playing, hideTick, speedMenu) {
+        if (controls && playing && !speedMenu) {
             delay(3000)
             controls = false
         }
@@ -372,6 +380,12 @@ internal fun VideoViewer(route: MediaViewer.Video) {
                         modifier = Modifier.weight(1f).padding(horizontal = 10.dp),
                     )
                     Text(fmt(duration), color = Color.White, fontSize = 12.sp)
+                    Spacer(Modifier.width(4.dp))
+                    SpeedButton(speed, onOpenChange = { speedMenu = it }) {
+                        speed = it
+                        player.setPlaybackSpeed(it)
+                        hideTick++
+                    }
                     IconButton(onClick = {
                         muted = !muted
                         hideTick++
@@ -398,6 +412,50 @@ internal fun VideoViewer(route: MediaViewer.Video) {
             )
         }
         EdgeBack()
+    }
+}
+
+/** The playback speeds a video can play at (#260), as Sync offers. */
+internal val VIDEO_SPEEDS = listOf(0.5f, 1f, 1.25f, 1.5f, 2f, 4f)
+
+/** "0.5×", "1×", "1.25×", "2×". */
+internal fun speedLabel(speed: Float): String =
+    (if (speed % 1f == 0f) speed.toInt().toString() else speed.toString().trimEnd('0')) + "×"
+
+/**
+ * The video's playback speed (#260): its label ("1×", "2×") in a small capsule that opens
+ * the speeds. Shared by the full-screen viewer and Browse media. [onOpenChange] lets the
+ * viewer keep its controls, and so the menu, up while it's open.
+ */
+@Composable
+internal fun SpeedButton(speed: Float, onOpenChange: (Boolean) -> Unit = {}, onPick: (Float) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    LaunchedEffect(open) { onOpenChange(open) }
+    Box {
+        Text(
+            speedLabel(speed),
+            Modifier
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.45f))
+                .clickable(onClickLabel = "Playback speed") { open = true }
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+                .semantics { contentDescription = "Playback speed ${speedLabel(speed)}" },
+            color = Color.White,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        DropdownMenu(open, onDismissRequest = { open = false }) {
+            for (s in VIDEO_SPEEDS) {
+                DropdownMenuItem(
+                    text = { Text(speedLabel(s)) },
+                    trailingIcon = if (s == speed) ({ Icon(Icons.Rounded.Check, null, Modifier.size(18.dp)) }) else null,
+                    onClick = {
+                        open = false
+                        onPick(s)
+                    },
+                )
+            }
+        }
     }
 }
 

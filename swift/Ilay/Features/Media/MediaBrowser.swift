@@ -76,6 +76,8 @@ struct MediaBrowseFeed: Equatable {
     /// The pages' taps (overlay on / off), zoom (no paging while zoomed) and edge swipe (close).
     let dismiss: DismissState
     var muted = app.settings.value.viewerMuted
+    /// Playback speed (#260): each clip starts at 1×.
+    private(set) var speed: Float = 1
     private(set) var playing = false
     /// Stopped at the end (Loop videos off, #156): the play button replays.
     private(set) var ended = false
@@ -216,6 +218,7 @@ struct MediaBrowseFeed: Equatable {
         ended = false
         player.replaceCurrentItem(with: AVPlayerItem(asset: asset))
         player.isMuted = muted
+        setSpeed(1)
         wanted = true
         // Muted, it leaves the audio session alone, so the user's music keeps playing.
         VideoAudio.shared.setAudible(!muted, player: player) { [weak self] in
@@ -244,6 +247,13 @@ struct MediaBrowseFeed: Equatable {
             wanted = true
             player.play()
         }
+    }
+
+    func setSpeed(_ s: Float) {
+        speed = s
+        // `play()` plays at the default rate, so it sticks through pause and replay.
+        player.defaultRate = s
+        if player.rate != 0 { player.rate = s }
     }
 
     func toggleMute() {
@@ -651,6 +661,10 @@ private struct MediaBrowserOverlay: View {
                     .accessibilityLabel(counter.map { "Image \($0.replacingOccurrences(of: " / ", with: " of "))" } ?? "")
                 if model.isVideo {
                     ViewerButton(icon: model.ended ? "arrow.counterclockwise" : model.playing ? "pause.fill" : "play.fill", label: model.ended ? "Replay" : model.playing ? "Pause" : "Play", action: model.togglePlay)
+                    SpeedMenu(speed: model.speed, onPick: model.setSpeed)
+                        .foregroundStyle(.white)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .glassEffect(.regular.interactive(), in: .capsule)
                     ViewerButton(icon: model.muted ? "speaker.slash.fill" : "speaker.wave.2.fill", label: model.muted ? "Unmute" : "Mute", action: model.toggleMute)
                 } else {
                     // Keeps the counter centred.

@@ -73,3 +73,10 @@ final class InlineVideoPoolTests: XCTestCase {
         XCTAssertNil(InlineVideoPool.choose([0.5], current: 0))
     }
 }
+
+/// The playback speed button's labels (#260), as the Kotlin app's SpeedLabelTest.
+final class SpeedLabelTests: XCTestCase {
+    func testWholeSpeedsHaveNoDecimalsOthersNoTrailingZeros() {
+        XCTAssertEqual(videoSpeeds.map(speedLabel), ["0.5×", "1×", "1.25×", "1.5×", "2×", "4×"])
+    }
+}

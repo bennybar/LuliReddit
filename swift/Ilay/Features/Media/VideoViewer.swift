@@ -14,6 +14,8 @@ import SwiftUI
     @ObservationIgnored private let borrowed: Bool
 
     var muted = app.settings.value.viewerMuted
+    /// Playback speed (#260): each video starts at 1×.
+    var speed: Float = 1
     var error: String?
     var ready = false
     var playing = false
@@ -163,6 +165,14 @@ import SwiftUI
         hideTick += 1
     }
 
+    func setSpeed(_ s: Float) {
+        speed = s
+        // `play()` plays at the default rate, so it sticks through pause and replay.
+        player.defaultRate = s
+        if player.rate != 0 { player.rate = s }
+        hideTick += 1
+    }
+
     func toggleMute() {
         muted.toggle()
         player.isMuted = muted
@@ -180,6 +190,9 @@ import SwiftUI
         observations.removeAll()
         observers.forEach(NotificationCenter.default.removeObserver)
         observers.removeAll()
+        // The feed card's player goes back at 1× (#260).
+        player.defaultRate = 1
+        if player.rate != 0 { player.rate = 1 }
         if borrowed {
             app.media.inlinePlayer.giveBack()
         } else {
@@ -307,6 +320,7 @@ struct VideoViewer: View {
             Text(fmt(model.position)).monospacedDigit()
             Scrubber(position: model.position, duration: model.duration, buffered: model.buffered) { model.seek(to: $0) }
             Text(fmt(model.duration)).monospacedDigit()
+            SpeedMenu(speed: model.speed, onPick: model.setSpeed)
             Button(action: model.toggleMute) {
                 Image(systemName: model.muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
                     .frame(width: 32, height: 32)
@@ -322,6 +336,42 @@ struct VideoViewer: View {
         .glassEffect(.regular, in: .capsule)
         .padding(.horizontal, 16)
         .padding(.bottom, 12)
+    }
+}
+
+/// The playback speeds a video can play at (#260), as Sync offers.
+let videoSpeeds: [Float] = [0.5, 1, 1.25, 1.5, 2, 4]
+
+/// "0.5×", "1×", "1.25×", "2×".
+func speedLabel(_ speed: Float) -> String {
+    let n = speed.rounded() == speed ? String(Int(speed)) : String(speed)
+    return n + "×"
+}
+
+/// The video's playback speed (#260): its label ("1×", "2×") opening the speeds. Shared by
+/// the full-screen viewer and Browse media.
+struct SpeedMenu: View {
+    let speed: Float
+    let onPick: (Float) -> Void
+
+    var body: some View {
+        Menu {
+            ForEach(videoSpeeds, id: \.self) { s in
+                Button {
+                    onPick(s)
+                } label: {
+                    if s == speed { Label(speedLabel(s), systemImage: "checkmark") } else { Text(speedLabel(s)) }
+                }
+            }
+        } label: {
+            Text(speedLabel(speed))
+                .font(.subheadline.weight(.semibold))
+                .monospacedDigit()
+                .frame(minWidth: 32, minHeight: 32)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel("Playback speed")
+        .accessibilityValue(speedLabel(speed))
     }
 }
 
