@@ -64,6 +64,7 @@ final class AppContainer {
 
     init() {
         let prefs = Prefs()
+        SubredditIcons.shared.attach(prefs)
         let secureStore = SecureStore()
         let settings = SettingsStore(prefs: prefs)
         let authRepository = AuthRepository(store: secureStore)

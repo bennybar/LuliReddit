@@ -26,6 +26,7 @@ import com.bennybar.luli_for_reddit.model.Multireddit
 import com.bennybar.luli_for_reddit.model.Post
 import com.bennybar.luli_for_reddit.model.RedditUser
 import com.bennybar.luli_for_reddit.model.Subreddit
+import com.bennybar.luli_for_reddit.model.SubredditIcons
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -552,6 +553,10 @@ class RedditRepository(val client: RedditClient) {
             for (c in data["children"].arr() ?: emptyList()) c["data"]?.let { result.add(Subreddit.fromData(it)) }
             after = data["after"].str() ?: break
         }
+        // Icons for Reddit Home cards of communities no post has shown yet, as the website
+        // sign-in's posts give them (without the query); a post's own URL wins.
+        val web = client.isWebMode()
+        for (s in result) SubredditIcons.remember(s.name, if (web) s.iconUrl?.substringBefore("?") else s.iconUrl, overwrite = false)
         result.sortWith(compareBy<Subreddit> { !it.userHasFavorited }.thenBy { it.name.lowercase() })
         subsCache = result
         subsCacheAt = System.currentTimeMillis()

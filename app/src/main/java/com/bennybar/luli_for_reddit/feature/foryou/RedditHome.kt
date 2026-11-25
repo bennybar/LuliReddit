@@ -22,7 +22,9 @@ import com.bennybar.luli_for_reddit.core.net.loadWebSessionCookies
 import com.bennybar.luli_for_reddit.model.Listing
 import com.bennybar.luli_for_reddit.model.Post
 import com.bennybar.luli_for_reddit.model.PostType
+import com.bennybar.luli_for_reddit.model.SubredditIcons
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -98,7 +100,10 @@ data class PagePost(
             title = title,
             subreddit = sub,
             subredditPrefixed = "r/$sub",
-            subredditIcon = subredditIcon,
+            // The icon the full post will bring (remembered from earlier posts), so it
+            // doesn't load twice; else the page's, without the query string as the API
+            // gives Reddit's own icons to the website sign-in.
+            subredditIcon = SubredditIcons.icon(sub) ?: subredditIcon?.let(::apiStyleIcon),
             author = author,
             score = score,
             numComments = comments,
@@ -125,6 +130,13 @@ data class PagePost(
     }
 
     companion object {
+        /**
+         * A Reddit-hosted icon (styles.redditmedia.com) as the website sign-in's API gives it:
+         * without the query (`GqlSearch`'s post data strips it). Others as they are.
+         */
+        fun apiStyleIcon(url: String): String =
+            if (runCatching { java.net.URI(url).host }.getOrNull() == "styles.redditmedia.com") url.substringBefore("?") else url
+
         internal fun parse(o: JsonElement?): PagePost? {
             val id = o["id"].str()?.takeIf { it.startsWith("t3_") } ?: return null
             return PagePost(
@@ -196,6 +208,7 @@ class RedditHomeLoader(private val context: Context) {
         cookieHeader: String,
         want: Int = 25,
         onProgress: ((Int) -> Unit)? = null, // running count, for the UI
+        onPosts: ((List<PagePost>) -> Unit)? = null, // each read's new posts, as soon as they're read
     ): List<PagePost> = withContext(Dispatchers.Main) {
         busy.withLock {
             if (view == null || cookieHeader != cookies) {
@@ -228,20 +241,19 @@ class RedditHomeLoader(private val context: Context) {
                 if (seen.isEmpty() && page?.posts.isNullOrEmpty() && givesUp(loadFailed, loadFinishedAt, System.currentTimeMillis())) {
                     throw HomeUnavailableException()
                 }
-                var grew = false
+                val before = fresh.size
                 for (p in page?.posts ?: emptyList()) {
-                    if (seen.add(p.id)) {
-                        fresh.add(p)
-                        grew = true
-                    }
+                    if (seen.add(p.id)) fresh.add(p)
                 }
+                val grew = fresh.size > before
                 if (grew) {
                     val got = page!!.posts
                     showFewerIds = showFewerIds + got.filter { it.canShowFewer }.map { it.id.removePrefix("t3_") }
                     // Read: the page leaves them out of the next read (see READ_POSTS).
                     markRead(got.map { it.id })
+                    onPosts?.invoke(fresh.subList(before, fresh.size).toList())
+                    onProgress?.invoke(fresh.size)
                 }
-                if (grew) onProgress?.invoke(fresh.size)
                 if (fresh.size >= target) break
                 val now = System.currentTimeMillis()
                 if (grew) lastGrowth = now
@@ -536,6 +548,88 @@ sealed interface HomeStatus {
     data class FellBack(val signedOut: Boolean) : HomeStatus
 }
 
+/**
+ * Full posts asked for while Reddit's page is still being read: each batch of ids as soon
+ * as the page shows it, one request at a time. A page whose full posts are in when the read
+ * ends is shown complete at once, rather than as page cards the full posts replace a moment
+ * later (flair, icons and sizes changing under the reader).
+ */
+class EarlyFullPosts(
+    private val scope: CoroutineScope,
+    private val fetch: suspend (List<String>) -> List<Post>,
+) {
+    private val pending = ArrayList<String>()
+    private val asked = HashSet<String>()
+    private val got = HashMap<String, Post>() // by fullname
+    private var failed = false
+    private var running: Job? = null
+
+    /** When the first of them was asked for (debug timing). */
+    @Volatile var firstAskedAt: Long? = null
+        private set
+
+    /** Asks for the posts (fullnames) not asked for yet. */
+    fun add(ids: List<String>) {
+        synchronized(this) { for (id in ids) if (asked.add(id)) pending.add(id) }
+        pump()
+    }
+
+    private fun pump() {
+        val job = synchronized(this) {
+            if (running != null || failed || pending.isEmpty()) return
+            val batch = pending.toList()
+            pending.clear()
+            if (firstAskedAt == null) firstAskedAt = System.currentTimeMillis()
+            scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
+                val result = runCatching { fetch(batch) }.getOrNull()
+                synchronized(this@EarlyFullPosts) {
+                    if (result != null) for (p in result) got["t3_${p.id}"] = p else failed = true
+                    running = null
+                }
+                pump()
+            }.also { running = it }
+        }
+        job.start()
+    }
+
+    /**
+     * The full posts by fullname once every one of [ids] has been answered for, waiting at
+     * most [deadlineMs]; null if a request failed or they aren't all in by then. One the API
+     * leaves out (removed) is just absent.
+     */
+    suspend fun posts(ids: List<String>, deadlineMs: Long): Map<String, Post>? {
+        add(ids)
+        val end = System.currentTimeMillis() + deadlineMs
+        while (true) {
+            synchronized(this) {
+                if (failed) return null
+                if (running == null && pending.isEmpty()) return HashMap(got)
+            }
+            if (System.currentTimeMillis() >= end) return null
+            delay(15)
+        }
+    }
+
+    /** Stops asking: a refresh or a later page doesn't need them. */
+    fun cancel() {
+        val job = synchronized(this) {
+            failed = true
+            running.also { running = null }
+        }
+        job?.cancel()
+    }
+}
+
+/** A batch read from the page, with its full posts on their way. */
+internal class HomeBatch(val page: List<PagePost>, val full: EarlyFullPosts)
+
+/** Debug builds only: when each step of a Home page landed, to measure first paint. */
+private fun homeTrace(step: String, started: Long) {
+    if (com.bennybar.luli_for_reddit.BuildConfig.DEBUG) {
+        android.util.Log.d("IlayHome", "$step +${System.currentTimeMillis() - started}ms")
+    }
+}
+
 /** Experimental Reddit Home (headless WebView), falling back to For You. */
 class RedditHomeEngine internal constructor(private val c: AppContainer, private val m: ForYouModule) {
     private val _progress = MutableStateFlow(0)
@@ -567,8 +661,10 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
     @Volatile private var loadGen = 0 // bumped by each first-page Home load
     @Volatile private var homeEmpty = 0 // consecutive empty "more" batches from Reddit Home
 
-    // The next batch, read ahead while the user scrolls the current one.
-    private var prefetch: Deferred<List<PagePost>>? = null
+    // The next batch, read ahead while the user scrolls the current one, with its full
+    // posts asked for as it's read.
+    private var prefetch: Deferred<HomeBatch>? = null
+    private var prefetchFull: EarlyFullPosts? = null
     private var viewJob: Job? = null
 
     suspend fun page(after: String?, loaded: List<Post>): Listing<Post> {
@@ -590,15 +686,32 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
                 _progress.value = 0
                 prefetch?.cancel()
                 prefetch = null
+                prefetchFull?.cancel()
+                prefetchFull = null
             }
-            val page = if (firstPage) {
-                l.next(restart = true, cookieHeader = cookie, onProgress = { n -> _progress.value = n })
+            val ahead = if (firstPage) null else prefetch?.takeIf { !it.isCancelled }?.let { runCatching { it.await() }.getOrNull() }
+            val page: List<PagePost>
+            val full: EarlyFullPosts
+            if (firstPage) {
+                val f = earlyFullPosts()
+                full = f
+                page = l.next(restart = true, cookieHeader = cookie, onProgress = { n -> _progress.value = n }, onPosts = { posts ->
+                    if (f.firstAskedAt == null) homeTrace("first posts read", started)
+                    f.add(posts.map { it.id })
+                })
+                homeTrace("page read (${page.size})", started)
+            } else if (ahead != null) {
+                page = ahead.page
+                full = ahead.full
             } else {
-                (prefetch?.takeIf { !it.isCancelled }?.let { runCatching { it.await() }.getOrNull() })
-                    ?: l.next(restart = false, cookieHeader = cookie)
+                val f = earlyFullPosts()
+                full = f
+                page = l.next(restart = false, cookieHeader = cookie, onPosts = { posts -> f.add(posts.map { it.id }) })
             }
             prefetch = null
+            prefetchFull = null
             if (page.isEmpty()) {
+                full.cancel()
                 if (firstPage) throw IllegalStateException("No posts found on Reddit Home")
                 // One empty batch can just be the page still setting up its "load
                 // more"; only two in a row end the feed.
@@ -606,13 +719,32 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
             }
             homeEmpty = 0
             _showFewer.value = l.showFewerIds
-            // Cards straight from the page (no wait for the API); the full posts
-            // (media, video, flair, NSFW) follow in the background.
-            val cards = page.map { it.toPost() }
+            // The full posts (media, video, flair, NSFW) were asked for while the page was
+            // read: when they're in within a moment, the cards come complete at once. Else
+            // cards straight from the page now, and the full posts in the background.
             val gen = loadGen
-            c.scope.launch { upgrade(page, firstPage, gen) }
-            // Read the next batch ahead, so reaching the end doesn't wait.
-            prefetch = c.scope.async { l.next(restart = false, cookieHeader = cookie) }
+            val user = c.session.username
+            val got = full.posts(page.map { it.id }, FULL_POSTS_DEADLINE_MS)
+            val cards = if (got != null) {
+                homeTrace("full posts ready", started)
+                if (firstPage && user.isNotEmpty() && c.session.username == user && gen == loadGen) {
+                    val posts = page.mapNotNull { p -> got[p.id]?.let { withCard(it, p) } }
+                    launchIo { saveForYouPage(c.context, user, posts, c.repository::rawPost, feed = "home") }
+                }
+                page.map { p -> got[p.id]?.let { withCard(it, p) } ?: p.toPost() }
+            } else {
+                full.cancel()
+                c.scope.launch { upgrade(page, firstPage, gen) }
+                page.map { it.toPost() }
+            }
+            // Read the next batch ahead, its full posts too, so reaching the end doesn't
+            // wait and the next page comes complete.
+            val next = earlyFullPosts()
+            prefetchFull = next
+            prefetch = c.scope.async {
+                HomeBatch(l.next(restart = false, cookieHeader = cookie, onPosts = { posts -> next.add(posts.map { it.id }) }), next)
+            }
+            homeTrace("painted (${cards.size})", started)
             if (firstPage) {
                 trackLoad("ok", cards.size, started)
                 status.value = HomeStatus.Live(System.currentTimeMillis())
@@ -764,21 +896,30 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
         }
         if (full == null || stale()) return
         val byId = page.associateBy { it.id.removePrefix("t3_") }
-        val posts = full.map { p ->
-            val card = byId[p.id] ?: return@map p
-            // The card keeps the photo it already showed (the page's copy of the same
-            // picture): Reddit's own preview URL differs, so the card loaded it again. A
-            // gallery shows it under its first image until that loads.
-            val keep = card.image
-            p.copy(feedReason = card.reason ?: p.feedReason, previewMedUrl = keep ?: p.previewMedUrl)
-        }
+        val posts = full.map { p -> byId[p.id]?.let { withCard(p, it) } ?: p }
         _upgrades.emit(posts)
         if (firstPage && user.isNotEmpty()) {
             launchIo { saveForYouPage(c.context, user, posts, c.repository::rawPost, feed = "home") }
         }
     }
 
+    /** The full post [p] keeping what its page [card] had: Reddit's reason, and the photo. */
+    private fun withCard(p: Post, card: PagePost): Post {
+        // The card keeps the photo it already showed (the page's copy of the same
+        // picture): Reddit's own preview URL differs, so the card loaded it again. A
+        // gallery shows it under its first image until that loads.
+        val keep = card.image
+        return p.copy(feedReason = card.reason ?: p.feedReason, previewMedUrl = keep ?: p.previewMedUrl)
+    }
+
+    private fun earlyFullPosts() = EarlyFullPosts(c.scope) { ids -> c.repository.getPostsByIds(ids) }
+
     private fun launchIo(block: suspend () -> Unit) = c.scope.launch(Dispatchers.IO) { block() }
+
+    companion object {
+        /** How long a page waits, once read, for full posts still on their way before it shows the page's own cards instead. */
+        const val FULL_POSTS_DEADLINE_MS = 500L
+    }
 
     /**
      * The user is looking at [postId] in Ilay: follow it in the hidden page so

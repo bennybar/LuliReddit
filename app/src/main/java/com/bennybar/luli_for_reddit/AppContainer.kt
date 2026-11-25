@@ -50,7 +50,7 @@ class AppContainer(val context: Context) {
      */
     @Volatile var restoredProcess = false
 
-    val prefs = Prefs(context)
+    val prefs = Prefs(context).also { com.bennybar.luli_for_reddit.model.SubredditIcons.attach(it) }
     val secureStore = SecureStore(context)
     val settings = SettingsStore(prefs)
     val authRepository = AuthRepository(secureStore)
