@@ -289,6 +289,10 @@ private fun BannerTitleBar(state: CollapsingTitle, name: String, about: Subreddi
     // A light banner gets dark icons, on it and in the status bar (#268); a picture's
     // lightness is known once it's loaded, the band's until then.
     var imageLight by remember(about?.bannerUrl) { mutableStateOf<Boolean?>(null) }
+    // Reddit's desktop banners are 4000 px wide and as little as 128 tall: filling this box
+    // shows a sliver of one blown up several times (Reddit feedback, r/Howtomen). One that
+    // would need more than 1.5× becomes a soft wash of its own colours, not a blurry zoom.
+    var soft by remember(about?.bannerUrl) { mutableStateOf(false) }
     val light = imageLight ?: (band.luminance() > 0.5f)
     BannerStatusBar(light = light, shown = { state.progress < 0.5f })
     val onBanner = androidx.compose.ui.graphics.lerp(if (light) Color.Black.copy(alpha = 0.87f) else Color.White, cs.onSurface, p)
@@ -320,8 +324,11 @@ private fun BannerTitleBar(state: CollapsingTitle, name: String, about: Subreddi
                         model = request,
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                        onSuccess = { s -> scope.launch { imageLight = isLight(s.result.image.toBitmap()) } },
+                        modifier = Modifier.fillMaxSize().then(if (soft) Modifier.blur(30.dp) else Modifier),
+                        onSuccess = { s ->
+                            soft = bannerPx > s.result.image.height * 1.5f
+                            scope.launch { imageLight = isLight(s.result.image.toBitmap()) }
+                        },
                     )
                 }
             }
@@ -480,12 +487,17 @@ private fun SubredditHeader(s: Subreddit, vm: SubredditAboutViewModel) {
     val subscribed = override ?: s.userIsSubscriber ?: false
     Column(Modifier.padding(start = 6.dp, top = 8.dp, end = 6.dp)) {
         if (s.bannerUrl != null) {
-            AsyncImage(
-                model = rememberCoverRequest(s.bannerUrl, feedDecodeWidth(), with(LocalDensity.current) { 110.dp.roundToPx() }),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxWidth().height(110.dp).clip(RoundedCornerShape(20.dp)),
-            )
+            val stripPx = with(LocalDensity.current) { 110.dp.roundToPx() }
+            var soft by remember(s.bannerUrl) { mutableStateOf(false) } // as the banner header's
+            Box(Modifier.fillMaxWidth().height(110.dp).clip(RoundedCornerShape(20.dp))) {
+                AsyncImage(
+                    model = rememberCoverRequest(s.bannerUrl, feedDecodeWidth(), stripPx),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().then(if (soft) Modifier.blur(30.dp) else Modifier),
+                    onSuccess = { r -> soft = stripPx > r.result.image.height * 1.5f },
+                )
+            }
         }
         BloomCard(Modifier.padding(start = 4.dp, top = 10.dp, end = 4.dp, bottom = 4.dp).fillMaxWidth()) {
             Column(Modifier.padding(14.dp)) {

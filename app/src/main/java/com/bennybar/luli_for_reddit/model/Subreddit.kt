@@ -34,7 +34,9 @@ data class Subreddit(
                 description = (d["public_description"].str() ?: "").trim(),
                 subscribers = d["subscribers"].int() ?: 0,
                 iconUrl = clean(d["community_icon"].str()) ?: clean(d["icon_img"].str()),
-                bannerUrl = clean(d["banner_background_image"].str()) ?: clean(d["banner_img"].str()),
+                // The banner made for phones first: the desktop one is 4000 px wide and as
+                // little as 128 tall, a sliver of it blown up in a phone's header.
+                bannerUrl = clean(d["mobile_banner_image"].str()) ?: clean(d["banner_background_image"].str()) ?: clean(d["banner_img"].str()),
                 keyColor = clean(d["primary_color"].str()) ?: clean(d["key_color"].str()),
                 over18 = d["over18"].isTrue(),
                 userHasFavorited = d["user_has_favorited"].isTrue(),

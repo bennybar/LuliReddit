@@ -180,10 +180,7 @@ private struct BannerBackdrop: View {
             .fill(bandColor(about.keyColor).map(AnyShapeStyle.init) ?? AnyShapeStyle(IlayTheme.accent.opacity(0.35).gradient))
             .overlay {
                 if let url = about.bannerUrl.flatMap(URL.init(string:)) {
-                    // Full size: a banner is far wider than this box, and decoded to the
-                    // slot's longest side it was stretched blurry (Reddit feedback, r/Howtomen).
-                    RemoteImage(url: url, maxPixelSize: 0) { Color.clear }
-                        .scaledToFill()
+                    BannerImage(url: url)
                 }
             }
             .clipped()
@@ -296,7 +293,8 @@ private struct SubredditHeader: View {
             let subscribed = vm.subOverride ?? s.userIsSubscriber ?? false
             VStack(alignment: .leading, spacing: 12) {
                 if let banner = s.bannerUrl.flatMap(URL.init(string:)) {
-                    RemoteImage(url: banner, maxPixelSize: 0) { Color(.secondarySystemFill) }
+                    BannerImage(url: banner)
+                        .background(Color(.secondarySystemFill))
                         .frame(height: 110)
                         .clipShape(.rect(cornerRadius: 20))
                 }
@@ -536,4 +534,31 @@ private enum FlairPick {
         .contentShape(.rect)
     }
     .buttonStyle(.plain)
+}
+
+/// A subreddit's banner filling its box. Reddit's desktop banners are 4000 px wide and as
+/// little as 128 tall: filling a phone's header shows a sliver of one blown up several
+/// times (Reddit feedback, r/Howtomen). One that would need more than 1.5× becomes a soft
+/// wash of its own colours instead of a blurry zoom; a big enough one shows as it is.
+private struct BannerImage: View {
+    let url: URL
+
+    @State private var image: UIImage?
+    @Environment(\.displayScale) private var displayScale
+
+    var body: some View {
+        GeometryReader { geo in
+            if let image {
+                let soft = geo.size.height * displayScale > image.size.height * image.scale * 1.5
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .blur(radius: soft ? 30 : 0, opaque: true)
+                    .clipped()
+            }
+        }
+        // Full size: its real height decides between sharp and soft.
+        .task(id: url) { image = await ImageLoader.shared.image(url: url, maxPixelSize: 0) }
+    }
 }
