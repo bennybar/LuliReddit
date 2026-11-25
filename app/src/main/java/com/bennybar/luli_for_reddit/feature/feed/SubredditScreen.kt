@@ -1,6 +1,27 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
 import androidx.compose.foundation.background
+import android.app.Activity
+import android.content.ContextWrapper
+import android.graphics.Bitmap
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalView
+import androidx.core.graphics.ColorUtils
+import androidx.core.view.WindowCompat
+import coil3.toBitmap
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.bennybar.luli_for_reddit.settings.HeaderHeight
 import com.bennybar.luli_for_reddit.settings.TopBarMode
 import com.bennybar.luli_for_reddit.feature.home.SideBarButton
@@ -21,7 +42,6 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.border
 import com.bennybar.luli_for_reddit.feature.markdown.RedditMarkdown
 import com.bennybar.luli_for_reddit.ui.SearchIcon
 import com.bennybar.luli_for_reddit.ui.subredditName
@@ -243,15 +263,19 @@ fun SubredditScreen(name: String) {
 }
 
 /** The banner header's room under the bar's row: the banner, the icon over its foot, the name and members. */
-private val BANNER_EXTRA = 136.dp
+private val BANNER_EXTRA = 150.dp
 private const val BANNER = 136f // the banner's height under the status bar, dp
+private val ICON = 76.dp // the icon over the banner's foot (#268: bigger), 30dp in the bar
+private val NAME_GAP = 12.dp // the name under the banner's foot (#268: a little lower)
+private val BAR_ROW_TOP = 10.dp // the bar's row, under the status bar (CollapsingTitle's)
 
 /**
  * A subreddit's header with Settings › Header height on Medium or Tall (#257), as a
  * messaging app's profile: the banner (or a band in the community's colour) behind the
- * bar's buttons, which sit in dark circles to stay readable; the icon on the left over
- * the banner's foot, the name and members beside it. As the list scrolls, the banner
- * slides up under the bar's colour, and the icon and name slide into the bar together.
+ * bar's buttons, which sit in blurred circles (#268) to stay readable; the icon on the
+ * left over the banner's foot, the name and members beside it. As the list scrolls, the
+ * banner slides up with the name, so the name never runs over it (#268), and fades into
+ * the bar's colour; the icon and name slide into the bar together.
  */
 @Composable
 private fun BannerTitleBar(state: CollapsingTitle, name: String, about: Subreddit?, onSearch: () -> Unit, onMenu: () -> Unit) {
@@ -262,49 +286,90 @@ private fun BannerTitleBar(state: CollapsingTitle, name: String, about: Subreddi
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     // Without a banner or a colour of its own: the theme's soft accent, not a grey block.
     val band = about?.keyColor?.let { runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull() } ?: cs.primaryContainer
-    val onBanner = androidx.compose.ui.graphics.lerp(Color.White, cs.onSurface, p)
-    BoxWithConstraints(Modifier.fillMaxWidth().height(top + state.height).background(cs.surface).clipToBounds()) {
+    // A light banner gets dark icons, on it and in the status bar (#268); a picture's
+    // lightness is known once it's loaded, the band's until then.
+    var imageLight by remember(about?.bannerUrl) { mutableStateOf<Boolean?>(null) }
+    val light = imageLight ?: (band.luminance() > 0.5f)
+    BannerStatusBar(light = light, shown = { state.progress < 0.5f })
+    val onBanner = androidx.compose.ui.graphics.lerp(if (light) Color.Black.copy(alpha = 0.87f) else Color.White, cs.onSurface, p)
+    // The name's way from under the banner's foot into the bar; the banner moves with it.
+    val nameTop = lerp(top + BANNER.dp + NAME_GAP, top + BAR_ROW_TOP + 10.dp, p)
+    val bannerShift = (BANNER.dp + NAME_GAP - BAR_ROW_TOP - 10.dp) * p
+    // Gone, not covered, once folded: a covered banner left a line under the status bar (#268).
+    val bannerAlpha = 1f - (p * 1.2f).coerceAtMost(1f)
+    val scope = rememberCoroutineScope()
+    val request = about?.bannerUrl?.let { rememberSizedRequest(it, feedDecodeWidth()) }
+    // The round buttons' places in the header, for the blurred banner behind them.
+    var root by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    val holes = remember { mutableStateMapOf<Int, Rect>() }
+    BoxWithConstraints(
+        Modifier.fillMaxWidth().height(top + state.height).background(cs.surface).clipToBounds().onGloballyPositioned { root = it },
+    ) {
         val width = maxWidth
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(top + BANNER.dp)
-                .graphicsLayer { translationY = -70.dp.toPx() * p }
-                .background(band),
-        ) {
-            if (about?.bannerUrl != null) {
-                AsyncImage(
-                    model = rememberSizedRequest(about.bannerUrl, feedDecodeWidth()),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
+        if (bannerAlpha > 0f) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(top + BANNER.dp)
+                    .graphicsLayer { translationY = -bannerShift.toPx(); alpha = bannerAlpha }
+                    .background(band),
+            ) {
+                if (request != null) {
+                    AsyncImage(
+                        model = request,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                        onSuccess = { s -> scope.launch { imageLight = isLight(s.result.image.toBitmap()) } },
+                    )
+                }
             }
-            // Under the bar's colour as it folds.
-            Box(Modifier.fillMaxSize().graphicsLayer { alpha = (p * 1.2f).coerceAtMost(1f) }.background(cs.surface))
+            // The banner again, blurred, only inside the buttons' circles (#268).
+            if (request != null && holes.isNotEmpty()) {
+                val circles = holes.values.toList()
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(top + BANNER.dp)
+                        .drawWithContent {
+                            val path = Path().apply { circles.forEach { addOval(it) } }
+                            clipPath(path) { this@drawWithContent.drawContent() }
+                        }
+                        .graphicsLayer { translationY = -bannerShift.toPx(); alpha = bannerAlpha },
+                ) {
+                    AsyncImage(
+                        model = request,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize().blur(16.dp),
+                    )
+                }
+            }
         }
         // The icon and name, from over the banner's foot into the bar after ←.
-        val iconSize = lerp(64.dp, 30.dp, p)
+        val iconSize = lerp(ICON, 30.dp, p)
         val iconX = lerp(16.dp, 58.dp, p)
-        val iconY = lerp(top + BANNER.dp - 26.dp, top + 10.dp + 9.dp, p)
-        LetterAvatar(
-            name,
-            iconSize,
-            cs.secondaryContainer,
-            cs.onSecondaryContainer,
+        val iconY = lerp(top + BANNER.dp - ICON + 24.dp, top + BAR_ROW_TOP + 9.dp, p)
+        // The ring is a disc behind the icon, not a border over it: a border let the
+        // picture's edge show around it (#268).
+        val ring = lerp(3.dp, 0.dp, p)
+        Box(
             Modifier
-                .offset(iconX, iconY)
-                .border(lerp(3.dp, 0.dp, p), cs.surface, CircleShape),
-            imageUrl = about?.iconUrl,
-        )
-        val nameX = lerp(92.dp, iconX + iconSize + 10.dp, p)
+                .offset(iconX - ring, iconY - ring)
+                .size(iconSize + ring * 2)
+                .background(cs.surface, CircleShape)
+                .padding(ring),
+        ) {
+            LetterAvatar(name, iconSize, cs.secondaryContainer, cs.onSecondaryContainer, imageUrl = about?.iconUrl)
+        }
+        val nameX = lerp(16.dp + ICON + 12.dp, iconX + iconSize + 10.dp, p)
         Text(
             subredditName("r/$name"),
             Modifier
-                .offset(nameX, lerp(top + BANNER.dp + 4.dp, top + 10.dp + 10.dp, p))
+                .offset(nameX, nameTop)
                 // Clear of the search and ⋯ buttons once in the bar.
                 .widthIn(max = width - nameX - lerp(16.dp, 104.dp, p)),
-            fontSize = (22f - 4f * p).sp,
+            fontSize = (26f - 8f * p).sp,
             fontWeight = FontWeight.ExtraBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -312,26 +377,65 @@ private fun BannerTitleBar(state: CollapsingTitle, name: String, about: Subreddi
         if (about != null) {
             Text(
                 "${compactNumber(about.subscribers)} members",
-                Modifier.offset(92.dp, top + BANNER.dp + 34.dp).graphicsLayer { alpha = (1f - p * 2.5f).coerceAtLeast(0f) },
+                Modifier.offset(16.dp + ICON + 12.dp, nameTop + 36.dp).graphicsLayer { alpha = (1f - p * 2.5f).coerceAtLeast(0f) },
                 color = cs.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
-        // The bar's row, over the banner: round dark backs keep the buttons readable on any picture.
+        // The bar's row, over the banner: blurred, lightly tinted circles keep the buttons readable on any picture.
         CompositionLocalProvider(LocalContentColor provides onBanner) {
-            Row(Modifier.padding(start = 4.dp, top = top + 10.dp, end = 4.dp).height(48.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                val back = Modifier.background(Color.Black.copy(alpha = 0.42f * (1f - p)), CircleShape)
-                Box(back) {
+            Row(Modifier.padding(start = 4.dp, top = top + BAR_ROW_TOP, end = 4.dp).height(48.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                val tint = (if (light) Color.White.copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.25f)).let { it.copy(alpha = it.alpha * (1f - p)) }
+                fun back(i: Int) = Modifier
+                    .onGloballyPositioned { c -> root?.takeIf { it.isAttached }?.let { r -> holes[i] = r.localBoundingBoxOf(c) } }
+                    .background(tint, CircleShape)
+                Box(back(0)) {
                     if (sideBar) SideBarButton()
                     else IconButton(onClick = { nav.pop() }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
                 }
                 Spacer(Modifier.weight(1f))
-                IconButton(onClick = onSearch, modifier = back) { Icon(SearchIcon, "Search") }
+                IconButton(onClick = onSearch, modifier = back(1)) { Icon(SearchIcon, "Search") }
                 Spacer(Modifier.width(6.dp))
-                IconButton(onClick = onMenu, modifier = back) { Icon(Icons.Rounded.MoreHoriz, "More") }
+                IconButton(onClick = onMenu, modifier = back(2)) { Icon(Icons.Rounded.MoreHoriz, "More") }
             }
         }
     }
+}
+
+/**
+ * The status bar's icons dark over a light banner and light over a dark one while the
+ * header is open (#268); the theme's again once it folds, and when the page goes.
+ */
+@Composable
+private fun BannerStatusBar(light: Boolean, shown: () -> Boolean) {
+    val view = LocalView.current
+    val controller = remember(view) {
+        generateSequence(view.context) { (it as? ContextWrapper)?.baseContext }.firstNotNullOfOrNull { it as? Activity }
+            ?.window?.let { WindowCompat.getInsetsController(it, view) }
+    }
+    val theme = remember(controller) { controller?.isAppearanceLightStatusBars }
+    val open by remember { derivedStateOf(shown) }
+    LaunchedEffect(open, light) {
+        if (controller != null && theme != null) controller.isAppearanceLightStatusBars = if (open) light else theme
+    }
+    DisposableEffect(controller) {
+        onDispose { if (controller != null && theme != null) controller.isAppearanceLightStatusBars = theme }
+    }
+}
+
+/** Whether a picture is light, from a sample of its pixels (off the main thread: a hardware bitmap is copied to read them). */
+private suspend fun isLight(bitmap: Bitmap): Boolean = withContext(Dispatchers.Default) {
+    val b = if (bitmap.config == Bitmap.Config.HARDWARE) bitmap.copy(Bitmap.Config.ARGB_8888, false) else bitmap
+    var sum = 0.0
+    var n = 0
+    for (yi in 0 until 6) for (xi in 0 until 12) {
+        // The top part: what the status bar and the buttons sit on.
+        val x = ((xi + 0.5f) / 12f * b.width).toInt().coerceIn(0, b.width - 1)
+        val y = ((yi + 0.5f) / 6f * b.height * 0.6f).toInt().coerceIn(0, b.height - 1)
+        sum += ColorUtils.calculateLuminance(b.getPixel(x, y))
+        n++
+    }
+    sum / n > 0.5
 }
 
 /** With the banner header (#257): what's left of the header, the description in a card (3 lines, then Show all) and Join. */

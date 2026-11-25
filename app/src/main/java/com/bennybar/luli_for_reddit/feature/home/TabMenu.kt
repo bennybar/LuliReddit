@@ -119,7 +119,7 @@ fun SideBarButton(modifier: Modifier = Modifier) {
                 if (rtl) scale(-1f, 1f)
                 rotate(45f * p) // "spin a bit more" (#258)
             }) {
-                for (d in listOf(-6f, 0f, 6f)) {
+                for (d in listOf(-5f, 0f, 5f)) { // Material's ☰: lines 5 apart (#258)
                     drawLine(
                         color,
                         Offset(4f * u, (12f + d * (1f + 0.35f * p)) * u),

@@ -69,6 +69,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import com.bennybar.luli_for_reddit.feature.feed.BloomTopBar
+import com.bennybar.luli_for_reddit.feature.feed.collapsingHeader
+import com.bennybar.luli_for_reddit.feature.feed.rememberPageHeader
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -303,19 +308,26 @@ private val SETTINGS_CATEGORIES = listOf(
 @Composable
 fun SettingsScreen(section: String? = null) {
     val nav = LocalNavigator.current
+    val listState = rememberLazyListState()
+    // Opened from the side bar, as a page of its own: the big header with Expandable,
+    // as Saved and History (#268). Pushed from elsewhere (←), the plain bar.
+    val sideBar = LocalSideBar.current != null
+    val header = rememberPageHeader(listState).takeIf { sideBar }
     Scaffold(
+        Modifier.collapsingHeader(header),
         topBar = {
-            TopAppBar(
+            if (header != null) BloomTopBar(section ?: "Settings", collapsing = header)
+            else TopAppBar(
                 title = { Text(section ?: "Settings") },
                 navigationIcon = {
                     // Opened from the side bar (#111): ☰ instead of ←.
-                    if (LocalSideBar.current != null) SideBarButton()
+                    if (sideBar) SideBarButton()
                     else IconButton(onClick = { nav.pop() }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
                 },
             )
         },
     ) { padding ->
-        SettingsList(contentPadding = padding, section = section)
+        SettingsList(contentPadding = padding, section = section, listState = listState)
     }
 }
 
@@ -333,6 +345,7 @@ fun SettingsList(
     embedded: Boolean = false,
     contentPadding: PaddingValues = PaddingValues(),
     section: String? = null,
+    listState: LazyListState = rememberLazyListState(),
 ) {
     val s by app.settings.state.collectAsStateWithLifecycle()
     val ctrl = app.settings
@@ -1403,7 +1416,7 @@ fun SettingsList(
             if (q.isNotEmpty() && shown.isEmpty()) noResults()
         }
     } else {
-        LazyColumn(modifier.fillMaxSize(), contentPadding = contentPadding) {
+        LazyColumn(modifier.fillMaxSize(), state = listState, contentPadding = contentPadding) {
             if (section == null) item(key = "search") { searchField() }
             items(shown.size, key = { shown[it].key }) { row(it) }
             if (q.isNotEmpty() && shown.isEmpty()) item(key = "none") { noResults() }
