@@ -10,11 +10,14 @@ struct SlotImage: UIViewRepresentable {
     let pixels: Int
     /// What a failed load shows, instead of staying blank.
     var brokenSymbol: String? = nil
+    /// An image already in memory to show until `url` is ready (the Reddit Home card's
+    /// photo while the full post's copy loads), so the swap doesn't blank the slot.
+    var placeholder: URL? = nil
 
     func makeUIView(context: Context) -> SlotImageView { SlotImageView() }
 
     func updateUIView(_ view: SlotImageView, context: Context) {
-        view.load(url: url, pixels: pixels, brokenSymbol: brokenSymbol)
+        view.load(url: url, pixels: pixels, brokenSymbol: brokenSymbol, placeholder: placeholder)
     }
 
     /// The slot decides the size, never the image.
@@ -28,6 +31,8 @@ final class SlotImageView: UIImageView {
     private var requested: (url: URL, pixels: Int)?
     private var brokenSymbol: String?
     private var task: Task<Void, Never>?
+    /// Showing the placeholder, not `requested`: still to fetch, and cross-faded when it comes.
+    private var standIn = false
 
     init() {
         super.init(frame: .zero)
@@ -44,7 +49,7 @@ final class SlotImageView: UIImageView {
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
-    func load(url: URL?, pixels: Int, brokenSymbol: String?) {
+    func load(url: URL?, pixels: Int, brokenSymbol: String?, placeholder: URL? = nil) {
         let newKey = "\(pixels)|\(url?.absoluteString ?? "")"
         guard newKey != key else { return }
         key = newKey
@@ -56,8 +61,11 @@ final class SlotImageView: UIImageView {
         layer.removeAllAnimations()
         alpha = 1
         // Straight from memory: a reused cell paints in its first frame.
-        image = url.flatMap { ImageLoader.shared.cached(url: $0, maxPixelSize: pixels) }
-        if image == nil { fetch() }
+        let hit = url.flatMap { ImageLoader.shared.cached(url: $0, maxPixelSize: pixels) }
+        let stand = hit == nil && placeholder != url ? placeholder.flatMap { ImageLoader.shared.cached(url: $0, maxPixelSize: pixels) } : nil
+        image = hit ?? stand
+        standIn = stand != nil
+        if hit == nil { fetch() }
     }
 
     private func fetch() {
@@ -66,7 +74,11 @@ final class SlotImageView: UIImageView {
             let loaded = await ImageLoader.shared.image(url: requested.url, maxPixelSize: requested.pixels)
             guard let self, !Task.isCancelled else { return }
             task = nil
-            if let loaded {
+            if let loaded, standIn {
+                // Over the stand-in: a cross-fade, never a blank.
+                standIn = false
+                UIView.transition(with: self, duration: 0.25, options: .transitionCrossDissolve) { self.image = loaded }
+            } else if let loaded {
                 image = loaded
                 alpha = 0
                 UIView.animate(withDuration: 0.15) { self.alpha = 1 }
@@ -84,7 +96,7 @@ final class SlotImageView: UIImageView {
         if window == nil {
             task?.cancel()
             task = nil
-        } else if image == nil {
+        } else if image == nil || standIn {
             fetch()
         }
     }

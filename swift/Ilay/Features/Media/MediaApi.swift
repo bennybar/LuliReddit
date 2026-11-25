@@ -66,6 +66,8 @@ struct GalleryM3Carousel: View {
     /// A spoiler / NSFW gallery's label (#165): each image gets its own cover, so you
     /// can still swipe through them; revealing one reveals them all.
     var cover: String? = nil
+    /// Shown under the first image until it loads (the Reddit Home card's photo).
+    var placeholder: URL? = nil
 
     @State private var revealed = false
 
@@ -84,7 +86,7 @@ struct GalleryM3Carousel: View {
                     onTap: { if covered { revealed = true } else { app.navigator.openGallery(images, title: title, initialIndex: $0) } },
                     label: { "Image \($0 + 1) of \(images.count)" }
                 ) { i in
-                    RemoteImage(url: URL(string: images[i].url)).zoomSource()
+                    GalleryImageView(url: URL(string: images[i].url), placeholder: i == 0 ? placeholder : nil).zoomSource()
                         // Just the eye: the carousel lays every image out full size and masks
                         // the narrow ones, so a label would be cut off; the caption says it
                         // (only then: no "tap one to view" under every gallery, #256).
@@ -104,6 +106,21 @@ struct GalleryM3Carousel: View {
 /// An inline, swipeable gallery preview with a page counter and dot indicator. Tapping
 /// any image opens the full-screen viewer at that index. With `height` it's a
 /// fixed-height (cover-cropped) banner instead of sizing to the first image's aspect ratio.
+/// A gallery image; the first one shows `placeholder` (already on screen a moment ago)
+/// until its own copy loads, instead of a blank.
+private struct GalleryImageView: View {
+    let url: URL?
+    let placeholder: URL?
+
+    var body: some View {
+        if let placeholder {
+            RemoteImage(url: url) { RemoteImage(url: placeholder) }
+        } else {
+            RemoteImage(url: url)
+        }
+    }
+}
+
 struct GalleryCarousel: View {
     let images: [GalleryImage]
     var title: String? = nil
@@ -112,6 +129,8 @@ struct GalleryCarousel: View {
     /// A spoiler / NSFW gallery's label (#165): each image gets its own cover, so you
     /// can still swipe through them; revealing one reveals them all.
     var cover: String? = nil
+    /// Shown under the first image until it loads (the Reddit Home card's photo).
+    var placeholder: URL? = nil
 
     @State private var page: Int? = 0
     @State private var revealed = false
@@ -163,7 +182,7 @@ struct GalleryCarousel: View {
                     } label: {
                         // Gallery images are full size (often 12MP photos): RemoteImage
                         // decodes them to the slot.
-                        RemoteImage(url: URL(string: images[i].url)).zoomSource()
+                        GalleryImageView(url: URL(string: images[i].url), placeholder: i == 0 ? placeholder : nil).zoomSource()
                             .overlay { if let cover, !revealed { MediaCover(label: cover) } }
                     }
                     .buttonStyle(.plain)

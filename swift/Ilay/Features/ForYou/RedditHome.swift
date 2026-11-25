@@ -731,8 +731,9 @@ final class RedditHomeEngine {
         return full.map { p in
             guard let card = cards[p.id] else { return p }
             // The card keeps the photo it already showed (the page's copy of the same
-            // picture): Reddit's own preview URL differs, so the card loaded it again.
-            let keep = p.type != .gallery && p.previewMedUrl != nil ? card.image : nil
+            // picture): Reddit's own preview URL differs, so the card loaded it again. A
+            // gallery shows it under its first image until that loads.
+            let keep = card.image
             return p.with {
                 if let r = card.reason { $0.feedReason = r }
                 if let keep { $0.previewMedUrl = keep }
