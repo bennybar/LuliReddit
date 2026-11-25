@@ -70,6 +70,9 @@ private let restoredPage = "restored"
     @ObservationIgnored private var started = false
     @ObservationIgnored private var cacheConsulted = false
     @ObservationIgnored private var showingCache = false // a cached page is on screen, fresh one in flight
+    /// The cached page on screen was scrolled: its fresh page waits behind "New posts"
+    /// rather than replacing the list under the finger.
+    @ObservationIgnored private var scrolledOverCache = false
     // Bumped whenever the list is replaced (load, refresh, sort, "New posts"),
     // so a page that was in flight for the old list is dropped, not appended.
     @ObservationIgnored private var generation = 0
@@ -257,6 +260,7 @@ private let restoredPage = "restored"
             try Task.checkCancellation()
             if let cached {
                 showingCache = true
+                scrolledOverCache = false
                 ui = .data(FeedState(posts: cached.items, sort: sort, time: time, after: cached.after))
             }
         }
@@ -289,7 +293,24 @@ private let restoredPage = "restored"
         try Task.checkCancellation()
         showingCache = false
         lastLoaded = nowMillis()
+        // The cached page was being scrolled: the fresh one waits behind "New posts"
+        // (it replaced the list under the finger, or threw it back to the top).
+        if let cached, scrolledOverCache {
+            let shown = Set(cached.items.map(\.id))
+            var state = FeedState(posts: cached.items, sort: sort, time: time, after: cached.after)
+            if listing.items.contains(where: { !shown.contains($0.id) }) {
+                pending = listing.items
+                pendingAfter = listing.after
+                state.hasPending = true
+            }
+            return state
+        }
         return FeedState(posts: listing.items, sort: sort, time: time, after: listing.after)
+    }
+
+    /// The list was scrolled by hand (from the list view).
+    func userScrolled() {
+        if showingCache { scrolledOverCache = true }
     }
 
     /// (Re)builds the feed. A newer build cancels an older one still in flight (e.g. a

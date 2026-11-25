@@ -249,11 +249,16 @@ fun LetterAvatar(
             // Always a still image: some subreddit icons are animated GIFs,
             // and every animated avatar redraws the list on its own 25–33fps
             // clock, out of step with the scroll, which drops frames.
+            // The icon this avatar last showed: when its URL changes for the same owner (a
+            // Home card's icon once the full post comes), it stays until the new one is in.
+            // A list row reused for another post starts afresh, so it's never another's icon.
+            var shown by remember { mutableStateOf<String?>(null) }
             val request = remember(imageUrl, px) {
                 ImageRequest.Builder(context).data(imageUrl)
                     .size(Size(Dimension(px * 2), Dimension.Undefined))
                     .decoderFactory(coil3.decode.BitmapFactoryDecoder.Factory())
                     .memoryCacheKeyExtra("still", "1")
+                    .apply { shown?.takeIf { it != imageUrl }?.let { placeholderMemoryCacheKey(coil3.memory.MemoryCache.Key(it, mapOf("still" to "1"))) } }
                     .build()
             }
             AsyncImage(
@@ -261,6 +266,7 @@ fun LetterAvatar(
                 contentDescription = null,
                 contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                 modifier = Modifier.size(size),
+                onSuccess = { shown = imageUrl },
             )
         } else {
             Text(

@@ -13,11 +13,15 @@ struct SlotImage: UIViewRepresentable {
     /// An image already in memory to show until `url` is ready (the Reddit Home card's
     /// photo while the full post's copy loads), so the swap doesn't blank the slot.
     var placeholder: URL? = nil
+    /// Whose image this is (a post's id): when its URL changes for the same owner (a Home
+    /// card's icon once the full post comes), the image on screen stays until the new one
+    /// is ready. A reused cell's owner differs, so it never shows another post's image.
+    var hold: String? = nil
 
     func makeUIView(context: Context) -> SlotImageView { SlotImageView() }
 
     func updateUIView(_ view: SlotImageView, context: Context) {
-        view.load(url: url, pixels: pixels, brokenSymbol: brokenSymbol, placeholder: placeholder)
+        view.load(url: url, pixels: pixels, brokenSymbol: brokenSymbol, placeholder: placeholder, hold: hold)
     }
 
     /// The slot decides the size, never the image.
@@ -33,6 +37,9 @@ final class SlotImageView: UIImageView {
     private var task: Task<Void, Never>?
     /// Showing the placeholder, not `requested`: still to fetch, and cross-faded when it comes.
     private var standIn = false
+    private var holdId: String?
+    /// Whether `image` is a loaded picture (not blank or the broken symbol).
+    private var showsPicture = false
 
     init() {
         super.init(frame: .zero)
@@ -49,7 +56,7 @@ final class SlotImageView: UIImageView {
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
-    func load(url: URL?, pixels: Int, brokenSymbol: String?, placeholder: URL? = nil) {
+    func load(url: URL?, pixels: Int, brokenSymbol: String?, placeholder: URL? = nil, hold: String? = nil) {
         let newKey = "\(pixels)|\(url?.absoluteString ?? "")"
         guard newKey != key else { return }
         key = newKey
@@ -62,19 +69,29 @@ final class SlotImageView: UIImageView {
         alpha = 1
         // Straight from memory: a reused cell paints in its first frame.
         let hit = url.flatMap { ImageLoader.shared.cached(url: $0, maxPixelSize: pixels) }
-        let stand = hit == nil && placeholder != url ? placeholder.flatMap { ImageLoader.shared.cached(url: $0, maxPixelSize: pixels) } : nil
+        var stand = hit == nil && placeholder != url ? placeholder.flatMap { ImageLoader.shared.cached(url: $0, maxPixelSize: pixels) } : nil
+        // The same owner's previous picture, while its new URL loads.
+        if hit == nil, stand == nil, hold != nil, hold == holdId, showsPicture { stand = image }
+        holdId = hold
         image = hit ?? stand
         standIn = stand != nil
+        showsPicture = image != nil
         if hit == nil { fetch() }
     }
 
     private func fetch() {
         guard window != nil, task == nil, let requested else { return }
+        let started = CACurrentMediaTime()
         task = Task { [weak self] in
             let loaded = await ImageLoader.shared.image(url: requested.url, maxPixelSize: requested.pixels)
             guard let self, !Task.isCancelled else { return }
             task = nil
-            if let loaded, standIn {
+            if loaded != nil { showsPicture = true }
+            if let loaded, CACurrentMediaTime() - started < 0.05 {
+                // A disk hit, about as quick as memory: no fade (icons blinked on a cold start).
+                standIn = false
+                image = loaded
+            } else if let loaded, standIn {
                 // Over the stand-in: a cross-fade, never a blank.
                 standIn = false
                 UIView.transition(with: self, duration: 0.25, options: .transitionCrossDissolve) { self.image = loaded }

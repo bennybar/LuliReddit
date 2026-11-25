@@ -531,6 +531,16 @@ private fun FeedList(
     val posts = rememberShownPosts(feedKey, state.posts)
     val hidden = state.posts.size - posts.size
 
+    // The first cards after the deck are dealt in once each, and only just after the list
+    // lands: a card shown later (scrolled to, or rebuilt by Home's upgrade with another
+    // content type) is never dealt again. (Calm often shows only one or two cards.)
+    val dealt = remember(dealHome) { HashSet<String>() }
+    if (dealHome) LaunchedEffect(Unit) { delay(1000); onDealt() }
+    // A cached page scrolled by hand: its fresh page waits behind "New posts".
+    LaunchedEffect(listState, controller) {
+        snapshotFlow { listState.isScrollInProgress }.collect { if (it) controller.userScrolled() }
+    }
+
     // Paging is triggered by reaching rows near the end. If the filters hide
     // (almost) everything loaded, there are no rows to reach and the list
     // can't scroll, so the feed stalled blank. Keep fetching instead, up to a
@@ -619,8 +629,8 @@ private fun FeedList(
             val p = posts[i]
             if (deckMode && i < 3) {
                 // The first cards after the loading deck are dealt in.
-                if (i == 2) LaunchedEffect(Unit) { onDealt() }
-                DealIn(i, animate = dealHome) { CompositionLocalProvider(LocalDismissible provides dismissible, LocalFrontpage provides frontpage) { PostCard(p) } }
+                val deal = remember(p.id) { dealHome && dealt.add(p.id) }
+                DealIn(i, animate = deal) { CompositionLocalProvider(LocalDismissible provides dismissible, LocalFrontpage provides frontpage) { PostCard(p) } }
             } else {
                 CompositionLocalProvider(LocalDismissible provides dismissible, LocalFrontpage provides frontpage) { PostCard(p) }
             }
