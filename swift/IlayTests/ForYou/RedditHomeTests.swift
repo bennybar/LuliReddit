@@ -370,3 +370,88 @@ import XCTest
         XCTAssertEqual(module.interest.weightFor("pics"), opened, "a passive signal counts once a session")
     }
 }
+
+/// A subreddit's icon as the API gave it, for Reddit Home cards before their full post.
+final class SubredditIconMapTests: XCTestCase {
+    func testRemembersByNameAnyCaseAndAPostWinsOverTheSubscriptionList() {
+        var m = SubredditIconMap()
+        XCTAssertTrue(m.remember("Pics", "https://a/1.png"))
+        XCTAssertEqual(m.icon("pics"), "https://a/1.png")
+        XCTAssertFalse(m.remember("pics", "https://a/1.png"), "the same URL changes nothing")
+        XCTAssertFalse(m.remember("pics", "https://a/2.png", overwrite: false), "the subscription list doesn't replace a post's")
+        XCTAssertTrue(m.remember("pics", "https://a/2.png"))
+        XCTAssertEqual(m.icon("PICS"), "https://a/2.png")
+        XCTAssertFalse(m.remember("pics", nil))
+        XCTAssertFalse(m.remember("pics", ""))
+        XCTAssertFalse(m.remember("", "https://a/3.png"))
+    }
+
+    func testStoresAndLoadsInOrder() {
+        var m = SubredditIconMap()
+        m.remember("a", "https://x/a.png")
+        m.remember("b", "https://x/b.png?width=64&s=1")
+        m.remember("a", "https://x/a2.png") // changed: now the newest
+        XCTAssertEqual(m.entries, ["b\thttps://x/b.png?width=64&s=1", "a\thttps://x/a2.png"])
+        XCTAssertEqual(SubredditIconMap(entries: m.entries), m)
+        XCTAssertEqual(SubredditIconMap(entries: ["broken", "c\thttps://x/c.png"]).icon("c"), "https://x/c.png")
+    }
+
+    func testTrimsTheOldestPastTheCap() {
+        var m = SubredditIconMap()
+        for i in 0...SubredditIconMap.cap { m.remember("s\(i)", "https://x/\(i).png") }
+        // Past the cap it drops to 90%, oldest first.
+        XCTAssertEqual(m.icons.count, SubredditIconMap.cap - SubredditIconMap.cap / 10)
+        XCTAssertNil(m.icon("s0"))
+        XCTAssertEqual(m.icon("s\(SubredditIconMap.cap)"), "https://x/\(SubredditIconMap.cap).png")
+    }
+
+    func testThePagesRedditIconLosesItsQueryLikeTheApis() {
+        XCTAssertEqual(PagePost.apiStyleIcon("https://styles.redditmedia.com/t5_1/styles/communityIcon_x.png?width=48&s=abc"),
+                       "https://styles.redditmedia.com/t5_1/styles/communityIcon_x.png")
+        XCTAssertEqual(PagePost.apiStyleIcon("https://b.thumbs.redditmedia.com/i.png?x=1"), "https://b.thumbs.redditmedia.com/i.png?x=1")
+    }
+}
+
+private func fakePost(_ id: String) -> Post {
+    Post.fromData((try? AppJson.parse(#"{"id":"\#(id)","name":"t3_\#(id)","title":"T"}"#)) ?? .null)
+}
+
+/// Full posts asked for while Reddit's page is read (`EarlyFullPosts`); no network.
+@MainActor final class EarlyFullPostsTests: XCTestCase {
+    /// Calls made, for checking batching (MainActor-only, so no data race).
+    private final class Calls: @unchecked Sendable { var batches: [[String]] = [] }
+
+    func testAllInWithinTheDeadlineAndOneRequestAtATime() async {
+        let calls = Calls()
+        let early = EarlyFullPosts { ids in
+            await MainActor.run { calls.batches.append(ids) }
+            try await Task.sleep(for: .milliseconds(30))
+            return ids.filter { $0 != "t3_gone" }.map { fakePost($0.removePrefix("t3_")) }
+        }
+        early.add(["t3_a", "t3_b"])
+        early.add(["t3_c", "t3_a"]) // a: already asked
+        early.add(["t3_gone"])
+        let got = await early.posts(for: ["t3_a", "t3_b", "t3_c", "t3_gone"], deadline: 2_000)
+        XCTAssertEqual(Set(got?.keys ?? [:].keys), ["t3_a", "t3_b", "t3_c"], "one the API leaves out is just absent")
+        XCTAssertEqual(calls.batches, [["t3_a", "t3_b"], ["t3_c", "t3_gone"]], "the next request waits for the one in flight")
+    }
+
+    func testTooSlowGivesNilAndAFailureGivesNil() async {
+        let slow = EarlyFullPosts { ids in
+            try await Task.sleep(for: .milliseconds(400))
+            return ids.map { fakePost($0.removePrefix("t3_")) }
+        }
+        let late = await slow.posts(for: ["t3_a"], deadline: 50)
+        XCTAssertNil(late)
+        let failing = EarlyFullPosts { _ in throw URLError(.notConnectedToInternet) }
+        let failed = await failing.posts(for: ["t3_a"], deadline: 1_000)
+        XCTAssertNil(failed)
+    }
+
+    func testACancelledOneGivesNil() async {
+        let early = EarlyFullPosts { ids in ids.map { fakePost($0.removePrefix("t3_")) } }
+        early.cancel()
+        let got = await early.posts(for: ["t3_a"], deadline: 200)
+        XCTAssertNil(got)
+    }
+}

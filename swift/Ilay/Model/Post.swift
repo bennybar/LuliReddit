@@ -130,6 +130,9 @@ struct Post: Identifiable, Equatable, Sendable, Copyable {
         let pollVotes = pollRaw.map { $0["vote_count"].int() ?? -1 }
         let bodyMedia = Comment.mediaUrls(content["media_metadata"])
         let selftext = d["selftext"].str()?.nilIfEmpty ?? content["selftext"].str() ?? ""
+        let subredditIcon = (d["sr_detail"]["community_icon"].str()?.nilIfEmpty ?? d["sr_detail"]["icon_img"].str()?.nilIfEmpty)?.htmlAmpFixed()
+        // For a Reddit Home card's icon before its full post comes.
+        SubredditIcons.shared.remember(d["subreddit"].str() ?? "", subredditIcon)
 
         return Post(
             id: d["id"].str() ?? "",
@@ -137,7 +140,7 @@ struct Post: Identifiable, Equatable, Sendable, Copyable {
             title: (d["title"].str() ?? "").trimmed,
             subreddit: d["subreddit"].str() ?? "",
             subredditPrefixed: d["subreddit_name_prefixed"].str() ?? "",
-            subredditIcon: (d["sr_detail"]["community_icon"].str()?.nilIfEmpty ?? d["sr_detail"]["icon_img"].str()?.nilIfEmpty)?.htmlAmpFixed(),
+            subredditIcon: subredditIcon,
             author: d["author"].str() ?? "[deleted]",
             authorFullname: d["author_fullname"].str() ?? "",
             score: d["score"].int() ?? 0,

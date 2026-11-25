@@ -562,6 +562,10 @@ final class RedditRepository: Sendable {
             after = data["after"].str()
             if after == nil { break }
         }
+        // Icons for Reddit Home cards of communities no post has shown yet, as the website
+        // sign-in's posts give them (without the query); a post's own URL wins.
+        let web = await client.isWebMode()
+        for s in result { SubredditIcons.shared.remember(s.name, web ? s.iconUrl?.substringBefore("?") : s.iconUrl, overwrite: false) }
         let sorted = result.enumerated().sorted { a, b in
             if a.element.userHasFavorited != b.element.userHasFavorited { return a.element.userHasFavorited }
             let (x, y) = (a.element.name.lowercased(), b.element.name.lowercased())
