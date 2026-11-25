@@ -45,11 +45,19 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.111", "Nov 25, 2026",
+        listOf(
+            "Videos: a playback speed button (0.5× to 4×) next to Mute, in the viewer and Browse media (#260)",
+            "Expandable top bar: the big title on Profile, Saved, History, Read later, Drafts, Custom feeds and Digest too, folding into the bar as you scroll (#247)",
+            "Subreddits, with Header height on Medium or Tall: the community's banner (or its colour) as the header, the icon and name sliding into the bar as you scroll, and the description in a card with Show all (#257)",
+        ),
+    ),
+    Release(
         "2.0.110", "Nov 25, 2026",
         listOf(
             "Videos from search and the Home feed can be downloaded again, with their sound (#261)",
             "Viewing a single thread: the capsule floats over the post without leaving a gap, stays while you scroll, and swipes away sideways, as does \"Back where you left off\" (#264)",
-            "Top bars: the buttons sit at the same height on every tab and page (#263)",
+            "Top bars: the buttons sit at the same height on every tab and side bar page (#263)",
             "Side bar: the ☰ turns a little more as it fans (#258)",
         ),
     ),
