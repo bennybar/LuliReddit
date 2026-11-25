@@ -47,6 +47,13 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.113", "Nov 25, 2026",
+        listOf(
+            "GIFs: GIF posts Reddit labels as images now play, as Reddit's small mp4 copy (#265)",
+            "Updates: the update notice shows what's new in the release it offers (#266)",
+        ),
+    ),
+    Release(
         "2.0.112", "Nov 25, 2026",
         listOf(
             "Subreddit header: a community without a banner or a colour of its own gets a soft band of your accent colour instead of grey (#257)",

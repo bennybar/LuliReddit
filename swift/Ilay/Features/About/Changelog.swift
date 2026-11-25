@@ -12,6 +12,11 @@ struct Release: Identifiable {
 /// 2.0 (the native app, with Reddit Home). Add the new release at the top
 /// with every release.
 let CHANGELOG = [
+    Release(version: "2.0.113", date: "Nov 25, 2026", highlights: [
+        "GIFs: GIF posts Reddit labels as images now play, as Reddit's small mp4 copy (#265)",
+        "Settings → Check for updates shows what's new in the release it offers (#266)",
+        "Subreddit header: the community's icon is no longer covered by the banner (#257)",
+    ]),
     Release(version: "2.0.112", date: "Nov 25, 2026", highlights: [
         "Subreddit header: a shorter band, in your accent colour when the community has no banner or colour; the description card and the icon's ring in the feed's colours (#257)",
     ]),
