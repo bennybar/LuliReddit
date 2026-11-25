@@ -726,9 +726,18 @@ final class RedditHomeEngine {
 
     /// `full`, each keeping the reason Reddit's page gave for it.
     private func withReasons(_ full: [Post], _ page: [PagePost]) -> [Post] {
-        var reasons: [String: String] = [:]
-        for p in page { reasons[p.id.removePrefix("t3_")] = p.reason }
-        return full.map { p in reasons[p.id].map { r in p.with { $0.feedReason = r } } ?? p }
+        var cards: [String: PagePost] = [:]
+        for p in page { cards[p.id.removePrefix("t3_")] = p }
+        return full.map { p in
+            guard let card = cards[p.id] else { return p }
+            // The card keeps the photo it already showed (the page's copy of the same
+            // picture): Reddit's own preview URL differs, so the card loaded it again.
+            let keep = p.type != .gallery && p.previewMedUrl != nil ? card.image : nil
+            return p.with {
+                if let r = card.reason { $0.feedReason = r }
+                if let keep { $0.previewMedUrl = keep }
+            }
+        }
     }
 
     /// Anonymous: whether a Home load worked, how many posts and how long (coarse ranges).

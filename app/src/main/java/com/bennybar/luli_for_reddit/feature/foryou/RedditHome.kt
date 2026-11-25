@@ -763,8 +763,14 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
             if (full != null || stale()) break
         }
         if (full == null || stale()) return
-        val reasons = page.associate { it.id.removePrefix("t3_") to it.reason }
-        val posts = full.map { p -> reasons[p.id]?.let { p.copy(feedReason = it) } ?: p }
+        val byId = page.associateBy { it.id.removePrefix("t3_") }
+        val posts = full.map { p ->
+            val card = byId[p.id] ?: return@map p
+            // The card keeps the photo it already showed (the page's copy of the same
+            // picture): Reddit's own preview URL differs, so the card loaded it again.
+            val keep = card.image?.takeIf { p.type != PostType.GALLERY && p.previewMedUrl != null }
+            p.copy(feedReason = card.reason ?: p.feedReason, previewMedUrl = keep ?: p.previewMedUrl)
+        }
         _upgrades.emit(posts)
         if (firstPage && user.isNotEmpty()) {
             launchIo { saveForYouPage(c.context, user, posts, c.repository::rawPost, feed = "home") }
