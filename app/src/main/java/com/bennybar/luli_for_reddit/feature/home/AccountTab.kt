@@ -99,7 +99,8 @@ internal fun ProfileTab() {
 
     Column(Modifier.fillMaxSize()) {
         // Lined up with Home's title row (#153): it sits in the feed's 7dp inset, its ☰
-        // nudged 3dp out, 10dp down without the side bar.
+        // nudged 3dp out, 10dp down with or without the side bar (#263: 8dp with it put its
+        // buttons 2dp above the other tabs').
         val sideBar = LocalSideBar.current != null
         val settings by app.settings.state.collectAsStateWithLifecycle()
         val signedOut = anonymous || username.isEmpty()
@@ -120,7 +121,7 @@ internal fun ProfileTab() {
             }
         } else Row(
             // The buttons 4dp from the edge, as the other tabs' bars (#236).
-            Modifier.fillMaxWidth().padding(start = if (sideBar) 7.dp else 20.dp, top = if (sideBar) 8.dp else 10.dp, end = 4.dp),
+            Modifier.fillMaxWidth().padding(start = if (sideBar) 7.dp else 20.dp, top = 10.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             SideBarButton(Modifier.offset(x = (-3).dp))

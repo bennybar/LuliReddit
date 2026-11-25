@@ -31,6 +31,8 @@ struct PostDetailScreen: View {
     @State private var resumeAt: (fullname: String, offset: Int)?
     /// "Back where you left off · Top", for a few seconds at the top (#223).
     @State private var backNotice = false
+    /// The "single thread" capsule, swiped away (#264).
+    @State private var focusDismissed = false
     @State private var resumed: Bool
 
     @Environment(\.scenePhase) private var scenePhase
@@ -177,14 +179,12 @@ struct PostDetailScreen: View {
                         .animation(.easeOut(duration: 0.2), value: toolbarScroll.userScrolling)
                     }
                 if searchOpen, thread != nil { searchBar }
-                if focusCommentId != nil {
+                if focusCommentId != nil, !focusDismissed {
+                    // Stays while you scroll; swipe it sideways to put it away (#264).
                     focusBanner
+                        .modifier(SwipeAway { focusDismissed = true })
                         .padding(.top, 8)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                        // Out of the way while a finger scrolls, as the thread's buttons.
-                        .opacity(toolbarScroll.userScrolling ? 0 : 1)
-                        .allowsHitTesting(!toolbarScroll.userScrolling)
-                        .animation(.easeOut(duration: 0.2), value: toolbarScroll.userScrolling)
                 }
                 if backNotice {
                     // At the top for a few seconds or until you scroll. It was a toast,
@@ -201,6 +201,7 @@ struct PostDetailScreen: View {
                     .padding(.trailing, 12)
                     .padding(.vertical, 10)
                     .glassEffect(.regular, in: .capsule)
+                    .modifier(SwipeAway { backNotice = false })
                     .padding(.top, 8)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .transition(.opacity)
@@ -590,5 +591,26 @@ private struct ThreadToolbar: View {
         .buttonStyle(.glassProminent)
         .buttonBorderShape(.circle)
         .accessibilityLabel("New comment")
+    }
+}
+
+/// A floating capsule follows a sideways swipe and, swiped far or fast enough, goes (#264).
+private struct SwipeAway: ViewModifier {
+    let onDismiss: () -> Void
+    @State private var x: CGFloat = 0
+
+    func body(content: Content) -> some View {
+        content
+            .offset(x: x)
+            .opacity(1 - min(abs(x) / 192, 1))
+            .gesture(
+                DragGesture(minimumDistance: 12)
+                    .onChanged { x = $0.translation.width }
+                    .onEnded { g in
+                        let far = abs(g.translation.width) > 96 || abs(g.predictedEndTranslation.width) > 300
+                        withAnimation(.easeOut(duration: 0.2)) { x = far ? (g.translation.width < 0 ? -400 : 400) : 0 }
+                        if far { onDismiss() }
+                    }
+            )
     }
 }

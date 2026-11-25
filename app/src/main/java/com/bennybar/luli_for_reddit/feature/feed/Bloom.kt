@@ -10,6 +10,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.add
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -295,6 +297,9 @@ fun BloomTopBar(
             else if (showBack) IconButton(onClick = { nav.pop() }, shapes = IconButtonDefaults.shapes()) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
         },
         actions = actions,
+        // 2dp lower than Material's, so its buttons line up with the tabs' own bars
+        // (34dp under the status bar, like the header's row), page to page (#263).
+        windowInsets = TopAppBarDefaults.windowInsets.add(WindowInsets(top = 2.dp)),
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.surface,
             scrolledContainerColor = MaterialTheme.colorScheme.surface,

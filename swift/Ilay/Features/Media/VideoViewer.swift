@@ -242,8 +242,9 @@ struct VideoViewer: View {
                 ViewerControls(
                     title: model.title,
                     sourceUrl: link,
-                    // A direct mp4 for saving (an HLS playlist can't be saved).
-                    downloadUrl: model.downloadUrl.flatMap { $0.contains(".m3u8") ? nil : $0 },
+                    // A direct mp4 for saving; an HLS playlist only when it's Reddit's own,
+                    // whose mp4 the save finds from it (#261).
+                    downloadUrl: model.downloadUrl.flatMap { $0.contains(".m3u8") && URL(string: $0)?.host != "v.redd.it" ? nil : $0 },
                     downloadIsVideo: true,
                     close: state.close
                 )

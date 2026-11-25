@@ -141,7 +141,8 @@ internal suspend fun saveMedia(url: String, isVideo: Boolean, title: String? = n
     val job = app.scope.launch(Dispatchers.IO) {
         val clean = url.substringBefore('?')
         var ext = if ('.' in clean.substringAfterLast('/')) clean.substringAfterLast('.').lowercase() else ""
-        if (ext.isEmpty() || ext.length > 4) ext = if (isVideo) "mp4" else "jpg"
+        // An HLS playlist is saved as its mp4 (#261).
+        if (ext.isEmpty() || ext.length > 4 || ext == "m3u8") ext = if (isVideo) "mp4" else "jpg"
         val ts = System.currentTimeMillis()
         val tmp = File(app.context.cacheDir, "luli_$ts.$ext")
         try {

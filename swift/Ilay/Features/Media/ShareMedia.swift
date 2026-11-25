@@ -99,7 +99,8 @@ private func downloadPostMedia(_ post: Post, dir: URL, onProgress: @escaping Dow
         return files
     case .video:
         let redgifs = post.fallbackVideoUrl == nil && Redgifs.id(post.url) != nil ? await Redgifs.shared.resolve(post.url) : nil
-        guard let video = redgifs ?? post.fallbackVideoUrl else { return [] }
+        // A GraphQL or Home post has only the HLS playlist (#261): its mp4 is found from it.
+        guard let video = redgifs ?? post.fallbackVideoUrl ?? post.hlsUrl else { return [] }
         let out = dir.appending(path: "ilay_\(post.id).mp4")
         if redgifs != nil {
             try await downloadTo(video, dest: out, onProgress: onProgress)
@@ -115,7 +116,8 @@ private func downloadPostMedia(_ post: Post, dir: URL, onProgress: @escaping Dow
 /// Downloads a Reddit-hosted video (v.redd.it) into `out` *with its sound*: a Reddit
 /// video's mp4 has none, the audio (if the video has any) is a separate file named in
 /// its DASH playlist (DASH_AUDIO_128.mp4, CMAF_AUDIO_128.mp4…). Both are downloaded next
-/// to `out` and put together, without re-encoding.
+/// to `out` and put together, without re-encoding. `videoUrl` may be the HLS playlist
+/// (all a GraphQL or Home post carries, #261): then the picture is the playlist's best mp4.
 func downloadRedditVideo(_ videoUrl: String, out: URL, onProgress: @escaping DownloadProgress) async throws {
     let fm = FileManager.default
     let dir = out.deletingLastPathComponent()
@@ -128,18 +130,24 @@ func downloadRedditVideo(_ videoUrl: String, out: URL, onProgress: @escaping Dow
         try? fm.removeItem(at: audio)
         try? fm.removeItem(at: mpd)
     }
-    try await downloadTo(videoUrl, dest: silent, onProgress: onProgress)
     let clean = videoUrl.split(separator: "?", omittingEmptySubsequences: false).first.map(String.init) ?? videoUrl
     let base = clean.lastIndex(of: "/").map { String(clean[..<$0]) } ?? clean
-    var audioName: String?
+    var playlist: String?
     do {
         try await downloadTo("\(base)/DASHPlaylist.mpd", dest: mpd)
-        audioName = audioTrack((try? String(contentsOf: mpd, encoding: .utf8)) ?? "")
+        playlist = (try? String(contentsOf: mpd, encoding: .utf8)) ?? ""
     } catch is CancellationError {
         throw CancellationError()
     } catch {
         // No playlist: no sound.
     }
+    var video = videoUrl
+    if videoUrl.contains(".m3u8") {
+        guard let name = playlist.flatMap(videoTrack) else { throw URLError(.fileDoesNotExist) }
+        video = "\(base)/\(name)"
+    }
+    try await downloadTo(video, dest: silent, onProgress: onProgress)
+    let audioName = playlist.flatMap(audioTrack)
     var gotAudio = false
     if let audioName {
         do {
@@ -157,7 +165,12 @@ func downloadRedditVideo(_ videoUrl: String, out: URL, onProgress: @escaping Dow
 }
 
 /// The best audio file named in a DASH playlist, or nil when the video has no sound.
-func audioTrack(_ mpd: String) -> String? {
+func audioTrack(_ mpd: String) -> String? { bestTrack(mpd, kind: "audio") }
+
+/// The best (highest bandwidth) video file named in a DASH playlist.
+func videoTrack(_ mpd: String) -> String? { bestTrack(mpd, kind: "video") }
+
+private func bestTrack(_ mpd: String, kind: String) -> String? {
     let sets = try! NSRegularExpression(pattern: #"<AdaptationSet\b[^>]*>.*?</AdaptationSet>"#, options: .dotMatchesLineSeparators)
     let representation = try! NSRegularExpression(
         pattern: #"<Representation\b[^>]*?bandwidth="(\d+)"[^>]*>.*?<BaseURL>([^<]+)</BaseURL>"#,
@@ -168,7 +181,7 @@ func audioTrack(_ mpd: String) -> String? {
     var name: String?
     for match in sets.matches(in: mpd, range: NSRange(location: 0, length: text.length)) {
         let set = text.substring(with: match.range)
-        guard set.contains(#"contentType="audio""#) || set.contains(#"mimeType="audio/"#) else { continue }
+        guard set.contains("contentType=\"\(kind)\"") || set.contains("mimeType=\"\(kind)/") else { continue }
         let setText = set as NSString
         for rep in representation.matches(in: set, range: NSRange(location: 0, length: setText.length)) {
             let bandwidth = Int(setText.substring(with: rep.range(at: 1))) ?? 0

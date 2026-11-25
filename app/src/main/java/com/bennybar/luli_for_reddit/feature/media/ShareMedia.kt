@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 import java.nio.ByteBuffer
 
 /** Shared files are kept this long (the receiving app reads them after the share sheet closes), then deleted. */
@@ -120,7 +121,8 @@ private suspend fun download(post: Post, dir: File, onProgress: (Long, Long) -> 
         PostType.GALLERY -> post.gallery.mapIndexed { i, g -> image(g.url, i) }
         PostType.VIDEO -> {
             val redgifs = if (post.fallbackVideoUrl == null && Redgifs.id(post.url) != null) Redgifs.resolve(post.url) else null
-            val video = redgifs ?: post.fallbackVideoUrl ?: return emptyList()
+            // A GraphQL or Home post has only the HLS playlist (#261): its mp4 is found from it.
+            val video = redgifs ?: post.fallbackVideoUrl ?: post.hlsUrl ?: return emptyList()
             val out = File(dir, "ilay_${post.id}.mp4")
             if (redgifs != null) {
                 downloadTo(video, out, onProgress)
@@ -138,6 +140,8 @@ private suspend fun download(post: Post, dir: File, onProgress: (Long, Long) -> 
  * Reddit video's mp4 has none, the audio (if the video has any) is a separate
  * file named in its DASH playlist (DASH_AUDIO_128.mp4, CMAF_AUDIO_128.mp4…).
  * Both are downloaded next to [out] and put together, without re-encoding.
+ * [videoUrl] may be the HLS playlist (all a GraphQL or Home post carries, #261):
+ * then the picture is the playlist's best mp4.
  */
 internal suspend fun downloadRedditVideo(videoUrl: String, out: File, onProgress: (Long, Long) -> Unit) {
     val dir = out.parentFile!!
@@ -146,12 +150,15 @@ internal suspend fun downloadRedditVideo(videoUrl: String, out: File, onProgress
     val audio = File(dir, "audio_$stamp.mp4")
     val mpd = File(dir, "playlist_$stamp.mpd")
     try {
-        downloadTo(videoUrl, silent, onProgress)
         val base = videoUrl.substringBefore('?').substringBeforeLast('/')
-        val audioName = runCatching {
+        val playlist = runCatching {
             downloadTo("$base/DASHPlaylist.mpd", mpd) { _, _ -> }
-            audioTrack(mpd.readText())
+            mpd.readText()
         }.onFailure { if (it is CancellationException) throw it }.getOrNull()
+        val hls = ".m3u8" in videoUrl
+        val video = if (hls) playlist?.let(::videoTrack)?.let { "$base/$it" } ?: throw IOException("No mp4 in the playlist") else videoUrl
+        downloadTo(video, silent, onProgress)
+        val audioName = playlist?.let(::audioTrack)
         val gotAudio = audioName != null && runCatching { downloadTo("$base/$audioName", audio, onProgress) }
             .onFailure { if (it is CancellationException) throw it }.isSuccess
         if (!(gotAudio && runCatching { mux(silent, audio, out) }.isSuccess)) {
@@ -165,10 +172,15 @@ internal suspend fun downloadRedditVideo(videoUrl: String, out: File, onProgress
 }
 
 /** The best audio file named in a DASH playlist, or null when the video has no sound. */
-internal fun audioTrack(mpd: String): String? =
+internal fun audioTrack(mpd: String): String? = bestTrack(mpd, "audio")
+
+/** The best (highest bandwidth) video file named in a DASH playlist. */
+internal fun videoTrack(mpd: String): String? = bestTrack(mpd, "video")
+
+private fun bestTrack(mpd: String, kind: String): String? =
     Regex("<AdaptationSet\\b[^>]*>.*?</AdaptationSet>", RegexOption.DOT_MATCHES_ALL).findAll(mpd)
         .map { it.value }
-        .filter { "contentType=\"audio\"" in it || "mimeType=\"audio/" in it }
+        .filter { "contentType=\"$kind\"" in it || "mimeType=\"$kind/" in it }
         .flatMap { set ->
             Regex("<Representation\\b[^>]*?bandwidth=\"(\\d+)\"[^>]*>.*?<BaseURL>([^<]+)</BaseURL>", RegexOption.DOT_MATCHES_ALL).findAll(set)
                 .map { it.groupValues[1].toLong() to it.groupValues[2].trim() }

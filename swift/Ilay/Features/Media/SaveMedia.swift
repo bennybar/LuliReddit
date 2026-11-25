@@ -161,7 +161,8 @@ func savedFileName(_ title: String?, ts: Int) -> String {
         let clean = url.split(separator: "?", omittingEmptySubsequences: false).first.map(String.init) ?? url
         let last = clean.split(separator: "/").last.map(String.init) ?? ""
         var ext = last.contains(".") ? (last.split(separator: ".").last.map { $0.lowercased() } ?? "") : ""
-        if ext.isEmpty || ext.count > 4 { ext = isVideo ? "mp4" : "jpg" }
+        // An HLS playlist is saved as its mp4 (#261).
+        if ext.isEmpty || ext.count > 4 || ext == "m3u8" { ext = isVideo ? "mp4" : "jpg" }
         let ts = Int(Date().timeIntervalSince1970 * 1000)
         let tmp = FileManager.default.temporaryDirectory.appending(path: "luli_\(ts).\(ext)")
         defer { try? FileManager.default.removeItem(at: tmp) }

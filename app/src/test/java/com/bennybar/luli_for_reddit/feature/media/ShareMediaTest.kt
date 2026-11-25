@@ -50,4 +50,10 @@ class ShareMediaTest {
         val real = """<MPD><Period duration="PT8.066667S" id="0"><AdaptationSet contentType="video" id="1" maxFrameRate="15360/512"><Representation bandwidth="169464" codecs="avc1.4d401e" frameRate="15360/512" height="220" id="5" mimeType="video/mp4" width="220"><BaseURL>CMAF_220.mp4</BaseURL><SegmentBase indexRange="871-938" timescale="15360"><Initialization range="0-870" /></SegmentBase></Representation></AdaptationSet></Period></MPD>"""
         assertNull(audioTrack(real))
     }
+
+    @Test
+    fun `an HLS-only post saves the playlist's best video (#261)`() {
+        assertEquals("CMAF_720.mp4", videoTrack(mpd("")))
+        assertNull(videoTrack("<MPD></MPD>"))
+    }
 }

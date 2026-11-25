@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.media
 
+import android.net.Uri
 import androidx.compose.material.icons.rounded.Replay
 import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
@@ -389,8 +390,9 @@ internal fun VideoViewer(route: MediaViewer.Video) {
             ViewerControls(
                 title = route.title,
                 sourceUrl = link,
-                // A direct mp4 for saving (an HLS playlist can't be saved).
-                downloadUrl = route.downloadUrl?.takeIf { ".m3u8" !in it },
+                // A direct mp4 for saving; an HLS playlist only when it's Reddit's own,
+                // whose mp4 the save finds from it (#261).
+                downloadUrl = route.downloadUrl?.takeIf { ".m3u8" !in it || Uri.parse(it).host == "v.redd.it" },
                 downloadIsVideo = true,
                 modifier = if (err == null) Modifier.alpha(controlsAlpha) else Modifier,
             )

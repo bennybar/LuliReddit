@@ -1,5 +1,12 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlin.math.abs
+import kotlin.math.sign
 import com.bennybar.luli_for_reddit.ui.theme.ScaledText
 import com.bennybar.luli_for_reddit.ui.theme.TextKind
 import androidx.compose.material.icons.outlined.EmojiEvents
@@ -282,6 +289,8 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
     val scope = rememberCoroutineScope()
     // Reopens where you left off (#179); a link to one comment opens on that comment instead.
     var backNotice by remember { mutableStateOf(false) }
+    // The "single thread" capsule, swiped away (#264).
+    var pillDismissed by rememberSaveable { mutableStateOf(false) }
     if (focusCommentId == null) ThreadPosition(postId, listState, flat, settled = !ui.loading && !ui.fullPagePending) { backNotice = true }
     val haptic = LocalHapticFeedback.current
 
@@ -480,8 +489,6 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
                             currentMatchId = currentMatchId,
                             settings = settings,
                             actions = actions,
-                            // Room above the post for the floating "single thread" capsule.
-                            topPadding = if (focusCommentId != null) 60.dp else 6.dp,
                         )
                     }
                 }
@@ -504,7 +511,11 @@ fun PostDetailScreen(subreddit: String, postId: String, focusCommentId: String?)
                 }
             }
             if (thread != null && focusCommentId != null) {
-                SingleThreadPill(fab.expanded) { nav.pop(); nav.push(Route.Post(subreddit, postId)) }
+                SingleThreadPill(
+                    visible = !pillDismissed,
+                    onShowAll = { nav.pop(); nav.push(Route.Post(subreddit, postId)) },
+                    onDismiss = { pillDismissed = true },
+                )
             }
             BackWhereYouLeftOff(
                 backNotice,
@@ -570,7 +581,8 @@ private fun ThreadPosition(postId: String, listState: LazyListState, flat: List<
 
 /**
  * "Back where you left off · Top", at the top of the thread for a few seconds or until you
- * scroll. It was a snackbar, which covered the thread's buttons at the bottom (#223).
+ * scroll, or swipe it sideways (#264). It was a snackbar, which covered the thread's buttons
+ * at the bottom (#223).
  */
 @Composable
 private fun BoxScope.BackWhereYouLeftOff(visible: Boolean, listState: LazyListState, onTop: () -> Unit, onDone: () -> Unit) {
@@ -580,13 +592,37 @@ private fun BoxScope.BackWhereYouLeftOff(visible: Boolean, listState: LazyListSt
         if (dragged) onDone() else { delay(4000); onDone() }
     }
     AnimatedVisibility(visible, Modifier.align(Alignment.TopCenter).padding(top = 8.dp), enter = fadeIn(), exit = fadeOut()) {
-        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer, shadowElevation = 3.dp) {
+        Surface(Modifier.swipeAway(onDone), shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer, shadowElevation = 3.dp) {
             Row(Modifier.padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Back where you left off", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSecondaryContainer)
                 TextButton(onClick = onTop) { Text("Top") }
             }
         }
     }
+}
+
+/** A floating capsule follows a sideways swipe and, swiped far or fast enough, goes (#264). */
+@Composable
+private fun Modifier.swipeAway(onDismiss: () -> Unit): Modifier {
+    val x = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+    val far = with(LocalDensity.current) { 96.dp.toPx() }
+    return graphicsLayer {
+        translationX = x.value
+        alpha = 1f - (abs(x.value) / (far * 2)).coerceIn(0f, 1f)
+    }.draggable(
+        rememberDraggableState { d -> scope.launch { x.snapTo(x.value + d) } },
+        Orientation.Horizontal,
+        onDragStopped = { v ->
+            if (abs(x.value) > far || abs(v) > 1500f) {
+                val dir = if (x.value != 0f) sign(x.value) else sign(v)
+                x.animateTo(dir * far * 3)
+                onDismiss()
+            } else {
+                x.animateTo(0f)
+            }
+        },
+    )
 }
 
 /** Pause/resume reading time with the screen; learn when another screen covers it. */
@@ -797,7 +833,6 @@ private fun CommentList(
     currentMatchId: String?,
     settings: Settings,
     actions: ThreadActions,
-    topPadding: Dp = 6.dp,
 ) {
     val flat = thread.flat
     // Animated images in the thread pause while it scrolls (see rememberPauseWhileScrolling).
@@ -815,7 +850,7 @@ private fun CommentList(
             Modifier.fillMaxSize(),
             state = listState,
             // Room for the floating buttons, so the last comment clears them.
-            contentPadding = PaddingValues(top = topPadding, bottom = 160.dp),
+            contentPadding = PaddingValues(top = 6.dp, bottom = 160.dp),
         ) {
             item(key = "header", contentType = "header") {
                 Column {
@@ -908,11 +943,11 @@ private fun FoldedReplies(c: Comment, actions: ThreadActions) {
 
 /**
  * Single-comment view (from an inbox reply / permalink): "Show all" opens the whole thread.
- * A floating capsule like "Back where you left off" (#253), not a full-width banner; it steps
- * aside as you scroll down and comes back as you scroll up, with the thread's buttons.
+ * A floating capsule like "Back where you left off" (#253), not a full-width banner: it takes
+ * no room in the thread and stays while you scroll; swipe it sideways to put it away (#264).
  */
 @Composable
-private fun BoxScope.SingleThreadPill(visible: Boolean, onShowAll: () -> Unit) {
+private fun BoxScope.SingleThreadPill(visible: Boolean, onShowAll: () -> Unit, onDismiss: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     AnimatedVisibility(
         visible,
@@ -920,7 +955,7 @@ private fun BoxScope.SingleThreadPill(visible: Boolean, onShowAll: () -> Unit) {
         enter = fadeIn() + slideInVertically { -it },
         exit = fadeOut() + slideOutVertically { -it },
     ) {
-        Surface(shape = CircleShape, color = cs.secondaryContainer, shadowElevation = 3.dp) {
+        Surface(Modifier.swipeAway(onDismiss), shape = CircleShape, color = cs.secondaryContainer, shadowElevation = 3.dp) {
             Row(Modifier.padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Viewing a single thread", style = MaterialTheme.typography.labelLarge, color = cs.onSecondaryContainer)
                 TextButton(onClick = onShowAll) { Text("Show all") }

@@ -117,7 +117,7 @@ fun SideBarButton(modifier: Modifier = Modifier) {
             val u = size.width / 24f // the icon's 24-unit grid
             withTransform({
                 if (rtl) scale(-1f, 1f)
-                rotate(15f * p)
+                rotate(45f * p) // "spin a bit more" (#258)
             }) {
                 for (d in listOf(-6f, 0f, 6f)) {
                     drawLine(
