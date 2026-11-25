@@ -144,6 +144,10 @@ data class Post(
             val flair = d["link_flair_text"].str()
             val poll = content["poll_data"]
             val pollRaw = poll["options"].arr().orEmpty().filter { !it["text"].str().isNullOrEmpty() }
+            val subredditIcon = (d["sr_detail"]["community_icon"].str()?.ifEmpty { null } ?: d["sr_detail"]["icon_img"].str()?.ifEmpty { null })
+                ?.replace("&amp;", "&")
+            // For a Reddit Home card's icon before its full post comes.
+            SubredditIcons.remember(d["subreddit"].str() ?: "", subredditIcon)
 
             return Post(
                 id = d["id"].str() ?: "",
@@ -151,8 +155,7 @@ data class Post(
                 title = (d["title"].str() ?: "").trim(),
                 subreddit = d["subreddit"].str() ?: "",
                 subredditPrefixed = d["subreddit_name_prefixed"].str() ?: "",
-                subredditIcon = (d["sr_detail"]["community_icon"].str()?.ifEmpty { null } ?: d["sr_detail"]["icon_img"].str()?.ifEmpty { null })
-                    ?.replace("&amp;", "&"),
+                subredditIcon = subredditIcon,
                 author = d["author"].str() ?: "[deleted]",
                 authorFullname = d["author_fullname"].str() ?: "",
                 authorFlair = flairOf(d, "author"),
