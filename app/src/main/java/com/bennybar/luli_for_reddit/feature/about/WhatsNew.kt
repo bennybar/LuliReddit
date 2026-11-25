@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -32,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import com.bennybar.luli_for_reddit.BuildConfig
 import com.bennybar.luli_for_reddit.app
 import com.bennybar.luli_for_reddit.feature.feed.BloomTopBar
+import com.bennybar.luli_for_reddit.feature.markdown.RedditMarkdown
 import com.bennybar.luli_for_reddit.nav.Route
 import com.bennybar.luli_for_reddit.ui.Overlays
 
@@ -799,6 +801,20 @@ internal fun newer(a: String, b: String): Boolean {
         if (d != 0) return d > 0
     }
     return false
+}
+
+/** The update notice's text: [message], then the new release's notes, scrolling when long (#266). */
+@Composable
+fun UpdateNoticeText(message: String, notes: String?) {
+    Column {
+        Text(message)
+        if (notes != null) {
+            Spacer(Modifier.height(12.dp))
+            Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
+                RedditMarkdown(notes, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
 }
 
 /**

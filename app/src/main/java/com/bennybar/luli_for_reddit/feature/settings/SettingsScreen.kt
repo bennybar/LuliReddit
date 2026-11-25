@@ -3,6 +3,7 @@ package com.bennybar.luli_for_reddit.feature.settings
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.MailOutline
 import androidx.compose.material.icons.automirrored.rounded.Notes
+import com.bennybar.luli_for_reddit.feature.about.UpdateNoticeText
 import com.bennybar.luli_for_reddit.feature.inbox.InboxNotifications
 import androidx.compose.material.icons.outlined.DynamicFeed
 import androidx.compose.material.icons.outlined.Palette
@@ -1660,7 +1661,7 @@ private suspend fun checkUpdatesNow() {
         AlertDialog(
             onDismissRequest = { done(false) },
             title = { Text("Update available — v${info.version}") },
-            text = { Text("A newer version is available on GitHub.") },
+            text = { UpdateNoticeText("A newer version is available on GitHub.", info.notes) },
             dismissButton = { TextButton(onClick = { done(false) }) { Text("Later") } },
             confirmButton = { Button(onClick = { done(true) }) { Text("Download") } },
         )

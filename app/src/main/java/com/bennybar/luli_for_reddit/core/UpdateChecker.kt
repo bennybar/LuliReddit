@@ -11,6 +11,7 @@ data class UpdateInfo(
     val version: String,
     val url: String, // release page
     val apkUrl: String?, // direct .apk asset if present
+    val notes: String? = null, // the release's notes (markdown), shown in the update notice (#266)
 )
 
 /**
@@ -41,11 +42,15 @@ object UpdateChecker {
             val apk = (best["assets"].arr() ?: emptyList())
                 .filter { it["name"].str()?.lowercase()?.endsWith(".apk") == true }
                 .maxByOrNull { it["size"].long() ?: 0 }?.get("browser_download_url").str()
-            UpdateInfo(tag, best["html_url"].str() ?: "https://github.com/${RedditConstants.GITHUB_REPO}/releases", apk)
+            UpdateInfo(tag, best["html_url"].str() ?: "https://github.com/${RedditConstants.GITHUB_REPO}/releases", apk, releaseNotes(best["body"].str()))
         }
     } catch (_: Exception) {
         null
     }
+
+    /** A release's notes without the "Download `….apk`" footer, which the notice's button replaces. */
+    fun releaseNotes(body: String?): String? =
+        body?.lines()?.filterNot { it.trimStart().startsWith("Download `") }?.joinToString("\n")?.trim()?.ifEmpty { null }
 
     private fun tagOf(release: JsonElement): String = (release["tag_name"].str() ?: "").removePrefix("v").trim()
 

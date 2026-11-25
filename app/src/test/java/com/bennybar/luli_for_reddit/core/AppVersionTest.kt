@@ -39,4 +39,12 @@ class AppVersionTest {
         assertEquals(0, UpdateChecker.compareVersions("2.0", "2.0.0"))
         assertTrue(UpdateChecker.compareVersions("1.0.51", "2") < 0)
     }
+
+    @Test
+    fun `the update notice shows a release's notes without the download footer`() {
+        val body = "- **GIFs:** play as video (#265)\n\nDownload `ilay-for-reddit-2.0.113.apk` (universal) or the APK for your device's ABI."
+        assertEquals("- **GIFs:** play as video (#265)", UpdateChecker.releaseNotes(body))
+        assertEquals(null, UpdateChecker.releaseNotes("Download `x.apk`"))
+        assertEquals(null, UpdateChecker.releaseNotes(null))
+    }
 }

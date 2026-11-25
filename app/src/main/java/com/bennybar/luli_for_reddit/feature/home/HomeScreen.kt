@@ -43,6 +43,7 @@ import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.outlined.StarBorder
 import com.bennybar.luli_for_reddit.settings.SideBarItem
 import androidx.compose.material3.MotionScheme
+import com.bennybar.luli_for_reddit.feature.about.UpdateNoticeText
 import com.bennybar.luli_for_reddit.feature.about.maybeShowWhatsNew
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.derivedStateOf
@@ -866,7 +867,7 @@ private suspend fun maybeCheckUpdates(context: android.content.Context) {
         AlertDialog(
             onDismissRequest = { done(null) },
             title = { Text("Update available — v${info.version}") },
-            text = { Text("A newer version of Ilay is available on GitHub.") },
+            text = { UpdateNoticeText("A newer version of Ilay is available on GitHub.", info.notes) },
             dismissButton = { TextButton(onClick = { done(false) }) { Text("Later") } },
             confirmButton = { Button(onClick = { done(true) }) { Text("Download") } },
         )
