@@ -121,6 +121,7 @@ final class SettingsStore {
         s.threadJumpMine = b("threadJumpMine", s.threadJumpMine)
         s.threadJumpNext = b("threadJumpNext", s.threadJumpNext)
         s.threadButtonsHideOnScroll = b("threadButtonsHideOnScroll", s.threadButtonsHideOnScroll)
+        s.resumeThreads = b("resumeThreads", s.resumeThreads)
         // Old installs may have stored the removed "compact" (1) or the old
         // expandable index (2); clamping maps both safely.
         if let m = p.getInt("topBarMode") {
@@ -302,6 +303,7 @@ final class SettingsStore {
     func setThreadJumpMine(_ v: Bool) { p.setBool("threadJumpMine", v); set { $0.threadJumpMine = v } }
     func setThreadJumpNext(_ v: Bool) { p.setBool("threadJumpNext", v); set { $0.threadJumpNext = v } }
     func setThreadButtonsHideOnScroll(_ v: Bool) { p.setBool("threadButtonsHideOnScroll", v); set { $0.threadButtonsHideOnScroll = v } }
+    func setResumeThreads(_ v: Bool) { p.setBool("resumeThreads", v); set { $0.resumeThreads = v } }
     func setTopBarMode(_ v: TopBarMode) { p.setInt("topBarMode", v.rawValue); set { $0.topBarMode = v } }
     func setTitleTextScale(_ v: Double) { p.setDouble("titleTextScale", v); set { $0.titleTextScale = v } }
     func setPostTextScale(_ v: Double) { p.setDouble("postTextScale", v); set { $0.postTextScale = v } }

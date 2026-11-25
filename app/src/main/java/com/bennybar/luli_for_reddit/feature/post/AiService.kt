@@ -21,6 +21,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
+import java.io.InterruptedIOException
 import java.util.concurrent.TimeUnit
 
 /** Summary styles for AI thread summaries. Persisted by index (`aiSummaryStyle`). */
@@ -56,6 +57,9 @@ object AiService {
         Http.client.newBuilder()
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(90, TimeUnit.SECONDS)
+            // The whole request, however it trickles: a busy provider can keep a
+            // request open without ever answering, which spun forever (#267).
+            .callTimeout(150, TimeUnit.SECONDS)
             .build()
     }
 
@@ -140,23 +144,38 @@ object AiService {
         }
         val (code, text) = try {
             client.await(req).use { r -> r.code to withContext(Dispatchers.IO) { r.body.string() } }
+        } catch (e: InterruptedIOException) {
+            throw Exception("The AI didn't answer in time. It may be busy: try again in a moment.")
         } catch (e: IOException) {
             throw Exception("Could not reach the AI endpoint: ${e.message}")
         }
         val data: JsonElement? = runCatching { AppJson.parseToJsonElement(text) }.getOrNull()
-        if (code != 200) {
-            val msg = if (data is JsonObject) {
-                val err = data["error"]
-                (err["message"].str() ?: err?.let { if (it is JsonPrimitive) it.content else it.toString() } ?: data.toString())
-            } else {
-                text
-            }
-            throw Exception("AI request failed ($code): $msg")
-        }
+        if (code != 200) throw Exception(failureMessage(code, text))
         val content = data["choices"][0]["message"].obj()?.get("content")?.let { (it as? JsonPrimitive)?.content }
         val out = content?.trim() ?: ""
         if (out.isEmpty()) throw Exception("The AI returned an empty answer.")
         return out
+    }
+
+    /**
+     * A failed request's message: the provider's own (an `{"error": …}` object, or the
+     * `[{"error": …}]` array Gemini sends), and for 429 / 503 that it's busy, not broken (#267).
+     */
+    fun failureMessage(code: Int, body: String): String {
+        val data = runCatching { AppJson.parseToJsonElement(body) }.getOrNull()
+        val obj = (data as? JsonArray)?.firstOrNull() ?: data
+        val msg = if (obj is JsonObject) {
+            val err = obj["error"]
+            err["message"].str() ?: err?.let { if (it is JsonPrimitive) it.content else it.toString() } ?: obj.toString()
+        } else {
+            body.trim().take(300)
+        }
+        val busy = when (code) {
+            429 -> "The AI service is rate-limiting requests: try again in a moment. "
+            503 -> "The AI service is busy: try again in a moment. "
+            else -> ""
+        }
+        return "${busy}AI request failed ($code): $msg"
     }
 
     /**

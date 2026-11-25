@@ -39,7 +39,13 @@ struct AiMessage: Equatable, Sendable {
 /// Minimal client for an OpenAI-compatible /v1/chat/completions endpoint.
 /// Works with OpenAI or any compatible gateway (e.g. LiteLLM) via baseUrl.
 enum AiService {
-    private static let client = URLSession(configuration: Http.configuration(timeout: 90))
+    private static let client: URLSession = {
+        let c = Http.configuration(timeout: 90)
+        // The whole request, however it trickles (the default is 7 days): a busy provider
+        // can keep a request open without ever answering, which spun forever (#267).
+        c.timeoutIntervalForResource = 150
+        return URLSession(configuration: c)
+    }()
 
     /// Returns the assistant's summary text, or throws with a readable message.
     static func summarize(baseUrl: String, apiKey: String, model: String, style: SummaryStyle, threadText: String, language: String = "") async throws -> String {
@@ -115,22 +121,34 @@ enum AiService {
             res = try await client.send(req)
         } catch let e as URLError {
             if e.code == .cancelled { throw e }
+            if e.code == .timedOut { throw AppException("The AI didn't answer in time. It may be busy: try again in a moment.") }
             throw AppException("Could not reach the AI endpoint: \(e.localizedDescription)")
         }
         let data = try? AppJson.parse(res.body)
-        if res.status != 200 {
-            let msg: String
-            if let data, data.obj() != nil {
-                let err = data["error"]
-                msg = err["message"].str() ?? err?.content() ?? err?.encoded() ?? data.encoded()
-            } else {
-                msg = String(decoding: res.body, as: UTF8.self)
-            }
-            throw AppException("AI request failed (\(res.status)): \(msg)")
-        }
+        if res.status != 200 { throw AppException(failureMessage(res.status, res.body)) }
         let content = data["choices"][0]["message"]["content"].content()
         guard let out = content?.trimmed.nilIfEmpty else { throw AppException("The AI returned an empty answer.") }
         return out
+    }
+
+    /// A failed request's message: the provider's own (an `{"error": …}` object, or the
+    /// `[{"error": …}]` array Gemini sends), and for 429 / 503 that it's busy, not broken (#267).
+    static func failureMessage(_ status: Int, _ body: Data) -> String {
+        let data = try? AppJson.parse(body)
+        let obj = data?.arr()?.first ?? data
+        let msg: String
+        if let obj, obj.obj() != nil {
+            let err = obj["error"]
+            msg = err["message"].str() ?? err?.content() ?? err?.encoded() ?? obj.encoded()
+        } else {
+            msg = String(String(decoding: body, as: UTF8.self).trimmed.prefix(300))
+        }
+        let busy = switch status {
+        case 429: "The AI service is rate-limiting requests: try again in a moment. "
+        case 503: "The AI service is busy: try again in a moment. "
+        default: ""
+        }
+        return "\(busy)AI request failed (\(status)): \(msg)"
     }
 
     /// The thread for Ask: like [buildThreadText], but each comment is tagged

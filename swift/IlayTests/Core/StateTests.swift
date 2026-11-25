@@ -306,6 +306,39 @@ final class AiChatUrlTests: XCTestCase {
     }
 }
 
+final class AiFailureMessageTests: XCTestCase {
+    func testABusyGeminisErrorArrayReadsAsBusyWithItsMessage() {
+        // #267: Gemini's OpenAI-compatible endpoint answers 503 with a JSON array.
+        let body = #"[{"error": {"code": 503, "message": "The model is overloaded. Please try again later.", "status": "UNAVAILABLE"}}]"#
+        XCTAssertEqual(
+            AiService.failureMessage(503, Data(body.utf8)),
+            "The AI service is busy: try again in a moment. AI request failed (503): The model is overloaded. Please try again later."
+        )
+    }
+
+    func testOtherFailuresKeepTheProvidersMessage() {
+        XCTAssertEqual(AiService.failureMessage(401, Data(#"{"error": {"message": "Incorrect API key"}}"#.utf8)), "AI request failed (401): Incorrect API key")
+        XCTAssertEqual(AiService.failureMessage(502, Data(" Bad gateway \n".utf8)), "AI request failed (502): Bad gateway")
+        XCTAssertEqual(
+            AiService.failureMessage(429, Data(#"{"error": "Slow down"}"#.utf8)),
+            "The AI service is rate-limiting requests: try again in a moment. AI request failed (429): Slow down"
+        )
+    }
+}
+
+/// #271: a search in someone's posts, split into its "From u/" token and your own words.
+final class SplitAuthorQueryTests: XCTestCase {
+    func testAuthorAnywhereInTheQueryIsSplitOut() {
+        XCTAssertTrue(splitAuthorQuery("author:spez") == ("spez", ""))
+        XCTAssertTrue(splitAuthorQuery("cats author:spez  dogs") == ("spez", "cats dogs"))
+        XCTAssertTrue(splitAuthorQuery("AUTHOR:Spez cats") == ("Spez", "cats"))
+    }
+
+    func testNoAuthorLeavesTheWords() {
+        XCTAssertTrue(splitAuthorQuery(" coauthor:x cats ") == (nil, "coauthor:x cats"))
+    }
+}
+
 final class AiCitationsTests: XCTestCase {
     private let p = Post.fromData(json(#"{"id":"p","title":"Battery life?","subreddit":"GalaxyWatch","num_comments":40}"#))
     private func comment(_ id: String, _ author: String, _ score: Int, _ body: String) -> Comment {

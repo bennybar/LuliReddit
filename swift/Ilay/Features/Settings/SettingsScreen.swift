@@ -59,6 +59,9 @@ let settingsCategories: [[(title: String, subtitle: String, icon: String, color:
         ("Feed", "Posts tab feed, For You, sort", "newspaper.fill", .blue),
         ("Read & hidden", "Read posts, history, filters, NSFW", "eye.slash.fill", .mint),
         ("Digest", "The day's notable posts from your communities", "list.star", .cyan),
+    ],
+    // What things look like and how you get around, apart from what you read (#276).
+    [
         ("Appearance", "Theme, text sizes, post layout", "paintpalette.fill", .indigo),
         ("Navigation", "Tab bar or side bar, top bar", "sidebar.left", .yellow),
         ("Posts & comments", "Comments, swipes, thread buttons, links", "bubble.left.and.bubble.right.fill", .green),
@@ -100,7 +103,7 @@ private let settingsMoves: [String: (section: String, group: Int)] = [
     "Open reddit links in Ilay": ("Posts & comments", 1), "Safari extension: ask which app": ("Posts & comments", 1),
     "Thread buttons position": ("Posts & comments", 2), "Next comment button": ("Posts & comments", 2),
     "Hide thread buttons while scrolling": ("Posts & comments", 2), "OP's comments button": ("Posts & comments", 2),
-    "Your comments button": ("Posts & comments", 2),
+    "Your comments button": ("Posts & comments", 2), "Reopen threads where you left off": ("Posts & comments", 2),
     // Account: API usage, then clearing everything last.
     "Show API usage instead of search": ("Account", 1), "API usage": ("Account", 1), "Clear all data": ("Account", 2),
 ]
@@ -449,6 +452,7 @@ struct SettingsCatalog {
         b.picker("Thread buttons position", value: s.threadFabPosition, options: ThreadFabPosition.allCases.map { PickOption(value: $0, label: $0.label) }, set: ctrl.setThreadFabPosition)
         b.toggle("Next comment button", "Jump to the next top-level comment in threads (long-press: the previous one)", s.threadJumpNext, set: ctrl.setThreadJumpNext)
         b.toggle("Hide thread buttons while scrolling", "They step aside while your finger scrolls a thread and come back when it stops", s.threadButtonsHideOnScroll, set: ctrl.setThreadButtonsHideOnScroll)
+        b.toggle("Reopen threads where you left off", "A thread you read before opens at the comment you were on, with Top to go back up", s.resumeThreads, set: ctrl.setResumeThreads)
         b.toggle("OP's comments button", "Jump between comments by the original poster in threads", s.threadJumpOp, set: ctrl.setThreadJumpOp)
         b.toggle("Your comments button", "Jump between your own comments in threads", s.threadJumpMine, set: ctrl.setThreadJumpMine)
         b.toggle("Tap a comment to collapse it", "Otherwise long-press. Comment text can't be selected while this is on", s.tapToCollapse, set: ctrl.setTapToCollapse)
