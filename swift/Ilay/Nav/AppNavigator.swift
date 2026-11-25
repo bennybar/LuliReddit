@@ -32,13 +32,20 @@ import SwiftUI
     /// which also refreshes when already at the top.)
     var tabReselect = [0, 0, 0, 0, 0]
 
+    /// The Search screen being pushed grows out of the search button it was opened
+    /// from (#271): read once by that screen's `SearchZoom`, as it's built.
+    @ObservationIgnored var zoomsNextSearch = false
+
     private init() {}
 
     /// Opens a screen on the current stack; an open media viewer would hide it, so it's closed first.
-    func push(_ route: Route) {
+    /// `zoom`: Search, from a button marked as its zoom source (the Posts tab's).
+    func push(_ route: Route, zoom: Bool = false) {
         viewers.clear()
+        if case .search = route { zoomsNextSearch = zoom && showingHome }
         // Search instead fades in over the page (#77): the stack's own push only slides.
-        if case .search = route, showingHome, let window = topViewController()?.view.window {
+        // From its marked button it's the stack's own push, as a zoom out of the button (#271).
+        if case .search = route, !zoom, showingHome, let window = topViewController()?.view.window {
             let fade = CATransition()
             fade.type = .fade
             fade.duration = 0.2

@@ -89,6 +89,7 @@ import com.bennybar.luli_for_reddit.feature.feed.SearchPill
 import com.bennybar.luli_for_reddit.nav.AppNavigator
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.Route
+import com.bennybar.luli_for_reddit.nav.searchMorphSource
 import androidx.compose.foundation.layout.RowScope
 import com.bennybar.luli_for_reddit.settings.PostDisplay
 import com.bennybar.luli_for_reddit.settings.TopBarMode
@@ -134,10 +135,14 @@ internal fun FrontpageTab(selected: Boolean) {
         wasSelected = selected
     }
 
+    // What the Search screen's field grows out of (#271). Only while this tab is the one
+    // shown: Home can keep every tab composed, and a hidden one mustn't be the source.
+    val searchSource = if (selected) Modifier.searchMorphSource() else Modifier
+
     // Full mode: Google-app style search bar with avatar.
     val actionRow: @Composable () -> Unit = {
         // The menu, without what's already in this bar (#78).
-        FullTopBar(username) { showFloatingToolbar(nav, username, { openMediaBrowser(nav, feedKey, listState) }, compact = true) }
+        FullTopBar(username, searchSource) { showFloatingToolbar(nav, username, { openMediaBrowser(nav, feedKey, listState) }, compact = true) }
     }
     // Full mode's title row, which scrolls with the feed (the feed insets it 7dp).
     val titleRow: @Composable () -> Unit = {
@@ -190,7 +195,7 @@ internal fun FrontpageTab(selected: Boolean) {
                 underStatusBar = false,
                 navigation = { SideBarButton() },
             ) {
-                IconButton(onClick = { nav.push(Route.Search()) }) { Icon(SearchIcon, "Search") }
+                IconButton(onClick = { nav.push(Route.Search()) }, modifier = searchSource) { Icon(SearchIcon, "Search") }
                 IconButton(onClick = { showFloatingToolbar(nav, username, { openMediaBrowser(nav, feedKey, listState) }) }) {
                     Icon(Icons.Rounded.MoreHoriz, "Toolbar")
                 }
@@ -227,16 +232,17 @@ private fun NewPostButton(onClick: () -> Unit) {
 
 /**
  * The Full top bar, Home's and Explore's (#172): ☰, the search bar (or the API usage), New
- * post if Settings has it there, and your picture, which opens [onAvatar].
+ * post if Settings has it there, and your picture, which opens [onAvatar]. [searchModifier]
+ * goes on the search bar itself (the Posts tab's: where the Search screen's field grows from).
  */
 @Composable
-internal fun FullTopBar(username: String, onAvatar: () -> Unit) {
+internal fun FullTopBar(username: String, searchModifier: Modifier = Modifier, onAvatar: () -> Unit) {
     val settings by app.settings.state.collectAsStateWithLifecycle()
     val nav = LocalNavigator.current
     if (!settings.fullBarNewPost && !settings.showApiUsage) {
         // Without the New post button, Gmail's (#146): a fully round bar with "Search
         // Reddit" in the middle, the ☰ and your picture beside it, outside (#164).
-        RoundSearchBar(username, onAvatar)
+        RoundSearchBar(username, searchModifier, onAvatar)
         return
     }
     Row(
@@ -254,7 +260,7 @@ internal fun FullTopBar(username: String, onAvatar: () -> Unit) {
         if (settings.showApiUsage) {
             ApiUsagePill(Modifier.weight(1f))
         } else {
-            SearchPill("Search Reddit", onClick = { nav.push(Route.Search()) }, modifier = Modifier.weight(1f))
+            SearchPill("Search Reddit", onClick = { nav.push(Route.Search()) }, modifier = Modifier.weight(1f).then(searchModifier))
         }
         if (settings.fullBarNewPost) {
             Spacer(Modifier.width(4.dp))
@@ -266,7 +272,7 @@ internal fun FullTopBar(username: String, onAvatar: () -> Unit) {
 
 /** The Full bar as Gmail's (#146, #164): ☰, a fully round bar with "Search Reddit" in the middle, and your picture. */
 @Composable
-private fun RoundSearchBar(username: String, onAvatar: () -> Unit) {
+private fun RoundSearchBar(username: String, searchModifier: Modifier, onAvatar: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     val nav = LocalNavigator.current
     val sideBar = LocalSideBar.current != null
@@ -276,7 +282,7 @@ private fun RoundSearchBar(username: String, onAvatar: () -> Unit) {
     ) {
         SideBarButton()
         Surface(
-            Modifier.weight(1f).height(56.dp),
+            Modifier.weight(1f).height(56.dp).then(searchModifier),
             shape = CircleShape,
             color = cs.surfaceContainerHigh,
         ) {

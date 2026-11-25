@@ -85,7 +85,11 @@ import com.bennybar.luli_for_reddit.feature.settings.SettingsScreen
 import com.bennybar.luli_for_reddit.feature.web.RedditWebScreen
 import com.bennybar.luli_for_reddit.nav.AppNavigator
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
+import com.bennybar.luli_for_reddit.nav.LocalScreenTransition
+import com.bennybar.luli_for_reddit.nav.LocalSearchOpenedFrom
+import com.bennybar.luli_for_reddit.nav.LocalSharedTransition
 import com.bennybar.luli_for_reddit.nav.Route
+import com.bennybar.luli_for_reddit.nav.ScreenTransition
 import com.bennybar.luli_for_reddit.nav.ViewerStack
 import com.bennybar.luli_for_reddit.ui.OverlayHost
 import com.bennybar.luli_for_reddit.ui.theme.IlayTheme
@@ -94,6 +98,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import com.bennybar.luli_for_reddit.core.Analytics
 import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
@@ -263,6 +269,7 @@ class IlayActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
     val context = LocalContext.current
@@ -319,6 +326,8 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
     CompositionLocalProvider(LocalNavigator provides navigator) {
         // A Surface (not a plain background) so content colour = onSurface everywhere.
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) { Box(Modifier.fillMaxSize()) {
+            // Around the NavHost for the search field's morph (#271, nav/SearchMorph.kt).
+            SharedTransitionLayout { CompositionLocalProvider(LocalSharedTransition provides this) {
             NavHost(
                 navController = controller,
                 startDestination = start,
@@ -379,7 +388,12 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
                 screen<Route.NotificationActivity> { NotificationActivityScreen() }
                 screen<Route.Drafts> { DraftsScreen() }
                 screen<Route.RedditWeb> { val r = it.toRoute<Route.RedditWeb>(); RedditWebScreen(r.url, r.title) }
-                screen<Route.Search> { val r = it.toRoute<Route.Search>(); SearchScreen(r.subreddit, r.query, r.sort, r.time) }
+                screen<Route.Search> {
+                    val r = it.toRoute<Route.Search>()
+                    // Remembered: popping Search changes the controller's "previous" mid-transition.
+                    val from = remember { controller.previousBackStackEntry?.id }
+                    CompositionLocalProvider(LocalSearchOpenedFrom provides from) { SearchScreen(r.subreddit, r.query, r.sort, r.time) }
+                }
                 screen<Route.Submit> { SubmitScreen(it.toRoute<Route.Submit>().subreddit) }
                 screen<Route.MessageThread> { MessageThreadScreen(it.toRoute<Route.MessageThread>().fullname) }
                 screen<Route.ComposeMessage> { ComposeMessageScreen(it.toRoute<Route.ComposeMessage>().to) }
@@ -394,6 +408,7 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
                     val r = it.toRoute<Route.Post>(); PostDetailScreen(r.subreddit, r.postId, r.focusCommentId)
                 }
             }
+            } }
             // Media viewers: a transparent overlay above the current screen.
             MediaViewerHost(viewers)
             OverlayHost()
@@ -421,9 +436,13 @@ private fun searchOut(easing: Easing) =
 private inline fun <reified T : Route> NavGraphBuilder.screen(
     noinline content: @Composable AnimatedContentScope.(NavBackStackEntry) -> Unit,
 ) = composable<T> { entry ->
-    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
-        // Opened from the side bar (#111): one of its destinations, with the side bar over it.
-        val sideBarRoute = remember(entry) { if (entry.savedStateHandle.get<Boolean>(SIDE_BAR_PAGE) == true) entry.toRoute<T>() else null }
-        if (sideBarRoute != null) SideBarPage(sideBarRoute) { content(entry) } else content(entry)
+    // For the search field's morph (#271): this screen's transition, and which entry it is.
+    val screen = remember(this, entry) { ScreenTransition(this, entry.id) }
+    CompositionLocalProvider(LocalScreenTransition provides screen) {
+        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
+            // Opened from the side bar (#111): one of its destinations, with the side bar over it.
+            val sideBarRoute = remember(entry) { if (entry.savedStateHandle.get<Boolean>(SIDE_BAR_PAGE) == true) entry.toRoute<T>() else null }
+            if (sideBarRoute != null) SideBarPage(sideBarRoute) { content(entry) } else content(entry)
+        }
     }
 }

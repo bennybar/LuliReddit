@@ -56,6 +56,8 @@ struct HomeScreen: View {
     @State private var startupChecksDone = false
     /// Your profile picture, round and tab-icon sized (#219).
     @State private var profileIcon: UIImage?
+    /// Shared by the Posts tab's search button and the Search screen it grows into (#271).
+    @Namespace private var searchZoom
 
     private let drawerWidth: CGFloat = 300
 
@@ -110,6 +112,7 @@ struct HomeScreen: View {
                 }.withRenderingMode(.alwaysOriginal)
             }
             .environment(\.sideBar, sideBar ? { openDrawer() } : nil)
+            .environment(\.searchZoom, searchZoom)
             .gesture(EdgePan(enabled: sideBar && atRoot && drawer == 0, width: drawerWidth) { progress in
                 drawer = progress
             } onEnd: { progress, velocity in
