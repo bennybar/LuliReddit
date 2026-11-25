@@ -157,11 +157,16 @@ fun feedDecodeWidth(): Int {
 
 /** A Coil request for [url] decoded at most [widthPx] wide (never upscaled). */
 @Composable
-fun rememberSizedRequest(url: String?, widthPx: Int): ImageRequest? {
+fun rememberSizedRequest(url: String?, widthPx: Int, standIn: String? = null): ImageRequest? {
     val context = androidx.compose.ui.platform.LocalContext.current
-    return remember(url, widthPx) {
+    return remember(url, widthPx, standIn) {
         url?.let {
-            ImageRequest.Builder(context).data(it).size(Size(Dimension(widthPx), Dimension.Undefined)).build()
+            ImageRequest.Builder(context).data(it).size(Size(Dimension(widthPx), Dimension.Undefined))
+                // [standIn]: an image already in memory (the Reddit Home card's photo while the
+                // full post's copy loads), shown until [url] is ready and cross-faded, never a
+                // blank. Without transformations Coil keys memory by the URL alone.
+                .apply { if (standIn != null && standIn != it) placeholderMemoryCacheKey(standIn) }
+                .build()
         }
     }
 }

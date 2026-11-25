@@ -148,7 +148,7 @@ suspend fun saveMediaToGallery(url: String, isVideo: Boolean, title: String? = n
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GalleryM3Carousel(images: List<GalleryImage>, modifier: Modifier = Modifier, title: String? = null, height: Dp = 300.dp, cover: String? = null) {
+fun GalleryM3Carousel(images: List<GalleryImage>, modifier: Modifier = Modifier, title: String? = null, height: Dp = 300.dp, cover: String? = null, standIn: String? = null) {
     if (images.isEmpty()) return
     // A spoiler / NSFW gallery (#165): each image has its own cover, so you can still
     // swipe through them; revealing one reveals them all.
@@ -177,7 +177,8 @@ fun GalleryM3Carousel(images: List<GalleryImage>, modifier: Modifier = Modifier,
                 contentAlignment = Alignment.Center,
             ) {
                 AsyncImage(
-                    model = rememberSizedRequest(images[i].url, decodeWidth),
+                    // The first image shows [standIn] (the Reddit Home card's photo) until it loads.
+                    model = rememberSizedRequest(images[i].url, decodeWidth, if (i == 0) standIn else null),
                     contentDescription = "Image ${i + 1} of ${images.size}",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize().then(if (covered) Modifier.blur(24.dp) else Modifier),
@@ -205,7 +206,7 @@ fun GalleryM3Carousel(images: List<GalleryImage>, modifier: Modifier = Modifier,
  * the first image's aspect ratio.
  */
 @Composable
-fun GalleryCarousel(images: List<GalleryImage>, modifier: Modifier = Modifier, title: String? = null, height: Dp? = null, shape: Shape = RoundedCornerShape(16.dp), cover: String? = null) {
+fun GalleryCarousel(images: List<GalleryImage>, modifier: Modifier = Modifier, title: String? = null, height: Dp? = null, shape: Shape = RoundedCornerShape(16.dp), cover: String? = null, standIn: String? = null) {
     if (images.isEmpty()) return
     // A spoiler / NSFW gallery (#165): each image has its own cover, so you can still
     // swipe through them; revealing one reveals them all.
@@ -231,7 +232,8 @@ fun GalleryCarousel(images: List<GalleryImage>, modifier: Modifier = Modifier, t
                 // screen width, the same request the feed's prefetcher warms.
                 // AsyncImage, not SubcomposeAsyncImage: subcomposition is slow in a scrolling list.
                 AsyncImage(
-                    model = rememberSizedRequest(images[i].url, decodeWidth),
+                    // The first image shows [standIn] (the Reddit Home card's photo) until it loads.
+                    model = rememberSizedRequest(images[i].url, decodeWidth, if (i == 0) standIn else null),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize().then(if (covered) Modifier.blur(24.dp) else Modifier),

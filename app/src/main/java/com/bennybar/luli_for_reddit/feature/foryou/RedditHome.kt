@@ -767,8 +767,9 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
         val posts = full.map { p ->
             val card = byId[p.id] ?: return@map p
             // The card keeps the photo it already showed (the page's copy of the same
-            // picture): Reddit's own preview URL differs, so the card loaded it again.
-            val keep = card.image?.takeIf { p.type != PostType.GALLERY && p.previewMedUrl != null }
+            // picture): Reddit's own preview URL differs, so the card loaded it again. A
+            // gallery shows it under its first image until that loads.
+            val keep = card.image
             p.copy(feedReason = card.reason ?: p.feedReason, previewMedUrl = keep ?: p.previewMedUrl)
         }
         _upgrades.emit(posts)
