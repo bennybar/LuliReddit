@@ -1315,7 +1315,11 @@ private func dayLabel(_ days: Int) -> String { days == 1 ? "1 day" : "\(days) da
         nav.showSnackbar("You're on the latest version (\(RedditConstants.appVersion)).")
         return
     }
-    let download = await confirmDialog("Update available — v\(info.version)", "A newer version is available on GitHub.", "Download", cancel: "Later")
+    // The release's notes as plain text: an alert can't show markdown (#266).
+    let notes = info.notes.map { n in
+        (try? AttributedString(markdown: n, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))).map { String($0.characters) } ?? n
+    }
+    let download = await confirmDialog("Update available — v\(info.version)", "A newer version is available on GitHub." + (notes.map { "\n\n" + $0 } ?? ""), "Download", cancel: "Later")
     // The release page: its .apk assets are Android's.
     if download { nav.openInBrowser(info.url) }
 }

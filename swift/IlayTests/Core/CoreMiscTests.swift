@@ -29,6 +29,14 @@ final class AppVersionTests: XCTestCase {
         XCTAssertNotNil(Re(#"^\d+\.\d+\.\d+(-[A-Za-z0-9]+)?$"#).matchEntire(RedditConstants.appVersion))
     }
 
+    func testTheUpdateNoticeShowsAReleasesNotesWithoutTheDownloadFooter() {
+        // #266
+        let body = "- **GIFs:** play as video (#265)\n\nDownload `ilay-for-reddit-2.0.113.apk` (universal) or the APK for your device's ABI."
+        XCTAssertEqual(UpdateChecker.releaseNotes(body), "- **GIFs:** play as video (#265)")
+        XCTAssertNil(UpdateChecker.releaseNotes("Download `x.apk`"))
+        XCTAssertNil(UpdateChecker.releaseNotes(nil))
+    }
+
     func testTheInstalledVersionIsNeverOfferedAsAnUpdate() {
         XCTAssertEqual(UpdateChecker.compareVersions(RedditConstants.appVersion, RedditConstants.appVersion), 0)
     }

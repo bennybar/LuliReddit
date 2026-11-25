@@ -4,6 +4,7 @@ struct UpdateInfo: Sendable {
     let version: String
     let url: String // release page
     let apkUrl: String? // direct .apk asset if present
+    var notes: String? = nil // the release's notes (markdown), shown in the update notice (#266)
 }
 
 /// Checks GitHub Releases for a newer version.
@@ -35,7 +36,14 @@ enum UpdateChecker {
         let apk = (best["assets"].arr() ?? [])
             .filter { $0["name"].str()?.lowercased().hasSuffix(".apk") == true }
             .max { ($0["size"].long() ?? 0) < ($1["size"].long() ?? 0) }?["browser_download_url"].str()
-        return UpdateInfo(version: tag, url: best["html_url"].str() ?? "https://github.com/\(RedditConstants.githubRepo)/releases", apkUrl: apk)
+        return UpdateInfo(version: tag, url: best["html_url"].str() ?? "https://github.com/\(RedditConstants.githubRepo)/releases", apkUrl: apk, notes: releaseNotes(best["body"].str()))
+    }
+
+    /// A release's notes without the "Download `….apk`" footer, which the notice's button replaces.
+    static func releaseNotes(_ body: String?) -> String? {
+        guard let body else { return nil }
+        let kept = body.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("Download `") }
+        return kept.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
     }
 
     private static func tagOf(_ release: JsonElement) -> String { (release["tag_name"].str() ?? "").removePrefix("v").trimmed }
