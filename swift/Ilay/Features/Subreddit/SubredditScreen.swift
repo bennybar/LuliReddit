@@ -152,6 +152,7 @@ struct SubredditScreen: View {
 }
 
 private let bannerHeight: CGFloat = 64
+private let bannerIcon: CGFloat = 76 // the icon over the banner's foot (#268: was 64)
 
 /// The banner (or a band in the community's colour), behind the bar's buttons, and the
 /// icon over its foot (#257).
@@ -163,9 +164,12 @@ private struct BannerBackdrop: View {
         let page = Color(FeedRowConfig.current().isCarded ? .systemGroupedBackground : .systemBackground)
         ZStack(alignment: .topLeading) {
             band.frame(height: height)
-            LetterAvatar(name: about.name, size: 64, imageUrl: about.iconUrl)
-                .overlay(Circle().stroke(page, lineWidth: 3))
-                .offset(x: 16, y: height - 42)
+            // The ring is a disc behind the icon, not a stroke over its edge, which let the
+            // picture show around it (#268); the icon bigger, too.
+            LetterAvatar(name: about.name, size: bannerIcon, imageUrl: about.iconUrl)
+                .padding(3)
+                .background(page, in: Circle())
+                .offset(x: 13, y: height - bannerIcon - 3 + 22)
         }
         .frame(height: height + 22, alignment: .top)
     }
@@ -211,12 +215,12 @@ private struct SubredditBannerHeader: View {
             Color.clear.frame(height: bannerHeight)
             HStack(alignment: .top, spacing: 12) {
                 // The icon's place: it's drawn over the banner, with it (BannerBackdrop).
-                Color.clear.frame(width: 64, height: 22)
+                Color.clear.frame(width: bannerIcon, height: 22)
+                // Bigger, and a little further from the banner's foot (#268).
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(about.namePrefixed).font(.title2.bold()).lineLimit(1)
+                    Text(about.namePrefixed).font(.title.bold()).lineLimit(1)
                     Text("\(compactNumber(about.subscribers)) members").font(.subheadline).foregroundStyle(.secondary)
                 }
-                .padding(.top, -6)
             }
             .padding(.horizontal, 16)
             VStack(alignment: .leading, spacing: 6) {

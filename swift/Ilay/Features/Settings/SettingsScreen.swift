@@ -1204,6 +1204,8 @@ struct SettingsScreen: View {
         }
         .listStyle(.insetGrouped)
         .navigationTitle(section ?? "Settings")
+        // Settings itself gets the big title with Expandable, as Saved and History (#268).
+        .navigationBarTitleDisplayMode(section == nil && app.settings.value.topBarMode == .expandable ? .large : .automatic)
         // Secure-storage state, re-read after edits and account changes.
         .task(id: "\(prompts.refresh)|\(app.session.session?.identity ?? "")") {
             let store = app.secureStore
