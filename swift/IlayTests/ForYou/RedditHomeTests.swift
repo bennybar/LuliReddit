@@ -118,6 +118,15 @@ import XCTest
         XCTAssertEqual(HomePageRead.parse("{not json")?.posts, [])
     }
 
+    func testThePagesImageSizeShapesTheCardAtOnce() {
+        // The Calm photo no longer jumps when the full post comes.
+        let p = PagePost.parse(try? AppJson.parse(#"{"id":"t3_x","type":"image","img":"https://preview.redd.it/a.jpg","imgW":1080,"imgH":1350}"#))?.toPost()
+        XCTAssertEqual(p?.previewWidth, 1080)
+        XCTAssertEqual(p?.previewHeight, 1350)
+        let none = PagePost.parse(try? AppJson.parse(#"{"id":"t3_y","type":"image","img":"https://preview.redd.it/b.jpg","imgW":0,"imgH":0}"#))?.toPost()
+        XCTAssertNil(none?.previewWidth)
+    }
+
     func testPagePostToPost() {
         func page(type: String, image: String? = nil, href: String = "") -> PagePost {
             PagePost(

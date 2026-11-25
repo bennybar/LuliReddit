@@ -16,6 +16,7 @@ import com.bennybar.luli_for_reddit.core.AppJson
 import com.bennybar.luli_for_reddit.core.arr
 import com.bennybar.luli_for_reddit.core.get
 import com.bennybar.luli_for_reddit.core.isTrue
+import com.bennybar.luli_for_reddit.core.int
 import com.bennybar.luli_for_reddit.core.str
 import com.bennybar.luli_for_reddit.core.net.loadWebSessionCookies
 import com.bennybar.luli_for_reddit.model.Listing
@@ -66,6 +67,9 @@ data class PagePost(
     val href: String,
     val domain: String,
     val image: String?,
+    /** The image's size, when the page gives it: Calm shapes the photo by it at once, not when the full post comes. */
+    val imageWidth: Int? = null,
+    val imageHeight: Int? = null,
     val body: String,
     val flair: String?,
     val nsfw: Boolean,
@@ -114,6 +118,8 @@ data class PagePost(
             feedReason = reason,
             previewUrl = image,
             previewMedUrl = image,
+            previewWidth = imageWidth,
+            previewHeight = imageHeight,
             hlsUrl = vreddit?.let { "https://v.redd.it/${it.pathSegments.first()}/HLSPlaylist.m3u8" },
         )
     }
@@ -135,6 +141,8 @@ data class PagePost(
                 href = o["href"].str().orEmpty(),
                 domain = o["domain"].str().orEmpty(),
                 image = o["img"].str()?.ifEmpty { null },
+                imageWidth = o["imgW"].int()?.takeIf { it > 0 },
+                imageHeight = o["imgH"].int()?.takeIf { it > 0 },
                 body = o["body"].str().orEmpty(),
                 flair = o["flair"].str()?.ifEmpty { null },
                 nsfw = o["nsfw"].isTrue(),
@@ -502,6 +510,8 @@ class RedditHomeLoader(private val context: Context) {
         permalink: e.getAttribute('permalink') || '', href: e.getAttribute('content-href') || '',
         domain: e.getAttribute('domain') || '',
         img: img ? (img.getAttribute('src') || '') : '',
+        imgW: img ? (parseInt(img.getAttribute('width'), 10) || img.naturalWidth || 0) : 0,
+        imgH: img ? (parseInt(img.getAttribute('height'), 10) || img.naturalHeight || 0) : 0,
         body: body ? (body.innerText || '').trim().slice(0, 400) : '',
         flair: flair ? (flair.innerText || '').trim() : '',
         nsfw: e.hasAttribute('nsfw'), spoiler: e.hasAttribute('spoiler'),
