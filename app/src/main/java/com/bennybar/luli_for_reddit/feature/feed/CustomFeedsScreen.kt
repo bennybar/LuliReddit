@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.foundation.lazy.rememberLazyListState
 import com.bennybar.luli_for_reddit.ui.ConnectedChoice
 import com.bennybar.luli_for_reddit.ui.Loading
 import androidx.compose.foundation.background
@@ -65,9 +66,12 @@ fun CustomFeedsScreen() {
     val scope = rememberCoroutineScope()
     val multis by app.feed.multireddits.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { app.feed.loadMultireddits(force = true) }
+    val listState = rememberLazyListState()
+    val header = rememberPageHeader(listState)
     Scaffold(
+        Modifier.collapsingHeader(header),
         topBar = {
-            BloomTopBar("Custom feeds", actions = {
+            BloomTopBar("Custom feeds", collapsing = header, actions = {
                 IconButton(onClick = { scope.launch { createMulti(app.session.username) } }) { Icon(Icons.Rounded.Add, "New feed") }
             })
         },
@@ -84,7 +88,7 @@ fun CustomFeedsScreen() {
                         Button(onClick = { scope.launch { createMulti(app.session.username) } }) { Text("New feed") }
                     }
                 } else {
-                    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
+                    LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 32.dp)) {
                         items(m.value, key = { it.path.ifEmpty { it.name } }) { multi ->
                             Tile(
                                 title = { Text(multi.displayName.ifEmpty { multi.name }) },

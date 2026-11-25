@@ -141,3 +141,11 @@ struct LetterAvatar: View {
         .clipShape(.circle)
     }
 }
+
+extension View {
+    /// A page's title: big with Settings › Top bar › Expandable, as the tabs' (#247), else in the bar.
+    func pageTitle(_ title: String) -> some View {
+        navigationTitle(title)
+            .navigationBarTitleDisplayMode(app.settings.value.topBarMode == .expandable ? .large : .inline)
+    }
+}

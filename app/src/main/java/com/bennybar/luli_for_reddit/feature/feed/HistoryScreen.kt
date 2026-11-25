@@ -104,6 +104,7 @@ fun HistoryScreen() {
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val bar = rememberHidingBar(listState)
+    val header = rememberPageHeader(listState)
     val focus = remember { FocusRequester() }
     var noteShown by remember { mutableStateOf(app.prefs.getBool("historyNoteDismissed") != true) } // closed once, gone for good (#119)
     val searchGone by remember(listState) { derivedStateOf { listState.layoutInfo.visibleItemsInfo.none { it.key == "search" } && listState.layoutInfo.totalItemsCount > 0 } }
@@ -130,7 +131,7 @@ fun HistoryScreen() {
         }
     }
 
-    Box(Modifier.fillMaxSize().background(cs.surface).clipToBounds().nestedScroll(bar)) {
+    Box(Modifier.fillMaxSize().background(cs.surface).clipToBounds().collapsingHeader(header).nestedScroll(bar)) {
         LazyColumn(
             Modifier.fillMaxSize(),
             state = listState,
@@ -237,6 +238,7 @@ fun HistoryScreen() {
                 },
             ) else BloomTopBar(
                 "History",
+                collapsing = header,
                 actions = {
                     if (searchGone && visible.isNotEmpty()) IconButton(onClick = {
                         scope.launch {

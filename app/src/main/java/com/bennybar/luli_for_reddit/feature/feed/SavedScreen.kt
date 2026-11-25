@@ -128,6 +128,7 @@ fun SavedScreen() {
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val bar = rememberHidingBar(listState)
+    val header = rememberPageHeader(listState)
     val focus = remember { FocusRequester() }
     val searchGone by remember(listState) { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
     val chipsRow = @Composable { modifier: Modifier ->
@@ -148,7 +149,7 @@ fun SavedScreen() {
     }
     LoadMoreNearEnd(listState, 4, page = state.items.size to state.after) { source.loadMore() }
 
-    Box(Modifier.fillMaxSize().background(cs.surface).clipToBounds().nestedScroll(bar)) {
+    Box(Modifier.fillMaxSize().background(cs.surface).clipToBounds().collapsingHeader(header).nestedScroll(bar)) {
         LazyColumn(
             Modifier.fillMaxSize(),
             state = listState,
@@ -232,6 +233,7 @@ fun SavedScreen() {
         HidingTopBar(bar) {
             BloomTopBar(
                 "Saved",
+                collapsing = header,
                 actions = {
                     if (searchGone) IconButton(onClick = {
                         scope.launch {

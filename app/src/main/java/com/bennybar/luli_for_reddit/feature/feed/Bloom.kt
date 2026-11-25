@@ -277,8 +277,22 @@ fun BloomTopBar(
     showBack: Boolean = true,
     // In place of ☰ / ←, e.g. a selection's × (#180): it lines up where they sit.
     navigation: (@Composable () -> Unit)? = null,
+    // The page's big header (#247, see rememberPageHeader): the title starts big under the
+    // buttons and folds into the bar, as on the tabs.
+    collapsing: CollapsingTitle? = null,
 ) {
     val nav = LocalNavigator.current
+    if (collapsing != null && titleContent == null) {
+        val sideBar = LocalSideBar.current != null
+        val icon: (@Composable () -> Unit)? = when {
+            navigation != null -> navigation
+            showBack && sideBar -> { { SideBarButton() } }
+            showBack -> { { IconButton(onClick = { nav.pop() }, shapes = IconButtonDefaults.shapes()) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") } } }
+            else -> null
+        }
+        CollapsingTitleBar(collapsing, title, hasNavigation = icon != null, navigation = icon ?: {}, actions = actions)
+        return
+    }
     TopAppBar(
         title = {
             if (titleContent != null) titleContent()

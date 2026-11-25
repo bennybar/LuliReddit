@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.digest
 
+import com.bennybar.luli_for_reddit.feature.feed.rememberPageHeader
+import com.bennybar.luli_for_reddit.feature.feed.collapsingHeader
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -88,9 +90,10 @@ fun DigestScreen(tab: Boolean = false, selected: Boolean = true, reselect: Int =
     val v = rememberDigestView(active = selected)
     val listState = rememberLazyListState()
     val bar = rememberHidingBar(listState)
+    val header = rememberPageHeader(listState)
     val firstReselect = remember { reselect }
     LaunchedEffect(reselect) { if (reselect != firstReselect) listState.animateScrollToItem(0) }
-    Box(Modifier.fillMaxSize().background(cs.surface).clipToBounds().nestedScroll(bar)) {
+    Box(Modifier.fillMaxSize().background(cs.surface).clipToBounds().collapsingHeader(header).nestedScroll(bar)) {
         val top = with(LocalDensity.current) { bar.height.toDp() }
         RefreshBox(v.refreshing, { v.refresh(manual = true) }, Modifier.fillMaxSize(), indicatorPadding = top) {
             LazyColumn(
@@ -102,7 +105,7 @@ fun DigestScreen(tab: Boolean = false, selected: Boolean = true, reselect: Int =
             ) { digestRows(v) }
         }
         // A tab has ☰ (with the side bar) where a page has ←.
-        HidingTopBar(bar) { if (tab) BloomTopBar("Digest", navigation = { SideBarButton() }) else BloomTopBar("Digest") }
+        HidingTopBar(bar) { if (tab) BloomTopBar("Digest", navigation = { SideBarButton() }, collapsing = header) else BloomTopBar("Digest", collapsing = header) }
     }
 }
 

@@ -33,6 +33,6 @@ struct OfflineScreen: View {
                 .listStyle(.insetGrouped)
             }
         }
-        .navigationTitle("Read later")
+        .pageTitle("Read later")
     }
 }

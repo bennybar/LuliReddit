@@ -86,6 +86,6 @@ struct DraftsScreen: View {
                 .listStyle(.insetGrouped)
             }
         }
-        .navigationTitle("Drafts")
+        .pageTitle("Drafts")
     }
 }

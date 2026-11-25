@@ -1,5 +1,27 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.foundation.background
+import com.bennybar.luli_for_reddit.settings.HeaderHeight
+import com.bennybar.luli_for_reddit.settings.TopBarMode
+import com.bennybar.luli_for_reddit.feature.home.SideBarButton
+import com.bennybar.luli_for_reddit.feature.home.LocalSideBar
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.lerp
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.border
 import com.bennybar.luli_for_reddit.feature.markdown.RedditMarkdown
 import com.bennybar.luli_for_reddit.ui.SearchIcon
 import com.bennybar.luli_for_reddit.ui.subredditName
@@ -141,6 +163,21 @@ fun SubredditScreen(name: String) {
     // Reloading (a sort change, too) starts a new list from the top: the bar comes back with it.
     val loaded = rememberFeedController(name).ui.collectAsStateWithLifecycle().value is FeedUi.Data
     LaunchedEffect(loaded) { if (!loaded) bar.slide(0f) }
+    // Expandable, Medium or Tall: the community's banner as the header, its icon and name
+    // sliding into the bar as it folds (#257). Folded and the Full bar keep the plain bar.
+    val bannerHeader = settings.topBarMode == TopBarMode.EXPANDABLE && settings.headerHeight != HeaderHeight.FOLDED
+    val collapsing = rememberCollapsingTitle(extra = BANNER_EXTRA) { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 }
+    val openMenu = {
+        showBarMenu(
+            listOfNotNull(
+                MenuAction(Icons.Outlined.Info, "About & rules") { scope.launch { showAbout(name, (about as? Async.Data)?.value) } },
+                MenuAction(Icons.Outlined.VideoLibrary, "Browse media") { openMediaBrowser(nav, name, listState) },
+                if (anonymous || name.lowercase() in setOf("all", "popular")) null
+                else MenuAction(Icons.AutoMirrored.Rounded.PlaylistAdd, "Add to a custom feed") { scope.launch { showAddToCustomFeed(name) } },
+                MenuAction(Icons.Outlined.Share, "Share") { nav.share("https://reddit.com/r/$name") },
+            ),
+        )
+    }
     Scaffold(
         floatingActionButton = {
             FeedFab(
@@ -155,7 +192,7 @@ fun SubredditScreen(name: String) {
         },
         containerColor = MaterialTheme.colorScheme.surface,
     ) { padding ->
-        Box(Modifier.fillMaxSize().clipToBounds().nestedScroll(bar).nestedScroll(fab)) {
+        Box(Modifier.fillMaxSize().clipToBounds().then(if (bannerHeader) Modifier.nestedScroll(collapsing) else Modifier).nestedScroll(bar).nestedScroll(fab)) {
             // "Hide NSFW posts" would leave an NSFW subreddit's page empty: say why instead (#94).
             val hideNsfw = app.contentFilters.state.collectAsStateWithLifecycle().value.hideNsfw
             if (hideNsfw && (about as? Async.Data)?.value?.over18 == true) {
@@ -184,30 +221,147 @@ fun SubredditScreen(name: String) {
                     when (val a = about) {
                         Async.Loading -> LinearProgressIndicator(Modifier.fillMaxWidth().height(4.dp))
                         is Async.Error -> {}
-                        is Async.Data -> SubredditHeader(a.value, vm)
+                        is Async.Data -> if (bannerHeader) SubredditAbout(a.value, vm) else SubredditHeader(a.value, vm)
                     }
                 },
                 floatingChipsY = if (!settings.floatingChips) null else bar::chipsY,
             )
             HidingTopBar(bar) {
-                BloomTopBar(
+                if (bannerHeader) {
+                    BannerTitleBar(collapsing, name, (about as? Async.Data)?.value, onSearch = { nav.push(Route.Search(subreddit = name)) }, onMenu = openMenu)
+                } else BloomTopBar(
                     subredditName(name),
                     // Search, and the rest in the ⋯ menu: a row of five cropped the name (#112).
                     actions = {
                         IconButton(onClick = { nav.push(Route.Search(subreddit = name)) }) { Icon(SearchIcon, "Search") }
-                        IconButton(onClick = {
-                            showBarMenu(
-                                listOfNotNull(
-                                    MenuAction(Icons.Outlined.Info, "About & rules") { scope.launch { showAbout(name, (about as? Async.Data)?.value) } },
-                                    MenuAction(Icons.Outlined.VideoLibrary, "Browse media") { openMediaBrowser(nav, name, listState) },
-                                    if (anonymous || name.lowercase() in setOf("all", "popular")) null
-                                    else MenuAction(Icons.AutoMirrored.Rounded.PlaylistAdd, "Add to a custom feed") { scope.launch { showAddToCustomFeed(name) } },
-                                    MenuAction(Icons.Outlined.Share, "Share") { nav.share("https://reddit.com/r/$name") },
-                                ),
-                            )
-                        }) { Icon(Icons.Rounded.MoreHoriz, "More") }
+                        IconButton(onClick = openMenu) { Icon(Icons.Rounded.MoreHoriz, "More") }
                     },
                 )
+            }
+        }
+    }
+}
+
+/** The banner header's room under the bar's row: the banner, the icon over its foot, the name and members. */
+private val BANNER_EXTRA = 136.dp
+private const val BANNER = 136f // the banner's height under the status bar, dp
+
+/**
+ * A subreddit's header with Settings › Header height on Medium or Tall (#257), as a
+ * messaging app's profile: the banner (or a band in the community's colour) behind the
+ * bar's buttons, which sit in dark circles to stay readable; the icon on the left over
+ * the banner's foot, the name and members beside it. As the list scrolls, the banner
+ * slides up under the bar's colour, and the icon and name slide into the bar together.
+ */
+@Composable
+private fun BannerTitleBar(state: CollapsingTitle, name: String, about: Subreddit?, onSearch: () -> Unit, onMenu: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val nav = LocalNavigator.current
+    val sideBar = LocalSideBar.current != null
+    val p = state.progress
+    val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val band = about?.keyColor?.let { runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull() } ?: cs.surfaceContainerHigh
+    val onBanner = androidx.compose.ui.graphics.lerp(Color.White, cs.onSurface, p)
+    BoxWithConstraints(Modifier.fillMaxWidth().height(top + state.height).background(cs.surface).clipToBounds()) {
+        val width = maxWidth
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(top + BANNER.dp)
+                .graphicsLayer { translationY = -70.dp.toPx() * p }
+                .background(band),
+        ) {
+            if (about?.bannerUrl != null) {
+                AsyncImage(
+                    model = rememberSizedRequest(about.bannerUrl, feedDecodeWidth()),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            // Under the bar's colour as it folds.
+            Box(Modifier.fillMaxSize().graphicsLayer { alpha = (p * 1.2f).coerceAtMost(1f) }.background(cs.surface))
+        }
+        // The icon and name, from over the banner's foot into the bar after ←.
+        val iconSize = lerp(64.dp, 30.dp, p)
+        val iconX = lerp(16.dp, 58.dp, p)
+        val iconY = lerp(top + BANNER.dp - 26.dp, top + 10.dp + 9.dp, p)
+        LetterAvatar(
+            name,
+            iconSize,
+            cs.secondaryContainer,
+            cs.onSecondaryContainer,
+            Modifier
+                .offset(iconX, iconY)
+                .border(lerp(3.dp, 0.dp, p), cs.surface, CircleShape),
+            imageUrl = about?.iconUrl,
+        )
+        val nameX = lerp(92.dp, iconX + iconSize + 10.dp, p)
+        Text(
+            subredditName("r/$name"),
+            Modifier
+                .offset(nameX, lerp(top + BANNER.dp + 4.dp, top + 10.dp + 10.dp, p))
+                // Clear of the search and ⋯ buttons once in the bar.
+                .widthIn(max = width - nameX - lerp(16.dp, 104.dp, p)),
+            fontSize = (22f - 4f * p).sp,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (about != null) {
+            Text(
+                "${compactNumber(about.subscribers)} members",
+                Modifier.offset(92.dp, top + BANNER.dp + 34.dp).graphicsLayer { alpha = (1f - p * 2.5f).coerceAtLeast(0f) },
+                color = cs.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        // The bar's row, over the banner: round dark backs keep the buttons readable on any picture.
+        CompositionLocalProvider(LocalContentColor provides onBanner) {
+            Row(Modifier.padding(start = 4.dp, top = top + 10.dp, end = 4.dp).height(48.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                val back = Modifier.background(Color.Black.copy(alpha = 0.42f * (1f - p)), CircleShape)
+                Box(back) {
+                    if (sideBar) SideBarButton()
+                    else IconButton(onClick = { nav.pop() }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
+                }
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = onSearch, modifier = back) { Icon(SearchIcon, "Search") }
+                Spacer(Modifier.width(6.dp))
+                IconButton(onClick = onMenu, modifier = back) { Icon(Icons.Rounded.MoreHoriz, "More") }
+            }
+        }
+    }
+}
+
+/** With the banner header (#257): what's left of the header, the description in a card (3 lines, then Show all) and Join. */
+@Composable
+private fun SubredditAbout(s: Subreddit, vm: SubredditAboutViewModel) {
+    val cs = MaterialTheme.colorScheme
+    val override by vm.subOverride.collectAsStateWithLifecycle()
+    val subscribed = override ?: s.userIsSubscriber ?: false
+    var open by rememberSaveable { mutableStateOf(false) }
+    var long by remember { mutableStateOf(false) }
+    BloomCard(Modifier.padding(start = 10.dp, top = 4.dp, end = 10.dp, bottom = 4.dp).fillMaxWidth()) {
+        Column(Modifier.padding(start = 14.dp, top = 12.dp, end = 10.dp, bottom = 8.dp)) {
+            if (s.description.isNotEmpty()) {
+                // Reddit text, its links working, once it's all shown.
+                if (open) RedditMarkdown(s.description, color = cs.onSurfaceVariant)
+                else Text(
+                    remember(s.description) { snippetMarkdown(s.description, cs.onSurfaceVariant) },
+                    color = cs.onSurfaceVariant,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    onTextLayout = { if (it.hasVisualOverflow) long = true },
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (long) TextButton(onClick = { open = !open }, contentPadding = PaddingValues(horizontal = 0.dp)) {
+                    Text(if (open) "Show less" else "Show all")
+                }
+                Spacer(Modifier.weight(1f))
+                FilledTonalToggleButton(checked = subscribed, onCheckedChange = { vm.toggleSub(s, subscribed) }) {
+                    Text(if (subscribed) "Joined" else "Join")
+                }
             }
         }
     }

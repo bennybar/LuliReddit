@@ -17,6 +17,8 @@ data class Subreddit(
     val subscribers: Int,
     val iconUrl: String? = null,
     val bannerUrl: String? = null,
+    /** The community's own colour ("#0079D3"), for its header without a banner (#257). */
+    val keyColor: String? = null,
     val over18: Boolean = false,
     val userHasFavorited: Boolean = false,
     val userIsSubscriber: Boolean? = null,
@@ -33,6 +35,7 @@ data class Subreddit(
                 subscribers = d["subscribers"].int() ?: 0,
                 iconUrl = clean(d["community_icon"].str()) ?: clean(d["icon_img"].str()),
                 bannerUrl = clean(d["banner_background_image"].str()) ?: clean(d["banner_img"].str()),
+                keyColor = clean(d["primary_color"].str()) ?: clean(d["key_color"].str()),
                 over18 = d["over18"].isTrue(),
                 userHasFavorited = d["user_has_favorited"].isTrue(),
                 userIsSubscriber = d["user_is_subscriber"].bool(),

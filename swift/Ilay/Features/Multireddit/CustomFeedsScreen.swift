@@ -56,7 +56,7 @@ struct CustomFeedsScreen: View {
                 }
             }
         }
-        .navigationTitle("Custom feeds")
+        .pageTitle("Custom feeds")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("New feed", systemImage: "plus") { Task { _ = await createMulti(username: app.session.username) } }

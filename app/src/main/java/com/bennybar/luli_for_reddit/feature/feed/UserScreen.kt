@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.runtime.MutableFloatState
 import com.bennybar.luli_for_reddit.ui.subredditName
 import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.flow.drop
@@ -152,6 +153,9 @@ fun UserProfileBody(
     modifier: Modifier = Modifier,
     scrollTop: Flow<Int>? = null, // each new value: the list and header back to the top
     onSwitchAccount: (() -> Unit)? = null,
+    // How far the header is slid away (0 = all shown, only at a list's top): the Profile
+    // tab's big title opens again only then (#247).
+    headerOffsetState: MutableFloatState = remember { mutableFloatStateOf(0f) },
 ) {
     val scope = rememberCoroutineScope()
     val vm = viewModel(key = "user_$username") { UserAboutViewModel(username) }
@@ -185,7 +189,7 @@ fun UserProfileBody(
     // On each list, inside its pull-to-refresh: the header comes back before
     // a pull refreshes.
     var headerHeight by remember { mutableIntStateOf(0) }
-    var headerOffset by remember { mutableFloatStateOf(0f) }
+    var headerOffset by headerOffsetState
     val collapse = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {

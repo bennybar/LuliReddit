@@ -96,7 +96,7 @@ struct HistoryScreen: View {
                 .environment(\.editMode, $editMode)
             }
         }
-        .navigationTitle("History")
+        .pageTitle("History")
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 if editMode.isEditing {

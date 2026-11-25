@@ -1,6 +1,9 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
 import androidx.compose.animation.core.Spring
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.bennybar.luli_for_reddit.settings.TopBarMode
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -146,14 +149,15 @@ class CollapsingTitle(private val atTop: () -> Boolean) : NestedScrollConnection
  * the header opened out again over a feed still scrolled down (#233).
  */
 @Composable
-fun rememberCollapsingTitle(atTop: () -> Boolean): CollapsingTitle {
+fun rememberCollapsingTitle(extra: Dp? = null, atTop: () -> Boolean): CollapsingTitle {
     val latest by rememberUpdatedState(atTop)
     val state = rememberSaveable(
         saver = Saver<CollapsingTitle, Float>(save = { it.progress }, restore = { p -> CollapsingTitle { latest() }.also { it.progress = p } }),
     ) { CollapsingTitle { latest() } }
-    val extra = extraFor(app.settings.state.collectAsStateWithLifecycle().value.headerHeight)
-    state.extra = extra
-    state.rangePx = with(LocalDensity.current) { extra.toPx() }
+    // [extra]: a header of its own height (a subreddit's banner, #257), not the setting's.
+    val room = extra ?: extraFor(app.settings.state.collectAsStateWithLifecycle().value.headerHeight)
+    state.extra = room
+    state.rangePx = with(LocalDensity.current) { room.toPx() }
     // Brought to the top without a finger (a re-tap, Back, a reload): open with it.
     LaunchedEffect(state) {
         snapshotFlow { latest() }.filter { it }.collect {
@@ -162,6 +166,21 @@ fun rememberCollapsingTitle(atTop: () -> Boolean): CollapsingTitle {
     }
     return state
 }
+
+/**
+ * A page's big header (#247): Saved, History, Profile and the like get the tabs' big title
+ * with Settings › Top bar › Expandable, folding as [listState] scrolls; null with the Full
+ * bar. Hand it to [BloomTopBar] and put [collapsingHeader] on what holds the list.
+ */
+@Composable
+fun rememberPageHeader(listState: LazyListState): CollapsingTitle? {
+    val expandable = app.settings.state.collectAsStateWithLifecycle().value.topBarMode == TopBarMode.EXPANDABLE
+    val header = rememberCollapsingTitle { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 }
+    return header.takeIf { expandable }
+}
+
+/** Lets [header] (if any) fold with the scroll under it: outside the list's [HidingBar]. */
+fun Modifier.collapsingHeader(header: CollapsingTitle?): Modifier = if (header == null) this else nestedScroll(header)
 
 /**
  * The bar: [navigation] (the ☰) and [actions] in its row, the [title] (and [subtitle],

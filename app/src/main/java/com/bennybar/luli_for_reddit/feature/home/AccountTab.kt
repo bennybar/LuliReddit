@@ -1,5 +1,10 @@
 package com.bennybar.luli_for_reddit.feature.home
 
+import com.bennybar.luli_for_reddit.feature.feed.rememberCollapsingTitle
+import com.bennybar.luli_for_reddit.feature.feed.CollapsingTitleBar
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material.icons.rounded.MailOutline
@@ -18,7 +23,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -97,10 +101,16 @@ internal fun ProfileTab() {
     val username = s?.username ?: ""
     val anonymous = s?.anonymous ?: false
 
-    Column(Modifier.fillMaxSize()) {
-        // Lined up with Home's title row (#153): it sits in the feed's 7dp inset, its ☰
-        // nudged 3dp out, 10dp down with or without the side bar (#263: 8dp with it put its
-        // buttons 2dp above the other tabs').
+    // Expandable: the big "Profile" title, as the other tabs' (#247). It folds first as a list
+    // scrolls; it opens again once the profile header is all back (a list's top).
+    val profileHeader = remember { mutableFloatStateOf(0f) }
+    val signedOutList = rememberLazyListState()
+    val collapsing = rememberCollapsingTitle {
+        if (anonymous || username.isEmpty()) signedOutList.firstVisibleItemIndex == 0 && signedOutList.firstVisibleItemScrollOffset == 0
+        else profileHeader.floatValue == 0f
+    }
+    val expandable = app.settings.state.collectAsStateWithLifecycle().value.topBarMode != TopBarMode.FULL
+    Column(Modifier.fillMaxSize().then(if (expandable) Modifier.nestedScroll(collapsing) else Modifier)) {
         val sideBar = LocalSideBar.current != null
         val settings by app.settings.state.collectAsStateWithLifecycle()
         val signedOut = anonymous || username.isEmpty()
@@ -119,13 +129,10 @@ internal fun ProfileTab() {
                     YourStuffMenu()
                 }
             }
-        } else Row(
-            // The buttons 4dp from the edge, as the other tabs' bars (#236).
-            Modifier.fillMaxWidth().padding(start = if (sideBar) 7.dp else 20.dp, top = 10.dp, end = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        } else CollapsingTitleBar(
+            collapsing, "Profile", hasNavigation = sideBar, underStatusBar = false,
+            navigation = { SideBarButton() },
         ) {
-            SideBarButton(Modifier.offset(x = (-3).dp))
-            Text("Profile", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
             if (!signedOut && settings.inboxInProfile) InboxButton()
             // As the other tabs' (#228): your own posts, or Reddit signed out.
             IconButton(onClick = { nav.push(if (signedOut) Route.Search() else Route.Search(query = "author:$username")) }) {
@@ -139,7 +146,7 @@ internal fun ProfileTab() {
             }
         }
         if (anonymous || username.isEmpty()) {
-            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 130.dp)) {
+            LazyColumn(Modifier.fillMaxSize(), state = signedOutList, contentPadding = PaddingValues(bottom = 130.dp)) {
                 item(key = "signin") {
                     SignInPrompt(
                         "You're browsing without an account. Sign in to vote, comment, save, see your inbox and get your own frontpage.",
@@ -159,7 +166,11 @@ internal fun ProfileTab() {
         } else {
             // A drag from the start edge opens the side bar, following the finger, not the next list (#158).
             SideBarEdge(Modifier.weight(1f)) {
-                UserProfileBody(username, Modifier.fillMaxSize(), app.feed.tabReselect(3)) { scope.launch { showAccountSheet(username, context) } }
+                UserProfileBody(
+                    username, Modifier.fillMaxSize(), app.feed.tabReselect(3),
+                    onSwitchAccount = { scope.launch { showAccountSheet(username, context) } },
+                    headerOffsetState = profileHeader,
+                )
             }
         }
     }

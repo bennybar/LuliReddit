@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.compose
 
+import com.bennybar.luli_for_reddit.feature.feed.rememberPageHeader
+import com.bennybar.luli_for_reddit.feature.feed.collapsingHeader
 import com.bennybar.luli_for_reddit.ui.subredditName
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -99,7 +101,8 @@ fun DraftsScreen() {
     val drafts = remember(changes) { app.drafts.list() }
     val listState = rememberLazyListState()
     val bar = rememberHidingBar(listState)
-    Box(Modifier.fillMaxSize().background(cs.surface).clipToBounds().nestedScroll(bar)) {
+    val header = rememberPageHeader(listState)
+    Box(Modifier.fillMaxSize().background(cs.surface).clipToBounds().collapsingHeader(header).nestedScroll(bar)) {
         if (drafts.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
                 Text(
@@ -127,7 +130,7 @@ fun DraftsScreen() {
                 }
             }
         }
-        HidingTopBar(bar) { BloomTopBar("Drafts") }
+        HidingTopBar(bar) { BloomTopBar("Drafts", collapsing = header) }
     }
 }
 

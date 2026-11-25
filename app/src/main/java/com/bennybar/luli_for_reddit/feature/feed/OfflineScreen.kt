@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.foundation.lazy.rememberLazyListState
 import com.bennybar.luli_for_reddit.ui.subredditName
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -42,7 +43,9 @@ import kotlinx.coroutines.launch
 fun OfflineScreen() {
     val cs = MaterialTheme.colorScheme
     val threads by app.offline.state.collectAsStateWithLifecycle()
-    Scaffold(topBar = { BloomTopBar("Read later") }, containerColor = cs.surface) { padding ->
+    val listState = rememberLazyListState()
+    val header = rememberPageHeader(listState)
+    Scaffold(Modifier.collapsingHeader(header), topBar = { BloomTopBar("Read later", collapsing = header) }, containerColor = cs.surface) { padding ->
         Box(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
             if (threads.isEmpty()) {
                 Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
@@ -54,7 +57,7 @@ fun OfflineScreen() {
                     )
                 }
             } else {
-                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 130.dp)) {
+                LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 130.dp)) {
                     items(threads, key = { it.id }) { t -> OfflineRow(t) }
                 }
             }

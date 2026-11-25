@@ -77,7 +77,8 @@ struct InboxScreen: View {
         // Settings › Appearance › Top bar, as Posts and Explore (#214): Full, the search
         // bar in the middle with Inbox's buttons after it; Expandable, the title.
         .navigationTitle(fullBar && !pushed ? "" : "Inbox")
-        .navigationBarTitleDisplayMode(fullBar || pushed ? .inline : .automatic)
+        // Opened from Profile, its title big as well with Expandable (#247).
+        .navigationBarTitleDisplayMode(fullBar ? .inline : pushed ? .large : .automatic)
         .toolbar {
             if !pushed { ToolbarItem(placement: .topBarLeading) { SideBarButton() } }
             if fullBar && !pushed {

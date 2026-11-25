@@ -58,6 +58,14 @@ struct SubredditScreen: View {
 
     @State private var vm: SubredditAboutViewModel
     @State private var fab = FabScroll()
+    /// The banner header's top on screen, and where it rests (#257): the banner is drawn
+    /// from there up behind the bar, and the name shows in the bar once it's scrolled under.
+    @State private var headerTop: CGFloat = -1_000
+    @State private var restTop: CGFloat = 0
+
+    /// Expandable: the community's banner as the header, as a messaging app's profile (#257).
+    private var banner: Bool { app.settings.value.topBarMode == .expandable }
+    private var folded: Bool { headerTop + bannerHeight + 8 < restTop }
 
     init(name: String) {
         self.name = name
@@ -79,12 +87,45 @@ struct SubredditScreen: View {
                     Button("Content filters") { nav.push(.contentFilters) }.buttonStyle(.glass)
                 }
             } else {
-                PostListView(feedKey: name, fabScroll: fab) { SubredditHeader(vm: vm) }
+                PostListView(feedKey: name, fabScroll: fab) {
+                    if banner, case let .data(s) = vm.about {
+                        SubredditBannerHeader(about: s, vm: vm)
+                            .onGeometryChange(for: CGFloat.self, of: { $0.frame(in: .global).minY }) { top in
+                                headerTop = top
+                                restTop = max(restTop, top)
+                            }
+                            .onDisappear { headerTop = -1_000 }
+                    } else {
+                        SubredditHeader(vm: vm)
+                    }
+                }
             }
         }
-            .navigationTitle("r/\(name)")
+            .overlay(alignment: .top) {
+                if banner, case let .data(s) = vm.about, restTop > 0 {
+                    // From the screen's top to the banner's foot, moving with the list.
+                    BannerBackdrop(about: s)
+                        .frame(height: restTop + bannerHeight)
+                        .offset(y: headerTop - restTop)
+                        .ignoresSafeArea()
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
+            .navigationTitle(banner ? "" : "r/\(name)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                if banner {
+                    // The icon and name, in the bar once the header has gone under it.
+                    ToolbarItem(placement: .principal) {
+                        HStack(spacing: 8) {
+                            LetterAvatar(name: name, size: 24, imageUrl: vm.about.value?.iconUrl)
+                            Text("r/\(name)").font(.headline).lineLimit(1)
+                        }
+                        .opacity(folded ? 1 : 0)
+                        .animation(.easeOut(duration: 0.2), value: folded)
+                    }
+                }
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button("Search", systemImage: "magnifyingglass") { nav.push(.search(subreddit: name)) }
                     Menu("More", systemImage: "ellipsis") {
@@ -107,6 +148,96 @@ struct SubredditScreen: View {
                 .padding(.bottom, 12) // a little clear of the tab bar, as every floating button over it
             }
             .task { vm.load() }
+    }
+}
+
+private let bannerHeight: CGFloat = 120
+
+/// The banner (or a band in the community's colour), behind the bar's buttons (#257).
+private struct BannerBackdrop: View {
+    let about: Subreddit
+
+    var body: some View {
+        Rectangle()
+            .fill(bandColor(about.keyColor) ?? Color(.secondarySystemFill))
+            .overlay {
+                if let url = about.bannerUrl.flatMap(URL.init(string:)) {
+                    RemoteImage(url: url) { Color.clear }
+                        .scaledToFill()
+                }
+            }
+            .clipped()
+    }
+}
+
+/// "#0079D3" as a colour.
+private func bandColor(_ hex: String?) -> Color? {
+    guard let hex, let v = UInt32(hex.trimmingCharacters(in: CharacterSet(charactersIn: "#")), radix: 16), hex.count >= 6 else { return nil }
+    return Color(red: Double(v >> 16 & 0xFF) / 255, green: Double(v >> 8 & 0xFF) / 255, blue: Double(v & 0xFF) / 255)
+}
+
+/// The banner header's row (#257): room for the banner, the icon on the left over its
+/// foot, the name and members beside it, then the description in a card (3 lines, then
+/// Show all) with Join.
+private struct SubredditBannerHeader: View {
+    let about: Subreddit
+    let vm: SubredditAboutViewModel
+
+    @State private var open = false
+    @State private var fullHeight: CGFloat = 0
+    @State private var shownHeight: CGFloat = 0
+
+    var body: some View {
+        let subscribed = vm.subOverride ?? about.userIsSubscriber ?? false
+        let snippet = snippetMarkdown(about.description)
+        VStack(alignment: .leading, spacing: 10) {
+            Color.clear.frame(height: bannerHeight)
+            HStack(alignment: .top, spacing: 12) {
+                LetterAvatar(name: about.name, size: 64, imageUrl: about.iconUrl)
+                    .overlay(Circle().stroke(Color(.systemBackground), lineWidth: 3))
+                    .padding(.top, -42)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(about.namePrefixed).font(.title2.bold()).lineLimit(1)
+                    Text("\(compactNumber(about.subscribers)) members").font(.subheadline).foregroundStyle(.secondary)
+                }
+                .padding(.top, -6)
+            }
+            .padding(.horizontal, 16)
+            VStack(alignment: .leading, spacing: 6) {
+                if !about.description.isEmpty {
+                    if open {
+                        // Reddit text, its links working, once it's all shown.
+                        RedditMarkdown(text: about.description, fontSize: 15, color: .secondary)
+                    } else {
+                        Text(snippet)
+                            .font(.system(size: 15))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(3)
+                            .onGeometryChange(for: CGFloat.self, of: \.size.height) { shownHeight = $0 }
+                            .background(alignment: .top) {
+                                Text(snippet).font(.system(size: 15))
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .hidden()
+                                    .onGeometryChange(for: CGFloat.self, of: \.size.height) { fullHeight = $0 }
+                            }
+                    }
+                }
+                HStack {
+                    if open || fullHeight > shownHeight + 1 {
+                        Button(open ? "Show less" : "Show all") { withAnimation(.easeOut(duration: 0.2)) { open.toggle() } }
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    Spacer(minLength: 0)
+                    Button(subscribed ? "Joined" : "Join") { vm.toggleSub(about.name, currentlySubscribed: subscribed) }
+                        .buttonStyle(JoinStyle(on: subscribed))
+                        .accessibilityAddTraits(subscribed ? .isSelected : [])
+                }
+            }
+            .padding(14)
+            .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 22))
+            .padding(.horizontal, 12)
+            .padding(.bottom, 4)
+        }
     }
 }
 
