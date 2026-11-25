@@ -47,6 +47,18 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.114", "Nov 25, 2026",
+        listOf(
+            "Subreddit header: a bigger icon and name, the banner folds with the name, blurred button circles, and status bar icons that follow the banner's lightness (#268)",
+            "Settings: the big header when opened from the side bar, and the list split into two groups (#268, #276)",
+            "Videos: autoplay Off / On Wi-Fi only / Always, and pinch to zoom in the full-screen viewer",
+            "Posts: the poster's picture on post cards, in Appearance (off by default) (#270)",
+            "Comments: collapsing and expanding animate (#273); a setting to not reopen threads where you left off (#269)",
+            "User pages: the actions in a ⋯ menu (#275); searching a profile shows a \"From u/…\" tag (#271)",
+            "Fixes: popups spring back when not swiped away (#269), the ☰ looks like Material's (#258), AI shows busy errors instead of spinning (#267), Notification activity shows your check interval",
+        ),
+    ),
+    Release(
         "2.0.113", "Nov 25, 2026",
         listOf(
             "GIFs: GIF posts Reddit labels as images now play, as Reddit's small mp4 copy (#265)",
