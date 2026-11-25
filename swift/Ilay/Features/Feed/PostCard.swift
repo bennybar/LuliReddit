@@ -680,11 +680,15 @@ private struct CardMedia: View {
             // Its own view per post: a reused cell mustn't keep the last post's page (or
             // reveal). A spoiler / NSFW gallery covers each image, so it still swipes (#165).
             let cover = row.blur ? row.blurLabel : nil
+            // A Reddit Home card has only the first picture so far.
+            let images = row.post.gallery.isEmpty
+                ? row.post.previewMedUrl.map { [GalleryImage(url: $0, width: row.post.previewWidth, height: row.post.previewHeight)] } ?? []
+                : row.post.gallery
             Group {
                 if let carouselHeight {
-                    GalleryM3Carousel(images: row.post.gallery, title: row.post.title, height: carouselHeight, cover: cover, placeholder: row.post.previewMedUrl.flatMap(URL.init(string:)))
+                    GalleryM3Carousel(images: images, title: row.post.title, height: carouselHeight, cover: cover, placeholder: row.post.previewMedUrl.flatMap(URL.init(string:)))
                 } else {
-                    GalleryCarousel(images: row.post.gallery, title: row.post.title, height: height, radius: radius, cover: cover, placeholder: row.post.previewMedUrl.flatMap(URL.init(string:)))
+                    GalleryCarousel(images: images, title: row.post.title, height: height, radius: radius, cover: cover, placeholder: row.post.previewMedUrl.flatMap(URL.init(string:)))
                 }
             }
             .id(row.id)

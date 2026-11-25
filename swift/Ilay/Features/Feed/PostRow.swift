@@ -265,10 +265,12 @@ struct PostRow: Identifiable, Equatable {
         let aspect = if let w, let h, h > 0 { min(max(CGFloat(w) / CGFloat(h), 0.5), 2) } else { fallback }
         let height = c.display == .card ? 180 : (width / aspect).rounded()
 
-        if p.type == .gallery, !p.gallery.isEmpty {
+        // A Reddit Home card knows only the first picture: it takes the gallery's layout
+        // at once, so the full post just fills in the rest (it was a photo, then resized).
+        if p.type == .gallery, !p.gallery.isEmpty || img != nil {
             // Default gives a gallery its own height (the first image's shape) when one at a time.
             let own: CGFloat? = c.display == .large ? nil : height
-            if c.feedGalleryCarousel && p.gallery.count > 1 {
+            if c.feedGalleryCarousel && (p.gallery.count > 1 || p.gallery.isEmpty) {
                 return .gallery(carouselHeight: min(max(own ?? 300, 220), 340), height: nil)
             }
             return .gallery(carouselHeight: nil, height: own)
