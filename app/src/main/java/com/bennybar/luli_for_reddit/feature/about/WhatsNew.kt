@@ -45,6 +45,15 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.110", "Nov 25, 2026",
+        listOf(
+            "Videos from search and the Home feed can be downloaded again, with their sound (#261)",
+            "Viewing a single thread: the capsule floats over the post without leaving a gap, stays while you scroll, and swipes away sideways, as does \"Back where you left off\" (#264)",
+            "Top bars: the buttons sit at the same height on every tab and page (#263)",
+            "Side bar: the ☰ turns a little more as it fans (#258)",
+        ),
+    ),
+    Release(
         "2.0.109", "Nov 24, 2026",
         listOf(
             "Search: pick a time range (Hour to All time) with any sort, not only Top (#255)",
