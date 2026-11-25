@@ -65,6 +65,36 @@ import Foundation
         add(found)
     }
 
+    /// Posters waiting to be asked for, by account id.
+    @ObservationIgnored private var pending: [String] = []
+    @ObservationIgnored private var flushing = false
+
+    /// A card shows [post] (#270): its poster's picture is asked for together with the
+    /// other cards shown about now, so a page of posts costs one request (100 a request).
+    /// Nothing with the setting off, or with the website sign-in (it gets a 404 there).
+    func wantPoster(_ post: Post) {
+        guard app.settings.value.postAvatars else { return }
+        let id = post.authorFullname
+        guard id.hasPrefix("t2_"), icons[post.author.lowercased()] == nil, askedIds.insert(id).inserted else { return }
+        pending.append(id)
+        guard !flushing else { return }
+        flushing = true
+        Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            defer { flushing = false }
+            guard await !app.client.isWebMode() else { pending.removeAll(); return }
+            while !pending.isEmpty {
+                let batch = Array(pending.prefix(100))
+                pending.removeFirst(batch.count)
+                guard let found = try? await app.repository.getUserIcons(batch) else {
+                    askedIds.subtract(batch)
+                    return
+                }
+                add(found)
+            }
+        }
+    }
+
     private func add(_ found: [String: String]) {
         if found.isEmpty { return }
         var all = icons

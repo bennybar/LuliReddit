@@ -53,9 +53,45 @@ import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.ExoPlayer
 import coil3.compose.AsyncImage
 import com.bennybar.luli_for_reddit.app
+import com.bennybar.luli_for_reddit.settings.Settings
+import com.bennybar.luli_for_reddit.settings.autoplayAllowed
+import com.bennybar.luli_for_reddit.settings.autoplayMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.math.roundToInt
+
+/**
+ * Whether the current network is unmetered (Wi-Fi), for Autoplay "On Wi-Fi
+ * only". Compose state, so feeds recompose when it changes; true until known.
+ */
+object Unmetered {
+    var now by mutableStateOf(true)
+        private set
+    private var watching = false
+
+    fun watch(context: Context) {
+        if (watching) return
+        watching = true
+        val cm = context.getSystemService(android.net.ConnectivityManager::class.java) ?: return
+        fun of(caps: android.net.NetworkCapabilities?) = caps == null ||
+            caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED) ||
+            caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_TEMPORARILY_NOT_METERED)
+        now = of(cm.getNetworkCapabilities(cm.activeNetwork))
+        runCatching {
+            cm.registerDefaultNetworkCallback(
+                object : android.net.ConnectivityManager.NetworkCallback() {
+                    override fun onCapabilitiesChanged(network: android.net.Network, caps: android.net.NetworkCapabilities) {
+                        now = of(caps)
+                    }
+                },
+                android.os.Handler(android.os.Looper.getMainLooper()),
+            )
+        }
+    }
+}
+
+/** Whether feed videos autoplay right now (Settings › Autoplay videos, and the network). */
+fun autoplayNow(s: Settings) = autoplayAllowed(autoplayMode(s.autoplayMedia, s.autoplayWifiOnly), Unmetered.now)
 
 /** True under a cover (e.g. an unrevealed NSFW blur): inline videos don't autoplay there. */
 val LocalMediaCovered = compositionLocalOf { false }
@@ -228,7 +264,7 @@ class InlineVideoPool(private val context: Context) {
 internal fun InlineVideoImpl(url: String, height: Dp, onTap: () -> Unit, modifier: Modifier, poster: String?) {
     val settings by remember { app.settings.state }.collectAsStateWithLifecycle()
     val covered = LocalMediaCovered.current
-    val canPlay = settings.autoplayMedia && !covered
+    val canPlay = autoplayNow(settings) && !covered
     val pool = remember { app.media.inlinePlayer }
     val key = remember { Any() }
     // Muted unless Settings › Autoplay with sound.
@@ -282,7 +318,8 @@ internal fun InlineVideoImpl(url: String, height: Dp, onTap: () -> Unit, modifie
                     .graphicsLayer { this.alpha = alpha },
             )
             if (!firstFrame) {
-                Loading(Modifier.align(Alignment.Center).size(40.dp))
+                // White, as in the full-screen player (#272).
+                Loading(Modifier.align(Alignment.Center).size(40.dp), color = Color.White)
             }
             // Mute / unmute toggle.
             if (ready) {

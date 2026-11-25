@@ -34,6 +34,8 @@ data class Post(
     /** The subreddit's icon (from `sr_detail`), or null: the card shows its first letter. */
     val subredditIcon: String? = null,
     val author: String,
+    /** The author's account id (t2_…), for their picture on cards (#270); empty when unknown. */
+    val authorFullname: String = "",
     val score: Int,
     val numComments: Int,
     /** Null when the source doesn't say (a card read from the Home page; GraphQL without the field). */
@@ -152,6 +154,7 @@ data class Post(
                 subredditIcon = (d["sr_detail"]["community_icon"].str()?.ifEmpty { null } ?: d["sr_detail"]["icon_img"].str()?.ifEmpty { null })
                     ?.replace("&amp;", "&"),
                 author = d["author"].str() ?: "[deleted]",
+                authorFullname = d["author_fullname"].str() ?: "",
                 authorFlair = flairOf(d, "author"),
                 score = d["score"].int() ?: 0,
                 numComments = d["num_comments"].int() ?: 0,

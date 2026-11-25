@@ -610,13 +610,7 @@ class RedditRepository(val client: RedditClient) {
      */
     suspend fun getUserIcons(ids: List<String>): Map<String, String> {
         val json = client.get("/api/user_data_by_account_ids", linkedMapOf("ids" to ids.joinToString(",")))
-        val out = HashMap<String, String>()
-        json.obj()?.values?.forEach { u ->
-            val name = u["name"].str() ?: return@forEach
-            val img = u["profile_img"].str()?.replace("&amp;", "&")?.takeIf { it.startsWith("http") } ?: return@forEach
-            out[name.lowercase()] = img
-        }
-        return out
+        return parseUserIcons(json)
     }
 
     /**
@@ -1150,4 +1144,15 @@ class RedditRepository(val client: RedditClient) {
             return data
         }
     }
+}
+
+/** [RedditRepository.getUserIcons]' answer: lowercased name → picture; none for a user without one. */
+internal fun parseUserIcons(json: JsonElement?): Map<String, String> {
+    val out = HashMap<String, String>()
+    json.obj()?.values?.forEach { u ->
+        val name = u["name"].str() ?: return@forEach
+        val img = u["profile_img"].str()?.replace("&amp;", "&")?.takeIf { it.startsWith("http") } ?: return@forEach
+        out[name.lowercase()] = img
+    }
+    return out
 }

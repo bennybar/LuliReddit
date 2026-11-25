@@ -48,6 +48,7 @@ class SettingsStore(private val p: Prefs) {
             dimReadTextOnly = b("dimReadTextOnly", d.dimReadTextOnly),
             dimRead = b("dimRead", d.dimRead),
             subredditIcons = b("subredditIcons", d.subredditIcons),
+            postAvatars = b("postAvatars", d.postAvatars),
             subredditPrefix = b("subredditPrefix", d.subredditPrefix),
             sideBarUserPrefix = b("sideBarUserPrefix", d.sideBarUserPrefix),
             markReadOnScroll = b("markReadOnScroll", d.markReadOnScroll),
@@ -113,6 +114,7 @@ class SettingsStore(private val p: Prefs) {
             postTextScale = (p.getDouble("postTextScale") ?: d.postTextScale).coerceIn(0.8, 1.6),
             commentTextScale = (p.getDouble("commentTextScale") ?: d.commentTextScale).coerceIn(0.8, 1.6),
             autoplayMedia = b("autoplayMedia", d.autoplayMedia),
+            autoplayWifiOnly = b("autoplayWifiOnly", d.autoplayWifiOnly),
             autoplaySound = b("autoplaySound", d.autoplaySound),
             viewerMuted = b("viewerMuted", d.viewerMuted),
             loopVideos = b("loopVideos", d.loopVideos),
@@ -254,6 +256,7 @@ class SettingsStore(private val p: Prefs) {
         set { it.copy(dimRead = v != ReadDim.OFF, dimReadTextOnly = if (v == ReadDim.OFF) it.dimReadTextOnly else v == ReadDim.TEXT) }
     }
     fun setSubredditIcons(v: Boolean) { p.setBool("subredditIcons", v); set { it.copy(subredditIcons = v) } }
+    fun setPostAvatars(v: Boolean) { p.setBool("postAvatars", v); set { it.copy(postAvatars = v) } }
     fun setSubredditPrefix(v: Boolean) { p.setBool("subredditPrefix", v); set { it.copy(subredditPrefix = v) } }
     fun setSideBarUserPrefix(v: Boolean) { p.setBool("sideBarUserPrefix", v); set { it.copy(sideBarUserPrefix = v) } }
     fun setMarkReadOnScroll(v: Boolean) { p.setBool("markReadOnScroll", v); set { it.copy(markReadOnScroll = v) } }
@@ -306,6 +309,15 @@ class SettingsStore(private val p: Prefs) {
         set { it.copy(textScale = 1.0, titleTextScale = 1.0, postTextScale = 1.0, commentTextScale = 1.0) }
     }
     fun setAutoplayMedia(v: Boolean) { p.setBool("autoplayMedia", v); set { it.copy(autoplayMedia = v) } }
+
+    /** Off keeps the Wi-Fi choice, so the quick on/off switch turns back on to it. */
+    fun setAutoplayMode(m: AutoplayMode) {
+        setAutoplayMedia(m != AutoplayMode.OFF)
+        if (m != AutoplayMode.OFF) {
+            p.setBool("autoplayWifiOnly", m == AutoplayMode.WIFI)
+            set { it.copy(autoplayWifiOnly = m == AutoplayMode.WIFI) }
+        }
+    }
     fun setAutoplaySound(v: Boolean) { p.setBool("autoplaySound", v); set { it.copy(autoplaySound = v) } }
     fun setViewerMuted(v: Boolean) { p.setBool("viewerMuted", v); set { it.copy(viewerMuted = v) } }
     fun setLoopVideos(v: Boolean) { p.setBool("loopVideos", v); set { it.copy(loopVideos = v) } }

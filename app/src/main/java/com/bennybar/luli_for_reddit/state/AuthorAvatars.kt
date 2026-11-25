@@ -4,7 +4,11 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import com.bennybar.luli_for_reddit.app
 import com.bennybar.luli_for_reddit.feature.post.CommentTree
 import com.bennybar.luli_for_reddit.model.Comment
+import com.bennybar.luli_for_reddit.model.Post
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -80,6 +84,43 @@ class AuthorAvatars {
         add(found)
     }
 
+    /** Posters waiting to be asked for, by account id. Main thread only. */
+    private val pending = LinkedHashSet<String>()
+    private var flush: Job? = null
+
+    /**
+     * A card shows [post] (#270): its poster's picture is asked for together with the
+     * other cards shown about now, so a page of posts costs one request (100 a request).
+     * Nothing with the setting off, or with the website sign-in (it gets a 404 there).
+     */
+    fun wantPoster(post: Post) {
+        if (!app.settings.value.postAvatars) return
+        val id = post.authorFullname
+        if (!id.startsWith("t2_") || post.author.lowercase() in _icons.value || !askedIds.add(id)) return
+        pending += id
+        if (flush?.isActive == true) return
+        flush = app.scope.launch {
+            delay(POSTER_BATCH_WAIT_MS)
+            if (app.client.isWebMode()) {
+                pending.clear()
+                return@launch
+            }
+            while (pending.isNotEmpty()) {
+                val batch = pending.take(100)
+                pending.removeAll(batch.toSet())
+                val found = try {
+                    app.repository.getUserIcons(batch)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    askedIds.removeAll(batch.toSet())
+                    return@launch
+                }
+                add(found)
+            }
+        }
+    }
+
     private fun add(found: Map<String, String>) {
         if (found.isEmpty()) return
         _icons.update { old ->
@@ -92,6 +133,7 @@ class AuthorAvatars {
     private companion object {
         const val MAX = 3000
         const val MORE_PAGES = 3
+        const val POSTER_BATCH_WAIT_MS = 300L
     }
 }
 

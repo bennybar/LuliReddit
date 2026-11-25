@@ -39,6 +39,23 @@ enum class AppFont(val key: String, val label: String, val description: String) 
 }
 
 /** Order matters: persisted by index (`themeMode`), same as Flutter's ThemeMode. */
+/** Feed autoplay: off, only on an unmetered network (Wi-Fi), or always. */
+enum class AutoplayMode(val label: String) { OFF("Off"), WIFI("On Wi-Fi only"), ALWAYS("Always") }
+
+/**
+ * The mode from its two prefs: the old switch (`autoplayMedia`) and, added
+ * later, `autoplayWifiOnly`, so a stored on is Always and off is Off.
+ */
+fun autoplayMode(media: Boolean, wifiOnly: Boolean) = when {
+    !media -> AutoplayMode.OFF
+    wifiOnly -> AutoplayMode.WIFI
+    else -> AutoplayMode.ALWAYS
+}
+
+/** Whether feed videos play now: on, and on Wi-Fi when that's asked for. */
+fun autoplayAllowed(mode: AutoplayMode, unmetered: Boolean) =
+    mode == AutoplayMode.ALWAYS || (mode == AutoplayMode.WIFI && unmetered)
+
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 /** Material's palette styles: how a colour becomes the app's colours (#114). Persisted by index (`paletteStyle`). */
@@ -216,6 +233,7 @@ data class Settings(
     val dimReadTextOnly: Boolean = false, // read posts: dim only title / text (images stay bright), else the whole card
     val dimRead: Boolean = true, // read posts dim at all (#106); off: history is still kept, nothing fades
     val subredditIcons: Boolean = true, // cards show the subreddit's icon (else its first letter)
+    val postAvatars: Boolean = false, // the poster's picture on the subreddit icon (#270): one more request per page
     val subredditPrefix: Boolean = true, // subreddit names show as "r/name" (else just "name", #97); display only
     val sideBarUserPrefix: Boolean = true, // the side bar shows your name as "u/name" (else just "name", #167)
     val markReadOnScroll: Boolean = false, // a post scrolled past counts as read
@@ -281,6 +299,7 @@ data class Settings(
     val postTextScale: Double = 1.0,
     val commentTextScale: Double = 1.0,
     val autoplayMedia: Boolean = true, // autoplay videos/GIFs in feeds
+    val autoplayWifiOnly: Boolean = false, // ...only on an unmetered network (Wi-Fi); see [autoplayMode]
     val autoplaySound: Boolean = false, // feed videos start unmuted (#23)
     val viewerMuted: Boolean = false, // full-screen videos start muted (#51)
     val loopVideos: Boolean = true, // full-screen and Browse media videos start over at the end; off: they stop, with a replay button (#156). GIFs always loop

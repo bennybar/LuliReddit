@@ -547,7 +547,8 @@ final class CommentListController: UIViewController, UICollectionViewDelegate {
             // top of the screen stays exactly where it is, whatever changed above it.
             applyKeepingPosition(snapshot)
         } else {
-            dataSource.apply(snapshot, animatingDifferences: buttonsChanged && !idsChanged)
+            // A collapse that hides no rows (a comment without replies) animates too (#273).
+            dataSource.apply(snapshot, animatingDifferences: (buttonsChanged || collapseChanged) && !idsChanged)
         }
     }
 

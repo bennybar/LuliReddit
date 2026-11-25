@@ -423,6 +423,13 @@ private struct FeedAvatar: View {
         }
         .frame(width: size, height: size)
         .clipShape(.rect(cornerRadius: radius))
+        .overlay(alignment: .bottomTrailing) {
+            if row.config.postAvatars {
+                PosterBadge(post: row.post, size: (size * 0.45).rounded(), pixels: Int(size * 0.45 * row.config.scale),
+                            ring: row.config.isCarded ? Color(.secondarySystemGroupedBackground) : Color(.systemBackground))
+                    .offset(x: 3, y: 3)
+            }
+        }
     }
 
     private var tone: AnyShapeStyle {
@@ -432,6 +439,31 @@ private struct FeedAvatar: View {
         case 1: return AnyShapeStyle(.indigo)
         default: return AnyShapeStyle(.teal)
         }
+    }
+}
+
+/// The poster's profile picture on the community's icon, by the username line (#270).
+/// Asked for in one request with the other cards on screen; nothing until it's in, or
+/// when they have none. A ring in the card's colour sets it off the icon.
+private struct PosterBadge: View {
+    let post: Post
+    let size: CGFloat
+    let pixels: Int
+    let ring: Color
+
+    var body: some View {
+        ZStack {
+            if let url = app.authorAvatars.icons[post.author.lowercased()].flatMap(URL.init(string:)) {
+                SlotImage(url: url, pixels: pixels)
+                    .frame(width: size, height: size)
+                    .clipShape(Circle())
+                    .padding(1.5)
+                    .background(ring, in: Circle())
+            }
+        }
+        .frame(width: size + 3, height: size + 3)
+        .allowsHitTesting(false)
+        .task(id: post.authorFullname) { app.authorAvatars.wantPoster(post) }
     }
 }
 

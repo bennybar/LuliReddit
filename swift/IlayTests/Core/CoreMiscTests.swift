@@ -243,3 +243,40 @@ final class RedgifsTests: XCTestCase {
         XCTAssertNil(Redgifs.id("https://redgifs.com/users/abc/x"))
     }
 }
+
+/// Autoplay videos: Off / On Wi-Fi only / Always, from the old switch and the new pref.
+final class AutoplayModeTests: XCTestCase {
+    func testTheOldSwitchKeepsItsMeaning() {
+        // Before "On Wi-Fi only" there was no autoplayWifiOnly: it reads false.
+        XCTAssertEqual(AutoplayMode(media: true, wifiOnly: false), .always)
+        XCTAssertEqual(AutoplayMode(media: false, wifiOnly: false), .off)
+        XCTAssertEqual(AutoplayMode(media: false, wifiOnly: true), .off)
+        XCTAssertEqual(AutoplayMode(media: true, wifiOnly: true), .wifi)
+    }
+
+    func testWifiOnlyPlaysOnAnUnmeteredNetworkOnly() {
+        XCTAssertTrue(AutoplayMode.wifi.allows(unmetered: true))
+        XCTAssertFalse(AutoplayMode.wifi.allows(unmetered: false))
+        XCTAssertTrue(AutoplayMode.always.allows(unmetered: false))
+        XCTAssertFalse(AutoplayMode.off.allows(unmetered: true))
+    }
+}
+
+/// Pictures by account id (#185, and posters on cards #270).
+final class UserIconsTests: XCTestCase {
+    func testNamesMapToPicturesUsersWithoutOneAreLeftOut() {
+        let found = RedditRepository.parseUserIcons(json(#"""
+        {
+          "t2_a": { "name": "Alice", "profile_img": "https://styles.redditmedia.com/a.png?width=256&amp;s=x" },
+          "t2_b": { "name": "bob", "profile_img": "" },
+          "t2_c": { "profile_img": "https://example.com/c.png" }
+        }
+        """#))
+        XCTAssertEqual(found, ["alice": "https://styles.redditmedia.com/a.png?width=256&s=x"])
+    }
+
+    func testAPostCarriesItsAuthorsAccountId() {
+        XCTAssertEqual(Post.fromData(json(#"{ "id": "p1", "title": "t", "author": "Alice", "author_fullname": "t2_a" }"#)).authorFullname, "t2_a")
+        XCTAssertEqual(Post.fromData(json(#"{ "id": "p2", "title": "t" }"#)).authorFullname, "")
+    }
+}

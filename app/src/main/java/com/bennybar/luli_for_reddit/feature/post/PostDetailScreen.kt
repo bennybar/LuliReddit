@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
@@ -873,6 +874,7 @@ private fun CommentList(
                     val first = i == 0 || c.depth == 0
                     val last = i == flat.lastIndex || flat[i + 1].depth == 0
                     val rails = CalmRails(c.depth, prev = if (i == 0) 0 else flat[i - 1].depth, next = if (i == flat.lastIndex) 0 else flat[i + 1].depth)
+                    Box(Modifier.animateItem(commentFadeIn, commentMove, commentFadeOut)) {
                     CalmThreadRow(first, last, highlighted = currentMatchId == c.fullname) {
                         if (c.isMore) {
                             Box(Modifier.fillMaxWidth().calmRails(rails)) {
@@ -898,9 +900,11 @@ private fun CommentList(
                             }
                         }
                     }
+                    }
                 }
             } else {
                 items(flat, key = { it.fullname }, contentType = { if (it.isMore) "more" else "comment" }) { c ->
+                    Box(Modifier.animateItem(commentFadeIn, commentMove, commentFadeOut)) {
                     if (c.isMore) {
                         MoreRow(c, loading = c.fullname in thread.loadingMore, onClick = { actions.loadMore(c) })
                     } else {
@@ -918,11 +922,21 @@ private fun CommentList(
                             if (CommentTree.folded(c.id) in thread.collapsed && c.id !in thread.collapsed) FoldedReplies(c, actions)
                         }
                     }
+                    }
                 }
             }
         }
     }
 }
+
+// Collapsing / expanding a thread (#273): its replies fade out / in and the comments
+// below slide up / down, instead of the list jumping. animateItem only runs on changes.
+private val commentFadeIn = androidx.compose.animation.core.tween<Float>(220)
+private val commentFadeOut = androidx.compose.animation.core.tween<Float>(160)
+private val commentMove = androidx.compose.animation.core.spring(
+    stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow,
+    visibilityThreshold = androidx.compose.ui.unit.IntOffset.VisibilityThreshold,
+)
 
 /** Where volume presses go while a thread is on screen (Settings → Volume keys move between comments). */
 object VolumeKeys {

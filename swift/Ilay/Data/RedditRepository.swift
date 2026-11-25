@@ -308,6 +308,11 @@ final class RedditRepository: Sendable {
     /// name → picture. With an API key, where comments come without them.
     func getUserIcons(_ ids: [String]) async throws -> [String: String] {
         let json = try await client.get("/api/user_data_by_account_ids", [("ids", ids.joined(separator: ","))])
+        return Self.parseUserIcons(json)
+    }
+
+    /// `getUserIcons`' answer: lowercased name → picture; none for a user without one.
+    nonisolated static func parseUserIcons(_ json: JsonElement) -> [String: String] {
         var out: [String: String] = [:]
         for u in json.obj()?.values ?? [] {
             guard let name = u["name"].str(), let img = u["profile_img"].str()?.replacingOccurrences(of: "&amp;", with: "&"),

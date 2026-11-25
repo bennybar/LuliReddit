@@ -108,6 +108,7 @@ import com.bennybar.luli_for_reddit.feature.media.buildPlayer
 import com.bennybar.luli_for_reddit.feature.media.isExternalVideo
 import com.bennybar.luli_for_reddit.feature.media.mediaItemFor
 import com.bennybar.luli_for_reddit.feature.media.postVideoUrl
+import com.bennybar.luli_for_reddit.feature.media.autoplayNow
 import com.bennybar.luli_for_reddit.model.Post
 import com.bennybar.luli_for_reddit.model.PostType
 import com.bennybar.luli_for_reddit.nav.AppNavigator
@@ -432,7 +433,7 @@ internal fun FeedMediaBrowser(route: MediaViewer.Feed) {
                     NsfwBlur(blurOf(p, settings), Modifier.fillMaxSize(), blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, settings)) {
                         when {
                             p.type == PostType.GALLERY -> GalleryPage(p, decodeSize, onTap, onZoom)
-                            isVideoPost(p) -> VideoPage(p, active, video, decodeWidth, settings.autoplayMedia, onTap)
+                            isVideoPost(p) -> VideoPage(p, active, video, decodeWidth, autoplayNow(settings), onTap)
                             else -> ZoomableImage(p.previewUrl ?: p.url, onTap, onZoom, decodeSize = decodeSize)
                         }
                     }
