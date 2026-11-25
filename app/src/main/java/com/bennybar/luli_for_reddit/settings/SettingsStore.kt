@@ -130,6 +130,7 @@ class SettingsStore(private val p: Prefs) {
             threadJumpMine = b("threadJumpMine", d.threadJumpMine),
             threadJumpNext = b("threadJumpNext", d.threadJumpNext),
             threadButtonsHideOnScroll = b("threadButtonsHideOnScroll", d.threadButtonsHideOnScroll),
+            resumeThreads = b("resumeThreads", d.resumeThreads),
             topBarMode = p.getInt("topBarMode")?.let {
                 TopBarMode.entries[it.coerceIn(0, TopBarMode.entries.size - 1)]
             } ?: d.topBarMode,
@@ -321,6 +322,7 @@ class SettingsStore(private val p: Prefs) {
     fun setThreadJumpMine(v: Boolean) { p.setBool("threadJumpMine", v); set { it.copy(threadJumpMine = v) } }
     fun setThreadJumpNext(v: Boolean) { p.setBool("threadJumpNext", v); set { it.copy(threadJumpNext = v) } }
     fun setThreadButtonsHideOnScroll(v: Boolean) { p.setBool("threadButtonsHideOnScroll", v); set { it.copy(threadButtonsHideOnScroll = v) } }
+    fun setResumeThreads(v: Boolean) { p.setBool("resumeThreads", v); set { it.copy(resumeThreads = v) } }
     fun setHeaderHeight(v: HeaderHeight) { p.setInt("headerHeight", v.ordinal); set { it.copy(headerHeight = v) } }
     fun setTopBarMode(v: TopBarMode) { p.setInt("topBarMode", v.ordinal); set { it.copy(topBarMode = v) } }
     /** [entries] null: back to the default panel (and whatever buttons later versions add to it). */

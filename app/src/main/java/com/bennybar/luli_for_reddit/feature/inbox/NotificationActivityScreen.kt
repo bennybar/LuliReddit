@@ -109,7 +109,7 @@ fun NotificationActivityScreen() {
                         text = when {
                             !settings.notifyInbox -> "Inbox notifications are off (Settings → Notifications)"
                             !inboxChannel -> "The \"Inbox\" notification category is blocked"
-                            else -> "Checks your inbox about every 15 minutes"
+                            else -> "Checks your inbox about every ${InboxNotifications.intervalLabel(settings.inboxCheckMinutes)}"
                         },
                         fix = if (settings.notifyInbox && !inboxChannel) "Open" to { context.openNotificationSettings(InboxNotifications.CHANNEL_ID) } else null,
                     )

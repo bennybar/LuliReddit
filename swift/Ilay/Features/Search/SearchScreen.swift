@@ -195,6 +195,9 @@ struct SearchScreen: View {
 
     @State private var vm: SearchViewModel
     @State private var text: String
+    /// A search in someone's posts ("author:name", from Profile): a "From u/name" token in
+    /// the field, which holds only your own words (#271).
+    @State private var authorTokens: [AuthorToken]
     @State private var tab = "Posts"
     /// Communities named like what's being typed (#190), asked once typing pauses.
     @State private var suggestions: [Subreddit] = []
@@ -207,15 +210,26 @@ struct SearchScreen: View {
         initialSort = sort
         initialTime = time
         _vm = State(initialValue: SearchViewModel(subreddit: subreddit))
-        _text = State(initialValue: initial)
+        let (author, words) = splitAuthorQuery(initial)
+        _text = State(initialValue: words)
+        _authorTokens = State(initialValue: author.map { [AuthorToken(name: $0)] } ?? [])
+    }
+
+    private func withAuthor(_ words: String) -> String {
+        let w = words.trimmingCharacters(in: .whitespacesAndNewlines)
+        return [authorTokens.first.map { "author:\($0.name)" }, w.isEmpty ? nil : w].compactMap { $0 }.joined(separator: " ")
     }
 
     private var restricted: Bool { subreddit != nil }
 
+    /// Runs `q`, the whole query (a recent or saved one may carry "author:").
     private func doSearch(_ q: String, save: Bool = true) {
         let t = q.trimmingCharacters(in: .whitespacesAndNewlines)
         if t.isEmpty { return }
-        if text != t { text = t }
+        let (author, words) = splitAuthorQuery(t)
+        let tokens = author.map { [AuthorToken(name: $0)] } ?? []
+        if authorTokens != tokens { authorTokens = tokens }
+        if text != words { text = words }
         focused = false
         vm.search(t, saveRecent: save)
     }
@@ -245,9 +259,11 @@ struct SearchScreen: View {
         }
         .navigationTitle("Search")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $text, placement: .navigationBarDrawer(displayMode: .always), prompt: restricted ? "Search in r/\(subreddit ?? "")" : "Search Reddit")
+        .searchable(text: $text, tokens: $authorTokens, placement: .navigationBarDrawer(displayMode: .always), prompt: restricted ? "Search in r/\(subreddit ?? "")" : "Search Reddit") { token in
+            Label("From u/\(token.name)", systemImage: "person")
+        }
         .searchFocused($focused)
-        .onSubmit(of: .search) { doSearch(text) }
+        .onSubmit(of: .search) { doSearch(withAuthor(text)) }
         // While typing: communities named like it, under the field. One small request a
         // pause; none inside a subreddit's search.
         .searchSuggestions {
@@ -259,7 +275,7 @@ struct SearchScreen: View {
         }
         .task(id: text) {
             let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !restricted, t.count >= 2, t != vm.query else { suggestions = []; return }
+            guard !restricted, authorTokens.isEmpty, t.count >= 2, t != vm.query else { suggestions = []; return }
             try? await Task.sleep(for: .milliseconds(350))
             if Task.isCancelled { return }
             let hideNsfw = app.contentFilters.value.hideNsfw
@@ -267,11 +283,16 @@ struct SearchScreen: View {
         }
         // The field's ✕ (and Cancel): back to saved and recent searches.
         .onChange(of: text) { _, new in
-            if new.isEmpty && !vm.query.isEmpty { vm.clear() }
+            if new.isEmpty && authorTokens.isEmpty && !vm.query.isEmpty { vm.clear() }
+        }
+        // The "From u/" token removed: everyone's posts with your words, or back to the start.
+        .onChange(of: authorTokens) { _, new in
+            guard new.isEmpty, !vm.query.isEmpty, splitAuthorQuery(vm.query).0 != nil else { return }
+            if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { vm.clear() } else { doSearch(text) }
         }
         .toolbar {
             // Save this search (with its sort and time) to run again from here.
-            if !vm.query.isEmpty && vm.query == text.trimmingCharacters(in: .whitespacesAndNewlines) {
+            if !vm.query.isEmpty && vm.query == withAuthor(text) {
                 ToolbarItem(placement: .topBarTrailing) {
                     ToggleIcon(
                         checked: isSaved,
@@ -568,4 +589,22 @@ private struct EmptySearch: View {
             s.time != "all" ? (SEARCH_TIMES.first { $0.key == s.time }?.label ?? s.time) : nil,
         ].compactMap { $0 }.joined(separator: " · ")
     }
+}
+
+/// The "From u/name" token of a search in someone's posts (#271).
+struct AuthorToken: Identifiable, Equatable {
+    let name: String
+    var id: String { name }
+}
+
+/// "author:name rest" → ("name", "rest"): a search in someone's posts, and your own words (#271).
+func splitAuthorQuery(_ q: String) -> (String?, String) {
+    guard let m = q.range(of: #"(?i)(^|\s)author:\S+"#, options: .regularExpression) else {
+        return (nil, q.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+    let token = q[m].trimmingCharacters(in: .whitespaces)
+    let name = String(token.dropFirst("author:".count))
+    let rest = (q[..<m.lowerBound] + " " + q[m.upperBound...])
+        .split(whereSeparator: \.isWhitespace).joined(separator: " ")
+    return (name, rest)
 }

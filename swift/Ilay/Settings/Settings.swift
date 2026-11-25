@@ -291,6 +291,7 @@ struct Settings: Equatable, Sendable {
     var threadJumpMine: Bool = true // a thread's button for your own comments (#126)
     var threadJumpNext: Bool = true // a thread's next top-level comment button (#121)
     var threadButtonsHideOnScroll = false // the thread's buttons step aside while you scroll (#210)
+    var resumeThreads = true // reopening a thread scrolls back to where you left off (#179); off: from the top (#269)
     var topBarMode: TopBarMode = .expandable // Posts-screen action layout
     var navLabels = true // show text labels on the bottom nav bar
     var inboxInProfile = false // Inbox opens from Profile's top bar instead of being a tab

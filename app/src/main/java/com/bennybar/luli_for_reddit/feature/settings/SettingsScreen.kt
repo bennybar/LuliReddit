@@ -281,6 +281,9 @@ private val SETTINGS_CATEGORIES = listOf(
         Triple("Feed", "Posts tab feed, For You, sort", Icons.Outlined.DynamicFeed),
         Triple("Read & hidden", "Read posts, history, filters, NSFW", Icons.Outlined.VisibilityOff),
         Triple("Digest", "The day's notable posts from your communities", Icons.Outlined.Newspaper),
+    ),
+    // What things look like and how you get around, apart from what you read (#276).
+    listOf(
         Triple("Appearance", "Theme, font, text sizes, post layout", Icons.Outlined.Palette),
         Triple("Navigation", "Bottom bar or side bar, top bar, Back", Icons.Outlined.Explore),
         Triple("Posts & comments", "Comments, swipes, thread buttons, links", Icons.Outlined.Forum),
@@ -952,6 +955,11 @@ fun SettingsList(
             "Hide thread buttons while scrolling",
             "They step aside while your finger scrolls a thread and come back when it stops",
             Icons.Rounded.UnfoldLess, s.threadButtonsHideOnScroll, ctrl::setThreadButtonsHideOnScroll,
+        )
+        switch(
+            "Reopen threads where you left off",
+            "A thread you read before opens at the comment you were on, with Top to go back up",
+            Icons.Rounded.History, s.resumeThreads, ctrl::setResumeThreads,
         )
         switch(
             "Jump to OP's comments button",

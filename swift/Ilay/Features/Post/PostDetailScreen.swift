@@ -45,7 +45,8 @@ struct PostDetailScreen: View {
         _vm = State(initialValue: vm)
         _dwell = State(initialValue: ThreadDwell(postId: postId))
         _actions = State(initialValue: ThreadActions(vm: vm))
-        let at = focusCommentId == nil ? app.threadVisits.lastPosition(postId) : nil
+        // Settings › Reopen threads where you left off (#269): off, every thread opens at the top.
+        let at = focusCommentId == nil && app.settings.value.resumeThreads ? app.threadVisits.lastPosition(postId) : nil
         _resumeAt = State(initialValue: at)
         _resumed = State(initialValue: at == nil)
     }
@@ -595,21 +596,25 @@ private struct ThreadToolbar: View {
 }
 
 /// A floating capsule follows a sideways swipe and, swiped far or fast enough, goes (#264).
+/// The drag is gesture state, so a swipe the system cancels (a scroll taking over) still
+/// springs back, as does one let go short of dismissing (#269).
 private struct SwipeAway: ViewModifier {
     let onDismiss: () -> Void
-    @State private var x: CGFloat = 0
+    @GestureState(resetTransaction: Transaction(animation: .easeOut(duration: 0.2))) private var drag: CGFloat = 0
+    @State private var gone: CGFloat = 0
 
     func body(content: Content) -> some View {
+        let x = drag + gone
         content
             .offset(x: x)
             .opacity(1 - min(abs(x) / 192, 1))
             .gesture(
                 DragGesture(minimumDistance: 12)
-                    .onChanged { x = $0.translation.width }
+                    .updating($drag) { g, state, _ in state = g.translation.width }
                     .onEnded { g in
-                        let far = abs(g.translation.width) > 96 || abs(g.predictedEndTranslation.width) > 300
-                        withAnimation(.easeOut(duration: 0.2)) { x = far ? (g.translation.width < 0 ? -400 : 400) : 0 }
-                        if far { onDismiss() }
+                        guard abs(g.translation.width) > 96 || abs(g.predictedEndTranslation.width) > 300 else { return }
+                        withAnimation(.easeOut(duration: 0.2)) { gone = g.translation.width < 0 ? -400 : 400 }
+                        onDismiss()
                     }
             )
     }

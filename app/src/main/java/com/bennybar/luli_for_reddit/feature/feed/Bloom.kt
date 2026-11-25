@@ -332,6 +332,7 @@ fun PillTextField(
     trailing: (@Composable () -> Unit)? = null,
     onSearch: ((String) -> Unit)? = null,
     singleLine: Boolean = true,
+    leadingChip: (@Composable () -> Unit)? = null, // in place of the icon: a tag on the search (#271)
 ) {
     val cs = MaterialTheme.colorScheme
     TextField(
@@ -339,7 +340,7 @@ fun PillTextField(
         onValueChange = onValueChange,
         modifier = modifier,
         placeholder = { Text(placeholder, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        leadingIcon = { Icon(leading, null) },
+        leadingIcon = leadingChip ?: { Icon(leading, null) },
         trailingIcon = trailing,
         singleLine = singleLine,
         // A capsule at any height: a 28dp radius on the search screen's taller

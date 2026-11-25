@@ -17,6 +17,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.Surface
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -299,14 +303,22 @@ fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time:
     val nav = LocalNavigator.current
     val restricted = subreddit != null
     val initial = query?.trim().orEmpty()
-    var text by rememberSaveable { mutableStateOf(state.query.ifEmpty { initial }) }
+    // A search in someone's posts ("author:name", from Profile) shows as a "From u/name"
+    // chip in the field, which holds only your own words (#271).
+    val start = remember { splitAuthorQuery(state.query.ifEmpty { initial }) }
+    var author by rememberSaveable { mutableStateOf(start.first) }
+    var text by rememberSaveable { mutableStateOf(start.second) }
+    fun withAuthor(words: String) = listOfNotNull(author?.let { "author:$it" }, words.trim().ifEmpty { null }).joinToString(" ")
     val focus = remember { FocusRequester() }
     val scope = rememberCoroutineScope()
 
+    /** Runs [q], the whole query (a recent or saved one may carry "author:"). */
     fun doSearch(q: String, save: Boolean = true) {
         val t = q.trim()
         if (t.isEmpty()) return
-        if (text != t) text = t
+        val (a, words) = splitAuthorQuery(t)
+        author = a
+        if (text != words) text = words
         focusManager.clearFocus()
         vm.search(t, saveRecent = save)
     }
@@ -343,7 +355,7 @@ fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time:
 
     // While typing (#190): communities named like it, asked once typing pauses. One small
     // request a pause; none inside a subreddit's search.
-    val typing = !restricted && text.trim().length >= 2 && text.trim() != state.query
+    val typing = !restricted && author == null && text.trim().length >= 2 && text.trim() != state.query
     val hideNsfw = app.contentFilters.state.collectAsStateWithLifecycle().value.hideNsfw
     val suggestions by produceState(emptyList<Subreddit>(), text, typing) {
         if (!typing) {
@@ -366,11 +378,19 @@ fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time:
                             onValueChange = { text = it },
                             placeholder = if (restricted) "Search in r/$subreddit" else "Search Reddit",
                             modifier = Modifier.fillMaxWidth().padding(end = 16.dp).focusRequester(focus),
-                            onSearch = { doSearch(it) },
+                            onSearch = { doSearch(withAuthor(it)) },
+                            leadingChip = author?.let { a ->
+                                {
+                                    AuthorChip(a) {
+                                        author = null
+                                        if (text.isNotBlank()) doSearch(text) else vm.clear()
+                                    }
+                                }
+                            },
                             trailing = if (text.isEmpty()) null else ({
                                 Row {
                                     // Save this search (with its sort and time) to run again from here.
-                                    if (state.query.isNotEmpty() && state.query == text.trim()) {
+                                    if (state.query.isNotEmpty() && state.query == withAuthor(text)) {
                                         IconButton(onClick = {
                                             if (isSaved) {
                                                 app.savedSearches.remove(current)
@@ -422,7 +442,7 @@ fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time:
                         Tile(
                             title = { Text("Search for “${text.trim()}”") },
                             leading = { Icon(SearchIcon, null, Modifier.padding(horizontal = 8.dp)) },
-                            onClick = { doSearch(text) },
+                            onClick = { doSearch(withAuthor(text)) },
                         )
                     }
                     items(suggestions, key = { it.name }) { s ->
@@ -759,5 +779,33 @@ private fun FilterBar(state: SearchState, vm: SearchViewModel) {
                 }
             }
         }
+    }
+}
+
+/** "author:name rest" → ("name", "rest"): a search in someone's posts, and your own words (#271). */
+fun splitAuthorQuery(q: String): Pair<String?, String> {
+    val m = Regex("""(?i)(?:^|\s)author:(\S+)""").find(q) ?: return null to q.trim()
+    val rest = (q.substring(0, m.range.first) + " " + q.substring(m.range.last + 1)).trim().replace(Regex("""\s+"""), " ")
+    return m.groupValues[1] to rest
+}
+
+/** The "From u/name" tag at the start of the search field, × to search everyone again (#271). */
+@Composable
+private fun AuthorChip(name: String, onRemove: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Spacer(Modifier.width(14.dp))
+        Surface(shape = CircleShape, color = cs.primaryContainer) {
+            Row(Modifier.padding(start = 12.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "From u/$name", Modifier.widthIn(max = 160.dp), style = MaterialTheme.typography.labelLarge,
+                    color = cs.onPrimaryContainer, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                IconButton(onClick = onRemove, Modifier.size(32.dp)) {
+                    Icon(Icons.Rounded.Close, "Search everyone's posts", Modifier.size(16.dp), tint = cs.onPrimaryContainer)
+                }
+            }
+        }
+        Spacer(Modifier.width(4.dp))
     }
 }

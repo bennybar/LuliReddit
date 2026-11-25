@@ -27,6 +27,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.rounded.MailOutline
+import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -119,19 +120,25 @@ fun UserScreen(username: String) {
             BloomTopBar(
                 "u/$username",
                 actions = {
-                    if (!isSelf) {
-                        IconButton(onClick = { nav.push(Route.ComposeMessage(to = username)) }) {
-                            Icon(Icons.Rounded.MailOutline, "Send message")
-                        }
-                    }
-                    IconButton(onClick = { nav.share("https://reddit.com/user/$username") }) { Icon(Icons.Outlined.Share, "Share") }
-                    if (!isSelf) {
-                        IconButton(onClick = { scope.launch { showReportDialog("u/$username") { app.repository.reportUser(username, it) } } }) {
-                            Icon(Icons.Outlined.Flag, "Report user") // #221
-                        }
-                        IconButton(onClick = { scope.launch { confirmBlockUser(username) } }) {
-                            Icon(Icons.Rounded.Block, "Block user")
-                        }
+                    val share = { nav.share("https://reddit.com/user/$username") }
+                    // Your own page has only Share; anyone else's actions go in ⋯, like a
+                    // subreddit's, instead of four icons crowding the name (#275).
+                    if (isSelf) {
+                        IconButton(onClick = share) { Icon(Icons.Outlined.Share, "Share") }
+                    } else {
+                        IconButton(onClick = {
+                            showBarMenu(
+                                listOf(
+                                    MenuAction(Icons.Rounded.MailOutline, "Send message") { nav.push(Route.ComposeMessage(to = username)) },
+                                    MenuAction(Icons.Outlined.Share, "Share", onClick = share),
+                                    // #221
+                                    MenuAction(Icons.Outlined.Flag, "Report user") {
+                                        scope.launch { showReportDialog("u/$username") { app.repository.reportUser(username, it) } }
+                                    },
+                                    MenuAction(Icons.Rounded.Block, "Block user") { scope.launch { confirmBlockUser(username) } },
+                                ),
+                            )
+                        }) { Icon(Icons.Rounded.MoreHoriz, "More") }
                     }
                 },
             )
