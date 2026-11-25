@@ -64,6 +64,9 @@ class FeedController(val key: String) {
     private var started = false
     private var cacheConsulted = false
     private var showingCache = false // a cached page is on screen, fresh one in flight
+    // The cached page on screen was scrolled: its fresh page waits behind "New posts"
+    // rather than replacing the list under the finger.
+    private var scrolledOverCache = false
 
     // Bumped whenever the list is replaced (load, refresh, sort, "New posts"),
     // so a page that was in flight for the old list is dropped, not appended.
@@ -266,6 +269,7 @@ class FeedController(val key: String) {
             cached = cachedFirstPage()
             if (cached != null) {
                 showingCache = true
+                scrolledOverCache = false
                 _ui.value = FeedUi.Data(FeedState(cached.items, sort, time, cached.after))
             }
         }
@@ -298,7 +302,23 @@ class FeedController(val key: String) {
         }
         showingCache = false
         lastLoaded = System.currentTimeMillis()
+        // The cached page was being scrolled: the fresh one waits behind "New posts"
+        // (it replaced the list under the finger).
+        if (cached != null && scrolledOverCache) {
+            val shown = cached.items.mapTo(HashSet()) { it.id }
+            val fresh = listing.items.any { it.id !in shown }
+            if (fresh) {
+                pending = listing.items
+                pendingAfter = listing.after
+            }
+            return FeedState(cached.items, sort, time, cached.after, hasPending = fresh)
+        }
         return FeedState(listing.items, sort, time, listing.after)
+    }
+
+    /** The list was scrolled by hand (from the list view). */
+    fun userScrolled() {
+        if (showingCache) scrolledOverCache = true
     }
 
     /**

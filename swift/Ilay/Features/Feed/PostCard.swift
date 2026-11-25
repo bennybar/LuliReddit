@@ -411,7 +411,7 @@ private struct FeedAvatar: View {
             Rectangle().fill(tone).opacity(row.config.display.isCalm ? 0.16 : 1)
             if let url = row.avatarUrl {
                 // Always a still image: some subreddit icons are animated GIFs (see RemoteImage).
-                SlotImage(url: url, pixels: row.avatarPixels).frame(width: size, height: size)
+                SlotImage(url: url, pixels: row.avatarPixels, hold: row.id).frame(width: size, height: size)
             } else {
                 // Soft tones like every placeholder (#168).
                 let tones = avatarTones(row.post.subreddit)

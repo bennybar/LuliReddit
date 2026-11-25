@@ -236,8 +236,11 @@ private enum FeedItem: Hashable {
     private let chipsState = FeedChipsState()
     private var chipsTracker = FloatingChipsTracker()
     private let chipsEdge = UIScrollEdgeElementContainerInteraction()
-    /// The loading deck was just showing: deal the first cards in.
-    private var dealing = false
+    /// The loading deck was showing: the first cards of the next list are dealt in.
+    private var dealArmed = false
+    /// Those cards, each dealt once and only just after the list lands: a card shown
+    /// later (scrolled to, or rebuilt by Home's upgrade) is never dealt again.
+    private var dealIds = Set<String>()
     private var prefetched = Set<String>()
     /// The media browser opened from this list, told about each new page.
     private weak var browser: MediaBrowserModel?
@@ -446,7 +449,12 @@ private enum FeedItem: Hashable {
         // The list being replaced (sort / feed change): the new one starts at the top.
         let loading = new.ui.isLoading
         if loading && !lastUiLoading { scrollToTop(animated: false) }
-        if loading && new.deckMode { dealing = true }
+        if loading && new.deckMode { dealArmed = true }
+        if !loading && dealArmed {
+            dealArmed = false
+            dealIds = Set(visibleIds.prefix(3))
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.dealIds = [] }
+        }
         lastUiLoading = loading
 
         applySnapshot(reconfigure: reconfigure, reload: reload, wholesale: styleChanged || replacedController)
@@ -517,8 +525,36 @@ private enum FeedItem: Hashable {
             if case .post = $0 { true } else { false }
         }
         let lostPlace = !onScreen.isEmpty && !onScreen.contains { present.contains($0) }
+        // Rows replaced in place (Home's full posts, a fresh page over the cached one) can
+        // change height: unanimated, with the first card on screen kept where it is, so
+        // nothing shifts under the reader. (At the top, the list just stays at the top.)
+        if !animate, !lostPlace, let anchor = firstCardOnScreen() {
+            UIView.performWithoutAnimation {
+                dataSource.apply(snap, animatingDifferences: false)
+                collectionView.layoutIfNeeded()
+                if let path = dataSource.indexPath(for: anchor.item), let frame = collectionView.layoutAttributesForItem(at: path)?.frame {
+                    let inset = collectionView.adjustedContentInset
+                    let maxY = max(-inset.top, collectionView.contentSize.height + inset.bottom - collectionView.bounds.height)
+                    let y = min(max(frame.minY - anchor.offset, -inset.top), maxY)
+                    if abs(y - collectionView.contentOffset.y) > 0.5 { collectionView.contentOffset.y = y }
+                }
+            }
+            return
+        }
         dataSource.apply(snap, animatingDifferences: animate)
         if lostPlace { scrollToTop(animated: false) }
+    }
+
+    /// The first post card on screen and how far its top is below the list's top, when the
+    /// list has been scrolled away from its top.
+    private func firstCardOnScreen() -> (item: FeedItem, offset: CGFloat)? {
+        guard collectionView.window != nil, collectionView.contentOffset.y > -collectionView.adjustedContentInset.top + 1 else { return nil }
+        let first = collectionView.indexPathsForVisibleItems
+            .filter { if case .post = dataSource.itemIdentifier(for: $0) { true } else { false } }
+            .min()
+        guard let first, let item = dataSource.itemIdentifier(for: first),
+              let frame = collectionView.layoutAttributesForItem(at: first)?.frame else { return nil }
+        return (item, frame.minY - collectionView.contentOffset.y)
     }
 
     private func scrollToTop(animated: Bool) {
@@ -656,7 +692,8 @@ private enum FeedItem: Hashable {
             model.controller.loadMore()
         }
         // The first cards after the loading deck are dealt in.
-        if dealing, case let .post(id) = dataSource.itemIdentifier(for: indexPath), let i = visibleIds.prefix(3).firstIndex(of: id), !UIAccessibility.isReduceMotionEnabled {
+        if !dealIds.isEmpty, case let .post(id) = dataSource.itemIdentifier(for: indexPath), dealIds.remove(id) != nil,
+           let i = visibleIds.prefix(3).firstIndex(of: id), !UIAccessibility.isReduceMotionEnabled {
             let t = [-6.0, 5.0, -3.0][i % 3] * .pi / 180
             cell.alpha = 0
             cell.transform = CGAffineTransform(translationX: 0, y: CGFloat(180 - 60 * i)).rotated(by: t).scaledBy(x: 0.85, y: 0.85)
@@ -664,7 +701,6 @@ private enum FeedItem: Hashable {
                 cell.alpha = 1
                 cell.transform = .identity
             }
-            if i == 2 { dealing = false }
         }
     }
 
@@ -687,6 +723,7 @@ private enum FeedItem: Hashable {
         // A new scroll starting near the end asks again (retrying a failed page).
         loadMoreIfNearEnd()
         lastContentOffset = scrollView.contentOffset.y
+        model.controller.userScrolled()
     }
 
     func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
