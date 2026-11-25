@@ -47,6 +47,13 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.115", "Nov 25, 2026",
+        listOf(
+            "Home feed: posts appear at their final size, the photo stays put instead of loading twice, and galleries fill in without resizing",
+            "Home feed: the flair fades in when it arrives",
+        ),
+    ),
+    Release(
         "2.0.114", "Nov 25, 2026",
         listOf(
             "Subreddit header: a bigger icon and name, the banner folds with the name, blurred button circles, and status bar icons that follow the banner's lightness (#268)",

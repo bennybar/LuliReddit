@@ -12,6 +12,10 @@ struct Release: Identifiable {
 /// 2.0 (the native app, with Reddit Home). Add the new release at the top
 /// with every release.
 let CHANGELOG = [
+    Release(version: "2.0.115", date: "Nov 25, 2026", highlights: [
+        "Home feed: posts appear at their final size, the photo stays put instead of loading twice, and galleries fill in without resizing",
+        "Home feed: the flair fades in when it arrives",
+    ]),
     Release(version: "2.0.114", date: "Nov 25, 2026", highlights: [
         "Subreddit header: a bigger icon and name, sitting lower, and the icon's ring fully around it (#268)",
         "Settings: the big title with the Expandable top bar, and the list split into two groups (#268, #276)",
