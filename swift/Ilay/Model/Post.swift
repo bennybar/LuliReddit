@@ -176,7 +176,8 @@ struct Post: Identifiable, Equatable, Sendable, Copyable {
             previewHeight: preview?.height,
             hlsUrl: redditVideo["hls_url"].str() ?? (bareVreddit ? "https://v.redd.it/\(vreddit!.segments[0])/HLSPlaylist.m3u8" : nil),
             fallbackVideoUrl: redditVideo["fallback_url"].str(),
-            gifMp4Url: content["preview"]["reddit_video_preview"]["fallback_url"].str(),
+            gifMp4Url: content["preview"]["reddit_video_preview"]["fallback_url"].str()
+                ?? content["preview"]["images"][0]["variants"]["mp4"]["source"]["url"].str(),
             gallery: gallery,
             likes: d["likes"].bool(),
             parsedSnippet: snippetOf(selftext, bodyMedia)
@@ -187,17 +188,18 @@ struct Post: Identifiable, Equatable, Sendable, Copyable {
         if d["is_self"].isTrue() { return .selfPost }
         if hasGallery { return .gallery }
         if isVideo { return .video }
-        switch d["post_hint"].str() {
-        case "image": return .image
-        case "rich:video", "hosted:video": return .video
-        default: break
-        }
         let rawUrl = d["url"].str() ?? ""
         let parsed = URL(string: rawUrl)
         // Check the path without query params — preview.redd.it links end
         // with `.png?width=…&s=…`.
         let path = (parsed?.path ?? rawUrl).lowercased()
+        // Before post_hint: Reddit hints an i.redd.it GIF as "image" (#265).
         if path.hasSuffix(".gif") { return .gif }
+        switch d["post_hint"].str() {
+        case "image": return .image
+        case "rich:video", "hosted:video": return .video
+        default: break
+        }
         if path.hasSuffix(".jpg") || path.hasSuffix(".jpeg") || path.hasSuffix(".png") || path.hasSuffix(".webp") { return .image }
         if path.hasSuffix(".gifv") || path.hasSuffix(".mp4") { return .video }
         let host = parsed?.host?.lowercased() ?? ""

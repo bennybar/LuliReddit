@@ -78,4 +78,26 @@ class PostVideoDetectionTest {
         assertEquals(PostType.LINK, p.type)
         assertNull(p.hlsUrl)
     }
+
+    @Test
+    fun `an i_redd_it GIF hinted as an image is a GIF with reddit's mp4 copy`() {
+        // #265: no reddit_video_preview, the mp4 only in the preview variants.
+        val p = post(
+            """
+            {
+              "id": "x5", "title": "Y'all asked for it", "url": "https://i.redd.it/5h9y0fyi4n3i1.gif",
+              "domain": "i.redd.it", "post_hint": "image",
+              "preview": { "images": [ {
+                "source": { "url": "https://preview.redd.it/5h9y0fyi4n3i1.gif?format=png8&s=a", "width": 720, "height": 480 },
+                "variants": {
+                  "gif": { "source": { "url": "https://preview.redd.it/5h9y0fyi4n3i1.gif?s=b" } },
+                  "mp4": { "source": { "url": "https://preview.redd.it/5h9y0fyi4n3i1.gif?format=mp4&s=c" } }
+                }
+              } ] }
+            }
+            """,
+        )
+        assertEquals(PostType.GIF, p.type)
+        assertEquals("https://preview.redd.it/5h9y0fyi4n3i1.gif?format=mp4&s=c", p.gifMp4Url)
+    }
 }

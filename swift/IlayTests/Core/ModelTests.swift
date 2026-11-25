@@ -38,6 +38,25 @@ final class AuthorFlairTests: XCTestCase {
 }
 
 final class CrosspostAndStubTests: XCTestCase {
+    func testAnIReddItGifHintedAsAnImageIsAGifWithRedditsMp4Copy() {
+        // #265: no reddit_video_preview, the mp4 only in the preview variants.
+        let p = Post.fromData(json(#"""
+        {
+          "id": "x5", "title": "Y'all asked for it", "url": "https://i.redd.it/5h9y0fyi4n3i1.gif",
+          "domain": "i.redd.it", "post_hint": "image",
+          "preview": { "images": [ {
+            "source": { "url": "https://preview.redd.it/5h9y0fyi4n3i1.gif?format=png8&s=a", "width": 720, "height": 480 },
+            "variants": {
+              "gif": { "source": { "url": "https://preview.redd.it/5h9y0fyi4n3i1.gif?s=b" } },
+              "mp4": { "source": { "url": "https://preview.redd.it/5h9y0fyi4n3i1.gif?format=mp4&s=c" } }
+            }
+          } ] }
+        }
+        """#))
+        XCTAssertEqual(p.type, .gif)
+        XCTAssertEqual(p.gifMp4Url, "https://preview.redd.it/5h9y0fyi4n3i1.gif?format=mp4&s=c")
+    }
+
     func testACrosspostOfATextPostShowsTheOriginalsTextButStaysALinkPost() {
         let p = Post.fromData(json(#"""
         {
