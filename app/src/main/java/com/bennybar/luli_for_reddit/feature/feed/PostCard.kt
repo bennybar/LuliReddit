@@ -145,6 +145,7 @@ import com.bennybar.luli_for_reddit.feature.media.autoplayNow
 import com.bennybar.luli_for_reddit.feature.post.hidePost
 import com.bennybar.luli_for_reddit.feature.post.showPostActionsSheet
 import com.bennybar.luli_for_reddit.feature.post.showReplySheet
+import com.bennybar.luli_for_reddit.model.GalleryImage
 import com.bennybar.luli_for_reddit.model.Post
 import com.bennybar.luli_for_reddit.model.PostType
 import com.bennybar.luli_for_reddit.nav.AppNavigator
@@ -624,7 +625,7 @@ private fun BannerMedia(p: Post, a: PostActions, s: Settings, height: Dp) {
         return
     }
     val blur = blurOf(p, s)
-    if (p.type == PostType.GALLERY && p.gallery.isNotEmpty()) {
+    if (isFeedGallery(p)) {
         FeedGallery(p, s, Modifier.padding(bottom = 4.dp), height = height)
         return
     }
@@ -803,12 +804,22 @@ internal fun rememberFlairText(flair: UserFlair): Pair<AnnotatedString, Map<Stri
 private fun FeedGallery(p: Post, s: Settings, modifier: Modifier = Modifier, height: Dp? = null, shape: Shape = RoundedCornerShape(16.dp)) {
     // A spoiler / NSFW gallery covers each image, not the whole carousel, so it still swipes (#165).
     val cover = if (blurOf(p, s)) blurLabel(p, s) else null
-    if (s.feedGalleryCarousel && p.gallery.size > 1) {
-        GalleryM3Carousel(p.gallery, modifier, title = p.title, height = (height ?: 300.dp).coerceIn(220.dp, 340.dp), cover = cover, standIn = p.previewMedUrl)
+    // A Reddit Home card has only the first picture so far; an unknown count takes the
+    // carousel, as the full post most likely will.
+    val images = p.gallery.ifEmpty { p.previewMedUrl?.let { listOf(GalleryImage(it, p.previewWidth, p.previewHeight)) }.orEmpty() }
+    if (s.feedGalleryCarousel && (p.gallery.size > 1 || p.gallery.isEmpty())) {
+        GalleryM3Carousel(images, modifier, title = p.title, height = (height ?: 300.dp).coerceIn(220.dp, 340.dp), cover = cover, standIn = p.previewMedUrl)
     } else {
-        GalleryCarousel(p.gallery, modifier, title = p.title, height = height, shape = shape, cover = cover, standIn = p.previewMedUrl)
+        GalleryCarousel(images, modifier, title = p.title, height = height, shape = shape, cover = cover, standIn = p.previewMedUrl)
     }
 }
+
+/**
+ * Shown as a gallery: one with images, or a Reddit Home card that knows only its first
+ * picture so far. That one takes the gallery's layout at once, so the full post just
+ * fills in the rest (it was a photo, then resized to the carousel).
+ */
+private fun isFeedGallery(p: Post) = p.type == PostType.GALLERY && (p.gallery.isNotEmpty() || p.previewMedUrl != null)
 
 /** "Reminder tomorrow at 09:00" on a post you asked to be reminded about (cards and the post screen); tap to change or cancel. */
 @Composable
@@ -910,7 +921,7 @@ fun PollOptions(p: Post) {
 private fun Media(p: Post, a: PostActions, s: Settings) {
     val blur = blurOf(p, s)
     when (p.type) {
-        PostType.GALLERY -> if (p.gallery.isNotEmpty()) {
+        PostType.GALLERY -> if (isFeedGallery(p)) {
             FeedGallery(p, s, Modifier.padding(bottom = 4.dp))
         } else {
             NsfwBlur(blur, blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, s)) { MediaPreview(p, a, s) }
@@ -1567,7 +1578,7 @@ private fun CalmMedia(p: Post, a: PostActions, s: Settings, shape: androidx.comp
         val h = p.previewHeight ?: first?.height
         val aspect = if (w != null && h != null && h > 0) (w.toFloat() / h).coerceIn(0.5f, 2f) else 16f / 10f
         val height = maxWidth / aspect
-        if (p.type == PostType.GALLERY && p.gallery.isNotEmpty()) {
+        if (isFeedGallery(p)) {
             FeedGallery(p, s, height = height, shape = shape)
             return@BoxWithConstraints
         }
