@@ -79,12 +79,16 @@ struct SearchFetcher {
             prefs.remove(legacy)
         }
         recentKey = key
-        recent = prefs.getStringList(key) ?? []
+        // A bare "author:name" (opening search from a profile) was saved before #281: not a search.
+        recent = (prefs.getStringList(key) ?? []).filter { e in !splitAuthorQuery(e).1.isEmpty || !e.trimmingCharacters(in: .whitespaces).hasPrefix("author:") }
     }
 
     private func saveRecent(_ q: String) {
         // Recent searches are history: none kept while tracking is off.
         if !trackHistory() { return }
+        // Only "From u/name" with no words of your own isn't a search to keep (#281).
+        let (author, words) = splitAuthorQuery(q)
+        if author != nil && words.isEmpty { return }
         let list = Array(([q] + recent.filter { $0 != q }).prefix(12))
         prefs.setStringList(recentKey, list)
         recent = list
@@ -538,11 +542,23 @@ private struct EmptySearch: View {
                             Group {
                                 if r.kind == nil {
                                     HStack(spacing: 12) {
+                                        // A search in someone's posts: your words, and their "u/name" tag at the end (#281).
+                                        let (author, words) = splitAuthorQuery(r.name)
                                         Button { onPick(r.name) } label: {
-                                            Label(r.name, systemImage: "clock.arrow.circlepath")
-                                                .foregroundStyle(.primary)
-                                                .frame(maxWidth: .infinity, alignment: .leading)
-                                                .contentShape(.rect)
+                                            HStack(spacing: 8) {
+                                                Label(words, systemImage: "clock.arrow.circlepath").lineLimit(1)
+                                                if let author {
+                                                    Text("u/\(author)")
+                                                        .font(.caption)
+                                                        .lineLimit(1)
+                                                        .padding(.horizontal, 10)
+                                                        .padding(.vertical, 3)
+                                                        .background(.tint.opacity(0.15), in: .capsule)
+                                                }
+                                            }
+                                            .foregroundStyle(.primary)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .contentShape(.rect)
                                         }
                                         .buttonStyle(.plain)
                                         Button("Search again", systemImage: "arrow.up.left") { onRerun(r.name) }

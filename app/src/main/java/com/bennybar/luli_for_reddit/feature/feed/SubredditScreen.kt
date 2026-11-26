@@ -27,6 +27,8 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.luminance
@@ -377,13 +379,14 @@ private fun BannerTitleBar(
             }
             // The banner again, blurred, only inside the buttons' circles (#268).
             if (request != null && holes.isNotEmpty()) {
-                val circles = holes.values.toList()
+                val shapes = holes.values.toList()
                 Box(
                     Modifier
                         .fillMaxWidth()
                         .height(top + BANNER.dp)
                         .drawWithContent {
-                            val path = Path().apply { circles.forEach { addOval(it) } }
+                            // Each a circle or a pill: rounded by half its height.
+                            val path = Path().apply { shapes.forEach { addRoundRect(RoundRect(it, CornerRadius(it.height / 2))) } }
                             clipPath(path) { this@drawWithContent.drawContent() }
                         }
                         .graphicsLayer { translationY = -bannerShift.toPx(); alpha = bannerAlpha },
@@ -465,15 +468,17 @@ private fun BannerTitleBar(
                 val tint = (if (light) Color.White.copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.25f)).let { it.copy(alpha = it.alpha * (1f - p)) }
                 fun back(i: Int) = Modifier
                     .onGloballyPositioned { c -> root?.takeIf { it.isAttached }?.let { r -> holes[i] = r.localBoundingBoxOf(c) } }
-                    .background(tint, CircleShape)
+                    .background(tint, CircleShape) // a circle, or a pill when wider
                 Box(back(0)) {
                     if (sideBar) SideBarButton()
                     else IconButton(onClick = { nav.pop() }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
                 }
                 Spacer(Modifier.weight(1f))
-                IconButton(onClick = onSearch, modifier = back(1)) { Icon(SearchIcon, "Search") }
-                Spacer(Modifier.width(6.dp))
-                IconButton(onClick = onMenu, modifier = back(2)) { Icon(Icons.Rounded.MoreHoriz, "More") }
+                // Search and ⋯ share one pill, spaced as on Posts (#282).
+                Row(back(1)) {
+                    IconButton(onClick = onSearch) { Icon(SearchIcon, "Search") }
+                    IconButton(onClick = onMenu) { Icon(Icons.Rounded.MoreHoriz, "More") }
+                }
             }
         }
     }

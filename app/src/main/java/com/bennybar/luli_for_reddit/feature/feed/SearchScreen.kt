@@ -68,6 +68,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -160,12 +161,15 @@ class SearchViewModel(private val subreddit: String?) : ViewModel() {
     }
 
     init {
-        _state.update { it.copy(recent = app.prefs.getStringList(recentKey) ?: emptyList()) }
+        // A bare "author:name" (opening search from a profile) was saved before #281: not a search.
+        _state.update { it.copy(recent = (app.prefs.getStringList(recentKey) ?: emptyList()).filter { e -> splitAuthorQuery(e).second.isNotBlank() || !e.trim().startsWith("author:") }) }
     }
 
     private fun saveRecent(q: String) {
         // Recent searches are history: none kept while tracking is off.
         if (!app.settings.value.trackHistory) return
+        // Only "From u/name" with no words of your own isn't a search to keep (#281).
+        if (splitAuthorQuery(q).first != null && splitAuthorQuery(q).second.isBlank()) return
         val list = (listOf(q) + _state.value.recent.filter { it != q }).take(12)
         app.prefs.setStringList(recentKey, list)
         _state.update { it.copy(recent = list) }
@@ -616,8 +620,20 @@ private fun EmptySearch(
         itemsIndexed(recent, key = { _, it -> it }) { i, e ->
             val r = remember(e) { parseRecent(e) }
             if (r.kind == null) {
+                // A search in someone's posts: your words, and their "u/name" tag at the end (#281).
+                val (author, words) = remember(r.name) { splitAuthorQuery(r.name) }
                 Tile(
-                    title = { Text(r.name) },
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(words, Modifier.weight(1f, fill = false), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (author != null) {
+                                Spacer(Modifier.width(8.dp))
+                                Surface(shape = CircleShape, color = cs.secondaryContainer, contentColor = cs.onSecondaryContainer) {
+                                    Text("u/$author", Modifier.padding(horizontal = 10.dp, vertical = 3.dp), fontSize = 12.sp, maxLines = 1)
+                                }
+                            }
+                        }
+                    },
                     modifier = Modifier.inGroup(i, recent.size, cs.surfaceContainerLow),
                     leading = { Icon(Icons.Rounded.History, null) },
                     trailing = {
