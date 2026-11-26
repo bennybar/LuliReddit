@@ -649,7 +649,8 @@ private enum FlairPick {
 /// A subreddit's banner filling its box. Reddit's desktop banners are 4000 px wide and as
 /// little as 128 tall: filling a phone's header shows a sliver of one blown up several
 /// times (Reddit feedback, r/Howtomen). One that would need more than 1.5× becomes a soft
-/// wash of its own colours instead of a blurry zoom; a big enough one shows as it is.
+/// wash of its own colours with the banner sharp across it (#294) instead of a blurry
+/// zoom; a big enough one shows as it is.
 private struct BannerImage: View {
     let url: URL
 
@@ -666,6 +667,13 @@ private struct BannerImage: View {
                     .frame(width: geo.size.width, height: geo.size.height)
                     .blur(radius: soft ? 30 : 0, opaque: true)
                     .clipped()
+                    .overlay {
+                        // The banner itself sharp across the wash, at its own shape, as the
+                        // website shows it (#294).
+                        if soft {
+                            Image(uiImage: image).resizable().scaledToFit()
+                        }
+                    }
                     .transition(.opacity)
             }
         }

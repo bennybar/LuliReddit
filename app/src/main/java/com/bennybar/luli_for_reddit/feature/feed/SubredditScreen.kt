@@ -38,6 +38,9 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalView
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.compose.runtime.collectAsState
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.WindowCompat
 import coil3.toBitmap
@@ -362,7 +365,8 @@ private fun BannerTitleBar(
     var imageLight by remember(about?.bannerUrl) { mutableStateOf<Boolean?>(null) }
     // Reddit's desktop banners are 4000 px wide and as little as 128 tall: filling this box
     // shows a sliver of one blown up several times (Reddit feedback, r/Howtomen). One that
-    // would need more than 1.5× becomes a soft wash of its own colours, not a blurry zoom.
+    // would need more than 1.5× becomes a soft wash of its own colours, not a blurry zoom,
+    // with the banner itself sharp across it at its own shape, as the website shows it (#294).
     var soft by remember(about?.bannerUrl) { mutableStateOf(false) }
     val light = imageLight ?: (band.luminance() > 0.5f)
     BannerStatusBar(light = light, shown = { state.progress < 0.5f })
@@ -373,7 +377,10 @@ private fun BannerTitleBar(
     // Gone, not covered, once folded: a covered banner left a line under the status bar (#268).
     val bannerAlpha = 1f - (p * 1.2f).coerceAtMost(1f)
     val scope = rememberCoroutineScope()
-    val bannerPx = with(LocalDensity.current) { (top + BANNER.dp).roundToPx() }
+    val density = LocalDensity.current
+    val bannerPx = with(density) { (top + BANNER.dp).roundToPx() }
+    // The status bar and the buttons' row: the part of the banner their colour follows.
+    val barPx = with(density) { (top + BAR_ROW_TOP + 48.dp).toPx() }
     val request = rememberCoverRequest(about?.bannerUrl, feedDecodeWidth(), bannerPx)
     // The round buttons' places in the header, for the blurred banner behind them.
     var root by remember { mutableStateOf<LayoutCoordinates?>(null) }
@@ -382,6 +389,7 @@ private fun BannerTitleBar(
         Modifier.fillMaxWidth().height(top + state.height).background(cs.surface).clipToBounds().onGloballyPositioned { root = it },
     ) {
         val width = maxWidth
+        val boxW = with(density) { width.roundToPx() }
         if (bannerAlpha > 0f) {
             Box(
                 Modifier
@@ -398,9 +406,18 @@ private fun BannerTitleBar(
                         modifier = Modifier.fillMaxSize().then(if (soft) Modifier.blur(30.dp) else Modifier),
                         onSuccess = { s ->
                             soft = bannerPx > s.result.image.height * 1.5f
-                            scope.launch { imageLight = isLight(s.result.image.toBitmap()) }
+                            scope.launch { imageLight = isLight(s.result.image.toBitmap(), boxW, bannerPx, barPx / bannerPx) }
                         },
                     )
+                    if (soft) {
+                        // The same decoded picture, whole and sharp, under the status bar.
+                        AsyncImage(
+                            model = request,
+                            contentDescription = null,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxSize().padding(top = top),
+                        )
+                    }
                 }
             }
             // The banner again, blurred, only inside the buttons' circles (#268).
@@ -522,25 +539,55 @@ private fun BannerStatusBar(light: Boolean, shown: () -> Boolean) {
         generateSequence(view.context) { (it as? ContextWrapper)?.baseContext }.firstNotNullOfOrNull { it as? Activity }
             ?.window?.let { WindowCompat.getInsetsController(it, view) }
     }
-    val theme = remember(controller) { controller?.isAppearanceLightStatusBars }
+    // The theme's own icons (#291): from its colours, not read off the window, which may
+    // still hold another banner page's (one leaving as this one comes, or one left behind
+    // in another tab) and would then be "restored" white in light mode.
+    val theme = MaterialTheme.colorScheme.surface.luminance() > 0.5f
     val open by remember { derivedStateOf(shown) }
-    LaunchedEffect(open, light) {
-        if (controller != null && theme != null) controller.isAppearanceLightStatusBars = if (open) light else theme
+    // Only while this page is the one showing: a page under another, or leaving, lets go.
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val resumed by lifecycle.currentStateFlow.collectAsState()
+    val active = resumed.isAtLeast(Lifecycle.State.RESUMED)
+    val owner = remember { Any() }
+    LaunchedEffect(open, light, active, theme) {
+        if (controller == null) return@LaunchedEffect
+        if (active) {
+            BannerBarOwner.current = owner
+            controller.isAppearanceLightStatusBars = if (open) light else theme
+        } else if (BannerBarOwner.current === owner) {
+            BannerBarOwner.current = null
+            controller.isAppearanceLightStatusBars = theme
+        }
     }
     DisposableEffect(controller) {
-        onDispose { if (controller != null && theme != null) controller.isAppearanceLightStatusBars = theme }
+        onDispose {
+            // Another banner page may already own the bar: leave its icons alone.
+            if (controller != null && BannerBarOwner.current === owner) {
+                BannerBarOwner.current = null
+                controller.isAppearanceLightStatusBars = theme
+            }
+        }
     }
 }
 
-/** Whether a picture is light, from a sample of its pixels (off the main thread: a hardware bitmap is copied to read them). */
-private suspend fun isLight(bitmap: Bitmap): Boolean = withContext(Dispatchers.Default) {
+/** The banner page whose header sets the status bar's icons now, if any (#291). */
+private object BannerBarOwner {
+    var current: Any? = null
+}
+
+/**
+ * Whether a picture is light where the status bar and the buttons sit on it, from a sample
+ * of its pixels (off the main thread: a hardware bitmap is copied to read them). The box is
+ * filled by cropping (#291): only the part that shows counts, not the whole picture.
+ */
+private suspend fun isLight(bitmap: Bitmap, boxW: Int, boxH: Int, topFraction: Float): Boolean = withContext(Dispatchers.Default) {
     val b = if (bitmap.config == Bitmap.Config.HARDWARE) bitmap.copy(Bitmap.Config.ARGB_8888, false) else bitmap
+    val r = bannerSampleRect(b.width, b.height, boxW, boxH, topFraction)
     var sum = 0.0
     var n = 0
     for (yi in 0 until 6) for (xi in 0 until 12) {
-        // The top part: what the status bar and the buttons sit on.
-        val x = ((xi + 0.5f) / 12f * b.width).toInt().coerceIn(0, b.width - 1)
-        val y = ((yi + 0.5f) / 6f * b.height * 0.6f).toInt().coerceIn(0, b.height - 1)
+        val x = (r.left + (xi + 0.5f) / 12f * r.width).toInt().coerceIn(0, b.width - 1)
+        val y = (r.top + (yi + 0.5f) / 6f * r.height).toInt().coerceIn(0, b.height - 1)
         sum += ColorUtils.calculateLuminance(b.getPixel(x, y))
         n++
     }
@@ -591,14 +638,17 @@ private fun SubredditHeader(s: Subreddit, vm: SubredditAboutViewModel) {
         if (s.bannerUrl != null) {
             val stripPx = with(LocalDensity.current) { 110.dp.roundToPx() }
             var soft by remember(s.bannerUrl) { mutableStateOf(false) } // as the banner header's
+            val request = rememberCoverRequest(s.bannerUrl, feedDecodeWidth(), stripPx)
             Box(Modifier.fillMaxWidth().height(110.dp).clip(RoundedCornerShape(20.dp))) {
                 AsyncImage(
-                    model = rememberCoverRequest(s.bannerUrl, feedDecodeWidth(), stripPx),
+                    model = request,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize().then(if (soft) Modifier.blur(30.dp) else Modifier),
                     onSuccess = { r -> soft = stripPx > r.result.image.height * 1.5f },
                 )
+                // Sharp across the wash, at its own shape (#294).
+                if (soft) AsyncImage(model = request, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
             }
         }
         BloomCard(Modifier.padding(start = 4.dp, top = 10.dp, end = 4.dp, bottom = 4.dp).fillMaxWidth()) {
@@ -807,4 +857,19 @@ private suspend fun pickUserFlair(sub: String, s: UserFlairSelector): Boolean {
         app.navigatorOrNull?.showActionError("set your flair", e)
         false
     }
+}
+
+/**
+ * The part of an [imgW]×[imgH] picture that shows at the top [topFraction] of a [boxW]×[boxH]
+ * box it fills by cropping (centred, as ContentScale.Crop): what the status bar and the
+ * buttons sit on (#291).
+ */
+internal fun bannerSampleRect(imgW: Int, imgH: Int, boxW: Int, boxH: Int, topFraction: Float): androidx.compose.ui.geometry.Rect {
+    if (imgW <= 0 || imgH <= 0 || boxW <= 0 || boxH <= 0) return androidx.compose.ui.geometry.Rect(0f, 0f, imgW.toFloat(), imgH.toFloat())
+    val scale = maxOf(boxW.toFloat() / imgW, boxH.toFloat() / imgH)
+    val w = boxW / scale
+    val h = boxH / scale
+    val left = (imgW - w) / 2
+    val top = (imgH - h) / 2
+    return androidx.compose.ui.geometry.Rect(left, top, left + w, top + h * topFraction.coerceIn(0.05f, 1f))
 }
