@@ -51,6 +51,13 @@ final class ImageLoader: @unchecked Sendable {
         Task.detached(priority: .utility) { self.trimDisk() }
     }
 
+    /// Puts `data` in the disk cache as `url`'s file: a picture the app draws itself
+    /// (Settings › Appearance's sample post), shown like any other and never downloaded.
+    func seed(_ data: Data, for url: URL) {
+        let file = directory.appending(path: Self.fileName(url))
+        if !FileManager.default.fileExists(atPath: file.path) { try? data.write(to: file) }
+    }
+
     /// Synchronous memory lookup, so a reused cell can paint without a placeholder frame.
     func cached(url: URL, maxPixelSize: Int, animated: Bool = false) -> UIImage? {
         memory.object(forKey: Self.key(url, maxPixelSize, animated) as NSString)

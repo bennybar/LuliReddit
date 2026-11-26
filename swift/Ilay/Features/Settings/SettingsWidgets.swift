@@ -130,3 +130,101 @@ private struct HiddenSubsSheet: View {
 @MainActor func showHiddenSubsSheet() {
     Overlays.launch(detents: [.medium, .large]) { _ in HiddenSubsSheet() }
 }
+
+/// Settings › Appearance's live preview: a sample post drawn by the feed's own `PostCard`,
+/// so every look option (layout, corners, text sizes, theme, accent, icons, flair…) shows
+/// as it changes. Pinned above the options; scaled down when the layout is tall. The
+/// sample is local — a picture drawn here, no Reddit requests — and the card is inert.
+struct AppearancePreview: View {
+    @State private var cardHeight: CGFloat = 0
+
+    var body: some View {
+        // The drawn picture back in the cache if it was let go (a file check otherwise).
+        let _ = Self.photoData.map { ImageLoader.shared.seed($0, for: Self.photo) }
+        // Read here (through `current`) so any appearance change redraws the card.
+        let config = FeedRowConfig.current()
+        let screen = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first?.screen.bounds.height ?? 874
+        // Up to about 40% of the screen, so the options keep most of it.
+        let maxHeight = screen * 0.4
+        let scale = cardHeight > maxHeight ? maxHeight / cardHeight : 1
+        PostCard(row: PostRow(Self.post, config: config))
+            .fixedSize(horizontal: false, vertical: true)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { cardHeight = $0 }
+            .scaleEffect(scale, anchor: .top)
+            .frame(height: cardHeight > 0 ? cardHeight * scale : nil, alignment: .top)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity)
+            .background(Color(config.isCarded ? .systemGroupedBackground : .systemBackground))
+            .clipped()
+            // Look, don't touch: no votes, menus or opening the post.
+            .allowsHitTesting(false)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Preview of a post with these settings")
+            .overlay(alignment: .bottom) { Divider() }
+    }
+
+    /// Where the drawn picture sits in the image cache: `.invalid` never resolves, so it's
+    /// never really fetched; the body puts it back before the card asks for it.
+    private static let photo = URL(string: "https://appearance-preview.invalid/photo.png")!
+
+    /// A made-up post that shows most of a card: flair, a short body and a photo.
+    private static let photoData = drawPhoto()
+
+    private static let post: Post = {
+        Post(
+            id: "appearance_preview",
+            fullname: "t3_appearance_preview",
+            title: "Morning fog over the lake, shot handheld at sunrise",
+            subreddit: "photography",
+            subredditPrefixed: "r/photography",
+            author: "ilay_preview",
+            score: 1234,
+            numComments: 84,
+            upvoteRatio: 0.97,
+            createdUtc: Int(Date().timeIntervalSince1970 * 1000) - 2 * 3_600_000,
+            permalink: "/r/photography/comments/appearance_preview/",
+            url: photo.absoluteString,
+            domain: "i.redd.it",
+            type: .image,
+            selftext: "A short body shows under the title in layouts that preview the text.",
+            linkFlairText: "OC",
+            linkFlair: UserFlair(parts: [FlairPart(text: "OC")]),
+            previewUrl: photo.absoluteString,
+            previewMedUrl: photo.absoluteString,
+            previewWidth: 960,
+            previewHeight: 540
+        )
+    }()
+
+    /// A small landscape: sky, sun, hills and a lake.
+    private static func drawPhoto() -> Data? {
+        let size = CGSize(width: 960, height: 540)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: size, format: format).image { ctx in
+            let c = ctx.cgContext
+            let sky = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: [
+                UIColor(red: 0.98, green: 0.77, blue: 0.59, alpha: 1).cgColor,
+                UIColor(red: 0.63, green: 0.61, blue: 0.75, alpha: 1).cgColor,
+            ] as CFArray, locations: [0, 1])!
+            c.drawLinearGradient(sky, start: .zero, end: CGPoint(x: 0, y: size.height), options: [])
+            UIColor(red: 1, green: 0.93, blue: 0.75, alpha: 1).setFill()
+            c.fillEllipse(in: CGRect(x: 620, y: 90, width: 120, height: 120))
+            func fill(_ points: [CGPoint], _ color: UIColor) {
+                color.setFill()
+                c.beginPath()
+                c.addLines(between: points)
+                c.closePath()
+                c.fillPath()
+            }
+            fill([.init(x: 0, y: 380), .init(x: 160, y: 220), .init(x: 300, y: 330), .init(x: 470, y: 170), .init(x: 650, y: 350),
+                  .init(x: 790, y: 250), .init(x: 960, y: 360), .init(x: 960, y: 540), .init(x: 0, y: 540)],
+                 UIColor(red: 0.45, green: 0.38, blue: 0.55, alpha: 1))
+            fill([.init(x: 0, y: 430), .init(x: 220, y: 330), .init(x: 420, y: 410), .init(x: 600, y: 320), .init(x: 800, y: 400),
+                  .init(x: 960, y: 350), .init(x: 960, y: 540), .init(x: 0, y: 540)],
+                 UIColor(red: 0.31, green: 0.27, blue: 0.43, alpha: 1))
+            UIColor(red: 0.38, green: 0.47, blue: 0.63, alpha: 1).setFill()
+            c.fill(CGRect(x: 0, y: 470, width: size.width, height: 70))
+        }.pngData()
+    }
+}

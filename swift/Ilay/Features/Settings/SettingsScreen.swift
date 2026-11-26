@@ -1215,6 +1215,10 @@ struct SettingsScreen: View {
             }
         }
         .listStyle(.insetGrouped)
+        // A live sample post pinned above Appearance's options: every change shows on it at once.
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if section == "Appearance" && query.trimmed.isEmpty { AppearancePreview() }
+        }
         .navigationTitle(section ?? "Settings")
         // Settings itself gets the big title with Expandable, as Saved and History (#268).
         .navigationBarTitleDisplayMode(section == nil && app.settings.value.topBarMode == .expandable ? .large : .automatic)
