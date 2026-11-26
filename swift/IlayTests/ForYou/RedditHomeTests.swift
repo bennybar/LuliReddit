@@ -431,8 +431,9 @@ private func fakePost(_ id: String) -> Post {
         early.add(["t3_a", "t3_b"])
         early.add(["t3_c", "t3_a"]) // a: already asked
         early.add(["t3_gone"])
-        let got = await early.posts(for: ["t3_a", "t3_b", "t3_c", "t3_gone"], deadline: 2_000)
-        XCTAssertEqual(Set(got?.keys ?? [:].keys), ["t3_a", "t3_b", "t3_c"], "one the API leaves out is just absent")
+        let got = await early.wait(for: ["t3_a", "t3_b", "t3_c", "t3_gone"], deadline: 2_000)
+        XCTAssertTrue(got.complete)
+        XCTAssertEqual(Set(got.posts.keys), ["t3_a", "t3_b", "t3_c"], "one the API leaves out is just absent")
         XCTAssertEqual(calls.batches, [["t3_a", "t3_b"], ["t3_c", "t3_gone"]], "the next request waits for the one in flight")
     }
 
@@ -441,17 +442,31 @@ private func fakePost(_ id: String) -> Post {
             try await Task.sleep(for: .milliseconds(400))
             return ids.map { fakePost($0.removePrefix("t3_")) }
         }
-        let late = await slow.posts(for: ["t3_a"], deadline: 50)
-        XCTAssertNil(late)
+        let late = await slow.wait(for: ["t3_a"], deadline: 50)
+        XCTAssertFalse(late.complete)
+        XCTAssertTrue(late.posts.isEmpty)
         let failing = EarlyFullPosts { _ in throw URLError(.notConnectedToInternet) }
-        let failed = await failing.posts(for: ["t3_a"], deadline: 1_000)
-        XCTAssertNil(failed)
+        let failed = await failing.wait(for: ["t3_a"], deadline: 1_000)
+        XCTAssertFalse(failed.complete)
+    }
+
+    func testWhatsInByTheDeadlineComesBackWhenTheRestIsLate() async {
+        // Reddit's page shows its first few posts well before the rest: those are in.
+        let early = EarlyFullPosts { ids in
+            if ids.contains("t3_late") { try await Task.sleep(for: .seconds(5)) }
+            return ids.map { fakePost($0.removePrefix("t3_")) }
+        }
+        early.add(["t3_a"])
+        try? await Task.sleep(for: .milliseconds(100))
+        let got = await early.wait(for: ["t3_a", "t3_late"], deadline: 100)
+        XCTAssertFalse(got.complete)
+        XCTAssertEqual(Set(got.posts.keys), ["t3_a"])
     }
 
     func testACancelledOneGivesNil() async {
         let early = EarlyFullPosts { ids in ids.map { fakePost($0.removePrefix("t3_")) } }
         early.cancel()
-        let got = await early.posts(for: ["t3_a"], deadline: 200)
-        XCTAssertNil(got)
+        let got = await early.wait(for: ["t3_a"], deadline: 200)
+        XCTAssertFalse(got.complete)
     }
 }
