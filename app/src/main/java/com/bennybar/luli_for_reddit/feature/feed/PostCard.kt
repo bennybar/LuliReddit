@@ -163,6 +163,7 @@ import com.bennybar.luli_for_reddit.ui.theme.LocalVoteColors
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import com.bennybar.luli_for_reddit.ui.userName
 
 /**
  * The actions behind a card. Network calls run on the app scope, so a vote
@@ -736,7 +737,7 @@ private fun Header(p: Post, a: PostActions, s: Settings) {
                     append(subredditName(p.subredditPrefixed.ifEmpty { p.subreddit }, s.subredditPrefix))
                 }
                 append("  ·  ")
-                withLink(LinkAnnotation.Clickable("author") { a.openAuthor() }) { append("u/${p.author}") }
+                withLink(LinkAnnotation.Clickable("author") { a.openAuthor() }) { append(userName(p.author, s.subredditPrefix)) }
                 append("  ·  ${timeAgo(p.createdUtc)}")
             }
         }
@@ -1517,7 +1518,7 @@ private fun CalmHeader(p: Post, a: PostActions, s: Settings) {
                 }
             } else {
                 Text(
-                    "u/${p.author} · ${timeAgo(p.createdUtc)}",
+                    "${userName(p.author)} · ${timeAgo(p.createdUtc)}",
                     Modifier.clickable(onClick = a::openAuthor),
                     fontSize = 12.sp,
                     color = cs.onSurfaceVariant,
@@ -1921,7 +1922,7 @@ private fun CompactMeta(p: Post, a: PostActions, s: Settings) {
                     append(subredditName(p.subredditPrefixed.ifEmpty { p.subreddit }, s.subredditPrefix))
                 }
                 append(" · ")
-                withLink(LinkAnnotation.Clickable("author", plain) { a.openAuthor() }) { append("u/${p.author}") }
+                withLink(LinkAnnotation.Clickable("author", plain) { a.openAuthor() }) { append(userName(p.author, s.subredditPrefix)) }
                 append(" · ${timeAgo(p.createdUtc)}")
                 if (p.type != PostType.SELF && p.domain.isNotEmpty() && !p.domain.startsWith("self.")) append(" · ${p.domain}")
             }
@@ -1949,7 +1950,7 @@ private fun PosterHeader(p: Post, a: PostActions, s: Settings) {
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                "u/${p.author}",
+                userName(p.author),
                 Modifier.clickable(onClick = a::openAuthor),
                 fontSize = 13.5.sp,
                 fontWeight = FontWeight.Medium,

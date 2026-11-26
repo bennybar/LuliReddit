@@ -42,6 +42,7 @@ final class SettingsStore {
         s.dimReadTextOnly = b("dimReadTextOnly", s.dimReadTextOnly)
         s.dimRead = b("dimRead", s.dimRead)
         s.subredditIcons = b("subredditIcons", s.subredditIcons)
+        s.subredditPrefix = b("subredditPrefix", s.subredditPrefix)
         s.postAvatars = b("postAvatars", s.postAvatars)
         s.sideBarUserPrefix = b("sideBarUserPrefix", s.sideBarUserPrefix)
         s.markReadOnScroll = b("markReadOnScroll", s.markReadOnScroll)
@@ -252,6 +253,7 @@ final class SettingsStore {
         }
     }
     func setSubredditIcons(_ v: Bool) { p.setBool("subredditIcons", v); set { $0.subredditIcons = v } }
+    func setSubredditPrefix(_ v: Bool) { p.setBool("subredditPrefix", v); set { $0.subredditPrefix = v } }
     func setPostAvatars(_ v: Bool) { p.setBool("postAvatars", v); set { $0.postAvatars = v } }
     func setSideBarUserPrefix(_ v: Bool) { p.setBool("sideBarUserPrefix", v); set { $0.sideBarUserPrefix = v } }
     func setMarkReadOnScroll(_ v: Bool) { p.setBool("markReadOnScroll", v); set { $0.markReadOnScroll = v } }

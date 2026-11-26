@@ -3,7 +3,7 @@ package com.bennybar.luli_for_reddit.ui
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** Subreddit names on screen with and without the "r/" (#97). */
+/** Subreddit and user names on screen with and without the "r/" and "u/" (#97, #289). */
 class SubredditNameTest {
     @Test
     fun `with the prefix a bare or prefixed name shows as r slash name`() {
@@ -18,13 +18,20 @@ class SubredditNameTest {
     }
 
     @Test
-    fun `a user's profile keeps its u slash`() {
+    fun `a user's profile follows the same setting`() {
         assertEquals("u/someone", subredditName("u/someone", prefix = true))
-        assertEquals("u/someone", subredditName("u/someone", prefix = false))
+        assertEquals("someone", subredditName("u/someone", prefix = false))
     }
 
     @Test fun aProfileSubredditReadsAsTheUser() {
         assertEquals("u/jackal-molotov", subredditName("u_jackal-molotov", prefix = true))
-        assertEquals("u/jackal-molotov", subredditName("u_jackal-molotov", prefix = false))
+        assertEquals("jackal-molotov", subredditName("u_jackal-molotov", prefix = false))
+    }
+
+    @Test fun userNamesFollowTheSetting() {
+        assertEquals("u/someone", userName("someone", prefix = true))
+        assertEquals("u/someone", userName("u/someone", prefix = true))
+        assertEquals("someone", userName("someone", prefix = false))
+        assertEquals("someone", userName("u/someone", prefix = false))
     }
 }

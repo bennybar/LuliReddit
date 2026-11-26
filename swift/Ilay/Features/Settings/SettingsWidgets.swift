@@ -187,17 +187,14 @@ private struct HiddenSubsSheet: View {
 /// Settings › Appearance's live preview: a window into the feed, not a shrunk card. The
 /// sample post is drawn by the feed's own `PostCard` at true size, with the feed's insets
 /// and spacing, on the feed's background, so every look option (layout, corners, text
-/// sizes, theme, accent, icons, flair…) shows exactly as it will. Pinned under the page
-/// title; up to half the screen, a taller card fading out at the bottom with its top
-/// always readable. The sample is local (a picture drawn here, no Reddit requests) and inert.
+/// sizes, theme, accent, icons, flair…) shows exactly as it will. In a group's Preview
+/// sheet (#288); up to a third of the screen, a taller card fading out at the bottom with
+/// its top always readable. The sample is local (a picture drawn here, no Reddit requests)
+/// and inert.
 ///
-/// It follows the options in view (`kind`, see `pickPreview`): the post for the layout,
-/// colour and text options, a sample thread for the comments' size, and nothing for the
-/// options it can't show, so those get the whole screen.
-///
-/// `scrolled`: the options have gone under it, so a hairline sets it off from them.
+/// `kind`: the post for the layout, colour and text options, a sample thread for the
+/// comments' size.
 struct AppearancePreview: View {
-    var scrolled = false
     var kind: PreviewKind = .post
 
     @State private var cardHeight: CGFloat = 0
@@ -206,25 +203,19 @@ struct AppearancePreview: View {
     var body: some View {
         ZStack {
             switch kind {
-            case .post: postStage.transition(.opacity)
-            case .comments: threadStage.transition(.opacity)
-            // The chips need a live feed (FeedChips); on iPhone their option gets the screen.
-            case .chips, .none: Color.clear.frame(height: 0)
+            case .post: postStage
+            case .comments: threadStage
             }
         }
         .frame(maxWidth: .infinity)
-        // One preview cross-fades into the next while the height follows (none: 0).
-        .animation(.snappy(duration: Double(previewSwapMs) / 1000), value: kind)
         // Look, don't touch: no votes, menus or opening the post.
         .allowsHitTesting(false)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(kind == .comments ? "Preview of comments with these settings" : kind == .post ? "Preview of a post with these settings" : "")
-        .accessibilityHidden(kind == .none || kind == .chips)
-        .overlay(alignment: .bottom) { if scrolled { Divider() } }
+        .accessibilityLabel(kind == .comments ? "Preview of comments with these settings" : "Preview of a post with these settings")
     }
 
     private var maxHeight: CGFloat {
-        (UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first?.screen.bounds.height ?? 874) * 0.5
+        (UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first?.screen.bounds.height ?? 874) * 0.34
     }
 
     private var postStage: some View {
@@ -339,34 +330,7 @@ private struct TrueSizeStage: ViewModifier {
     }
 }
 
-/// What Appearance's preview shows: what the options in view change.
+/// What an Appearance group's preview shows: what its options change.
 enum PreviewKind: Equatable {
-    case post, comments, chips, none
-}
-
-/// One group of Appearance options: what the preview shows for it, and where its first row is.
-struct PreviewSection: Equatable {
-    var kind: PreviewKind
-    var top: CGFloat
-}
-
-/// How long one preview takes to give way to the next.
-let previewSwapMs = 250
-
-/// The preview for the options in view, with hysteresis. `sections` in page order, each
-/// with its first row's top in points from a fixed point (the top of the page),
-/// `-.infinity` once scrolled above it and `.infinity` below it. A group is the one in
-/// view once its first row has come up to `line`. `current` stays while any group within
-/// `slack` of the line still has it, so a boundary resting on the line doesn't flicker;
-/// past that, the group at the line wins.
-///
-/// Nothing here moves when the preview changes height: the line is fixed, and the rows
-/// stay where they are on screen (the preview is the list's top inset, which leaves its
-/// content offset alone), so a swap can't trigger another.
-func pickPreview(_ sections: [PreviewSection], line: CGFloat, slack: CGFloat, current: PreviewKind) -> PreviewKind {
-    guard !sections.isEmpty else { return current }
-    func at(_ y: CGFloat) -> Int { max(sections.lastIndex { $0.top <= y } ?? 0, 0) }
-    let from = at(line - slack), to = at(line + slack)
-    if sections[from...to].contains(where: { $0.kind == current }) { return current }
-    return sections[at(line)].kind
+    case post, comments
 }

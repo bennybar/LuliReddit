@@ -245,6 +245,7 @@ import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.rememberUpdatedState
 import kotlinx.coroutines.launch
+import com.bennybar.luli_for_reddit.ui.userName
 
 /** Depth-edge colors (rotate by nesting level). */
 private val railColors = listOf(
@@ -1293,7 +1294,7 @@ private fun PostHeader(post: Post, fresh: Boolean, translate: (@Composable (Dp) 
         Spacer(Modifier.height(2.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "u/${p.author} · ${timeAgo(p.createdUtc)}",
+                "${userName(p.author)} · ${timeAgo(p.createdUtc)}",
                 Modifier.clickable { nav.openUser(p.author) },
                 fontSize = 12.sp,
                 color = cs.onSurfaceVariant,
@@ -1408,7 +1409,7 @@ private fun CalmPostHeader(
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        "u/${p.author} · ${timeAgo(p.createdUtc)}",
+                        "${userName(p.author)} · ${timeAgo(p.createdUtc)}",
                         Modifier.clickable { nav.openUser(p.author) },
                         fontSize = 12.5.sp,
                         color = cs.onSurfaceVariant,
@@ -1755,7 +1756,7 @@ private fun CommentTile(
                     AuthorDot(comment.author, 20)
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        "u/${comment.author}",
+                        userName(comment.author),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = nameColor,

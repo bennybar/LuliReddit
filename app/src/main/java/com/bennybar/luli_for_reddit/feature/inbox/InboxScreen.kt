@@ -118,6 +118,7 @@ import com.bennybar.luli_for_reddit.settings.TopBarMode
 import com.bennybar.luli_for_reddit.ui.friendlyError
 import com.bennybar.luli_for_reddit.feature.post.confirmDelete
 import kotlinx.coroutines.launch
+import com.bennybar.luli_for_reddit.ui.userName
 
 /** The Inbox tab. [reselect] bumps when the tab is re-tapped (scroll to top). */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -499,7 +500,7 @@ private fun InboxCard(item: InboxItem, onTap: () -> Unit) {
                 Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = cs.primary)
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "u/${item.author} · ${timeAgo(item.createdUtc)}",
+                    "${userName(item.author)} · ${timeAgo(item.createdUtc)}",
                     Modifier.weight(1f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
