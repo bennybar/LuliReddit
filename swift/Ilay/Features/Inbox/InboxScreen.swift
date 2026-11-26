@@ -27,6 +27,10 @@ struct InboxScreen: View {
     /// A page of its own (Settings › Inbox in Profile): its title and Back, no ☰ or search bar.
     var pushed = false
     @Environment(AppNavigator.self) private var nav
+    /// The namespace the Search screen grows out of its button in (#295, as Posts' #271).
+    @Environment(\.searchZoom) private var homeZoom
+    /// Outside Home (previews): one of its own, matching nothing.
+    @Namespace private var ownZoom
     /// The chip picked, by label (All and Replies share a list).
     @State private var tab = "All"
     @State private var webSignIn = false
@@ -79,11 +83,13 @@ struct InboxScreen: View {
         .navigationTitle(fullBar && !pushed ? "" : "Inbox")
         // Opened from Profile, its title big as well with Expandable (#247).
         .navigationBarTitleDisplayMode(fullBar ? .inline : pushed ? .large : .automatic)
+        // The Full bar's search: what the Search screen grows out of, as on Posts (#295).
+        .barZoomSource(inboxZoomSource, in: homeZoom ?? ownZoom, label: "Search Reddit")
         .toolbar {
             if !pushed { ToolbarItem(placement: .topBarLeading) { SideBarButton() } }
             if fullBar && !pushed {
                 ToolbarItem(placement: .principal) {
-                    Button { nav.push(.search()) } label: {
+                    Button { nav.push(.search(), zoom: true, zoomSource: inboxZoomSource) } label: {
                         Text("Search Reddit").foregroundStyle(.secondary).frame(maxWidth: 220)
                     }
                 }
@@ -434,3 +440,6 @@ private struct RedditNotificationRow: View {
         .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
     }
 }
+
+/// The Inbox tab's search bar as a zoom source (#295).
+let inboxZoomSource = "\(searchZoomSource):inbox"

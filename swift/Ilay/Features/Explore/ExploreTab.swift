@@ -67,6 +67,10 @@ func subscriptionSections(list: [Subreddit], query: String, favOnly: Bool, sort:
 /// The Explore tab: search, Popular and All, your custom feeds, then your communities
 /// with a filter, a favorites-only switch and a sort.
 struct ExploreTab: View {
+    /// The namespace the Search screen grows out of its button in (#295, as Posts' #271).
+    @Environment(\.searchZoom) private var homeZoom
+    /// Outside Home (previews): one of its own, matching nothing.
+    @Namespace private var ownZoom
     @State private var query = ""
     @State private var favOnly = false
     @State private var sort = "default" // default | name | subscribers
@@ -150,12 +154,14 @@ struct ExploreTab: View {
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Filter your communities")
         .navigationTitle(expandable ? "Explore" : "")
         .navigationBarTitleDisplayMode(expandable ? .large : .inline)
+        // What the Search screen grows out of, wherever its button is (#295).
+        .barZoomSource(exploreZoomSource, in: homeZoom ?? ownZoom, label: expandable ? "Search communities & posts" : "Search Reddit")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) { SideBarButton() }
             if !expandable {
                 ToolbarItem(placement: .principal) {
                     // As Home's Full bar (#172): just the words, in the middle.
-                    Button { nav.push(.search()) } label: {
+                    Button { nav.push(.search(), zoom: true, zoomSource: exploreZoomSource) } label: {
                         Text("Search Reddit")
                             .foregroundStyle(.secondary)
                             .frame(width: 220, alignment: .center)
@@ -163,7 +169,7 @@ struct ExploreTab: View {
                 }
             }
             ToolbarItemGroup(placement: .topBarTrailing) {
-                if expandable { Button("Search communities & posts", systemImage: "magnifyingglass") { nav.push(.search()) } }
+                if expandable { Button("Search communities & posts", systemImage: "magnifyingglass") { nav.push(.search(), zoom: true, zoomSource: exploreZoomSource) } }
                 Menu("Filter and sort", systemImage: filtering ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease") {
                     Toggle("Favorites only", systemImage: "star", isOn: $favOnly)
                     Picker("Sort", selection: $sort) {
@@ -521,3 +527,6 @@ private struct SubredditRow: View {
         }
     }
 }
+
+/// Explore's search button as a zoom source: its own, not the Posts tab's (#295).
+let exploreZoomSource = "\(searchZoomSource):explore"
