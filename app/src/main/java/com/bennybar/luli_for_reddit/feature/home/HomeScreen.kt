@@ -52,6 +52,10 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import com.bennybar.luli_for_reddit.feature.settings.confirmDialog
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -569,6 +573,7 @@ private fun SideBar(selected: Int, current: Route?, unread: Int, open: Boolean, 
     val list = (subs as? Async.Data)?.value ?: emptyList()
     val favorites = remember(list) { list.filter { it.userHasFavorited } }
     val recent = remember(visited) { visited.map { it.asSubreddit() } }
+    val scope = rememberCoroutineScope()
     ModalDrawerSheet(Modifier.width(300.dp)) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)) {
             if (username == null) {
@@ -638,7 +643,19 @@ private fun SideBar(selected: Int, current: Route?, unread: Int, open: Boolean, 
                 when (item) {
                     // Its switch in Data & storage hides it on Explore too.
                     SideBarItem.RECENTLY_VISITED -> if (settings.showRecentlyVisited) {
-                        SideBarSubs("Recently visited", recent, current, onPick, empty = "Subreddits you open will show here".takeIf { settings.trackHistory }, visits = visited.map { it.visits })
+                        SideBarSubs(
+                            "Recently visited", recent, current, onPick,
+                            empty = "Subreddits you open will show here".takeIf { settings.trackHistory }, visits = visited.map { it.visits },
+                            // As on Explore (#280): long-press to take one off the list.
+                            onLongClick = { sub ->
+                                scope.launch {
+                                    val name = subredditName(sub.namePrefixed)
+                                    if (confirmDialog("Remove $name?", "It leaves Recently visited. Opening it again adds it back.", "Remove")) {
+                                        app.recentSubreddits.remove(sub.name)
+                                    }
+                                }
+                            },
+                        )
                         afterList = recent.isNotEmpty() || settings.trackHistory
                     }
                     SideBarItem.FAVORITES -> {
@@ -673,7 +690,10 @@ private fun SideBar(selected: Int, current: Route?, unread: Int, open: Boolean, 
 
 /** A titled list of subreddits in the side bar (#63); when it has none, [empty], or nothing. */
 @Composable
-private fun SideBarSubs(title: String, subs: List<Subreddit>, current: Route?, onPick: (() -> Unit) -> Unit, empty: String? = null, visits: List<Int>? = null) {
+private fun SideBarSubs(
+    title: String, subs: List<Subreddit>, current: Route?, onPick: (() -> Unit) -> Unit,
+    empty: String? = null, visits: List<Int>? = null, onLongClick: ((Subreddit) -> Unit)? = null,
+) {
     if (subs.isEmpty() && empty == null) return
     val nav = LocalNavigator.current
     val cs = MaterialTheme.colorScheme
@@ -691,6 +711,28 @@ private fun SideBarSubs(title: String, subs: List<Subreddit>, current: Route?, o
             badge = visits?.getOrNull(i)?.let { { Text("$it", color = cs.onSurfaceVariant, style = MaterialTheme.typography.labelMedium) } },
             selected = route == current,
             onClick = { onPick { if (route != current) nav.openFromSideBar(route) } },
+            // A drawer item has no long-press: caught before the item's own click sees the
+            // touch, and the rest of that touch is swallowed so it doesn't also open.
+            modifier = if (onLongClick == null) Modifier else Modifier.pointerInput(sub.name) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                    // null: still held, unmoved, when the long-press time ran out.
+                    val ended = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                        var over = false
+                        while (!over) {
+                            val c = awaitPointerEvent(PointerEventPass.Initial).changes.firstOrNull { it.id == down.id }
+                            over = c == null || !c.pressed || c.isConsumed || (c.position - down.position).getDistance() > viewConfiguration.touchSlop
+                        }
+                    }
+                    if (ended == null) {
+                        onLongClick(sub)
+                        do {
+                            val e = awaitPointerEvent(PointerEventPass.Initial)
+                            e.changes.forEach { it.consume() }
+                        } while (e.changes.any { it.pressed })
+                    }
+                }
+            },
         )
     }
 }

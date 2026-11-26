@@ -62,6 +62,8 @@ struct SubredditScreen: View {
     /// from there up behind the bar, and the name shows in the bar once it's scrolled under.
     @State private var headerTop: CGFloat = -1_000
     @State private var restTop: CGFloat = 0
+    /// "Joined r/x" / "Left r/x" after the banner header's + / ✓ (#277), for a few seconds.
+    @State private var joinPill: String?
 
     /// Expandable: the community's banner as the header, as a messaging app's profile (#257).
     private var banner: Bool { app.settings.value.topBarMode == .expandable }
@@ -89,7 +91,9 @@ struct SubredditScreen: View {
             } else {
                 PostListView(feedKey: name, fabScroll: fab) {
                     if banner, case let .data(s) = vm.about {
-                        SubredditBannerHeader(about: s, vm: vm)
+                        SubredditBannerHeader(about: s, vm: vm) { joined in
+                            joinPill = joined ? "Joined \(s.namePrefixed)" : "Left \(s.namePrefixed)"
+                        }
                             .onGeometryChange(for: CGFloat.self, of: { $0.frame(in: .global).minY }) { top in
                                 headerTop = top
                                 restTop = max(restTop, top)
@@ -147,12 +151,33 @@ struct SubredditScreen: View {
                 .padding(.trailing, 16)
                 .padding(.bottom, 12) // a little clear of the tab bar, as every floating button over it
             }
+            // Above the floating button, in the inverse of the page's colours (#277).
+            .overlay(alignment: .bottom) {
+                if let joinPill {
+                    Text(joinPill)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color(.systemBackground))
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 10)
+                        .background(Color(.label), in: .capsule)
+                        .shadow(color: .black.opacity(0.2), radius: 8, y: 3)
+                        .padding(.bottom, 84)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .id(joinPill)
+                        .task {
+                            try? await Task.sleep(for: .seconds(3))
+                            withAnimation(.easeOut(duration: 0.25)) { self.joinPill = nil }
+                        }
+                }
+            }
+            .animation(.spring(duration: 0.3), value: joinPill)
             .task { vm.load() }
     }
 }
 
 private let bannerHeight: CGFloat = 64
 private let bannerIcon: CGFloat = 76 // the icon over the banner's foot (#268: was 64)
+private let iconOver: CGFloat = 26 // how much of it is over the banner's foot: about a third (#277)
 
 /// The banner (or a band in the community's colour), behind the bar's buttons, and the
 /// icon over its foot (#257).
@@ -169,9 +194,9 @@ private struct BannerBackdrop: View {
             LetterAvatar(name: about.name, size: bannerIcon, imageUrl: about.iconUrl)
                 .padding(3)
                 .background(page, in: Circle())
-                .offset(x: 13, y: height - bannerIcon - 3 + 22)
+                .offset(x: 13, y: height - iconOver - 3)
         }
-        .frame(height: height + 22, alignment: .top)
+        .frame(height: height + bannerIcon - iconOver + 3, alignment: .top)
     }
 
     private var band: some View {
@@ -194,11 +219,16 @@ private func bandColor(_ hex: String?) -> Color? {
 }
 
 /// The banner header's row (#257): room for the banner, the icon on the left over its
-/// foot, the name and members beside it, then the description in a card (3 lines, then
-/// Show all) with Join.
+/// foot, the name and members beside it with Join as + / ✓ (#277), then the description
+/// in a card (3 lines, then Show all), or no card without one (#278).
 private struct SubredditBannerHeader: View {
     let about: Subreddit
     let vm: SubredditAboutViewModel
+    /// Joined (true) or left (false) by the + / ✓.
+    let onJoined: (Bool) -> Void
+
+    /// RedditMarkdown's size: the 3 lines and the whole text read the same (#277).
+    @ScaledMetric(relativeTo: .body) private var textScale: CGFloat = 1
 
     @State private var open = false
     @State private var fullHeight: CGFloat = 0
@@ -213,49 +243,64 @@ private struct SubredditBannerHeader: View {
         VStack(alignment: .leading, spacing: 10) {
             Color.clear.frame(height: bannerHeight)
             HStack(alignment: .top, spacing: 12) {
-                // The icon's place: it's drawn over the banner, with it (BannerBackdrop).
-                Color.clear.frame(width: bannerIcon, height: 22)
+                // The icon's place: it's drawn with the banner (BannerBackdrop), the rest of it
+                // below the banner's foot beside the name (#277).
+                Color.clear.frame(width: bannerIcon, height: bannerIcon - iconOver - 10)
                 // Bigger, and a little further from the banner's foot (#268).
                 VStack(alignment: .leading, spacing: 2) {
                     Text(about.namePrefixed).font(.title.bold()).lineLimit(1)
                     Text("\(compactNumber(about.subscribers)) members").font(.subheadline).foregroundStyle(.secondary)
                 }
+                .layoutPriority(1)
+                Spacer(minLength: 0)
+                // Join as an icon by the name (#277): + to join, ✓ to leave; it never cuts the name.
+                Button {
+                    vm.toggleSub(about.name, currentlySubscribed: subscribed)
+                    onJoined(!subscribed)
+                } label: {
+                    Image(systemName: subscribed ? "checkmark" : "plus")
+                        .font(.body.weight(.semibold))
+                        .contentTransition(.symbolEffect(.replace))
+                        .frame(width: 40, height: 40)
+                        .foregroundStyle(subscribed ? Color.secondary : Color.white)
+                        .background(subscribed ? AnyShapeStyle(Color(.tertiarySystemFill)) : AnyShapeStyle(IlayTheme.accent), in: .circle)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(subscribed ? "Leave \(about.namePrefixed)" : "Join \(about.namePrefixed)")
+                .accessibilityAddTraits(subscribed ? .isSelected : [])
             }
             .padding(.horizontal, 16)
-            VStack(alignment: .leading, spacing: 6) {
-                if !about.description.isEmpty {
+            if !about.description.isEmpty {
+                let size = 15 * textScale
+                VStack(alignment: .leading, spacing: 6) {
                     if open {
                         // Reddit text, its links working, once it's all shown.
                         RedditMarkdown(text: about.description, fontSize: 15, color: .secondary)
                     } else {
                         Text(snippet)
-                            .font(.system(size: 15))
+                            .font(.system(size: size))
+                            .lineSpacing(size * MdMetrics.lineSpacing)
                             .foregroundStyle(.secondary)
                             .lineLimit(3)
                             .onGeometryChange(for: CGFloat.self, of: \.size.height) { shownHeight = $0 }
                             .background(alignment: .top) {
-                                Text(snippet).font(.system(size: 15))
+                                Text(snippet).font(.system(size: size)).lineSpacing(size * MdMetrics.lineSpacing)
                                     .fixedSize(horizontal: false, vertical: true)
                                     .hidden()
                                     .onGeometryChange(for: CGFloat.self, of: \.size.height) { fullHeight = $0 }
                             }
                     }
-                }
-                HStack {
                     if open || fullHeight > shownHeight + 1 {
                         Button(open ? "Show less" : "Show all") { withAnimation(.easeOut(duration: 0.2)) { open.toggle() } }
                             .font(.subheadline.weight(.semibold))
                     }
-                    Spacer(minLength: 0)
-                    Button(subscribed ? "Joined" : "Join") { vm.toggleSub(about.name, currentlySubscribed: subscribed) }
-                        .buttonStyle(JoinStyle(on: subscribed))
-                        .accessibilityAddTraits(subscribed ? .isSelected : [])
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(14)
+                .background(card, in: .rect(cornerRadius: 22))
+                .padding(.horizontal, 12)
+                .padding(.bottom, 4)
             }
-            .padding(14)
-            .background(card, in: .rect(cornerRadius: 22))
-            .padding(.horizontal, 12)
-            .padding(.bottom, 4)
         }
     }
 }
