@@ -12,6 +12,10 @@ struct Release: Identifiable {
 /// 2.0 (the native app, with Reddit Home). Add the new release at the top
 /// with every release.
 let CHANGELOG = [
+    Release(version: "2.0.118", date: "Nov 26, 2026", highlights: [
+        "Appearance: a live preview of a real post at the top, at true size, that changes as you change any option; it switches to a sample comment thread for comment sizes and steps aside for options it can't show",
+        "Appearance: options change right on the page (layout chips, segmented choices, colour swatches, sliders), grouped as Layout, Colour, Text and Other, so nothing closes while you try them",
+    ]),
     Release(version: "2.0.117", date: "Nov 26, 2026", highlights: [
         "Appearance: Corner roundness (Round, Medium, Small, Square) for posts' cards and media (#283)",
         "Two new post layouts: Compact (flat rows, a meta line on top, a slim action row) and Compact cards (the poster's picture, votes on the right) (#284)",

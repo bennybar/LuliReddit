@@ -47,6 +47,13 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.118", "Nov 26, 2026",
+        listOf(
+            "Appearance: a live preview of a real post at the top, at true size, that changes as you change any option; it switches to a sample comment thread for comment sizes and steps aside for options it can't show",
+            "Appearance: options change right on the page (layout chips, segmented choices, colour swatches, sliders), grouped as Layout, Colour, Text and Other, so nothing closes while you try them",
+        ),
+    ),
+    Release(
         "2.0.117", "Nov 26, 2026",
         listOf(
             "Appearance: Corner roundness (Round, Medium, Small, Square) for posts' cards and media (#283)",
