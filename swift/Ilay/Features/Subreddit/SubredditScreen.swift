@@ -76,6 +76,10 @@ struct SubredditScreen: View {
     @State private var restTop: CGFloat = 0
     /// "Joined r/x" / "Left r/x" after the banner header's + / ✓ (#277), for a few seconds.
     @State private var joinPill: String?
+    /// Home's namespace: the Search screen grows out of this page's search button (#285).
+    @Environment(\.searchZoom) private var homeZoom
+    /// Outside Home (previews): one of its own, matching nothing.
+    @Namespace private var ownZoom
 
     /// Expandable: the community's banner as the header, as a messaging app's profile (#257).
     private var banner: Bool { app.settings.value.topBarMode == .expandable }
@@ -131,6 +135,8 @@ struct SubredditScreen: View {
             .navigationTitle(banner ? "" : "r/\(name)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // Its own id: this page sits over Posts, whose button has the plain one.
+                let zoomSource = "\(searchZoomSource):r/\(name)"
                 if banner {
                     // The icon and name, in the bar once the header has gone under it.
                     ToolbarItem(placement: .principal) {
@@ -141,9 +147,24 @@ struct SubredditScreen: View {
                         .opacity(folded ? 1 : 0)
                         .animation(.easeOut(duration: 0.2), value: folded)
                     }
+                    // What the Search screen grows out of, as on Posts (#285).
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Search", systemImage: "magnifyingglass") { nav.push(.search(subreddit: name), zoom: true, zoomSource: zoomSource) }
+                    }
+                    .matchedTransitionSource(id: zoomSource, in: homeZoom ?? ownZoom)
+                } else {
+                    // The Full bar, as the tabs' (#285): a round search bar in place of the title.
+                    ToolbarItem(placement: .principal) {
+                        Button { nav.push(.search(subreddit: name), zoom: true, zoomSource: zoomSource) } label: {
+                            Text("Search in r/\(name)")
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .frame(width: 220, alignment: .center)
+                        }
+                    }
+                    .matchedTransitionSource(id: zoomSource, in: homeZoom ?? ownZoom)
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button("Search", systemImage: "magnifyingglass") { nav.push(.search(subreddit: name)) }
                     Menu("More", systemImage: "ellipsis") {
                         Button("About & rules", systemImage: "info.circle") { showAbout(name, vm.about.value) }
                         Button("Browse media", systemImage: "play.rectangle.on.rectangle") { app.feed.controller(name).browseMedia?() }

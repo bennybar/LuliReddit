@@ -50,16 +50,17 @@ extension EnvironmentValues {
 /// The id a search button gives `matchedTransitionSource` for the Search screen to grow out of.
 let searchZoomSource = "search"
 
-/// Search opened from the Posts tab's search button grows out of it and shrinks back
-/// into it, as Gmail's does (#271). Opened from anywhere else, it keeps its fade (#77).
+/// Search opened from the Posts tab's search button (or a community's, #285) grows out of
+/// it and shrinks back into it, as Gmail's does (#271). From anywhere else, it keeps its fade (#77).
 private struct SearchZoom: ViewModifier {
     @Environment(\.searchZoom) private var namespace
-    /// Decided once, as this screen is pushed (`AppNavigator.push(_:zoom:)`).
+    /// Decided once, as this screen is pushed (`AppNavigator.push(_:zoom:zoomSource:)`).
     @State private var zoom = app.navigator.zoomsNextSearch
+    @State private var source = app.navigator.nextSearchSource
 
     func body(content: Content) -> some View {
         if zoom, let namespace {
-            content.navigationTransition(.zoom(sourceID: searchZoomSource, in: namespace))
+            content.navigationTransition(.zoom(sourceID: source, in: namespace))
         } else {
             content
         }
