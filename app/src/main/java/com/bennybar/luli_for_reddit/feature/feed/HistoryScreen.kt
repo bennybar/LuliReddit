@@ -77,7 +77,8 @@ fun HistoryScreen() {
     val cs = MaterialTheme.colorScheme
     val nav = LocalNavigator.current
     val history by app.history.state.collectAsStateWithLifecycle()
-    var query by rememberSaveable { mutableStateOf("") }
+    val queryState = rememberSaveable { mutableStateOf("") }
+    var query by queryState
     var subFilterRaw by rememberSaveable { mutableStateOf<String?>(null) } // null = all subreddits
     var filterOpen by remember { mutableStateOf(false) }
     var clearOpen by remember { mutableStateOf(false) }
@@ -105,6 +106,8 @@ fun HistoryScreen() {
     val listState = rememberLazyListState()
     val bar = rememberHidingBar(listState)
     val header = rememberPageHeader(listState)
+    // With the big header, search lives in the bar (#247): a 🔍 that opens a field across it.
+    val barSearch = if (header != null) rememberBarSearch("Search history", queryState) else null
     val focus = remember { FocusRequester() }
     var noteShown by remember { mutableStateOf(app.prefs.getBool("historyNoteDismissed") != true) } // closed once, gone for good (#119)
     val searchGone by remember(listState) { derivedStateOf { listState.layoutInfo.visibleItemsInfo.none { it.key == "search" } && listState.layoutInfo.totalItemsCount > 0 } }
@@ -158,7 +161,7 @@ fun HistoryScreen() {
                     }
                 }
             }
-            if (visible.isNotEmpty()) item(key = "search") {
+            if (barSearch == null && visible.isNotEmpty()) item(key = "search") {
                 PillTextField(
                     value = query,
                     onValueChange = { query = it },
@@ -239,8 +242,9 @@ fun HistoryScreen() {
             ) else BloomTopBar(
                 "History",
                 collapsing = header,
+                search = barSearch?.takeIf { visible.isNotEmpty() },
                 actions = {
-                    if (searchGone && visible.isNotEmpty()) IconButton(onClick = {
+                    if (barSearch == null && searchGone && visible.isNotEmpty()) IconButton(onClick = {
                         scope.launch {
                             listState.animateScrollToItem(0)
                             bar.slide(0f)

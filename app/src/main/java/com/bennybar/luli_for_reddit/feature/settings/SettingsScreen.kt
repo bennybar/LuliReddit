@@ -74,6 +74,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import com.bennybar.luli_for_reddit.feature.feed.BloomTopBar
 import com.bennybar.luli_for_reddit.feature.feed.collapsingHeader
 import com.bennybar.luli_for_reddit.feature.feed.rememberPageHeader
+import com.bennybar.luli_for_reddit.feature.feed.BarSearch
+import com.bennybar.luli_for_reddit.feature.feed.rememberBarSearch
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -318,10 +320,13 @@ fun SettingsScreen(section: String? = null) {
     // as Saved and History (#268). Pushed from elsewhere (←), the plain bar.
     val sideBar = LocalSideBar.current != null
     val header = rememberPageHeader(listState).takeIf { sideBar }
+    // With the big header, search lives in the bar (#247): a 🔍 that opens a field across it.
+    val queryState = remember { mutableStateOf("") }
+    val barSearch = if (header != null && section == null) rememberBarSearch("Search settings", queryState) else null
     Scaffold(
         Modifier.collapsingHeader(header),
         topBar = {
-            if (header != null) BloomTopBar(section ?: "Settings", collapsing = header)
+            if (header != null) BloomTopBar(section ?: "Settings", collapsing = header, search = barSearch)
             else TopAppBar(
                 title = { Text(section ?: "Settings") },
                 navigationIcon = {
@@ -332,7 +337,7 @@ fun SettingsScreen(section: String? = null) {
             )
         },
     ) { padding ->
-        SettingsList(contentPadding = padding, section = section, listState = listState)
+        SettingsList(contentPadding = padding, section = section, listState = listState, barSearch = barSearch)
     }
 }
 
@@ -351,6 +356,8 @@ fun SettingsList(
     contentPadding: PaddingValues = PaddingValues(),
     section: String? = null,
     listState: LazyListState = rememberLazyListState(),
+    // The bar's search (#247): its text filters the list, and the list's own field goes.
+    barSearch: BarSearch? = null,
 ) {
     val s by app.settings.state.collectAsStateWithLifecycle()
     val ctrl = app.settings
@@ -359,7 +366,8 @@ fun SettingsList(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val cs = MaterialTheme.colorScheme
-    var query by remember { mutableStateOf("") }
+    var ownQuery by remember { mutableStateOf("") }
+    val query = barSearch?.query ?: ownQuery
 
     // Secure-storage state, re-read after edits and account changes.
     var secureVersion by remember { mutableIntStateOf(0) }
@@ -1413,7 +1421,7 @@ fun SettingsList(
     val searchField = @Composable {
         TextField(
             value = query,
-            onValueChange = { query = it },
+            onValueChange = { ownQuery = it },
             singleLine = true,
             placeholder = { Text("Search settings") },
             leadingIcon = { Icon(SearchIcon, null) },
@@ -1439,7 +1447,7 @@ fun SettingsList(
         }
     } else {
         LazyColumn(modifier.fillMaxSize(), state = listState, contentPadding = contentPadding) {
-            if (section == null) item(key = "search") { searchField() }
+            if (section == null && barSearch == null) item(key = "search") { searchField() }
             items(shown.size, key = { shown[it].key }) { row(it) }
             if (q.isNotEmpty() && shown.isEmpty()) item(key = "none") { noResults() }
             item(key = "bottom") { Spacer(Modifier.height(24.dp)) }

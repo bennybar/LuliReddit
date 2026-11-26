@@ -74,7 +74,8 @@ fun SavedScreen() {
     val username = app.session.username
     val source = rememberPagedSource<Any>("saved_hub_$username") { a -> app.repository.getUserSaved(username, after = a) }
     val state by source.state.collectAsStateWithLifecycle()
-    var query by rememberSaveable { mutableStateOf("") }
+    val queryState = rememberSaveable { mutableStateOf("") }
+    var query by queryState
     var type by rememberSaveable { mutableStateOf("all") } // all | posts | comments
 
     // Unsaved here (swipe either way): gone from the list at once, Undo restores.
@@ -129,6 +130,8 @@ fun SavedScreen() {
     val listState = rememberLazyListState()
     val bar = rememberHidingBar(listState)
     val header = rememberPageHeader(listState)
+    // With the big header, search lives in the bar (#247): a 🔍 that opens a field across it.
+    val barSearch = if (header != null) rememberBarSearch("Search saved", queryState) else null
     val focus = remember { FocusRequester() }
     val searchGone by remember(listState) { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
     val chipsRow = @Composable { modifier: Modifier ->
@@ -155,7 +158,7 @@ fun SavedScreen() {
             state = listState,
             contentPadding = PaddingValues(top = with(LocalDensity.current) { bar.height.toDp() }, bottom = 32.dp),
         ) {
-            item(key = "search") {
+            if (barSearch == null) item(key = "search") {
                 PillTextField(
                     value = query,
                     onValueChange = { query = it },
@@ -234,8 +237,9 @@ fun SavedScreen() {
             BloomTopBar(
                 "Saved",
                 collapsing = header,
+                search = barSearch,
                 actions = {
-                    if (searchGone) IconButton(onClick = {
+                    if (barSearch == null && searchGone) IconButton(onClick = {
                         scope.launch {
                             listState.animateScrollToItem(0)
                             bar.slide(0f)

@@ -148,4 +148,70 @@ extension View {
         navigationTitle(title)
             .navigationBarTitleDisplayMode(app.settings.value.topBarMode == .expandable ? .large : .inline)
     }
+
+    /// A page's search (#247): with Expandable, a 🔍 in the bar that opens a field across it,
+    /// as WhatsApp's, instead of a full-width box under the title; else `.searchable` as before.
+    func barSearch(text: Binding<String>, prompt: String, placement: SearchFieldPlacement = .automatic) -> some View {
+        modifier(BarSearchModifier(text: text, prompt: prompt, placement: placement, inBar: app.settings.value.topBarMode == .expandable))
+    }
+}
+
+private struct BarSearchModifier: ViewModifier {
+    @Binding var text: String
+    let prompt: String
+    let placement: SearchFieldPlacement
+    let inBar: Bool
+
+    @State private var open = false
+    @FocusState private var focused: Bool
+
+    func body(content: Content) -> some View {
+        if inBar {
+            content
+                .navigationBarBackButtonHidden(open)
+                .navigationBarTitleDisplayMode(open ? .inline : .large)
+                .toolbar {
+                    if open {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button("Close search", systemImage: "chevron.backward") { close() }
+                        }
+                        ToolbarItem(placement: .principal) {
+                            field.transition(.move(edge: .trailing).combined(with: .opacity))
+                        }
+                    } else {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button(prompt, systemImage: "magnifyingglass") { withAnimation(.snappy) { open = true } }
+                        }
+                    }
+                }
+        } else {
+            content.searchable(text: $text, placement: placement, prompt: prompt)
+        }
+    }
+
+    private var field: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            TextField(prompt, text: $text)
+                .focused($focused)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+            if !text.isEmpty {
+                Button("Clear", systemImage: "xmark.circle.fill") { text = "" }
+                    .labelStyle(.iconOnly)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 36)
+        .frame(maxWidth: .infinity)
+        .background(Color(.tertiarySystemFill), in: .capsule)
+        .onAppear { focused = true }
+    }
+
+    private func close() {
+        focused = false
+        text = ""
+        withAnimation(.snappy) { open = false }
+    }
 }

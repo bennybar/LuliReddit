@@ -101,7 +101,7 @@ private struct SummarySearch: ViewModifier {
 
     func body(content: Content) -> some View {
         if enabled {
-            content.searchable(text: $query, prompt: "Search summaries")
+            content.barSearch(text: $query, prompt: "Search summaries")
         } else {
             content
         }
