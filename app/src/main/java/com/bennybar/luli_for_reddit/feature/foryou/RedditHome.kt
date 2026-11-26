@@ -562,7 +562,7 @@ class EarlyFullPosts(
     private val asked = HashSet<String>()
     private val got = HashMap<String, Post>() // by fullname
     private var failed = false
-    private var running: Job? = null
+    private val inFlight = HashSet<Job>()
 
     /** When the first of them was asked for (debug timing). */
     @Volatile var firstAskedAt: Long? = null
@@ -578,22 +578,27 @@ class EarlyFullPosts(
     }
 
     private fun pump() {
-        val job = synchronized(this) {
-            if (running != null || failed || pending.isEmpty()) return
-            val batch = pending.toList()
-            pending.clear()
-            if (firstAskedAt == null) firstAskedAt = System.currentTimeMillis()
-            scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
-                val result = runCatching { fetch(batch) }.getOrNull()
-                synchronized(this@EarlyFullPosts) {
-                    if (result != null) for (p in result) got["t3_${p.id}"] = p else failed = true
-                    running = null
+        val jobs = ArrayList<Job>()
+        synchronized(this) {
+            while (inFlight.size < PARALLEL && !failed && pending.isNotEmpty()) {
+                val batch = pending.take(CHUNK)
+                repeat(batch.size) { pending.removeAt(0) }
+                if (firstAskedAt == null) firstAskedAt = System.currentTimeMillis()
+                lateinit var job: Job
+                job = scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
+                    val result = runCatching { fetch(batch) }.getOrNull()
+                    synchronized(this@EarlyFullPosts) {
+                        if (result != null) for (p in result) got["t3_${p.id}"] = p else failed = true
+                        inFlight.remove(job)
+                    }
+                    if (result != null) onArrive?.invoke(result)
+                    pump()
                 }
-                if (result != null) onArrive?.invoke(result)
-                pump()
-            }.also { running = it }
+                inFlight.add(job)
+                jobs.add(job)
+            }
         }
-        job.start()
+        jobs.forEach { it.start() }
     }
 
     /** What [wait] found: the full posts in (by fullname), and whether every one was answered. */
@@ -611,7 +616,7 @@ class EarlyFullPosts(
         while (true) {
             synchronized(this) {
                 if (failed) return Answer(HashMap(got), false)
-                if (running == null && pending.isEmpty()) return Answer(HashMap(got), true)
+                if (inFlight.isEmpty() && pending.isEmpty()) return Answer(HashMap(got), true)
             }
             if (System.currentTimeMillis() >= end) return synchronized(this) { Answer(HashMap(got), false) }
             delay(15)
@@ -620,11 +625,21 @@ class EarlyFullPosts(
 
     /** Stops asking: a refresh or a later page doesn't need them. */
     fun cancel() {
-        val job = synchronized(this) {
+        val jobs = synchronized(this) {
             failed = true
-            running.also { running = null }
+            inFlight.toList().also { inFlight.clear() }
         }
-        job?.cancel()
+        jobs.forEach { it.cancel() }
+    }
+
+    companion object {
+        /**
+         * At most this many posts per request, and this many requests at once: the page shows
+         * ~25 posts at once after its first few, and one request for all of them took ~700 ms
+         * (measured on iPhone), over the deadline; three of ~9 come back in about half that.
+         */
+        const val CHUNK = 9
+        const val PARALLEL = 3
     }
 }
 

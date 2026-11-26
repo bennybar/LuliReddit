@@ -70,7 +70,7 @@ class HomeLoadingTest {
     }
 
     @Test
-    fun `full posts all in within the deadline, one request at a time`() = runBlocking {
+    fun `full posts all in within the deadline`() = runBlocking {
         val batches = Collections.synchronizedList(ArrayList<List<String>>())
         val early = EarlyFullPosts(scope) { ids ->
             batches.add(ids)
@@ -83,7 +83,26 @@ class HomeLoadingTest {
         val got = early.wait(listOf("t3_a", "t3_b", "t3_c", "t3_gone"), 2_000)
         assertTrue(got.complete)
         assertEquals("one the API leaves out is just absent", setOf("t3_a", "t3_b", "t3_c"), got.posts.keys)
-        assertEquals("the next request waits for the one in flight", listOf(listOf("t3_a", "t3_b"), listOf("t3_c", "t3_gone")), batches.toList())
+        assertEquals("each new id asked for once, at once while there's room", setOf(listOf("t3_a", "t3_b"), listOf("t3_c"), listOf("t3_gone")), batches.toSet())
+    }
+
+    @Test
+    fun `a big batch goes out in parallel chunks`() = runBlocking {
+        // The page shows ~25 posts at once: one request for all of them was too slow.
+        val batches = Collections.synchronizedList(ArrayList<List<String>>())
+        val early = EarlyFullPosts(scope) { ids ->
+            batches.add(ids)
+            delay(100)
+            ids.map { post(it.removePrefix("t3_")) }
+        }
+        val ids = (1..30).map { "t3_p$it" }
+        early.add(ids)
+        delay(40)
+        assertEquals("three at once, nine each", listOf(9, 9, 9), batches.map { it.size }.sorted())
+        val got = early.wait(ids, 2_000)
+        assertTrue(got.complete)
+        assertEquals(30, got.posts.size)
+        assertEquals("the rest once one is back", listOf(3, 9, 9, 9), batches.map { it.size }.sorted())
     }
 
     @Test
