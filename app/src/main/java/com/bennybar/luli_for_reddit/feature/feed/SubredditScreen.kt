@@ -1,5 +1,21 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.material3.FilledTonalIconToggleButton
+import androidx.compose.material3.Surface
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.unit.em
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.background
 import android.app.Activity
 import android.content.ContextWrapper
@@ -178,6 +194,9 @@ fun SubredditScreen(name: String) {
     val listState = rememberFeedListState()
     var refreshRequests by remember { mutableIntStateOf(0) } // the Refresh floating button
     var hideReadRequests by remember { mutableIntStateOf(0) } // the Hide read posts floating button
+    // "Joined r/x" / "Left r/x" after the banner header's + / ✓ (#277), for a few seconds.
+    var joinPill by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(joinPill) { if (joinPill != null) { delay(3_000); joinPill = null } }
     // The top bar hides and comes back as on Home (#112).
     val bar = rememberHidingBar(listState)
     // Reloading (a sort change, too) starts a new list from the top: the bar comes back with it.
@@ -241,14 +260,31 @@ fun SubredditScreen(name: String) {
                     when (val a = about) {
                         Async.Loading -> LinearProgressIndicator(Modifier.fillMaxWidth().height(4.dp))
                         is Async.Error -> {}
-                        is Async.Data -> if (bannerHeader) SubredditAbout(a.value, vm) else SubredditHeader(a.value, vm)
+                        is Async.Data -> if (bannerHeader) SubredditAbout(a.value) else SubredditHeader(a.value, vm)
                     }
                 },
                 floatingChipsY = if (!settings.floatingChips) null else bar::chipsY,
             )
+            // Above the floating button, in the theme's inverse colours (#277).
+            AnimatedVisibility(
+                joinPill != null,
+                Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 92.dp),
+                enter = fadeIn() + slideInVertically { it / 2 },
+                exit = fadeOut() + slideOutVertically { it / 2 },
+            ) {
+                var last by remember { mutableStateOf("") }
+                joinPill?.let { last = it }
+                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.inverseSurface, contentColor = MaterialTheme.colorScheme.inverseOnSurface, shadowElevation = 6.dp) {
+                    Text(last, Modifier.padding(horizontal = 18.dp, vertical = 10.dp), style = MaterialTheme.typography.labelLarge)
+                }
+            }
             HidingTopBar(bar) {
                 if (bannerHeader) {
-                    BannerTitleBar(collapsing, name, (about as? Async.Data)?.value, onSearch = { nav.push(Route.Search(subreddit = name)) }, onMenu = openMenu)
+                    BannerTitleBar(
+                        collapsing, name, (about as? Async.Data)?.value, vm,
+                        onSearch = { nav.push(Route.Search(subreddit = name)) }, onMenu = openMenu,
+                        onJoined = { joined -> joinPill = if (joined) "Joined ${subredditName("r/$name")}" else "Left ${subredditName("r/$name")}" },
+                    )
                 } else BloomTopBar(
                     subredditName(name),
                     // Search, and the rest in the ⋯ menu: a row of five cropped the name (#112).
@@ -266,7 +302,9 @@ fun SubredditScreen(name: String) {
 private val BANNER_EXTRA = 150.dp
 private const val BANNER = 136f // the banner's height under the status bar, dp
 private val ICON = 76.dp // the icon over the banner's foot (#268: bigger), 30dp in the bar
-private val NAME_GAP = 12.dp // the name under the banner's foot (#268: a little lower)
+private val NAME_GAP = 10.dp // the name under the banner's foot (#268: a little lower)
+private val ICON_OVER = 26.dp // how much of the icon is over the banner's foot: about a third (#277)
+private val JOIN = 40.dp // the + / ✓ button by the name (#277)
 private val BAR_ROW_TOP = 10.dp // the bar's row, under the status bar (CollapsingTitle's)
 
 /**
@@ -278,7 +316,10 @@ private val BAR_ROW_TOP = 10.dp // the bar's row, under the status bar (Collapsi
  * the bar's colour; the icon and name slide into the bar together.
  */
 @Composable
-private fun BannerTitleBar(state: CollapsingTitle, name: String, about: Subreddit?, onSearch: () -> Unit, onMenu: () -> Unit) {
+private fun BannerTitleBar(
+    state: CollapsingTitle, name: String, about: Subreddit?, vm: SubredditAboutViewModel,
+    onSearch: () -> Unit, onMenu: () -> Unit, onJoined: (Boolean) -> Unit,
+) {
     val cs = MaterialTheme.colorScheme
     val nav = LocalNavigator.current
     val sideBar = LocalSideBar.current != null
@@ -357,7 +398,8 @@ private fun BannerTitleBar(state: CollapsingTitle, name: String, about: Subreddi
         // The icon and name, from over the banner's foot into the bar after ←.
         val iconSize = lerp(ICON, 30.dp, p)
         val iconX = lerp(16.dp, 58.dp, p)
-        val iconY = lerp(top + BANNER.dp - ICON + 24.dp, top + BAR_ROW_TOP + 9.dp, p)
+        // About a third of it over the banner's foot (#277), the rest beside the name.
+        val iconY = lerp(top + BANNER.dp - ICON_OVER, top + BAR_ROW_TOP + 9.dp, p)
         // The ring is a disc behind the icon, not a border over it: a border let the
         // picture's edge show around it (#268).
         val ring = lerp(3.dp, 0.dp, p)
@@ -380,14 +422,34 @@ private fun BannerTitleBar(state: CollapsingTitle, name: String, about: Subreddi
             subredditName("r/$name"),
             Modifier
                 .offset(nameX, nameTop)
-                // Clear of the search and ⋯ buttons once in the bar.
-                .widthIn(max = width - nameX - lerp(16.dp, 104.dp, p)),
+                // Clear of the + / ✓ button open, of the search and ⋯ buttons once in the bar.
+                .widthIn(max = width - nameX - lerp(16.dp + JOIN + 8.dp, 104.dp, p)),
             fontSize = (26f - 8f * p).sp,
             fontWeight = FontWeight.ExtraBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
         if (about != null) {
+            // Join as an icon by the name (#277): + to join, ✓ to leave; it never cuts the name.
+            val override by vm.subOverride.collectAsStateWithLifecycle()
+            val subscribed = override ?: about.userIsSubscriber ?: false
+            val label = subredditName("r/$name")
+            FilledTonalIconToggleButton(
+                checked = subscribed,
+                onCheckedChange = { vm.toggleSub(about, subscribed); onJoined(!subscribed) },
+                modifier = Modifier
+                    .offset(width - 16.dp - JOIN, nameTop)
+                    .size(JOIN)
+                    .graphicsLayer { alpha = (1f - p * 2.5f).coerceAtLeast(0f) }
+                    .semantics { contentDescription = if (subscribed) "Leave $label" else "Join $label" },
+                enabled = p < 0.4f,
+            ) {
+                AnimatedContent(
+                    subscribed,
+                    transitionSpec = { (scaleIn(initialScale = 0.5f) + fadeIn()) togetherWith (scaleOut(targetScale = 0.5f) + fadeOut()) },
+                    label = "join",
+                ) { joined -> Icon(if (joined) Icons.Rounded.Check else Icons.Rounded.Add, null) }
+            }
             Text(
                 "${compactNumber(about.subscribers)} members",
                 Modifier.offset(16.dp + ICON + 12.dp, nameTop + 36.dp).graphicsLayer { alpha = (1f - p * 2.5f).coerceAtLeast(0f) },
@@ -451,35 +513,35 @@ private suspend fun isLight(bitmap: Bitmap): Boolean = withContext(Dispatchers.D
     sum / n > 0.5
 }
 
-/** With the banner header (#257): what's left of the header, the description in a card (3 lines, then Show all) and Join. */
+/**
+ * With the banner header (#257): the description in a card, 3 lines then Show all. Join is
+ * by the name in the header (#277), so without a description there's no card (#278).
+ */
 @Composable
-private fun SubredditAbout(s: Subreddit, vm: SubredditAboutViewModel) {
+private fun SubredditAbout(s: Subreddit) {
     val cs = MaterialTheme.colorScheme
-    val override by vm.subOverride.collectAsStateWithLifecycle()
-    val subscribed = override ?: s.userIsSubscriber ?: false
     var open by rememberSaveable { mutableStateOf(false) }
     var long by remember { mutableStateOf(false) }
+    if (s.description.isEmpty()) {
+        Spacer(Modifier.height(4.dp))
+        return
+    }
+    // The same text size and spacing collapsed and open (#277): RedditMarkdown's.
+    val style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp, lineHeight = 1.45.em)
     BloomCard(Modifier.padding(start = 10.dp, top = 4.dp, end = 10.dp, bottom = 4.dp).fillMaxWidth()) {
         Column(Modifier.padding(start = 14.dp, top = 12.dp, end = 10.dp, bottom = 8.dp)) {
-            if (s.description.isNotEmpty()) {
-                // Reddit text, its links working, once it's all shown.
-                if (open) RedditMarkdown(s.description, color = cs.onSurfaceVariant)
-                else Text(
-                    remember(s.description) { snippetMarkdown(s.description, cs.onSurfaceVariant) },
-                    color = cs.onSurfaceVariant,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                    onTextLayout = { if (it.hasVisualOverflow) long = true },
-                )
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (long) TextButton(onClick = { open = !open }, contentPadding = PaddingValues(horizontal = 0.dp)) {
-                    Text(if (open) "Show less" else "Show all")
-                }
-                Spacer(Modifier.weight(1f))
-                FilledTonalToggleButton(checked = subscribed, onCheckedChange = { vm.toggleSub(s, subscribed) }) {
-                    Text(if (subscribed) "Joined" else "Join")
-                }
+            // Reddit text, its links working, once it's all shown.
+            if (open) RedditMarkdown(s.description, color = cs.onSurfaceVariant, fontSize = 15.sp)
+            else Text(
+                remember(s.description) { snippetMarkdown(s.description, cs.onSurfaceVariant) },
+                color = cs.onSurfaceVariant,
+                style = style,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                onTextLayout = { if (it.hasVisualOverflow) long = true },
+            )
+            if (long) TextButton(onClick = { open = !open }, contentPadding = PaddingValues(horizontal = 0.dp)) {
+                Text(if (open) "Show less" else "Show all")
             }
         }
     }

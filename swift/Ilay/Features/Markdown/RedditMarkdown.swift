@@ -98,7 +98,7 @@ struct RedditMarkdown: View {
     }
 }
 
-private enum MdMetrics {
+enum MdMetrics {
     /// Kotlin's 1.45em line height, on top of SF's own (about 1.2em).
     static let lineSpacing: CGFloat = 0.25
     /// Reddit's `# … ######` over the 15pt body, as Kotlin's type scale gives them.
