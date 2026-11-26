@@ -7,6 +7,10 @@ import SwiftUI
 struct ProfileTab: View {
     @Environment(AppNavigator.self) private var nav
     @State private var tab = "Posts"
+    /// The namespace the Search screen grows out of its button in (#295, as Posts' #271).
+    @Environment(\.searchZoom) private var homeZoom
+    /// Outside Home (previews): one of its own, matching nothing.
+    @Namespace private var ownZoom
 
     private var fullBar: Bool { app.settings.value.topBarMode == .full }
 
@@ -39,12 +43,14 @@ struct ProfileTab: View {
         // for your own posts (Reddit's search finds posts by author, not comments).
         .navigationTitle(fullBar ? "" : "Profile")
         .navigationBarTitleDisplayMode(fullBar ? .inline : .automatic)
+        // What the Search screen grows out of, as on Posts (#295).
+        .barZoomSource(profileZoomSource, in: homeZoom ?? ownZoom, label: anonymous || username.isEmpty ? "Search Reddit" : "Search your posts")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) { SideBarButton() }
             if fullBar {
                 let signedOut = anonymous || username.isEmpty
                 ToolbarItem(placement: .principal) {
-                    Button { nav.push(signedOut ? .search() : .search(query: "author:\(username)")) } label: {
+                    Button { nav.push(signedOut ? .search() : .search(query: "author:\(username)"), zoom: true, zoomSource: profileZoomSource) } label: {
                         Text(signedOut ? "Search Reddit" : "Search your posts").foregroundStyle(.secondary).frame(maxWidth: 220)
                     }
                 }
@@ -54,7 +60,7 @@ struct ProfileTab: View {
                     // As the other tabs' (#228): your own posts, or Reddit signed out.
                     let signedOut = anonymous || username.isEmpty
                     Button(signedOut ? "Search Reddit" : "Search your posts", systemImage: "magnifyingglass") {
-                        nav.push(signedOut ? .search() : .search(query: "author:\(username)"))
+                        nav.push(signedOut ? .search() : .search(query: "author:\(username)"), zoom: true, zoomSource: profileZoomSource)
                     }
                 }
                 if !anonymous && !username.isEmpty {
@@ -241,3 +247,6 @@ struct SignInPrompt: View {
         .padding(.vertical, 4)
     }
 }
+
+/// The Profile tab's search button as a zoom source (#295).
+let profileZoomSource = "\(searchZoomSource):profile"

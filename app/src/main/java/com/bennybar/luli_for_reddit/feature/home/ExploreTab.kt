@@ -124,6 +124,8 @@ import com.bennybar.luli_for_reddit.feature.feed.SectionHeader
 import com.bennybar.luli_for_reddit.model.Subreddit
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.Route
+import com.bennybar.luli_for_reddit.nav.searchMorphSource
+import com.bennybar.luli_for_reddit.nav.searchMorphSourceText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -161,8 +163,12 @@ class SubscriptionsViewModel : ViewModel() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun ExploreTab() {
+internal fun ExploreTab(selected: Boolean = true) {
     val cs = MaterialTheme.colorScheme
+    // What the Search screen's field grows out of, as on Posts (#295). Only while this tab
+    // is shown: a kept-alive hidden tab mustn't be the source.
+    val searchSource = if (selected) Modifier.searchMorphSource() else Modifier
+    val searchText = if (selected) Modifier.searchMorphSourceText() else Modifier
     val nav = LocalNavigator.current
     val vm = viewModel { SubscriptionsViewModel() }
     val subs by vm.subs.collectAsStateWithLifecycle()
@@ -497,7 +503,7 @@ internal fun ExploreTab() {
     if (expandable) {
         HidingTopBar(bar, Modifier.statusBarsPadding()) {
             CollapsingTitleBar(collapsing, "Explore", hasNavigation = sideBar, underStatusBar = false, navigation = { SideBarButton() }) {
-                IconButton(onClick = { nav.push(Route.Search()) }) { Icon(SearchIcon, "Search communities & posts") }
+                IconButton(onClick = { nav.push(Route.Search()) }, modifier = searchSource) { Icon(SearchIcon, "Search communities & posts") }
                 // The side bar always has Settings (#145).
                 if (!sideBar) SettingsButton()
             }
@@ -505,7 +511,7 @@ internal fun ExploreTab() {
     } else {
         HidingTopBar(bar, Modifier.statusBarsPadding()) {
             // Home's Full bar (#172): your picture opens its menu, less Browse media (a feed's).
-            FullTopBar(currentUser()) { showFloatingToolbar(nav, currentUser(), null, compact = true) }
+            FullTopBar(currentUser(), searchSource, searchText) { showFloatingToolbar(nav, currentUser(), null, compact = true) }
         }
     }
     }
