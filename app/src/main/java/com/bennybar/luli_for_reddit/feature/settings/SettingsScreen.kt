@@ -129,7 +129,6 @@ import androidx.compose.material.icons.rounded.Gavel
 import androidx.compose.material.icons.rounded.Gif
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Height
-import androidx.compose.material.icons.rounded.RoundedCorner
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.OpenInBrowser
@@ -341,7 +340,7 @@ fun SettingsScreen(section: String? = null) {
         if (section == "Appearance") {
             // A live sample post pinned above the options: every change shows on it at once.
             Column(Modifier.padding(top = padding.calculateTopPadding())) {
-                AppearancePreview()
+                AppearancePreview(scrolled = listState.canScrollBackward)
                 SettingsList(
                     Modifier.weight(1f),
                     contentPadding = PaddingValues(bottom = padding.calculateBottomPadding()),
@@ -705,22 +704,15 @@ fun SettingsList(
         section("Appearance")
         // Every choice the pinned preview shows is made right here, not in a sheet or on
         // another page, so options can be tried one after another while it follows.
-        add(Entry("d:sub-posts", null) { SettingsSubheading("Posts") })
+        // Ordered by how much each changes the preview: layout, colour, text, then the rest.
+        add(Entry("d:sub-layout", null) { SettingsSubheading("Layout") })
         // How posts look in feeds.
         add(Entry("t:Post display", "Post display ${s.postDisplay.label} layout cards compact calm mini default") {
-            InlineChoice("Post display", null, PostDisplay.entries.map { Choice(it, it.label, it.icon) }, s.postDisplay, onSelect = ctrl::setPostDisplay)
+            InlineChoice("Post layout", null, PostDisplay.entries.map { Choice(it, it.label, it.icon) }, s.postDisplay, onSelect = ctrl::setPostDisplay)
         })
         // How round posts' cards and media are (#283).
         add(Entry("t:Corner roundness", "Corner roundness ${s.cornerRoundness.label} round medium small square corners") {
-            InlineChoice("Corner roundness", Icons.Rounded.RoundedCorner, CornerRoundness.entries.map { Choice(it, it.label) }, s.cornerRoundness, onSelect = ctrl::setCornerRoundness)
-        })
-        // How much of a post's text feeds show (#186).
-        add(Entry("t:Post text in feeds", "Post text in feeds layout's default 2 or 3 lines 5 lines 10 lines") {
-            InlineChoice(
-                "Post text in feeds", Icons.AutoMirrored.Rounded.Notes,
-                listOf(Choice(0, "Default"), Choice(5, "5 lines"), Choice(10, "10 lines")), s.postTextLines,
-                subtitle = "Default: the layout's 2 or 3 lines", onSelect = ctrl::setPostTextLines,
-            )
+            InlineChoice("Corner roundness", null, CornerRoundness.entries.map { Choice(it, it.label) }, s.cornerRoundness, onSelect = ctrl::setCornerRoundness)
         })
         switch(
             "Subreddit icons", "Show each community's icon on posts instead of its first letter",
@@ -731,20 +723,23 @@ fun SettingsList(
             Icons.Rounded.AccountCircle, s.postAvatars, ctrl::setPostAvatars,
         )
         switch(
-            "Floating filter chips", "On Home, subreddits and custom feeds, show the chips under the top bar when you scroll back up",
-            Icons.Rounded.FilterList, s.floatingChips, ctrl::setFloatingChips,
+            "r/ before subreddit names", "Show \"r/pics\" on posts and lists. Off: just \"pics\"",
+            Icons.Rounded.Tag, s.subredditPrefix, ctrl::setSubredditPrefix,
         )
-        if (s.floatingChips) {
-            // #91: the solid top-bar background of 2.0.58, or the outlined chips over the posts as before.
-            add(Entry("t:Floating chips background", "Floating chips background transparent solid") {
-                InlineChoice(
-                    "Floating chips background", Icons.Rounded.FilterList,
-                    listOf(Choice(false, "Transparent"), Choice(true, "Solid")), s.floatingChipsSolid,
-                    subtitle = if (s.floatingChipsSolid) "On the top bar's background" else "Just the outlined chips, over the posts",
-                    onSelect = ctrl::setFloatingChipsSolid,
-                )
-            })
-        }
+        // How much of a post's text feeds show (#186).
+        add(Entry("t:Post text in feeds", "Post text in feeds layout's default 2 or 3 lines 5 lines 10 lines") {
+            InlineChoice(
+                "Post text in feeds", null,
+                listOf(Choice(0, "Default"), Choice(5, "5 lines"), Choice(10, "10 lines")), s.postTextLines,
+                subtitle = "Default: the layout's 2 or 3 lines", onSelect = ctrl::setPostTextLines,
+            )
+        })
+        // Light / dark, AMOLED, wallpaper colours, the accent and the palette style (#114):
+        // the Theme & colours page's controls, here under the pinned preview.
+        add(Entry("d:sub-colour", null) { SettingsSubheading("Colour") })
+        add(Entry("x:themeColors", "Theme & colours ${themeSummary(s)} dark light AMOLED black accent color colour wallpaper dynamic palette style hex mode") {
+            ThemeColorsContent(showPreview = false)
+        })
         add(Entry("d:sub-text", null) { SettingsSubheading("Text") })
         add(Entry("t:App font", "App font ${s.appFont.label} ${AppFont.entries.joinToString(" ") { it.label }}") {
             InlineChoice("App font", Icons.Rounded.FontDownload, AppFont.entries.map { Choice(it, it.label) }, s.appFont, subtitle = s.appFont.description, onSelect = ctrl::setAppFont)
@@ -786,9 +781,6 @@ fun SettingsList(
         add(Entry("t:Post text size", "Post text body description text size font bigger smaller") {
             TextScaleRow("Post text", s.postTextScale, ctrl::setPostTextScale)
         })
-        add(Entry("t:Comments size", "Comments text size font bigger smaller") {
-            TextScaleRow("Comments", s.commentTextScale, ctrl::setCommentTextScale)
-        })
         val defaultSizes = s.textScale == 1.0 && s.titleTextScale == 1.0 && s.postTextScale == 1.0 && s.commentTextScale == 1.0
         tile(
             "Reset text sizes",
@@ -797,21 +789,8 @@ fun SettingsList(
             enabled = !defaultSizes,
             onClick = ctrl::resetTextScales,
         )
-        // Light / dark, AMOLED, wallpaper colours, the accent and the palette style (#114):
-        // the Theme & colours page's controls, here under the pinned preview.
-        add(Entry("d:sub-colour", null) { SettingsSubheading("Theme & colours") })
-        add(Entry("d:themeColors", "Theme & colours ${themeSummary(s)} dark light AMOLED black accent color colour wallpaper dynamic palette style hex mode") {
-            ThemeColorsContent(showPreview = false)
-        })
+        // What the preview doesn't show, last.
         add(Entry("d:sub-other", null) { SettingsSubheading("Other") })
-        switch(
-            "r/ before subreddit names", "Show \"r/pics\" on posts and lists. Off: just \"pics\"",
-            Icons.Rounded.Tag, s.subredditPrefix, ctrl::setSubredditPrefix,
-        )
-        switch(
-            "u/ before your name in the side bar", "Show \"u/you\" at the top of the side bar. Off: just \"you\"",
-            Icons.Rounded.AlternateEmail, s.sideBarUserPrefix, ctrl::setSideBarUserPrefix,
-        )
         // A sheet that doesn't leave the page; the launcher icon isn't in the preview.
         add(Entry("appIcon", "App icon launcher home screen colour") {
             val current = AppIcon.parse(s.appIcon)
@@ -825,6 +804,28 @@ fun SettingsList(
                 }
             }, leading = { AppIconPreview(current, 24.dp) })
         })
+        add(Entry("t:Comments size", "Comments text size font bigger smaller") {
+            TextScaleRow("Comments", s.commentTextScale, ctrl::setCommentTextScale)
+        })
+        switch(
+            "Floating filter chips", "On Home, subreddits and custom feeds, show the chips under the top bar when you scroll back up",
+            Icons.Rounded.FilterList, s.floatingChips, ctrl::setFloatingChips,
+        )
+        if (s.floatingChips) {
+            // #91: the solid top-bar background of 2.0.58, or the outlined chips over the posts as before.
+            add(Entry("t:Floating chips background", "Floating chips background transparent solid") {
+                InlineChoice(
+                    "Floating chips background", null,
+                    listOf(Choice(false, "Transparent"), Choice(true, "Solid")), s.floatingChipsSolid,
+                    subtitle = if (s.floatingChipsSolid) "On the top bar's background" else "Just the outlined chips, over the posts",
+                    onSelect = ctrl::setFloatingChipsSolid,
+                )
+            })
+        }
+        switch(
+            "u/ before your name in the side bar", "Show \"u/you\" at the top of the side bar. Off: just \"you\"",
+            Icons.Rounded.AlternateEmail, s.sideBarUserPrefix, ctrl::setSideBarUserPrefix,
+        )
         divider("appearance")
 
         // ---------------------------------------------------------------- Navigation

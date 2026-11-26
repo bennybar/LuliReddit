@@ -353,6 +353,8 @@ internal fun <T> InlineChoice(
                         selected = c.value == selected,
                         onClick = { onSelect(c.value) },
                         shape = SegmentedButtonDefaults.itemShape(i, choices.size),
+                        // The chosen one in the accent, as the chips below.
+                        colors = SegmentedButtonDefaults.colors(activeContainerColor = cs.primary, activeContentColor = cs.onPrimary),
                         modifier = Modifier.semantics { contentDescription = "$title: ${c.label}" },
                     ) { Text(c.label, maxLines = 1) }
                 }
@@ -369,6 +371,11 @@ internal fun <T> InlineChoice(
                         onClick = { onSelect(c.value) },
                         label = { Text(c.label, maxLines = 1) },
                         leadingIcon = c.icon?.let { ic -> { Icon(ic, null, Modifier.size(18.dp)) } },
+                        colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = cs.primary,
+                            selectedLabelColor = cs.onPrimary,
+                            selectedLeadingIconColor = cs.onPrimary,
+                        ),
                         modifier = Modifier.semantics { contentDescription = "$title: ${c.label}" },
                     )
                 }
@@ -382,7 +389,7 @@ internal fun <T> InlineChoice(
 internal fun SettingsSubheading(text: String) {
     Text(
         text,
-        Modifier.fillMaxWidth().padding(start = 32.dp, top = 6.dp, end = 16.dp, bottom = 6.dp),
+        Modifier.fillMaxWidth().padding(start = 32.dp, top = 16.dp, end = 16.dp, bottom = 8.dp),
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
