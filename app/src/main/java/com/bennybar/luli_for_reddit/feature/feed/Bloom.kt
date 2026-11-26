@@ -488,14 +488,16 @@ private fun BarSearchRow(search: BarSearch, collapsing: Boolean, full: Boolean) 
                 .clip(CircleShape)
                 .background(cs.surfaceContainerHigh),
         ) {
-            // Laid out at the open width, so nothing reflows as the pill grows; it fades in.
+            // Laid out at the open width, so nothing reflows as the pill grows; it fades in, at
+            // once from the Full bar's search bar (already about this size), else once it's wide.
             val width = with(LocalDensity.current) { ((me?.width ?: 0f).toDp() - 16.dp).coerceAtLeast(0.dp) }
+            val fadeFrom = if (full) 0.1f else 0.4f
             Row(
                 Modifier
                     .fillMaxHeight()
                     .wrapContentWidth(Alignment.Start, unbounded = true)
                     .width(width)
-                    .graphicsLayer { alpha = ((p - 0.4f) / 0.6f).coerceIn(0f, 1f) }
+                    .graphicsLayer { alpha = ((p - fadeFrom) / 0.4f).coerceIn(0f, 1f) }
                     .padding(start = 4.dp, end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
