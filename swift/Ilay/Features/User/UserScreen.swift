@@ -315,6 +315,7 @@ private struct ProfileHeader: View {
     var body: some View {
         HStack(spacing: 16) {
             LetterAvatar(name: user.name, size: 56, imageUrl: user.iconUrl)
+                .pictureOpens(user.iconUrl, name: "u/\(user.name)")
             VStack(alignment: .leading, spacing: 2) {
                 // Your own name opens the account switcher, as in Mail or the App Store.
                 if let onSwitchAccount {

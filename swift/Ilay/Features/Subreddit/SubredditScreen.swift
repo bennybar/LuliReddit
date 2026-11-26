@@ -257,6 +257,21 @@ private struct SubredditBannerHeader: View {
             .padding(.horizontal, 12)
             .padding(.bottom, 4)
         }
+        .overlay(alignment: .topLeading) {
+            // The icon is drawn behind the list (BannerBackdrop), which takes no touches: a
+            // clear circle at its exact place opens it full screen and is where it zooms from (#279).
+            if let icon = about.iconUrl {
+                Color.clear
+                    .frame(width: bannerIcon + 6, height: bannerIcon + 6)
+                    .contentShape(Circle())
+                    .zoomSource()
+                    .onTapGesture { app.navigator.openPicture(icon, name: about.namePrefixed) }
+                    .accessibilityLabel("Open picture")
+                    .accessibilityAddTraits(.isButton)
+                    // Where BannerBackdrop puts the ringed icon, in this header's coordinates.
+                    .offset(x: 13, y: bannerHeight - bannerIcon - 3 + 22)
+            }
+        }
     }
 }
 
@@ -300,6 +315,7 @@ private struct SubredditHeader: View {
                 }
                 HStack(spacing: 14) {
                     LetterAvatar(name: s.name, size: 52, imageUrl: s.iconUrl)
+                        .pictureOpens(s.iconUrl, name: s.namePrefixed)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(s.namePrefixed).font(.title3.bold()).lineLimit(1)
                         Text("\(compactNumber(s.subscribers)) members").font(.subheadline).foregroundStyle(.secondary)
@@ -560,5 +576,21 @@ private struct BannerImage: View {
         }
         // Full size: its real height decides between sharp and soft.
         .task(id: url) { image = await ImageLoader.shared.image(url: url, maxPixelSize: 0) }
+    }
+}
+
+extension View {
+    /// A community's or user's picture that opens full screen on a tap, zooming out of
+    /// itself (#279). Nothing for a letter avatar.
+    @ViewBuilder func pictureOpens(_ url: String?, name: String) -> some View {
+        if let url {
+            zoomSource()
+                .contentShape(Circle())
+                .onTapGesture { app.navigator.openPicture(url, name: name) }
+                .accessibilityLabel("Open picture")
+                .accessibilityAddTraits(.isButton)
+        } else {
+            self
+        }
     }
 }

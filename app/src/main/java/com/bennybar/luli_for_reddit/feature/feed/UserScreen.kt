@@ -22,6 +22,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.rounded.Block
@@ -344,7 +345,11 @@ private fun ProfileHeader(user: RedditUser, canFollow: Boolean, onSwitchAccount:
     var following by remember(user.name) { mutableStateOf(user.following) }
     var busy by remember { mutableStateOf(false) }
     Row(Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        LetterAvatar(user.name, 60.dp, cs.primaryContainer, cs.onPrimaryContainer, imageUrl = user.iconUrl)
+        LetterAvatar(
+            user.name, 60.dp, cs.primaryContainer, cs.onPrimaryContainer, imageUrl = user.iconUrl,
+            // A tap opens the picture full screen (#279).
+            modifier = user.iconUrl?.let { icon -> Modifier.clip(CircleShape).clickable(onClickLabel = "Open picture") { nav.openPicture(icon, "u/${user.name}") } } ?: Modifier,
+        )
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
             if (onSwitchAccount == null) {

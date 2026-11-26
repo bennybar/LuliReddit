@@ -368,7 +368,12 @@ private fun BannerTitleBar(state: CollapsingTitle, name: String, about: Subreddi
                 .background(cs.surface, CircleShape)
                 .padding(ring),
         ) {
-            LetterAvatar(name, iconSize, cs.secondaryContainer, cs.onSecondaryContainer, imageUrl = about?.iconUrl)
+            // A tap opens the picture full screen (#279); a letter avatar has none.
+            val icon = about?.iconUrl
+            LetterAvatar(
+                name, iconSize, cs.secondaryContainer, cs.onSecondaryContainer, imageUrl = icon,
+                modifier = if (icon != null) Modifier.clip(CircleShape).clickable(onClickLabel = "Open picture") { nav.openPicture(icon, "r/$name") } else Modifier,
+            )
         }
         val nameX = lerp(16.dp + ICON + 12.dp, iconX + iconSize + 10.dp, p)
         Text(
@@ -502,7 +507,12 @@ private fun SubredditHeader(s: Subreddit, vm: SubredditAboutViewModel) {
         BloomCard(Modifier.padding(start = 4.dp, top = 10.dp, end = 4.dp, bottom = 4.dp).fillMaxWidth()) {
             Column(Modifier.padding(14.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    LetterAvatar(s.name, 52.dp, cs.secondaryContainer, cs.onSecondaryContainer, imageUrl = s.iconUrl)
+                    val nav = LocalNavigator.current
+                    LetterAvatar(
+                        s.name, 52.dp, cs.secondaryContainer, cs.onSecondaryContainer, imageUrl = s.iconUrl,
+                        // A tap opens the picture full screen (#279).
+                        modifier = s.iconUrl?.let { icon -> Modifier.clip(CircleShape).clickable(onClickLabel = "Open picture") { nav.openPicture(icon, s.namePrefixed) } } ?: Modifier,
+                    )
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
                         Text(subredditName(s.namePrefixed), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)

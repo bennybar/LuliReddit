@@ -97,6 +97,13 @@ import SwiftUI
 
     func openImage(_ url: String, title: String? = nil) { viewers.open(.image(url: url, title: title)) }
 
+    /// A community's or user's picture, full screen with its name over it (#279). The
+    /// styles.redditmedia.com copy without its query is the original upload, not the
+    /// 256 px crop the header shows.
+    func openPicture(_ url: String, name: String) {
+        openImage(URL(string: url)?.host == "styles.redditmedia.com" ? url.substringBefore("?") : url, title: name)
+    }
+
     func openGallery(_ images: [GalleryImage], title: String? = nil, initialIndex: Int = 0) {
         if images.isEmpty { return }
         viewers.open(.gallery(
