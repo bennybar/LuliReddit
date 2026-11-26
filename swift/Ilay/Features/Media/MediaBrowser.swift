@@ -651,7 +651,8 @@ private struct MediaBrowserOverlay: View {
     private var topBar: some View {
         GlassEffectContainer(spacing: 8) {
             HStack(spacing: 8) {
-                ViewerButton(icon: "xmark", label: "Close") { model.close() }
+                // Back, not ×: it goes back to where it was opened (#287).
+                ViewerButton(icon: "chevron.backward", label: "Back") { model.close() }
                 Text(counter ?? "")
                     .font(.subheadline.weight(.semibold))
                     .monospacedDigit()

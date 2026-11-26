@@ -107,7 +107,8 @@ import SwiftUI
     /// styles.redditmedia.com copy without its query is the original upload, not the
     /// 256 px crop the header shows.
     func openPicture(_ url: String, name: String) {
-        openImage(URL(string: url)?.host == "styles.redditmedia.com" ? url.substringBefore("?") : url, title: name)
+        let full = URL(string: url)?.host == "styles.redditmedia.com" ? url.substringBefore("?") : url
+        viewers.open(.image(url: full, title: name, thumb: url))
     }
 
     func openGallery(_ images: [GalleryImage], title: String? = nil, initialIndex: Int = 0) {

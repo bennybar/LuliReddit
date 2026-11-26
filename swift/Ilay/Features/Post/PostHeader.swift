@@ -140,7 +140,7 @@ struct PostHeaderView: View {
                 Button {
                     nav.openSubreddit(post.subreddit)
                 } label: {
-                    Text(verbatim: post.subredditPrefixed.nilIfEmpty ?? "r/\(post.subreddit)")
+                    Text(verbatim: subredditName(post.subredditPrefixed.nilIfEmpty ?? post.subreddit, prefix: app.settings.value.subredditPrefix))
                         .font(.subheadline.weight(.medium))
                         .lineLimit(1)
                 }
@@ -149,7 +149,7 @@ struct PostHeaderView: View {
                     Button {
                         nav.openUser(post.author)
                     } label: {
-                        Text(verbatim: "u/\(post.author) · \(timeAgo(post.createdUtc))")
+                        Text(verbatim: "\(userName(post.author, prefix: app.settings.value.subredditPrefix)) · \(timeAgo(post.createdUtc))")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)

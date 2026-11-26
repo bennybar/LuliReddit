@@ -155,6 +155,8 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -174,9 +176,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -341,65 +340,7 @@ fun SettingsScreen(section: String? = null) {
             )
         },
     ) { padding ->
-        if (section == "Appearance") {
-            // A live sample pinned above the options: every change shows on it at once. It
-            // follows the group in view (pickPreview): the post, a thread, the chips, or none.
-            val density = LocalDensity.current
-            var keys by remember { mutableStateOf(emptyList<String>()) }
-            var pageHeight by remember { mutableIntStateOf(0) }
-            var previewHeight by remember { mutableIntStateOf(-1) }
-            // The options stay where they are on screen while the preview grows or shrinks (a
-            // swap, or a bigger card): the list scrolls by as much. After the frame, never from
-            // the size callback itself: scrolling during layout crashed ("performMeasureAndLayout
-            // called during measure layout").
-            var appliedHeight by remember { mutableIntStateOf(-1) }
-            LaunchedEffect(previewHeight) {
-                if (appliedHeight >= 0 && previewHeight >= 0 && previewHeight != appliedHeight) {
-                    listState.dispatchRawDelta((previewHeight - appliedHeight).toFloat())
-                }
-                appliedHeight = previewHeight
-            }
-            var kind by remember { mutableStateOf(PreviewKind.POST) }
-            val slack = with(density) { PREVIEW_SLACK.toPx() }
-            LaunchedEffect(listState, keys, slack) {
-                snapshotFlow {
-                    val info = listState.layoutInfo
-                    val first = info.visibleItemsInfo.firstOrNull()?.index ?: 0
-                    val visible = info.visibleItemsInfo.associate { it.key to it.offset }
-                    val under = previewHeight.coerceAtLeast(0) - info.viewportStartOffset
-                    APPEARANCE_GROUPS.mapNotNull { (key, k) ->
-                        val i = keys.indexOf(key).takeIf { it >= 0 } ?: return@mapNotNull null
-                        PreviewSection(
-                            k,
-                            when {
-                                // From the top of the page, which the preview doesn't move.
-                                key in visible -> (under + visible.getValue(key)).toFloat()
-                                i < first -> Float.NEGATIVE_INFINITY
-                                else -> Float.POSITIVE_INFINITY
-                            },
-                        )
-                    }
-                }.collect { kind = pickPreview(it, pageHeight * PREVIEW_LINE, slack, kind) }
-            }
-            Column(Modifier.padding(top = padding.calculateTopPadding()).onSizeChanged { pageHeight = it.height }) {
-                AppearancePreview(
-                    scrolled = listState.canScrollBackward,
-                    kind = kind,
-                    modifier = Modifier.onSizeChanged { previewHeight = it.height },
-                )
-                SettingsList(
-                    Modifier.weight(1f),
-                    // Room after the last group so it can come up to the line and get the whole screen.
-                    contentPadding = PaddingValues(bottom = padding.calculateBottomPadding() + with(density) { (pageHeight * (1 - PREVIEW_LINE)).toDp() }),
-                    section = section,
-                    listState = listState,
-                    barSearch = barSearch,
-                    onKeys = { keys = it },
-                )
-            }
-        } else {
-            SettingsList(contentPadding = padding, section = section, listState = listState, barSearch = barSearch)
-        }
+        SettingsList(contentPadding = padding, section = section, listState = listState, barSearch = barSearch)
     }
 }
 
@@ -420,8 +361,6 @@ fun SettingsList(
     listState: LazyListState = rememberLazyListState(),
     // The bar's search (#247): its text filters the list, and the list's own field goes.
     barSearch: BarSearch? = null,
-    // The rows' keys in order, as shown (Appearance's preview finds its groups with them).
-    onKeys: ((List<String>) -> Unit)? = null,
 ) {
     val s by app.settings.state.collectAsStateWithLifecycle()
     val ctrl = app.settings
@@ -432,6 +371,8 @@ fun SettingsList(
     val cs = MaterialTheme.colorScheme
     var ownQuery by remember { mutableStateOf("") }
     val query = barSearch?.query ?: ownQuery
+    // Appearance's group whose Preview sheet is open ("d:sub-…"), if any.
+    var previewGroup by remember { mutableStateOf<String?>(null) }
 
     // Secure-storage state, re-read after edits and account changes.
     var secureVersion by remember { mutableIntStateOf(0) }
@@ -752,10 +693,13 @@ fun SettingsList(
 
         // ---------------------------------------------------------------- Appearance
         section("Appearance")
-        // Every choice the pinned preview shows is made right here, not in a sheet or on
-        // another page, so options can be tried one after another while it follows.
-        // Ordered by how much each changes the preview: layout, colour, text, then the rest.
-        add(Entry("d:sub-layout", null) { SettingsSubheading("Layout") })
+        // Every choice is made right here, not in a sheet or on another page. A group's
+        // Preview opens the sample with that group's options under it (#288): try them there.
+        // Ordered by how much each changes a post: layout, colour, text, then the rest.
+        val previewable = @Composable { key: String, title: String ->
+            SettingsSubheading(title, onPreview = { previewGroup = key })
+        }
+        add(Entry("d:sub-layout", null) { previewable("d:sub-layout", "Layout") })
         // How posts look in feeds.
         add(Entry("t:Post display", "Post display ${s.postDisplay.label} layout cards compact calm mini default") {
             InlineChoice("Post layout", null, PostDisplay.entries.map { Choice(it, it.label, it.icon) }, s.postDisplay, onSelect = ctrl::setPostDisplay)
@@ -773,7 +717,7 @@ fun SettingsList(
             Icons.Rounded.AccountCircle, s.postAvatars, ctrl::setPostAvatars,
         )
         switch(
-            "r/ before subreddit names", "Show \"r/pics\" on posts and lists. Off: just \"pics\"",
+            "r/ and u/ before names", "Show \"r/pics\" and \"u/name\" on posts, comments and lists. Off: just \"pics\" and \"name\"",
             Icons.Rounded.Tag, s.subredditPrefix, ctrl::setSubredditPrefix,
         )
         // How much of a post's text feeds show (#186).
@@ -785,12 +729,12 @@ fun SettingsList(
             )
         })
         // Light / dark, AMOLED, wallpaper colours, the accent and the palette style (#114):
-        // the Theme & colours page's controls, here under the pinned preview.
-        add(Entry("d:sub-colour", null) { SettingsSubheading("Colour") })
+        // the Theme & colours page's controls.
+        add(Entry("d:sub-colour", null) { previewable("d:sub-colour", "Colour") })
         add(Entry("x:themeColors", "Theme & colours ${themeSummary(s)} dark light AMOLED black accent color colour wallpaper dynamic palette style hex mode") {
             ThemeColorsContent(showPreview = false)
         })
-        add(Entry("d:sub-text", null) { SettingsSubheading("Text") })
+        add(Entry("d:sub-text", null) { previewable("d:sub-text", "Text") })
         add(Entry("t:App font", "App font ${s.appFont.label} ${AppFont.entries.joinToString(" ") { it.label }}") {
             InlineChoice("App font", Icons.Rounded.FontDownload, AppFont.entries.map { Choice(it, it.label) }, s.appFont, subtitle = s.appFont.description, onSelect = ctrl::setAppFont)
         })
@@ -839,13 +783,13 @@ fun SettingsList(
             enabled = !defaultSizes,
             onClick = ctrl::resetTextScales,
         )
-        // The preview shows a sample thread from here.
-        add(Entry("d:sub-comments", null) { SettingsSubheading("Comments") })
+        // Its preview is a sample thread.
+        add(Entry("d:sub-comments", null) { previewable("d:sub-comments", "Comments") })
         add(Entry("t:Comments size", "Comments text size font bigger smaller") {
             TextScaleRow("Comments", s.commentTextScale, ctrl::setCommentTextScale)
         })
-        // …and the floating chips from here.
-        add(Entry("d:sub-chips", null) { SettingsSubheading("Floating filter chips") })
+        // …and theirs the floating chips.
+        add(Entry("d:sub-chips", null) { previewable("d:sub-chips", "Floating filter chips") })
         switch(
             "Floating filter chips", "On Home, subreddits and custom feeds, show the chips under the top bar when you scroll back up",
             Icons.Rounded.FilterList, s.floatingChips, ctrl::setFloatingChips,
@@ -861,7 +805,7 @@ fun SettingsList(
                 )
             })
         }
-        // What the preview can't show, last: it steps aside for these.
+        // What a preview can't show, last: no Preview here.
         add(Entry("d:sub-other", null) { SettingsSubheading("Other") })
         // A sheet that doesn't leave the page; the launcher icon isn't in the preview.
         add(Entry("appIcon", "App icon launcher home screen colour") {
@@ -1476,13 +1420,13 @@ fun SettingsList(
 
     // Rows sit in rounded containers, joined until a gap ("d:"): a row's outer
     // corners are round only where the container starts or ends (#68).
-    val row = @Composable { i: Int ->
-        val e = shown[i]
+    val rowOf = @Composable { rows: List<Entry>, i: Int ->
+        val e = rows[i]
         if (e.key.startsWith("d:")) {
             e.content()
         } else {
-            val first = shown.getOrNull(i - 1)?.key?.startsWith("d:") != false
-            val last = shown.getOrNull(i + 1)?.key?.startsWith("d:") != false
+            val first = rows.getOrNull(i - 1)?.key?.startsWith("d:") != false
+            val last = rows.getOrNull(i + 1)?.key?.startsWith("d:") != false
             Column(
                 Modifier
                     .fillMaxWidth()
@@ -1499,6 +1443,7 @@ fun SettingsList(
             ) { e.content() }
         }
     }
+    val row = @Composable { i: Int -> rowOf(shown, i) }
 
     val searchField = @Composable {
         TextField(
@@ -1521,9 +1466,20 @@ fun SettingsList(
         Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { Text("No settings found") }
     }
 
-    if (onKeys != null) {
-        val keys = shown.map { it.key }
-        LaunchedEffect(keys) { onKeys(keys) }
+    previewGroup?.let { group ->
+        // The sample at true size on top, the group's own options under it: each change shows
+        // at once. Built here, in the list's composition, so the rows see the live settings.
+        val rows = all.dropWhile { it.key != group }.drop(1).takeWhile { !it.key.startsWith("d:sub-") && !it.key.startsWith("h:") }
+        ModalBottomSheet(
+            onDismissRequest = { previewGroup = null },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        ) {
+            AppearancePreview(APPEARANCE_PREVIEWS.getValue(group))
+            HorizontalDivider(color = cs.outlineVariant)
+            Column(Modifier.verticalScroll(rememberScrollState()).padding(top = 8.dp, bottom = 24.dp)) {
+                rows.indices.forEach { rowOf(rows, it) }
+            }
+        }
     }
     if (embedded) {
         Column(modifier) {
@@ -1944,18 +1900,11 @@ private fun TextScaleRow(label: String, value: Double, onChange: (Double) -> Uni
     }
 }
 
-/** Appearance's groups, in page order, and what its preview shows for each. */
-private val APPEARANCE_GROUPS = listOf(
+/** Appearance's groups that have a Preview, and what it shows for each (#288). */
+private val APPEARANCE_PREVIEWS = mapOf(
     "d:sub-layout" to PreviewKind.POST,
     "d:sub-colour" to PreviewKind.POST,
     "d:sub-text" to PreviewKind.POST,
     "d:sub-comments" to PreviewKind.COMMENTS,
     "d:sub-chips" to PreviewKind.CHIPS,
-    "d:sub-other" to PreviewKind.NONE,
 )
-
-/** Where a group takes the preview: its first row this far down the page (fraction). */
-private const val PREVIEW_LINE = 0.45f
-
-/** How far past that line a group must go before the preview changes back (no flicker). */
-private val PREVIEW_SLACK = 48.dp

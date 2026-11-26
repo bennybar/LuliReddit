@@ -14,7 +14,17 @@ import kotlinx.serialization.json.Json
  */
 @Serializable
 sealed interface MediaViewer {
-    @Serializable data class Image(val url: String, val title: String? = null) : MediaViewer
+    /**
+     * [thumb] and [from] for a community's or user's picture (#287): it grows out of its
+     * circle at [from] (left, top, width, height in root pixels), showing the [thumb] the
+     * circle already has until the full picture is in, and shrinks back into it on close.
+     */
+    @Serializable data class Image(
+        val url: String,
+        val title: String? = null,
+        val thumb: String? = null,
+        val from: List<Float> = emptyList(),
+    ) : MediaViewer
 
     @Serializable data class Gallery(
         val urls: List<String>,

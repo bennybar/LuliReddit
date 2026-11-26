@@ -110,7 +110,8 @@ struct ViewerControls: View {
     var body: some View {
         GlassEffectContainer(spacing: 8) {
             HStack(spacing: 8) {
-                ViewerButton(icon: "xmark", label: "Close", action: close)
+                // Back, not ×: it goes back to where it was opened (#287).
+                ViewerButton(icon: "chevron.backward", label: "Back", action: close)
                 Text(center ?? title ?? "")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
@@ -182,11 +183,14 @@ struct ImageViewer: View {
     let initialIndex: Int
     let title: String?
     let isGallery: Bool
+    /// Shown in the first image's place until it's in (a picture's circle copy, #287).
+    var placeholder: String? = nil
     @State var state: DismissState
     @State private var page: Int
 
-    init(urls: [String], initialIndex: Int = 0, title: String?, isGallery: Bool, close: @escaping () -> Void) {
+    init(urls: [String], initialIndex: Int = 0, title: String?, isGallery: Bool, placeholder: String? = nil, close: @escaping () -> Void) {
         self.urls = urls
+        self.placeholder = placeholder
         self.initialIndex = initialIndex
         self.title = title
         self.isGallery = isGallery
@@ -199,7 +203,7 @@ struct ImageViewer: View {
     var body: some View {
         ZStack(alignment: .top) {
             DismissBackground(state: state)
-            ZoomablePagerView(urls: urls, initialIndex: initialIndex, state: state, page: $page)
+            ZoomablePagerView(urls: urls, initialIndex: initialIndex, placeholder: placeholder, state: state, page: $page)
                 .ignoresSafeArea()
             ViewerControls(
                 title: title,
@@ -219,11 +223,12 @@ struct ImageViewer: View {
 private struct ZoomablePagerView: UIViewRepresentable {
     let urls: [String]
     let initialIndex: Int
+    let placeholder: String?
     let state: DismissState
     @Binding var page: Int
 
     func makeUIView(context: Context) -> ZoomablePager {
-        ZoomablePager(urls: urls, initialIndex: initialIndex, state: state) { page = $0 }
+        ZoomablePager(urls: urls, initialIndex: initialIndex, placeholder: placeholder, state: state) { page = $0 }
     }
 
     func updateUIView(_ view: ZoomablePager, context: Context) {}
@@ -303,8 +308,8 @@ final class MediaViewerController: UIHostingController<AnyView> {
         var closed: () -> Void = {}
         let root: AnyView
         switch viewer {
-        case let .image(url, title):
-            root = AnyView(ImageViewer(urls: [url], title: title, isGallery: false, close: close))
+        case let .image(url, title, thumb):
+            root = AnyView(ImageViewer(urls: [url], title: title, isGallery: false, placeholder: thumb, close: close))
         case let .gallery(urls, _, _, title, initialIndex):
             root = urls.isEmpty
                 ? AnyView(Color.clear.onAppear(perform: close))

@@ -108,9 +108,9 @@ class AppNavigator(
      * styles.redditmedia.com copy without its query is the original upload, not the
      * 256 px crop the header shows.
      */
-    fun openPicture(url: String, name: String) {
+    fun openPicture(url: String, name: String, from: androidx.compose.ui.geometry.Rect? = null) {
         val full = if (runCatching { Uri.parse(url).host }.getOrNull() == "styles.redditmedia.com") url.substringBefore("?") else url
-        openImage(full, name)
+        viewers.open(MediaViewer.Image(full, name, thumb = url, from = from?.let { listOf(it.left, it.top, it.width, it.height) }.orEmpty()))
     }
 
     fun openGallery(images: List<GalleryImage>, title: String? = null, initialIndex: Int = 0) {

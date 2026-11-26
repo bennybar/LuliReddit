@@ -31,8 +31,9 @@ final class ZoomableImage: UIScrollView, UIScrollViewDelegate {
     private(set) var isZoomed = false
     var onZoomChanged: (Bool) -> Void = { _ in }
 
-    /// `maxPixelSize`: decode to fit it (0: full size).
-    init(url: String, maxPixelSize: Int = 0) {
+    /// `maxPixelSize`: decode to fit it (0: full size). `placeholder`: a smaller copy to
+    /// show until the image is in (a picture's circle, #287).
+    init(url: String, maxPixelSize: Int = 0, placeholder: String? = nil) {
         super.init(frame: .zero)
         delegate = self
         contentInsetAdjustmentBehavior = .never
@@ -56,6 +57,11 @@ final class ZoomableImage: UIScrollView, UIScrollViewDelegate {
             show(hit)
         } else {
             loadTask = Task { [weak self] in
+                if let placeholder = placeholder.flatMap(URL.init(string:)) {
+                    // From the disk cache in a moment, while the full picture downloads.
+                    async let thumb = ImageLoader.shared.image(url: placeholder, maxPixelSize: 512)
+                    if let thumb = await thumb, let self, !Task.isCancelled, self.imageView.image == nil { self.show(thumb) }
+                }
                 let image = await ImageLoader.shared.image(url: parsed, maxPixelSize: maxPixelSize, animated: true)
                 guard let self, !Task.isCancelled else { return }
                 if let image { self.show(image) } else { self.showFailure() }
@@ -214,6 +220,7 @@ private final class PagerScrollView: UIScrollView {
 /// the neighbours loaded (Kotlin's `beyondViewportPageCount = 1`) and nothing further.
 final class ZoomablePager: DismissableContentView, UIScrollViewDelegate {
     private let urls: [String]
+    private let placeholder: String?
     private let maxPixelSize: Int
     private let scroll = PagerScrollView()
     private var pages: [Int: ZoomableImage] = [:]
@@ -221,8 +228,9 @@ final class ZoomablePager: DismissableContentView, UIScrollViewDelegate {
     private var laidOutFor = CGSize.zero
     private let onPageChanged: (Int) -> Void
 
-    init(urls: [String], initialIndex: Int, state: DismissState, maxPixelSize: Int = 0, onPageChanged: @escaping (Int) -> Void) {
+    init(urls: [String], initialIndex: Int, placeholder: String? = nil, state: DismissState, maxPixelSize: Int = 0, onPageChanged: @escaping (Int) -> Void) {
         self.urls = urls
+        self.placeholder = placeholder
         self.maxPixelSize = maxPixelSize
         self.index = min(max(initialIndex, 0), urls.count - 1)
         self.onPageChanged = onPageChanged
@@ -276,7 +284,7 @@ final class ZoomablePager: DismissableContentView, UIScrollViewDelegate {
             pages[i] = nil
         }
         for i in wanted where pages[i] == nil {
-            let page = ZoomableImage(url: urls[i], maxPixelSize: maxPixelSize)
+            let page = ZoomableImage(url: urls[i], maxPixelSize: maxPixelSize, placeholder: i == index ? placeholder : nil)
             page.frame = frame(ofPage: i)
             page.onZoomChanged = { [weak self] zoomed in
                 if let self, i == self.index { self.state.zoomed = zoomed }

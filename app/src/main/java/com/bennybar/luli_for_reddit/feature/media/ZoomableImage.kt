@@ -60,6 +60,8 @@ internal fun ZoomableImage(
     onZoomChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     decodeSize: coil3.size.Size = coil3.size.Size.ORIGINAL,
+    // A smaller copy already in memory to show until the image is in (a picture's circle, #287).
+    placeholderKey: coil3.memory.MemoryCache.Key? = null,
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current.density
@@ -194,7 +196,9 @@ internal fun ZoomableImage(
         contentAlignment = Alignment.Center,
     ) {
         AsyncImage(
-            model = remember(url, decodeSize) { ImageRequest.Builder(context).data(url).size(decodeSize).build() },
+            model = remember(url, decodeSize, placeholderKey) {
+                ImageRequest.Builder(context).data(url).size(decodeSize).placeholderMemoryCacheKey(placeholderKey).build()
+            },
             contentDescription = null,
             contentScale = ContentScale.Fit,
             onState = { s ->
@@ -211,7 +215,9 @@ internal fun ZoomableImage(
                 },
         )
         when (state) {
-            is AsyncImagePainter.State.Loading, AsyncImagePainter.State.Empty ->
+            // No spinner over a placeholder.
+            is AsyncImagePainter.State.Loading -> if ((state as AsyncImagePainter.State.Loading).painter == null) Loading(color = Color.White)
+            AsyncImagePainter.State.Empty ->
                 Loading(color = Color.White)
             is AsyncImagePainter.State.Error ->
                 Icon(Icons.Rounded.BrokenImage, null, Modifier.size(48.dp), tint = Color.White.copy(alpha = 0.6f))

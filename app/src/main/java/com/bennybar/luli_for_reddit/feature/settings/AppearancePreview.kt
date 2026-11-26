@@ -1,15 +1,12 @@
 package com.bennybar.luli_for_reddit.feature.settings
 
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -25,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -46,85 +44,76 @@ import com.bennybar.luli_for_reddit.model.UserFlair
 import com.bennybar.luli_for_reddit.settings.PostDisplay
 
 /**
- * Settings › Appearance's live preview: a window into the feed, not a shrunk card. The
- * sample post is drawn by the feed's own [PostCard] at true size, with the feed list's side
- * inset and spacing, on the feed's background, so every look option (layout, corners,
- * text sizes, font, theme, icons, flair…) shows exactly as it will. Pinned under the page
- * title; up to about half the screen, a taller card fading out at the bottom with its top
+ * Settings › Appearance's preview, in a group's Preview sheet (#288): a window into the
+ * feed, not a shrunk card. The sample post is drawn by the feed's own [PostCard] at true
+ * size, with the feed list's side inset and spacing, on the feed's background, so every
+ * look option (layout, corners, text sizes, font, theme, icons, flair…) shows exactly as it
+ * will. Up to about 40% of the screen, a taller card fading out at the bottom with its top
  * always readable. The sample is local (a bundled picture, no Reddit requests) and inert.
  *
- * It follows the options in view ([kind], see [pickPreview]): the post for the layout,
- * colour and text options, a sample thread for the comments' size, the floating chips
- * for theirs, and nothing for the options it can't show, so those get the whole screen.
- *
- * [scrolled]: the options have gone under it, so a hairline sets it off from them.
+ * [kind]: the post for the layout, colour and text options, a sample thread for the
+ * comments' size, the floating chips for theirs.
  */
 @Composable
-fun AppearancePreview(scrolled: Boolean, kind: PreviewKind, modifier: Modifier = Modifier) {
+fun AppearancePreview(kind: PreviewKind, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val post = remember { samplePost("android.resource://${context.packageName}/${R.drawable.appearance_preview_photo}") }
     val display by remember { app.settings.state }.collectAsStateWithLifecycle()
     val cs = MaterialTheme.colorScheme
-    BoxWithConstraints(modifier.fillMaxWidth().background(cs.background)) {
-        val max = (maxHeight.takeIf { it != Dp.Infinity } ?: 800.dp) * 0.52f
-        var clipped by remember { mutableStateOf(false) }
-        Box(
-            Modifier
-                .fillMaxWidth()
-                // One preview cross-fades into the next while the height follows (none: 0).
-                .animateContentSize(tween(PREVIEW_SWAP_MS))
-                .clearAndSetSemantics {
-                    contentDescription = when (kind) {
-                        PreviewKind.POST -> "Preview of a post with these settings"
-                        PreviewKind.COMMENTS -> "Preview of comments with these settings"
-                        PreviewKind.CHIPS -> "Preview of the floating filter chips"
-                        PreviewKind.NONE -> ""
-                    }
-                }
-                // Look, don't touch: no votes, swipes, menus or opening the post.
-                .pointerInput(Unit) {
-                    awaitPointerEventScope {
-                        while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
-                    }
-                },
-        ) {
-            Crossfade(kind, animationSpec = tween(PREVIEW_SWAP_MS), label = "appearancePreview") { k ->
-                when (k) {
-                    PreviewKind.POST -> {
-                        // The feed's own spacing above a post: Compact's rows sit closer (PostListView).
-                        val top = if (display.postDisplay == PostDisplay.COMPACT) 6.dp else 10.dp
-                        ClipHeight(max, onClipped = { clipped = it }) {
-                            Box(Modifier.padding(start = FEED_SIDE_INSET, top = top, end = FEED_SIDE_INSET, bottom = 10.dp)) {
-                                CompositionLocalProvider(LocalFeedSideInset provides FEED_SIDE_INSET) { PostCard(post) }
-                            }
-                        }
-                    }
-                    // The thread's own rows, in its style (Calm or cards), at the comments' size.
-                    PreviewKind.COMMENTS -> ClipHeight(max, onClipped = { clipped = it }) {
-                        Box(Modifier.padding(bottom = 6.dp)) { SampleCommentThread(SAMPLE_COMMENTS, post.author, display) }
-                    }
-                    // The floating row over the top of a feed, as it's drawn there.
-                    PreviewKind.CHIPS -> Box(Modifier.fillMaxWidth().height(CHIPS_STAGE).clipToBounds()) {
-                        Box(Modifier.padding(start = FEED_SIDE_INSET, top = 34.dp, end = FEED_SIDE_INSET)) {
-                            CompositionLocalProvider(LocalFeedSideInset provides FEED_SIDE_INSET) { PostCard(post) }
-                        }
-                        FloatingChipsSample(display.floatingChipsSolid, Modifier.padding(top = 6.dp))
-                    }
-                    PreviewKind.NONE -> Box(Modifier.fillMaxWidth())
+    val max = LocalConfiguration.current.screenHeightDp.dp * 0.4f
+    var clipped by remember { mutableStateOf(false) }
+    Box(
+        modifier
+            .fillMaxWidth()
+            .background(cs.background)
+            // A layout or text size change grows or shrinks it smoothly.
+            .animateContentSize(tween(250))
+            .clearAndSetSemantics {
+                contentDescription = when (kind) {
+                    PreviewKind.POST -> "Preview of a post with these settings"
+                    PreviewKind.COMMENTS -> "Preview of comments with these settings"
+                    PreviewKind.CHIPS -> "Preview of the floating filter chips"
                 }
             }
-            if (clipped && kind != PreviewKind.NONE && kind != PreviewKind.CHIPS) {
-                // The rest of a tall card fades into the stage instead of being cut hard.
-                Box(
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .height(36.dp)
-                        .background(Brush.verticalGradient(listOf(Color.Transparent, cs.background))),
-                )
+            // Look, don't touch: no votes, swipes, menus or opening the post.
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
+                }
+            },
+    ) {
+        when (kind) {
+            PreviewKind.POST -> {
+                // The feed's own spacing above a post: Compact's rows sit closer (PostListView).
+                val top = if (display.postDisplay == PostDisplay.COMPACT) 6.dp else 10.dp
+                ClipHeight(max, onClipped = { clipped = it }) {
+                    Box(Modifier.padding(start = FEED_SIDE_INSET, top = top, end = FEED_SIDE_INSET, bottom = 10.dp)) {
+                        CompositionLocalProvider(LocalFeedSideInset provides FEED_SIDE_INSET) { PostCard(post) }
+                    }
+                }
+            }
+            // The thread's own rows, in its style (Calm or cards), at the comments' size.
+            PreviewKind.COMMENTS -> ClipHeight(max, onClipped = { clipped = it }) {
+                Box(Modifier.padding(bottom = 6.dp)) { SampleCommentThread(SAMPLE_COMMENTS, post.author, display) }
+            }
+            // The floating row over the top of a feed, as it's drawn there.
+            PreviewKind.CHIPS -> Box(Modifier.fillMaxWidth().height(CHIPS_STAGE).clipToBounds()) {
+                Box(Modifier.padding(start = FEED_SIDE_INSET, top = 34.dp, end = FEED_SIDE_INSET)) {
+                    CompositionLocalProvider(LocalFeedSideInset provides FEED_SIDE_INSET) { PostCard(post) }
+                }
+                FloatingChipsSample(display.floatingChipsSolid, Modifier.padding(top = 6.dp))
             }
         }
-        if (scrolled) HorizontalDivider(Modifier.align(Alignment.BottomCenter), color = cs.outlineVariant)
+        if (clipped && kind != PreviewKind.CHIPS) {
+            // The rest of a tall card fades into the stage instead of being cut hard.
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(36.dp)
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, cs.background))),
+            )
+        }
     }
 }
 
@@ -171,35 +160,8 @@ internal fun samplePost(photo: String) = Post(
     previewHeight = 500,
 )
 
-/** What Appearance's preview shows: what the options in view change. */
-enum class PreviewKind { POST, COMMENTS, CHIPS, NONE }
-
-/** One group of Appearance options: what the preview shows for it, and where its first row is. */
-data class PreviewSection(val kind: PreviewKind, val top: Float)
-
-/**
- * The preview for the options in view, with hysteresis. [sections] in page order, each
- * with its first row's top in px from a fixed point (the top of the page under its bar),
- * [Float.NEGATIVE_INFINITY] once scrolled above the page and [Float.POSITIVE_INFINITY]
- * below it. A group is the one in view once its first row has come up to [line]. [current]
- * stays while any group within [slack] of the line still has it, so a boundary resting on
- * the line doesn't flicker; past that, the group at the line wins.
- *
- * Nothing here moves when the preview changes height: [line] is fixed, and the page under
- * it is kept where it was while the preview grows or shrinks (the list scrolls by as much),
- * so a swap can't trigger another.
- */
-fun pickPreview(sections: List<PreviewSection>, line: Float, slack: Float, current: PreviewKind): PreviewKind {
-    if (sections.isEmpty()) return current
-    fun at(y: Float) = sections.indexOfLast { it.top <= y }.coerceAtLeast(0)
-    val from = at(line - slack)
-    val to = at(line + slack)
-    if ((from..to).any { sections[it].kind == current }) return current
-    return sections[at(line)].kind
-}
-
-/** How long one preview takes to give way to the next. */
-const val PREVIEW_SWAP_MS = 250
+/** What an Appearance group's preview shows: what its options change. */
+enum class PreviewKind { POST, COMMENTS, CHIPS }
 
 /** The floating chips' stage: the row, over the top of a post as in a feed. */
 private val CHIPS_STAGE = 118.dp

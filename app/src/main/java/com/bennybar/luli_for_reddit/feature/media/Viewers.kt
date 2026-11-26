@@ -36,7 +36,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
-import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.material3.Icon
@@ -52,7 +52,23 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.util.lerp
+import coil3.memory.MemoryCache
+import kotlin.math.min
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
@@ -127,6 +143,20 @@ internal fun BoxScope.EdgeBack() {
     )
 }
 
+/**
+ * A community's or user's round picture that opens full screen on a tap (#279), growing
+ * out of where it is (#287).
+ */
+@Composable
+fun Modifier.opensPicture(url: String, name: String): Modifier {
+    val nav = LocalNavigator.current
+    // Where it is now, without recomposing as it moves (the collapsing header's icon).
+    val at = remember { arrayOfNulls<Rect>(1) }
+    return onGloballyPositioned { at[0] = it.boundsInRoot() }
+        .clip(CircleShape)
+        .clickable(onClickLabel = "Open picture") { nav.openPicture(url, name, at[0]) }
+}
+
 /** A white glyph with a soft shadow over the top scrim (always legible over media). */
 @Composable
 internal fun RoundBtn(icon: ImageVector, description: String, onTap: () -> Unit) {
@@ -172,7 +202,8 @@ internal fun ViewerControls(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (!enabled) return@Row
-            RoundBtn(Icons.Rounded.Close, "Close") { nav.closeViewer() }
+            // Back, not ×: it goes back to where it was opened (#287).
+            RoundBtn(Icons.AutoMirrored.Rounded.ArrowBack, "Back") { nav.closeViewer() }
             Spacer(Modifier.width(4.dp))
             Text(
                 center ?: title ?: "",
@@ -215,6 +246,9 @@ private fun DismissableViewer(
     state: DismissState,
     content: @Composable BoxScope.() -> Unit,
     controls: @Composable (Modifier, Boolean) -> Unit,
+    // How far in a picture that grows out of its circle is (#287): the black and the
+    // controls come with it, and a swipe's drag goes back to the circle on close.
+    progress: () -> Float = { 1f },
 ) {
     val nav = LocalNavigator.current
     val density = LocalDensity.current
@@ -226,11 +260,11 @@ private fun DismissableViewer(
     val controlsVisible = state.showControls && abs(state.drag) < 8f
     val controlsAlpha by animateFloatAsState(if (controlsVisible) 1f else 0f, tween(150), label = "controls")
     Box(Modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = bgOpacity)))
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = progress() }.background(Color.Black.copy(alpha = bgOpacity)))
         Box(
             Modifier
                 .fillMaxSize()
-                .graphicsLayer { translationY = state.drag }
+                .graphicsLayer { translationY = state.drag * progress() }
                 .draggable(
                     orientation = Orientation.Vertical,
                     enabled = !state.zoomed,
@@ -241,25 +275,59 @@ private fun DismissableViewer(
                 ),
             content = content,
         )
-        controls(Modifier.alpha(controlsAlpha), controlsAlpha > 0.01f)
+        controls(Modifier.graphicsLayer { alpha = controlsAlpha * progress() }, controlsAlpha > 0.01f)
         EdgeBack()
     }
 }
 
-/** Full-screen image viewer (zoom, swipe-to-dismiss, save/share). */
+/**
+ * Full-screen image viewer (zoom, swipe-to-dismiss, save/share). A picture opened from its
+ * circle ([MediaViewer.Image.from]) grows out of it as [progress] goes 0 → 1, like
+ * WhatsApp's (#287): round and at the circle's place and size at 0, fitted on black at 1.
+ */
 @Composable
-internal fun ImageViewer(url: String, title: String?) {
+internal fun ImageViewer(v: MediaViewer.Image, progress: () -> Float = { 1f }) {
     val state = remember { DismissState() }
+    val from = v.from.takeIf { it.size == 4 }?.let { Rect(it[0], it[1], it[0] + it[2], it[1] + it[3]) }
+    var origin by remember { mutableStateOf<Offset?>(null) }
     DismissableViewer(
         state,
         content = {
             ZoomableImage(
-                url,
+                v.url,
                 onTap = { state.showControls = !state.showControls },
                 onZoomChanged = { state.zoomed = it },
+                // The circle's own copy, until the full picture is in.
+                placeholderKey = v.thumb?.let { MemoryCache.Key(it, mapOf("still" to "1")) },
+                modifier = if (from == null) Modifier else Modifier
+                    .onGloballyPositioned { if (origin == null) origin = it.positionInRoot() }
+                    .graphicsLayer {
+                        val p = progress()
+                        val o = origin ?: return@graphicsLayer
+                        if (p >= 1f) return@graphicsLayer
+                        // The picture is taken as square, fitted: d × d in the middle.
+                        val w = size.width
+                        val h = size.height
+                        val d = min(w, h)
+                        val k = lerp(from.width / d, 1f, p)
+                        scaleX = k
+                        scaleY = k
+                        translationX = (from.center.x - o.x - w / 2) * (1 - p)
+                        translationY = (from.center.y - o.y - h / 2) * (1 - p)
+                        // A circle opening up into the whole picture.
+                        val cw = lerp(d, w, p)
+                        val ch = lerp(d, h, p)
+                        val r = d / 2 * (1 - p)
+                        shape = object : Shape {
+                            override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density) =
+                                Outline.Rounded(RoundRect(Rect(Offset((w - cw) / 2, (h - ch) / 2), Size(cw, ch)), CornerRadius(r)))
+                        }
+                        clip = true
+                    },
             )
         },
-        controls = { m, enabled -> ViewerControls(title, url, m, downloadUrl = url, enabled = enabled) },
+        controls = { m, enabled -> ViewerControls(v.title, v.url, m, downloadUrl = v.url, enabled = enabled) },
+        progress = progress,
     )
 }
 

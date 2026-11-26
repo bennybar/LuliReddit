@@ -22,7 +22,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.shape.CircleShape
+import com.bennybar.luli_for_reddit.feature.media.opensPicture
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.rounded.Block
@@ -90,6 +90,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.bennybar.luli_for_reddit.ui.userName
 
 class UserAboutViewModel(private val username: String) : ViewModel() {
     private val _about = MutableStateFlow<Async<RedditUser>>(Async.Loading)
@@ -348,12 +349,12 @@ private fun ProfileHeader(user: RedditUser, canFollow: Boolean, onSwitchAccount:
         LetterAvatar(
             user.name, 60.dp, cs.primaryContainer, cs.onPrimaryContainer, imageUrl = user.iconUrl,
             // A tap opens the picture full screen (#279).
-            modifier = user.iconUrl?.let { icon -> Modifier.clip(CircleShape).clickable(onClickLabel = "Open picture") { nav.openPicture(icon, "u/${user.name}") } } ?: Modifier,
+            modifier = user.iconUrl?.let { icon -> Modifier.opensPicture(icon, "u/${user.name}") } ?: Modifier,
         )
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
             if (onSwitchAccount == null) {
-                Text("u/${user.name}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+                Text(userName(user.name), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
             } else {
                 // Your name, with a ▾: the accounts (#144), as WhatsApp's.
                 Row(
@@ -362,7 +363,7 @@ private fun ProfileHeader(user: RedditUser, canFollow: Boolean, onSwitchAccount:
                         .clickable(onClickLabel = "Switch or add account", onClick = onSwitchAccount),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("u/${user.name}", Modifier.weight(1f, fill = false), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(userName(user.name), Modifier.weight(1f, fill = false), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Icon(Icons.Rounded.KeyboardArrowDown, null, tint = cs.onSurfaceVariant)
                 }
             }

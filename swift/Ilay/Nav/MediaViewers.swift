@@ -4,7 +4,9 @@ import SwiftUI
 /// transparent overlay above the current screen (the Flutter build's
 /// non-opaque fade route), so swipe-to-dismiss reveals the feed underneath.
 enum MediaViewer: Hashable, Codable {
-    case image(url: String, title: String? = nil)
+    /// `thumb`: a community's or user's picture's circle copy, shown while the full one loads,
+    /// so it grows out of the circle as a picture (#287).
+    case image(url: String, title: String? = nil, thumb: String? = nil)
     case gallery(urls: [String], widths: [Int] = [], heights: [Int] = [], title: String? = nil, initialIndex: Int = 0)
     case video(url: String, title: String? = nil, downloadUrl: String? = nil, externalUrl: String? = nil, gif: Bool = false) // gif: always loops (#156)
 }

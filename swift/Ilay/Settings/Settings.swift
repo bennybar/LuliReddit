@@ -284,6 +284,7 @@ struct Settings: Equatable, Sendable {
     var dimReadTextOnly = false // read posts: dim only title / text (images stay bright), else the whole card
     var dimRead = true // read posts dim at all (#106); off: history is still kept, nothing fades
     var subredditIcons = true // cards show the subreddit's icon (else its first letter)
+    var subredditPrefix = true // subreddit and user names show as "r/name" and "u/name" (else just "name", #97, #289); display only
     var postAvatars = false // the poster's picture on the subreddit icon (#270): one more request per page
     var sideBarUserPrefix = true // the side bar shows your name as "u/name" (else just "name", #167)
     var markReadOnScroll = false // a post scrolled past counts as read

@@ -109,6 +109,7 @@ import com.bennybar.luli_for_reddit.core.str
 import com.bennybar.luli_for_reddit.feature.settings.confirmDialog
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import com.bennybar.luli_for_reddit.ui.userName
 
 private val SEARCH_SORTS = linkedMapOf(
     "relevance" to "Relevance",
@@ -524,7 +525,7 @@ fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time:
                                 ResultTile(
                                     u.name,
                                     u.iconUrl,
-                                    "u/${u.name}",
+                                    userName(u.name),
                                     "${compactNumber(u.linkKarma + u.commentKarma)} karma",
                                 ) {
                                     vm.rememberOpened("u", u.name, u.iconUrl)
@@ -564,7 +565,7 @@ private fun recentResult(kind: String, name: String, icon: String?): String = bu
     if (icon != null) put("i", icon)
 }.toString()
 
-private fun recentLabel(r: RecentSearch): String = if (r.kind == "u") "u/${r.name}" else subredditName("r/${r.name}")
+private fun recentLabel(r: RecentSearch): String = if (r.kind == "u") userName(r.name) else subredditName("r/${r.name}")
 
 /** A row's place in a connected container, as in Settings: round only where the container starts or ends. */
 private fun Modifier.inGroup(i: Int, count: Int, color: Color): Modifier {
