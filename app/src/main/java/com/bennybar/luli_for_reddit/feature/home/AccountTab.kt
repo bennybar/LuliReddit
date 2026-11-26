@@ -80,6 +80,8 @@ import com.bennybar.luli_for_reddit.feature.feed.SectionHeader
 import com.bennybar.luli_for_reddit.feature.feed.TapGuard
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.Route
+import com.bennybar.luli_for_reddit.nav.searchMorphSource
+import com.bennybar.luli_for_reddit.nav.searchMorphSourceText
 import com.bennybar.luli_for_reddit.ui.SearchIcon
 import com.bennybar.luli_for_reddit.settings.TopBarMode
 import com.bennybar.luli_for_reddit.ui.Overlays
@@ -92,8 +94,11 @@ import kotlinx.coroutines.launch
  * your stuff.
  */
 @Composable
-internal fun ProfileTab() {
+internal fun ProfileTab(selected: Boolean = true) {
     val nav = LocalNavigator.current
+    // What the Search screen's field grows out of, as on Posts (#295); only while shown.
+    val searchSource = if (selected) Modifier.searchMorphSource() else Modifier
+    val searchText = if (selected) Modifier.searchMorphSourceText() else Modifier
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val session by app.session.state.collectAsStateWithLifecycle()
@@ -120,6 +125,8 @@ internal fun ProfileTab() {
             TabSearchBar(
                 if (signedOut) "Search Reddit" else "Search your posts",
                 onSearch = { nav.push(if (signedOut) Route.Search() else Route.Search(query = "author:$username")) },
+                searchModifier = searchSource,
+                textModifier = searchText,
             ) {
                 // The side bar always has Settings (#138).
                 if (signedOut) {
@@ -135,7 +142,7 @@ internal fun ProfileTab() {
         ) {
             if (!signedOut && settings.inboxInProfile) InboxButton()
             // As the other tabs' (#228): your own posts, or Reddit signed out.
-            IconButton(onClick = { nav.push(if (signedOut) Route.Search() else Route.Search(query = "author:$username")) }) {
+            IconButton(onClick = { nav.push(if (signedOut) Route.Search() else Route.Search(query = "author:$username")) }, modifier = searchSource) {
                 Icon(SearchIcon, if (signedOut) "Search Reddit" else "Search your posts")
             }
             if (signedOut) {

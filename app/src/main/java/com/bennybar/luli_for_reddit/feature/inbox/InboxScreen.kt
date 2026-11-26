@@ -110,6 +110,8 @@ import com.bennybar.luli_for_reddit.nav.AppNavigator
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.NavCache
 import com.bennybar.luli_for_reddit.nav.Route
+import com.bennybar.luli_for_reddit.nav.searchMorphSource
+import com.bennybar.luli_for_reddit.nav.searchMorphSourceText
 import androidx.compose.foundation.layout.RowScope
 import com.bennybar.luli_for_reddit.feature.home.TabSearchBar
 import com.bennybar.luli_for_reddit.feature.feed.CollapsingTitleBar
@@ -293,7 +295,13 @@ fun InboxScreen(reselect: Int, selected: Boolean = true, /** A page of its own (
                         actions = barActions,
                     )
                 } else if (!expandable) {
-                    TabSearchBar("Search Reddit", onSearch = { nav.push(Route.Search()) }, actions = barActions)
+                    TabSearchBar(
+                        "Search Reddit", onSearch = { nav.push(Route.Search()) },
+                        // As on the other tabs (#295): the field grows out of it, only while shown.
+                        searchModifier = if (selected) Modifier.searchMorphSource() else Modifier,
+                        textModifier = if (selected) Modifier.searchMorphSourceText() else Modifier,
+                        actions = barActions,
+                    )
                 } else {
                     // Expandable: the big title that folds into the bar as the list scrolls.
                     CollapsingTitleBar(

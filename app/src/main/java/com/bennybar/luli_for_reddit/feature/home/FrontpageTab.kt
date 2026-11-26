@@ -302,7 +302,14 @@ private fun RoundSearchBar(username: String, searchModifier: Modifier, textModif
  * Explore with that tab's [placeholder], and the tab's own buttons after it ([actions]).
  */
 @Composable
-internal fun TabSearchBar(placeholder: String, onSearch: () -> Unit, actions: @Composable RowScope.() -> Unit) {
+internal fun TabSearchBar(
+    placeholder: String,
+    onSearch: () -> Unit,
+    // Where the Search screen's field grows from, and its words (#295): the shown tab's.
+    searchModifier: Modifier = Modifier,
+    textModifier: Modifier = Modifier,
+    actions: @Composable RowScope.() -> Unit,
+) {
     val cs = MaterialTheme.colorScheme
     val sideBar = LocalSideBar.current != null
     Row(
@@ -314,11 +321,11 @@ internal fun TabSearchBar(placeholder: String, onSearch: () -> Unit, actions: @C
         // with a magnifier; without, Gmail's round one with the words in the middle.
         val settings by app.settings.state.collectAsStateWithLifecycle()
         if (settings.fullBarNewPost) {
-            SearchPill(placeholder, onClick = onSearch, modifier = Modifier.weight(1f))
+            SearchPill(placeholder, onClick = onSearch, modifier = Modifier.weight(1f).then(searchModifier), labelModifier = textModifier)
         } else {
-            Surface(Modifier.weight(1f).height(56.dp), shape = CircleShape, color = cs.surfaceContainerHigh) {
+            Surface(Modifier.weight(1f).height(56.dp).then(searchModifier), shape = CircleShape, color = cs.surfaceContainerHigh) {
                 Box(Modifier.fillMaxSize().clickable(onClickLabel = placeholder, onClick = onSearch), contentAlignment = Alignment.Center) {
-                    Text(placeholder, color = cs.onSurfaceVariant, fontSize = 16.sp, maxLines = 1)
+                    Text(placeholder, textModifier, color = cs.onSurfaceVariant, fontSize = 16.sp, maxLines = 1)
                 }
             }
         }
