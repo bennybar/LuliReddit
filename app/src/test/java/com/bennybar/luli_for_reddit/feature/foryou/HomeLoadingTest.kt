@@ -80,26 +80,43 @@ class HomeLoadingTest {
         early.add(listOf("t3_a", "t3_b"))
         early.add(listOf("t3_c", "t3_a")) // a: already asked
         early.add(listOf("t3_gone"))
-        val got = early.posts(listOf("t3_a", "t3_b", "t3_c", "t3_gone"), 2_000)
-        assertEquals("one the API leaves out is just absent", setOf("t3_a", "t3_b", "t3_c"), got?.keys)
+        val got = early.wait(listOf("t3_a", "t3_b", "t3_c", "t3_gone"), 2_000)
+        assertTrue(got.complete)
+        assertEquals("one the API leaves out is just absent", setOf("t3_a", "t3_b", "t3_c"), got.posts.keys)
         assertEquals("the next request waits for the one in flight", listOf(listOf("t3_a", "t3_b"), listOf("t3_c", "t3_gone")), batches.toList())
     }
 
     @Test
-    fun `too slow or a failure gives null`() = runBlocking {
+    fun `too slow or a failure is incomplete`() = runBlocking {
         val slow = EarlyFullPosts(scope) { ids ->
             delay(400)
             ids.map { post(it.removePrefix("t3_")) }
         }
-        assertNull(slow.posts(listOf("t3_a"), 50))
+        val late = slow.wait(listOf("t3_a"), 50)
+        assertFalse(late.complete)
+        assertTrue(late.posts.isEmpty())
         val failing = EarlyFullPosts(scope) { throw IOException("offline") }
-        assertNull(failing.posts(listOf("t3_a"), 1_000))
+        assertFalse(failing.wait(listOf("t3_a"), 1_000).complete)
     }
 
     @Test
-    fun `a cancelled one gives null`() = runBlocking {
+    fun `a cancelled one is incomplete`() = runBlocking {
         val early = EarlyFullPosts(scope) { ids -> ids.map { post(it.removePrefix("t3_")) } }
         early.cancel()
-        assertNull(early.posts(listOf("t3_a"), 200))
+        assertFalse(early.wait(listOf("t3_a"), 200).complete)
+    }
+
+    @Test
+    fun `what's in by the deadline comes back when the rest is late`() = runBlocking {
+        // Reddit's page shows its first few posts well before the rest: those are in.
+        val early = EarlyFullPosts(scope) { ids ->
+            if ("t3_late" in ids) delay(5_000)
+            ids.map { post(it.removePrefix("t3_")) }
+        }
+        early.add(listOf("t3_a"))
+        delay(100)
+        val got = early.wait(listOf("t3_a", "t3_late"), 100)
+        assertFalse(got.complete)
+        assertEquals(setOf("t3_a"), got.posts.keys)
     }
 }

@@ -568,6 +568,9 @@ class EarlyFullPosts(
     @Volatile var firstAskedAt: Long? = null
         private set
 
+    /** Each answer's posts, as they come (the first cards' pictures are warmed with them). */
+    @Volatile var onArrive: ((List<Post>) -> Unit)? = null
+
     /** Asks for the posts (fullnames) not asked for yet. */
     fun add(ids: List<String>) {
         synchronized(this) { for (id in ids) if (asked.add(id)) pending.add(id) }
@@ -586,26 +589,31 @@ class EarlyFullPosts(
                     if (result != null) for (p in result) got["t3_${p.id}"] = p else failed = true
                     running = null
                 }
+                if (result != null) onArrive?.invoke(result)
                 pump()
             }.also { running = it }
         }
         job.start()
     }
 
+    /** What [wait] found: the full posts in (by fullname), and whether every one was answered. */
+    data class Answer(val posts: Map<String, Post>, val complete: Boolean)
+
     /**
-     * The full posts by fullname once every one of [ids] has been answered for, waiting at
-     * most [deadlineMs]; null if a request failed or they aren't all in by then. One the API
-     * leaves out (removed) is just absent.
+     * The full posts in for [ids] after waiting at most [deadlineMs] for all of them, and
+     * whether every one was answered. One the API leaves out (removed) is just absent; a
+     * failed request leaves it incomplete. Reddit's page shows its first few posts well
+     * before the rest, so even an incomplete answer usually has the cards on screen.
      */
-    suspend fun posts(ids: List<String>, deadlineMs: Long): Map<String, Post>? {
+    suspend fun wait(ids: List<String>, deadlineMs: Long): Answer {
         add(ids)
         val end = System.currentTimeMillis() + deadlineMs
         while (true) {
             synchronized(this) {
-                if (failed) return null
-                if (running == null && pending.isEmpty()) return HashMap(got)
+                if (failed) return Answer(HashMap(got), false)
+                if (running == null && pending.isEmpty()) return Answer(HashMap(got), true)
             }
-            if (System.currentTimeMillis() >= end) return null
+            if (System.currentTimeMillis() >= end) return synchronized(this) { Answer(HashMap(got), false) }
             delay(15)
         }
     }
@@ -695,8 +703,16 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
             if (firstPage) {
                 val f = earlyFullPosts()
                 full = f
+                // The first cards' pictures (icon, photo, poster) load while the deck still
+                // shows: from the page's posts as soon as it shows them, then from their full
+                // posts. They were only asked for once the cards had landed.
+                val firstIds = java.util.Collections.synchronizedList(ArrayList<String>())
+                f.onArrive = { posts -> warm(posts.filter { firstIds.contains(it.fullname) }) }
                 page = l.next(restart = true, cookieHeader = cookie, onProgress = { n -> _progress.value = n }, onPosts = { posts ->
                     if (f.firstAskedAt == null) homeTrace("first posts read", started)
+                    val first = posts.take((WARMED_CARDS - firstIds.size).coerceAtLeast(0))
+                    firstIds += first.map { it.id }
+                    warm(first.map { it.toPost() })
                     f.add(posts.map { it.id })
                 })
                 homeTrace("page read (${page.size})", started)
@@ -724,18 +740,20 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
             // cards straight from the page now, and the full posts in the background.
             val gen = loadGen
             val user = c.session.username
-            val got = full.posts(page.map { it.id }, FULL_POSTS_DEADLINE_MS)
-            val cards = if (got != null) {
+            val (got, complete) = full.wait(page.map { it.id }, FULL_POSTS_DEADLINE_MS)
+            // The ones in (the first few, which the page shows well before the rest: the
+            // cards on screen) come complete; page cards for the others, which the requests
+            // in flight complete a moment later, below the fold.
+            val cards = page.map { p -> got[p.id]?.let { withCard(it, p) } ?: p.toPost() }
+            if (complete) {
                 homeTrace("full posts ready", started)
                 if (firstPage && user.isNotEmpty() && c.session.username == user && gen == loadGen) {
                     val posts = page.mapNotNull { p -> got[p.id]?.let { withCard(it, p) } }
                     launchIo { saveForYouPage(c.context, user, posts, c.repository::rawPost, feed = "home") }
                 }
-                page.map { p -> got[p.id]?.let { withCard(it, p) } ?: p.toPost() }
             } else {
-                full.cancel()
-                c.scope.launch { upgrade(page, firstPage, gen) }
-                page.map { it.toPost() }
+                homeTrace("full posts in: ${got.size}/${page.size}", started)
+                c.scope.launch { upgrade(page, firstPage, gen, early = full) }
             }
             // Read the next batch ahead, its full posts too, so reaching the end doesn't
             // wait and the next page comes complete.
@@ -879,7 +897,7 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
     }
 
     /** Fetches the full posts for [page] and hands them to the feed. */
-    private suspend fun upgrade(page: List<PagePost>, firstPage: Boolean, gen: Int) {
+    private suspend fun upgrade(page: List<PagePost>, firstPage: Boolean, gen: Int, early: EarlyFullPosts? = null) {
         // The account these cards belong to: a switch mid-request must not give
         // its posts (or its saved Home page) to the next account. Likewise a
         // newer Home load ([gen]) makes these cards old: an upgrade finishing
@@ -889,7 +907,14 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
         // A failed fetch left cards without media (empty galleries); try again
         // a couple of times before leaving them as they are.
         var full: List<Post>? = null
+        // The requests already in flight first, not the same posts asked for again (that
+        // came about a second later than they did).
+        if (early != null) {
+            val (got, complete) = early.wait(page.map { it.id }, 15_000L)
+            if (complete) full = page.mapNotNull { got[it.id] }
+        }
         for (wait in listOf(0L, 2_000L, 5_000L)) {
+            if (full != null) break
             delay(wait)
             full = runCatching { c.repository.getPostsByIds(page.map { it.id }) }.getOrNull()
             if (full != null || stale()) break
@@ -914,11 +939,31 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
 
     private fun earlyFullPosts() = EarlyFullPosts(c.scope) { ids -> c.repository.getPostsByIds(ids) }
 
+    /** Into Coil's caches, as the cards will ask for them: the photo at the feed's width, and the icon. */
+    private fun warm(posts: List<Post>) {
+        if (posts.isEmpty()) return
+        val s = com.bennybar.luli_for_reddit.app.settings.value
+        val loader = coil3.SingletonImageLoader.get(c.context)
+        val width = c.context.resources.displayMetrics.widthPixels
+        for (p in posts) {
+            com.bennybar.luli_for_reddit.feature.feed.feedImageUrl(p, s)?.let { url ->
+                loader.enqueue(
+                    coil3.request.ImageRequest.Builder(c.context).data(url)
+                        .size(coil3.size.Size(coil3.size.Dimension(width), coil3.size.Dimension.Undefined)).build(),
+                )
+            }
+            p.subredditIcon?.takeIf { s.subredditIcons }?.let { loader.enqueue(coil3.request.ImageRequest.Builder(c.context).data(it).build()) }
+        }
+    }
+
     private fun launchIo(block: suspend () -> Unit) = c.scope.launch(Dispatchers.IO) { block() }
 
     companion object {
         /** How long a page waits, once read, for full posts still on their way before it shows the page's own cards instead. */
         const val FULL_POSTS_DEADLINE_MS = 500L
+
+        /** How many of the first cards get their pictures warmed while the deck shows. */
+        const val WARMED_CARDS = 4
     }
 
     /**
