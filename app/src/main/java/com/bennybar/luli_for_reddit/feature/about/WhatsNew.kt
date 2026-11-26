@@ -47,6 +47,13 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.121", "Nov 26, 2026",
+        listOf(
+            "User pages and your Profile tab get the community page's header: the banner under the status bar with round buttons on it, the picture over its edge, the name once, karma and account age, a round Follow and the description; without a banner, a large centred picture and name (#293)",
+            "Another user's page has a 🔍 that searches their posts",
+        ),
+    ),
+    Release(
         "2.0.120", "Nov 26, 2026",
         listOf(
             "Image posts upload their image again: Reddit had started rejecting how Ilay asked for the upload, so posts went up as text only (#296)",

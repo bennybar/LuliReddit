@@ -12,6 +12,10 @@ struct Release: Identifiable {
 /// 2.0 (the native app, with Reddit Home). Add the new release at the top
 /// with every release.
 let CHANGELOG = [
+    Release(version: "2.0.121", date: "Nov 26, 2026", highlights: [
+        "User pages and your Profile tab get the community page's header: the banner under the status bar with round buttons on it, the picture over its edge, the name once, karma and account age, a round Follow and the description; without a banner, a large centred picture and name (#293)",
+        "Another user's page has a 🔍 that searches their posts",
+    ]),
     Release(version: "2.0.120", date: "Nov 26, 2026", highlights: [
         "Image posts upload their image again: Reddit had started rejecting how Ilay asked for the upload, so posts went up as text only (#296)",
         "Community banners: the status bar icons follow the banner under them and come back right when you leave (#291); a short, low-resolution banner shows sharp over its soft backdrop (#294)",
