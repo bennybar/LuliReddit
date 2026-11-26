@@ -47,6 +47,19 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.116", "Nov 26, 2026",
+        listOf(
+            "Home feed: posts arrive complete on the first paint (flair, icons, size), and faster",
+            "Feeds: cards fly in once, stay put when updated, and a fresh page doesn't yank you to the top",
+            "Search: the search box grows into the search page (#271); with the Expandable top bar, Saved, History, Settings and Summaries search from a 🔍 in the bar (#247)",
+            "Subreddit page: the icon sits lower, Join is a + by the name with a \"Joined\" note, no empty description card, and the description keeps its size (#277, #278); search and ⋯ share one pill (#282)",
+            "Tap a community's or user's picture to see it full screen (#279)",
+            "Side bar: long-press a recently visited community to remove it (#280)",
+            "Search history: no more bare author: entries; a search in someone's posts shows their u/name tag (#281)",
+            "Subreddit banners: the phone banner when there is one, and no more blurry zoom",
+        ),
+    ),
+    Release(
         "2.0.115", "Nov 25, 2026",
         listOf(
             "Home feed: posts appear at their final size, the photo stays put instead of loading twice, and galleries fill in without resizing",
