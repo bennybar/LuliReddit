@@ -27,6 +27,58 @@ struct PickOption<T: Hashable> {
     var icon: String? = nil
 }
 
+/// A choice made on the page itself (Settings › Appearance, under its pinned preview):
+/// a segmented control for up to four short options without icons, else a scrolling row
+/// of capsules. Picking doesn't leave the page, so options can be tried one after another.
+struct InlineChoice<T: Hashable>: View {
+    let title: String
+    var subtitle: String? = nil
+    let value: T
+    let options: [PickOption<T>]
+    let set: (T) -> Void
+
+    private var segmented: Bool {
+        options.count <= 4 && options.allSatisfy { $0.icon == nil && $0.label.count <= 10 }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SettingLabel(title: title, subtitle: subtitle)
+            if segmented {
+                Picker(title, selection: Binding(get: { value }, set: set)) {
+                    ForEach(options, id: \.value) { Text($0.label).tag($0.value) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(options, id: \.value) { option in
+                            let on = option.value == value
+                            Button { set(option.value) } label: {
+                                Group {
+                                    if let icon = option.icon { Label(option.label, systemImage: icon) } else { Text(option.label) }
+                                }
+                                .font(.subheadline.weight(on ? .semibold : .regular))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 7)
+                                .foregroundStyle(on ? Color.white : Color.primary)
+                                .background(on ? AnyShapeStyle(IlayTheme.accent) : AnyShapeStyle(Color(.tertiarySystemFill)), in: .capsule)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("\(title): \(option.label)")
+                            .accessibilityAddTraits(on ? .isSelected : [])
+                        }
+                    }
+                }
+                // The capsules run to the row's edges as they scroll.
+                .scrollClipDisabled()
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
 /// One row of the settings list. `search` = its title + subtitle, nil = not searchable.
 struct SettingEntry: Identifiable {
     let id: String

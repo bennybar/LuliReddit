@@ -83,6 +83,9 @@ let settingsCategories: [[(title: String, subtitle: String, icon: String, color:
 /// its category and list section here. A section's own rows keep their order.
 private let settingsSectionOrder = settingsCategories.flatMap { $0 }.map(\.title)
 private let settingsRenamed = ["AI summaries": "AI", "Account & keys": "Account", "Power-user features": "Account"]
+/// The headers of Appearance's groups, by group (`settingsMoves` places its rows).
+private let appearanceGroups = ["Posts", "Text", "Theme & colours", "Other"]
+
 private let settingsMoves: [String: (section: String, group: Int)] = [
     // Feed: what the Posts tab shows, and For You.
     "Keep feed for": ("Feed", 0),
@@ -92,10 +95,14 @@ private let settingsMoves: [String: (section: String, group: Int)] = [
     "Mark read as you scroll": ("Read & hidden", 1), "Auto-hide read items in \"For You\"": ("Read & hidden", 1),
     "Content filters": ("Read & hidden", 2), "Hide posts for": ("Read & hidden", 2),
     "Hidden subreddits": ("Read & hidden", 2), "Hide NSFW posts": ("Read & hidden", 2),
-    // Appearance: how posts look in feeds, after theme and text.
-    "u/ before your name in the side bar": ("Appearance", 0),
-    "Post display": ("Appearance", 1), "Corner roundness": ("Appearance", 1), "Post text in feeds": ("Appearance", 1),
-    "Subreddit icons": ("Appearance", 1), "Floating filter chips": ("Appearance", 1),
+    // Appearance, under its pinned preview: posts, text, theme & colours, other
+    // (`appearanceGroups` heads each group).
+    "Post display": ("Appearance", 0), "Corner roundness": ("Appearance", 0), "Post text in feeds": ("Appearance", 0),
+    "Subreddit icons": ("Appearance", 0), "Poster's picture on posts": ("Appearance", 0), "Floating filter chips": ("Appearance", 0),
+    "Font size": ("Appearance", 1), "Post titles": ("Appearance", 1), "Post text": ("Appearance", 1), "Comments": ("Appearance", 1),
+    "Reset text sizes": ("Appearance", 1),
+    "Theme": ("Appearance", 2), "Accent color": ("Appearance", 2),
+    "App icon": ("Appearance", 3), "u/ before your name in the side bar": ("Appearance", 3),
     // Navigation: the tabs and side bar, then the top bar.
     "Navigation": ("Navigation", 0), "Inbox in Profile": ("Navigation", 0), "Explore sections": ("Navigation", 0),
     "Top bar": ("Navigation", 1), "New post in the top bar": ("Navigation", 1), "Floating button on Home": ("Navigation", 1),
@@ -166,14 +173,15 @@ struct SettingsCatalog {
 
     private func feed(_ b: RowBuilder) {
         b.section("Feed")
-        b.picker("Post display", value: s.postDisplay, options: PostDisplay.allCases.map { PickOption(value: $0, label: $0.label, icon: $0.icon) }, set: ctrl.setPostDisplay)
+        // Picked on Appearance's page, under its preview (these three move there).
+        b.choice("Post display", value: s.postDisplay, options: PostDisplay.allCases.map { PickOption(value: $0, label: $0.label, icon: $0.icon) }, set: ctrl.setPostDisplay)
         // How round posts' cards and media are (#283).
-        b.picker("Corner roundness", value: s.cornerRoundness,
-                 options: CornerRoundness.allCases.map { PickOption(value: $0, label: $0.label, subtitle: $0.description) },
+        b.choice("Corner roundness", value: s.cornerRoundness,
+                 options: CornerRoundness.allCases.map { PickOption(value: $0, label: $0.label) },
                  set: ctrl.setCornerRoundness)
         // How much of a post's text feeds show (#186).
-        b.picker("Post text in feeds", value: s.postTextLines,
-                 options: [PickOption(value: 0, label: "Layout's default"), PickOption(value: 5, label: "5 lines"), PickOption(value: 10, label: "10 lines")],
+        b.choice("Post text in feeds", "Default: the layout's 2 or 3 lines", value: s.postTextLines,
+                 options: [PickOption(value: 0, label: "Default"), PickOption(value: 5, label: "5 lines"), PickOption(value: 10, label: "10 lines")],
                  set: ctrl.setPostTextLines)
         b.toggle("Subreddit icons", "Show each community's icon on posts instead of its first letter", s.subredditIcons, set: ctrl.setSubredditIcons)
         b.toggle("Poster's picture on posts", "A small profile picture on the community's icon. One more Reddit request per page of posts", s.postAvatars, set: ctrl.setPostAvatars)
@@ -407,7 +415,7 @@ struct SettingsCatalog {
 
     private func appearance(_ b: RowBuilder) {
         b.section("Appearance")
-        b.picker("Theme", value: s.themeMode, options: ThemeMode.allCases.map { PickOption(value: $0, label: themeLabel($0)) }, set: ctrl.setThemeMode)
+        b.choice("Theme", value: s.themeMode, options: ThemeMode.allCases.map { PickOption(value: $0, label: themeLabel($0)) }, set: ctrl.setThemeMode)
         b.custom("accent", title: "Accent color", search: "Accent color") { AccentPicker(selected: s.seedColor) }
         b.custom("appIcon", title: "App icon", search: "App icon home screen colour") { AppIconRow(current: AppIcon.parse(s.appIcon)) }
         b.custom("fontSize", title: "Font size", search: "Font size text \(Int((s.textScale * 100).rounded()))% of normal") {
@@ -896,6 +904,15 @@ private final class RowBuilder {
         }
     }
 
+    /// A choice made on the page itself (Appearance, under its preview): segmented for up
+    /// to four short options, else a scrolling row of chips. Picking doesn't leave the page.
+    func choice<T: Hashable>(_ title: String, _ subtitle: String? = nil, value: T, options: [PickOption<T>], set: @escaping (T) -> Void) {
+        let current = options.first { $0.value == value }?.label ?? ""
+        custom("c:\(title)", title: title, search: "\(title) \(subtitle ?? "") \(current) \(options.map(\.label).joined(separator: " "))") {
+            InlineChoice(title: title, subtitle: subtitle, value: value, options: options, set: set)
+        }
+    }
+
     /// A choice on its own page; the current one shows at the row's end.
     func picker<T: Hashable>(_ title: String, _ subtitle: String? = nil, value: T, options: [PickOption<T>], enabled: Bool = true, set: @escaping (T) -> Void) {
         let current = options.first { $0.value == value }?.label ?? ""
@@ -1192,6 +1209,9 @@ struct SettingsScreen: View {
                 ForEach(rows.map(\.group).uniqued(), id: \.self) { group in
                     Section {
                         ForEach(rows.filter { $0.group == group }) { $0.content }
+                    } header: {
+                        // Appearance's groups are headed (Posts, Text…), under its preview.
+                        if section == "Appearance", appearanceGroups.indices.contains(group) { Text(appearanceGroups[group]) }
                     }
                 }
             } else {
