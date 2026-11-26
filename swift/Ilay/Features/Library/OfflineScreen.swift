@@ -18,7 +18,7 @@ struct OfflineScreen: View {
                         Label {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(t.title).lineLimit(2)
-                                Text("r/\(t.subreddit) · saved \(timeAgo(t.savedAt))").font(.footnote).foregroundStyle(.secondary)
+                                Text("\(subredditName(t.subreddit)) · saved \(timeAgo(t.savedAt))").font(.footnote).foregroundStyle(.secondary)
                             }
                         } icon: {
                             Image(systemName: "arrow.down.circle.fill")

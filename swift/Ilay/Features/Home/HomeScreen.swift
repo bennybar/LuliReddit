@@ -366,7 +366,7 @@ private struct SideBarSubs: View {
                     } label: {
                         HStack(spacing: 12) {
                             LetterAvatar(name: sub.name, size: 28, imageUrl: sub.iconUrl)
-                            Text(sub.namePrefixed).lineLimit(1).foregroundStyle(.primary)
+                            Text(subredditName(sub.namePrefixed)).lineLimit(1).foregroundStyle(.primary)
                         }
                     }
                     // Recently visited: how often you opened it (#92).

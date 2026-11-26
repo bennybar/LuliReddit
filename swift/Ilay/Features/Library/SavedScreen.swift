@@ -165,7 +165,7 @@ private struct SavedComment: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Image(systemName: "text.bubble").font(.caption).foregroundStyle(.tint)
-                Text("r/\(comment.subreddit) · u/\(comment.author) · \(compactNumber(comment.score))")
+                Text("\(subredditName(comment.subreddit)) · u/\(comment.author) · \(compactNumber(comment.score))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

@@ -122,7 +122,7 @@ struct HistoryScreen: View {
                     Menu("Filter by subreddit", systemImage: subFilter == nil ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill") {
                         Picker("Filter by subreddit", selection: $subFilterRaw) {
                             Text("All subreddits").tag(String?.none)
-                            ForEach(subs, id: \.self) { Text("r/\($0)").tag(String?.some($0)) }
+                            ForEach(subs, id: \.self) { Text(subredditName($0)).tag(String?.some($0)) }
                         }
                         .pickerStyle(.inline)
                     }
@@ -168,7 +168,7 @@ struct HistoryScreen: View {
                 LetterAvatar(name: e.subreddit.nilIfEmpty ?? "?", size: 36, imageUrl: icon)
                 VStack(alignment: .leading, spacing: 2) {
                     // The community opens its page (#155).
-                    Button("r/\(e.subreddit)") { if !e.subreddit.isEmpty { app.navigator.push(.subreddit(name: e.subreddit)) } }
+                    Button(subredditName(e.subreddit)) { if !e.subreddit.isEmpty { app.navigator.push(.subreddit(name: e.subreddit)) } }
                         .buttonStyle(.borderless)
                         .font(.footnote.weight(.semibold))
                         .disabled(editMode.isEditing)

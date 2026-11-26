@@ -70,7 +70,7 @@ struct ManageMultiredditScreen: View {
                             Text("No subreddits yet").foregroundStyle(.secondary)
                         }
                         ForEach(multi.subreddits, id: \.self) { sr in
-                            NavigationLink(value: Route.subreddit(name: sr)) { Text("r/\(sr)") }
+                            NavigationLink(value: Route.subreddit(name: sr)) { Text(subredditName(sr)) }
                                 .swipeActions(edge: .trailing) {
                                     Button("Remove", systemImage: "trash", role: .destructive) {
                                         Task {

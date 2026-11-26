@@ -84,11 +84,15 @@ func subredditName(_ name: String, prefix: Bool) -> String {
     return prefix ? "r/\(bare)" : bare
 }
 
-/// A user's name as it shows on posts: "u/name", or just "name" with the same setting off (#289).
+/// A user's name as it shows on posts, comments and profiles: "u/name", or just "name" with the same setting off (#289).
 func userName(_ name: String, prefix: Bool) -> String {
     let bare = name.hasPrefix("u/") ? String(name.dropFirst(2)) : name
     return prefix ? "u/\(bare)" : bare
 }
+
+/// The same, with the setting as it is now; a view reading it redraws when it changes.
+@MainActor func subredditName(_ name: String) -> String { subredditName(name, prefix: app.settings.value.subredditPrefix) }
+@MainActor func userName(_ name: String) -> String { userName(name, prefix: app.settings.value.subredditPrefix) }
 
 /// Feed preview URL, mid-resolution when the data-saver setting is on.
 func cardImage(_ p: Post, midRes: Bool) -> String? {
@@ -236,7 +240,7 @@ struct PostRow: Identifiable, Equatable {
         }
         canShareMedia = canShareAsMedia(p)
         externalVideoLabel = p.type == .video && isExternalVideo(p) ? externalVideoSource(p) : nil
-        inAppLinkLabel = p.type == .link ? redditLinkLabel(p) : nil
+        inAppLinkLabel = p.type == .link ? redditLinkLabel(p, prefix: c.namePrefix) : nil
 
         var ahead: [Prefetch] = []
         // Mini cards only show small thumbnails; not worth warming.

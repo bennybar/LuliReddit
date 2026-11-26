@@ -29,6 +29,6 @@ func timeAgo(_ epochMillis: Int) -> String {
 
 /// Where a crosspost came from, for "Crossposted from …": a profile's own subreddit
 /// ("u_name") reads as the user.
-func crosspostSource(_ subreddit: String) -> String {
-    subreddit.hasPrefix("u_") ? "u/" + subreddit.dropFirst(2) : "r/" + subreddit
+func crosspostSource(_ subreddit: String, prefix: Bool) -> String {
+    subredditName(subreddit, prefix: prefix)
 }

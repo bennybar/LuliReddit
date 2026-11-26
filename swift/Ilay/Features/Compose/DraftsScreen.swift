@@ -7,7 +7,7 @@ private struct DraftRow {
     let preview: String
     let open: Route?
 
-    init(_ d: Draft) {
+    @MainActor init(_ d: Draft) {
         let info = d.info
         let json = parseJsonOrNull(d.text)
         func nonBlank(_ s: String?) -> String? { s.flatMap { $0.isBlank ? nil : $0 } }
@@ -16,7 +16,7 @@ private struct DraftRow {
             place = [
                 info["to"].str().map { "Reply to u/\($0)" } ?? "Reply",
                 info["title"].str().map { "in \"\($0)\"" },
-                info["sub"].str().map { "r/\($0)" },
+                info["sub"].str().map { subredditName($0) },
             ].compactMap { $0 }.joined(separator: " · ")
             preview = d.text
             open = info["post"].str().map { .post(subreddit: info["sub"].str() ?? "_", postId: $0, focusCommentId: info["comment"].str()) }

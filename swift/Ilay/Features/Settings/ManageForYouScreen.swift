@@ -35,7 +35,7 @@ struct ManageForYouScreen: View {
                 section("Your choices", "What you asked for with More / Less — these don't fade") {
                     ForEach(explicit.subs.keys, id: \.self) { sub in
                         let v = explicit.subs[sub] ?? 0
-                        row(thumb: v, "r/\(sub)", v > 0 ? "More from here" : "Less from here") {
+                        row(thumb: v, subredditName(sub), v > 0 ? "More from here" : "Less from here") {
                             Button("Remove") { m.explicit.setSub(sub, 0) }
                         }
                     }
@@ -50,7 +50,7 @@ struct ManageForYouScreen: View {
             if !muted.isEmpty {
                 section("Muted", "Hidden from For You entirely") {
                     ForEach(muted, id: \.self) { sub in
-                        row("speaker.slash", "r/\(sub)") {
+                        row("speaker.slash", subredditName(sub)) {
                             Button("Unmute") { m.muted.toggle(sub) }
                         }
                     }
@@ -74,7 +74,7 @@ struct ManageForYouScreen: View {
             if !less.isEmpty {
                 section("Showing less", "Learned from what you skip or downvote") {
                     ForEach(less, id: \.key) { e in
-                        row("hand.thumbsdown", "r/\(e.key)") {
+                        row("hand.thumbsdown", subredditName(e.key)) {
                             Button("Reset") { m.interest.reset(e.key) }
                         }
                     }
@@ -83,7 +83,7 @@ struct ManageForYouScreen: View {
             if !more.isEmpty {
                 section("Showing more", "Learned favourites — reset to forget") {
                     ForEach(more, id: \.key) { e in
-                        row("hand.thumbsup", "r/\(e.key)") {
+                        row("hand.thumbsup", subredditName(e.key)) {
                             Button("Reset") { m.interest.reset(e.key) }
                         }
                     }

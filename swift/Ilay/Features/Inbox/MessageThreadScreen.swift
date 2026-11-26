@@ -215,7 +215,7 @@ private struct MessageBubble: View {
         HStack {
             if mine { Spacer(minLength: 0) }
             VStack(alignment: .leading, spacing: 4) {
-                Text("u/\(message.author) · \(timeAgo(message.createdUtc))")
+                Text("\(userName(message.author)) · \(timeAgo(message.createdUtc))")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                 RedditMarkdown(text: message.body, fontSize: 14, selectable: true, onLinkClick: { nav.openLink($0) })

@@ -62,11 +62,11 @@ func redditPostRoute(_ url: String) -> Route? {
 /// What a link card says for a link to a Reddit post (opened in Ilay, not the
 /// browser): where it was crossposted from, when the link says. Nil for any other
 /// link, which shows its site.
-func redditLinkLabel(_ p: Post) -> String? {
+func redditLinkLabel(_ p: Post, prefix: Bool = true) -> String? {
     // Not resolved yet (or it couldn't be): still a Reddit post, not an external link.
     if p.shareLink { return "Reddit post" }
     guard let route = redditPostRoute(p.url) else { return nil }
-    if p.crosspostParent != nil, case let .post(sub, _, _) = route, sub != "_" { return "Crossposted from \(crosspostSource(sub))" }
+    if p.crosspostParent != nil, case let .post(sub, _, _) = route, sub != "_" { return "Crossposted from \(crosspostSource(sub, prefix: prefix))" }
     return "Reddit post"
 }
 

@@ -83,7 +83,7 @@ struct PostDetailScreen: View {
 
     var body: some View {
         content
-            .navigationTitle(thread?.post.subredditPrefixed ?? (subreddit == "_" ? "Post" : "r/\(subreddit)"))
+            .navigationTitle(thread.map { subredditName($0.post.subredditPrefixed) } ?? (subreddit == "_" ? "Post" : subredditName(subreddit)))
             .navigationBarTitleDisplayMode(.inline)
             // The thread takes the whole screen; its floating buttons sit where the tab bar was.
             .toolbar(.hidden, for: .tabBar)
