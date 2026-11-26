@@ -205,7 +205,14 @@ struct SearchScreen: View {
     @State private var tab = "Posts"
     /// Communities named like what's being typed (#190), asked once typing pauses.
     @State private var suggestions: [Subreddit] = []
-    @FocusState private var focused: Bool
+    /// The page's width: the bar's field spans it (a bar item only takes what it asks for).
+    @State private var width: CGFloat = 0
+    /// The search button the field grows out of as the page zooms out of it (#285), on
+    /// screen; nil when opened from anywhere else. `grown`: it has.
+    @State private var growFrom: CGRect?
+    @State private var grown: Bool
+    /// On the Posts tab's Full bar the words follow a 🔍; elsewhere they're the button's middle.
+    private let wordsAfterIcon: Bool
 
     init(subreddit: String?, query: String?, sort: String? = nil, time: String? = nil) {
         self.subreddit = subreddit
@@ -217,6 +224,34 @@ struct SearchScreen: View {
         let (author, words) = splitAuthorQuery(initial)
         _text = State(initialValue: words)
         _authorTokens = State(initialValue: author.map { [AuthorToken(name: $0)] } ?? [])
+        // Read as it's pushed, like `SearchZoom`: the Posts tab's or a community's button.
+        let from = app.navigator.zoomsNextSearch ? app.navigator.nextSearchFrame : nil
+        _growFrom = State(initialValue: from)
+        _grown = State(initialValue: from == nil)
+        wordsAfterIcon = subreddit == nil && app.settings.value.fullBarNewPost
+    }
+
+    private var prompt: String { restricted ? "Search in r/\(subreddit ?? "")" : "Search Reddit" }
+
+    /// The field's width: the page's, less 16 a side.
+    private var fieldWidth: CGFloat { max(0, width - 32) }
+
+    /// The pill, in the field's space: the button it grows from, or all of it.
+    private var pill: CGRect {
+        guard !grown, let from = growFrom else { return CGRect(x: 0, y: 0, width: fieldWidth, height: 44) }
+        return CGRect(x: from.minX - 16, y: 0, width: from.width, height: 44)
+    }
+
+    /// The 🔍 alone (Expandable) has no words: the field's fade in as it grows.
+    private var fromIcon: Bool { (growFrom?.width ?? 100) < 60 }
+
+    /// From the round search bar, the words start where they were on it and travel to the
+    /// field's start (after the ←), as on Android (#285): how far right of there they start.
+    private var travel: CGFloat {
+        guard !grown, let from = growFrom, !fromIcon else { return 0 }
+        let words = (prompt as NSString).size(withAttributes: [.font: UIFont.preferredFont(forTextStyle: .body)]).width
+        let start = wordsAfterIcon ? from.minX + 34 : from.midX - words / 2
+        return start - 16 - 44
     }
 
     private func withAuthor(_ words: String) -> String {
@@ -234,7 +269,8 @@ struct SearchScreen: View {
         let tokens = author.map { [AuthorToken(name: $0)] } ?? []
         if authorTokens != tokens { authorTokens = tokens }
         if text != words { text = words }
-        focused = false
+        endEditing()
+        suggestions = []
         vm.search(t, saveRecent: save)
     }
 
@@ -245,6 +281,79 @@ struct SearchScreen: View {
             doSearch(s.query, save: false)
         } else {
             app.navigator.push(.search(subreddit: s.subreddit, query: s.query, sort: s.sort, time: s.time))
+        }
+    }
+
+    /// The bar's field: ←, the "From u/" tag (tap to remove), your words, ✕ and, once
+    /// searched, the bookmark to save the search.
+    private func field(isSaved: Bool, current: SavedSearch) -> some View {
+        HStack(spacing: 4) {
+            Button("Back", systemImage: "chevron.backward") {
+                endEditing()
+                // Back into the button as the page shrinks into it.
+                if growFrom != nil { withAnimation(.snappy(duration: 0.25)) { grown = false } }
+                app.navigator.pop()
+            }
+                .labelStyle(.iconOnly)
+                .frame(width: 36, height: 36)
+                .opacity(grown ? 1 : 0)
+            if let token = authorTokens.first {
+                Button { authorTokens = [] } label: {
+                    Label("From u/\(token.name)", systemImage: "person")
+                        .font(.subheadline)
+                        // Its words too (a bar shows a label's icon alone).
+                        .labelStyle(.titleAndIcon)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color(.secondarySystemFill), in: .capsule)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Removes it")
+            }
+            BarTextField(prompt: prompt, text: $text, autofocus: initialQuery.isEmpty) { doSearch(withAuthor(text)) }
+            if !text.isEmpty || !authorTokens.isEmpty {
+                Button("Clear", systemImage: "xmark.circle.fill") {
+                    text = ""
+                    authorTokens = []
+                    // Typing again, as the system field's ✕ did.
+                    focusBarField(placeholder: prompt)
+                }
+                .labelStyle(.iconOnly)
+                .foregroundStyle(.secondary)
+            }
+            // Save this search (with its sort and time) to run again from here.
+            if !vm.query.isEmpty && vm.query == withAuthor(text) {
+                ToggleIcon(
+                    checked: isSaved,
+                    onCheckedChange: { _ in
+                        if isSaved {
+                            app.savedSearches.remove(current)
+                        } else {
+                            app.savedSearches.add(current)
+                            app.navigator.showSnackbar("Search saved: it's listed here before you type")
+                        }
+                    },
+                    on: "bookmark.fill", off: "bookmark", description: isSaved ? "Remove saved search" : "Save search"
+                )
+            }
+        }
+        .padding(.leading, 4)
+        .padding(.trailing, 12)
+        .offset(x: travel)
+        .opacity(grown || !fromIcon ? 1 : 0)
+        .frame(width: fieldWidth, height: 44)
+        .background(alignment: .topLeading) {
+            let r = pill
+            Capsule()
+                .fill(Color(.tertiarySystemFill))
+                .frame(width: r.width, height: r.height)
+                .offset(x: r.minX, y: r.minY)
+        }
+        .onAppear {
+            // After its first frame, at the button's size.
+            if !grown { Task { withAnimation(.snappy(duration: 0.35)) { grown = true } } }
         }
     }
 
@@ -261,21 +370,28 @@ struct SearchScreen: View {
                 results
             }
         }
+        // The suggestions show over the page while typing, as the system search's did.
+        .overlay {
+            // (Cleared once searched: the words are then the search's.)
+            if !suggestions.isEmpty {
+                List {
+                    ForEach(suggestions, id: \.name) { s in
+                        ResultRow(name: s.name, iconUrl: s.iconUrl, title: s.namePrefixed, subtitle: "\(compactNumber(s.subscribers)) members", route: .subreddit(name: s.name)) {
+                            vm.rememberOpened(kind: "r", name: s.name, icon: s.iconUrl)
+                        }
+                    }
+                }
+                .listStyle(.plain)
+                .background(Color(.systemBackground))
+            }
+        }
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width = $0 }
         .navigationTitle("Search")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $text, tokens: $authorTokens, placement: .navigationBarDrawer(displayMode: .always), prompt: restricted ? "Search in r/\(subreddit ?? "")" : "Search Reddit") { token in
-            Label("From u/\(token.name)", systemImage: "person")
-        }
-        .searchFocused($focused)
-        .onSubmit(of: .search) { doSearch(withAuthor(text)) }
-        // While typing: communities named like it, under the field. One small request a
-        // pause; none inside a subreddit's search.
-        .searchSuggestions {
-            ForEach(suggestions, id: \.name) { s in
-                ResultRow(name: s.name, iconUrl: s.iconUrl, title: s.namePrefixed, subtitle: "\(compactNumber(s.subscribers)) members", route: .subreddit(name: s.name)) {
-                    vm.rememberOpened(kind: "r", name: s.name, icon: s.iconUrl)
-                }
-            }
+        // The field spans the bar with its ← inside, as on Android (#285).
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .principal) { field(isSaved: isSaved, current: current) }
         }
         .task(id: text) {
             let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -283,7 +399,10 @@ struct SearchScreen: View {
             try? await Task.sleep(for: .milliseconds(350))
             if Task.isCancelled { return }
             let hideNsfw = app.contentFilters.value.hideNsfw
-            if let found = try? await app.repository.subredditSuggestions(t) { suggestions = found.filter { !(hideNsfw && $0.over18) } }
+            // Not once these words were searched while it was asked.
+            if let found = try? await app.repository.subredditSuggestions(t), t != vm.query {
+                suggestions = found.filter { !(hideNsfw && $0.over18) }
+            }
         }
         // The field's ✕ (and Cancel): back to saved and recent searches.
         .onChange(of: text) { _, new in
@@ -294,32 +413,13 @@ struct SearchScreen: View {
             guard new.isEmpty, !vm.query.isEmpty, splitAuthorQuery(vm.query).0 != nil else { return }
             if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { vm.clear() } else { doSearch(text) }
         }
-        .toolbar {
-            // Save this search (with its sort and time) to run again from here.
-            if !vm.query.isEmpty && vm.query == withAuthor(text) {
-                ToolbarItem(placement: .topBarTrailing) {
-                    ToggleIcon(
-                        checked: isSaved,
-                        onCheckedChange: { _ in
-                            if isSaved {
-                                app.savedSearches.remove(current)
-                            } else {
-                                app.savedSearches.add(current)
-                                app.navigator.showSnackbar("Search saved: it's listed here before you type")
-                            }
-                        },
-                        on: "bookmark.fill", off: "bookmark", description: isSaved ? "Remove saved search" : "Save search"
-                    )
-                }
-            }
-        }
         .task {
             app.savedSearches.refresh()
             if vm.query.isEmpty {
                 if initialSort != nil || initialTime != nil {
                     vm.setFilters(sort: initialSort ?? vm.sort, time: initialTime ?? vm.time)
                 }
-                if initialQuery.isEmpty { focused = true } else { doSearch(initialQuery) }
+                if !initialQuery.isEmpty { doSearch(initialQuery) }
             }
         }
     }
@@ -604,6 +704,28 @@ private struct EmptySearch: View {
             SEARCH_SORTS.first { $0.key == s.sort }?.label ?? s.sort,
             s.time != "all" ? (SEARCH_TIMES.first { $0.key == s.time }?.label ?? s.time) : nil,
         ].compactMap { $0 }.joined(separator: " · ")
+    }
+}
+
+/// The bar's text field. `autofocus`: the keyboard opens once it's there. A focus state
+/// can't reach a field in the bar, so it's focused as UIKit's own text field.
+private struct BarTextField: View {
+    let prompt: String
+    @Binding var text: String
+    let autofocus: Bool
+    let onSubmit: () -> Void
+
+    var body: some View {
+        TextField(prompt, text: $text)
+            .submitLabel(.search)
+            .onSubmit(onSubmit)
+            .onAppear {
+                guard autofocus else { return }
+                Task {
+                    try? await Task.sleep(for: .milliseconds(150))
+                    focusBarField(placeholder: prompt)
+                }
+            }
     }
 }
 

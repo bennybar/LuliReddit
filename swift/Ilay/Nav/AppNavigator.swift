@@ -38,6 +38,10 @@ import SwiftUI
     /// Which button it grows out of: each screen's own id, so a page over Posts (a
     /// community's, #285) never zooms out of the Posts tab's button under it.
     @ObservationIgnored var nextSearchSource = searchZoomSource
+    /// Each search button's place on screen, by its zoom id (`barZoomSource`), and the one
+    /// the Search screen being pushed grows out of: its field starts there (#285).
+    @ObservationIgnored var searchButtonFrames: [String: CGRect] = [:]
+    @ObservationIgnored var nextSearchFrame: CGRect?
 
     private init() {}
 
@@ -48,6 +52,7 @@ import SwiftUI
         if case .search = route {
             zoomsNextSearch = zoom && showingHome
             nextSearchSource = zoomSource
+            nextSearchFrame = searchButtonFrames[zoomSource]
         }
         // Search instead fades in over the page (#77): the stack's own push only slides.
         // From its marked button it's the stack's own push, as a zoom out of the button (#271).

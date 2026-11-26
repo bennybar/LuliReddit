@@ -6,6 +6,8 @@ struct SummariesScreen: View {
     @State private var query = ""
     @State private var selection = Set<String>()
     @State private var editMode: EditMode = .inactive
+    /// Its search field is open in the bar: Select gives way to it (#285).
+    @State private var searching = false
 
     private var items: [SavedSummary] { app.summaries.items }
 
@@ -53,6 +55,7 @@ struct SummariesScreen: View {
         .navigationTitle(selecting ? "\(selection.count) selected" : "Summaries")
         .navigationBarTitleDisplayMode(selecting ? .inline : .large)
         .environment(\.editMode, $editMode)
+        .onPreferenceChange(BarSearchOpenKey.self) { searching = $0 }
         .toolbar {
             if selecting {
                 ToolbarItem(placement: .topBarLeading) {
@@ -71,7 +74,7 @@ struct SummariesScreen: View {
                     Button("Delete selected", systemImage: "trash", role: .destructive, action: deleteSelected)
                         .disabled(selection.isEmpty)
                 }
-            } else if !items.isEmpty {
+            } else if !items.isEmpty && !searching {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Select", systemImage: "checklist") { editMode = .active }
                 }
