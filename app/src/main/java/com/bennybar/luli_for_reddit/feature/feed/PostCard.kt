@@ -122,6 +122,8 @@ import androidx.compose.ui.layout.onVisibilityChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -1437,7 +1439,7 @@ private fun CalmButtonGroup(buttons: List<CalmButton>) {
  */
 @Composable
 private fun PosterBadge(p: Post, size: androidx.compose.ui.unit.Dp, ring: Color, modifier: Modifier) {
-    LaunchedEffect(p.authorFullname) { app.authorAvatars.wantPoster(p) }
+    LaunchedEffect(p.authorFullname, p.authorIcon) { app.authorAvatars.wantPoster(p) }
     val icons by app.authorAvatars.icons.collectAsState()
     val url = icons[p.author.lowercase()] ?: return
     AsyncImage(
@@ -1912,12 +1914,14 @@ private fun CompactMeta(p: Post, a: PostActions, s: Settings) {
     val cs = MaterialTheme.colorScheme
     Row(verticalAlignment = Alignment.CenterVertically) {
         val text = remember(p.id, s.subredditPrefix) {
+            // Plain secondary text, still tappable: links are underlined by default.
+            val plain = TextLinkStyles(style = SpanStyle(textDecoration = TextDecoration.None))
             buildAnnotatedString {
-                withLink(LinkAnnotation.Clickable("sub") { a.openSubreddit() }) {
+                withLink(LinkAnnotation.Clickable("sub", plain) { a.openSubreddit() }) {
                     append(subredditName(p.subredditPrefixed.ifEmpty { p.subreddit }, s.subredditPrefix))
                 }
                 append(" · ")
-                withLink(LinkAnnotation.Clickable("author") { a.openAuthor() }) { append("u/${p.author}") }
+                withLink(LinkAnnotation.Clickable("author", plain) { a.openAuthor() }) { append("u/${p.author}") }
                 append(" · ${timeAgo(p.createdUtc)}")
                 if (p.type != PostType.SELF && p.domain.isNotEmpty() && !p.domain.startsWith("self.")) append(" · ${p.domain}")
             }
@@ -1931,7 +1935,7 @@ private fun CompactMeta(p: Post, a: PostActions, s: Settings) {
 @Composable
 private fun PosterHeader(p: Post, a: PostActions, s: Settings) {
     val cs = MaterialTheme.colorScheme
-    LaunchedEffect(p.authorFullname) { app.authorAvatars.wantPoster(p) }
+    LaunchedEffect(p.authorFullname, p.authorIcon) { app.authorAvatars.wantPoster(p) }
     val icons by app.authorAvatars.icons.collectAsState()
     Row(verticalAlignment = Alignment.CenterVertically) {
         LetterAvatar(

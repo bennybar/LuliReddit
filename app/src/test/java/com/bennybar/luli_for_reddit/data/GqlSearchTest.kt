@@ -63,6 +63,35 @@ class GqlSearchTest {
     }
 
     @Test
+    fun `the poster's id and picture come along when the authorInfo has them`() {
+        // #284: the comment forest's authorInfo shape (iconSmall), on a post.
+        val withIcon = AppJson.parseToJsonElement(
+            """
+            {"__typename":"SubredditPost","id":"t3_abc","postTitle":"A post",
+             "authorInfo":{"__typename":"Redditor","id":"t2_xyz","name":"someone","iconSmall":{"url":"https://i.redd.it/snoovatar/a.png"}},
+             "subreddit":{"name":"pics","prefixedName":"r/pics"},"score":1,"commentCount":0,
+             "createdAt":"2026-10-04T00:26:11.575000+0000","permalink":"/r/pics/comments/abc/a_post/"}
+            """,
+        ).jsonObject
+        val p = Post.fromData(gqlPostData(withIcon))
+        assertEquals("t2_xyz", p.authorFullname)
+        assertEquals("https://i.redd.it/snoovatar/a.png", p.authorIcon)
+        // Without one (as today's fixtures): no picture, no id, as before.
+        val plain = Post.fromData(gqlPostData(node(""""url":"https://i.redd.it/x.jpg"""")))
+        assertNull(plain.authorIcon)
+        assertEquals("", plain.authorFullname)
+    }
+
+    @Test
+    fun `an authorInfo's picture falls back to icon then snoovatarIcon`() {
+        fun info(s: String) = AppJson.parseToJsonElement(s)
+        assertEquals("https://a/i.png", gqlAuthorIcon(info("""{"icon":{"url":"https://a/i.png"}}""")))
+        assertEquals("https://a/s.png", gqlAuthorIcon(info("""{"snoovatarIcon":{"url":"https://a/s.png"}}""")))
+        assertNull(gqlAuthorIcon(info("""{"iconSmall":null}""")))
+        assertNull(gqlAuthorIcon(null))
+    }
+
+    @Test
     fun `a video gets its stream, a GIF its mp4`() {
         val video = Post.fromData(
             gqlPostData(node(""""url":"https://v.redd.it/xyz","media":{"streaming":{"hlsUrl":"https://v.redd.it/xyz/HLSPlaylist.m3u8"}}""")),

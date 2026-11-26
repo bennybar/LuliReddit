@@ -36,6 +36,11 @@ data class Post(
     val author: String,
     /** The author's account id (t2_…), for their picture on cards (#270); empty when unknown. */
     val authorFullname: String = "",
+    /**
+     * The author's picture when the post's own data has it (GraphQL's authorInfo, with the
+     * website sign-in): shown on cards without a lookup (#284). Null from the REST API.
+     */
+    val authorIcon: String? = null,
     val score: Int,
     val numComments: Int,
     /** Null when the source doesn't say (a card read from the Home page; GraphQL without the field). */
@@ -158,6 +163,7 @@ data class Post(
                 subredditIcon = subredditIcon,
                 author = d["author"].str() ?: "[deleted]",
                 authorFullname = d["author_fullname"].str() ?: "",
+                authorIcon = d["author_icon"].str()?.takeIf { it.startsWith("http") },
                 authorFlair = flairOf(d, "author"),
                 score = d["score"].int() ?: 0,
                 numComments = d["num_comments"].int() ?: 0,

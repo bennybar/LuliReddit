@@ -224,6 +224,10 @@ internal fun gqlPostData(n: JsonObject): JsonObject {
         put("name", fullname)
         put("title", n["postTitle"].str() ?: n["title"].str() ?: "")
         put("author", n["authorInfo"]["name"].str() ?: "[deleted]")
+        // The poster's id and picture, when the response carries them (#284): the comment
+        // forest's authorInfo has `iconSmall` (gqlAuthorIcons); a post's may share the shape.
+        n["authorInfo"]["id"].str()?.takeIf { it.startsWith("t2_") }?.let { put("author_fullname", it) }
+        gqlAuthorIcon(n["authorInfo"])?.let { put("author_icon", it) }
         put("subreddit", sub)
         put("subreddit_name_prefixed", community["prefixedName"].str() ?: "r/$sub")
         put("score", n["score"].int() ?: 0)
