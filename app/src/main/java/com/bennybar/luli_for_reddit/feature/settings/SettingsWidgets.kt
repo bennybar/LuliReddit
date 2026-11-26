@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Button
@@ -384,13 +385,27 @@ internal fun <T> InlineChoice(
     }
 }
 
-/** A sub-heading on a settings page (Appearance's Text, Posts…), between its row groups. */
+/**
+ * A sub-heading on a settings page (Appearance's Text, Posts…), between its row groups.
+ * [onPreview]: a small Preview button at its end (Appearance's groups, #288).
+ */
 @Composable
-internal fun SettingsSubheading(text: String) {
-    Text(
-        text,
-        Modifier.fillMaxWidth().padding(start = 32.dp, top = 16.dp, end = 16.dp, bottom = 8.dp),
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
+internal fun SettingsSubheading(text: String, onPreview: (() -> Unit)? = null) {
+    Row(
+        Modifier.fillMaxWidth().padding(start = 32.dp, top = if (onPreview != null) 6.dp else 16.dp, end = 16.dp, bottom = if (onPreview != null) 0.dp else 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text,
+            Modifier.weight(1f),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (onPreview != null) {
+            TextButton(onClick = onPreview, contentPadding = PaddingValues(horizontal = 12.dp)) {
+                Icon(Icons.Rounded.Visibility, null, Modifier.size(18.dp))
+                Text("Preview", Modifier.padding(start = 6.dp))
+            }
+        }
+    }
 }

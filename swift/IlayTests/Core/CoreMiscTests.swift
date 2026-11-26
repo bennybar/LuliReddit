@@ -31,38 +31,23 @@ final class PostDisplayTests: XCTestCase {
     }
 }
 
-/// Settings › Appearance › Corner roundness (#283), as the Kotlin app's CornerRoundnessTest.
-/// Appearance's preview follows the group of options in view, without flickering at a boundary.
-final class PickPreviewTests: XCTestCase {
-    private let line: CGFloat = 400, slack: CGFloat = 44
-
-    private func page(_ tops: CGFloat...) -> [PreviewSection] {
-        zip([PreviewKind.post, .post, .comments, .chips, .none], tops).map { PreviewSection(kind: $0, top: $1) }
+/// Names on screen with and without "r/" and "u/" (#97, #289), as the Kotlin app's SubredditNameTest.
+final class NamePrefixTests: XCTestCase {
+    func testSubredditsFollowTheSetting() {
+        XCTAssertEqual(subredditName("pics", prefix: true), "r/pics")
+        XCTAssertEqual(subredditName("r/pics", prefix: true), "r/pics")
+        XCTAssertEqual(subredditName("r/pics", prefix: false), "pics")
     }
 
-    func testAtTheTopThePostShows() {
-        XCTAssertEqual(pickPreview(page(380, 900, .infinity, .infinity, .infinity), line: line, slack: slack, current: .post), .post)
-    }
-
-    func testAGroupWellPastTheLineTakesThePreview() {
-        XCTAssertEqual(pickPreview(page(-.infinity, -200, 300, 700, .infinity), line: line, slack: slack, current: .post), .comments)
-    }
-
-    func testNearTheLineTheCurrentPreviewStaysEitherWay() {
-        XCTAssertEqual(pickPreview(page(-500, -100, 380, .infinity, .infinity), line: line, slack: slack, current: .post), .post)
-        XCTAssertEqual(pickPreview(page(-500, -100, 420, .infinity, .infinity), line: line, slack: slack, current: .comments), .comments)
-    }
-
-    func testTheLastGroupHidesThePreviewAndScrollingBackBringsIt() {
-        XCTAssertEqual(pickPreview(page(-.infinity, -.infinity, -300, 100, 300), line: line, slack: slack, current: .chips), .none)
-        XCTAssertEqual(pickPreview(page(-.infinity, -.infinity, -100, 200, 600), line: line, slack: slack, current: .none), .chips)
-    }
-
-    func testNoGroupsKnownKeepsWhatShows() {
-        XCTAssertEqual(pickPreview([], line: line, slack: slack, current: .comments), .comments)
+    func testUsersAndProfilesFollowTheSetting() {
+        XCTAssertEqual(userName("someone", prefix: true), "u/someone")
+        XCTAssertEqual(userName("u/someone", prefix: false), "someone")
+        XCTAssertEqual(subredditName("u_someone", prefix: true), "u/someone")
+        XCTAssertEqual(subredditName("u/someone", prefix: false), "someone")
     }
 }
 
+/// Settings › Appearance › Corner roundness (#283), as the Kotlin app's CornerRoundnessTest.
 final class CornerRoundnessTests: XCTestCase {
     func testRoundIsTheDefaultAndKeepsTodaysCorners() {
         XCTAssertEqual(Settings().cornerRoundness, .round)

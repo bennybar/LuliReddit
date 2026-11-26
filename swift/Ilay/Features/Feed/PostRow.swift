@@ -10,6 +10,8 @@ struct FeedRowConfig: Equatable {
     var feedGalleryCarousel: Bool
     var subredditIcons: Bool
     var postAvatars = false
+    /// Settings › "r/ and u/ before names" (#97, #289).
+    var namePrefix = true
     /// Settings › Corner roundness (#283), as a factor: see `corner(_:)`.
     var cornerScale: CGFloat = 1
     var trackHistory: Bool
@@ -57,6 +59,7 @@ struct FeedRowConfig: Equatable {
             feedGalleryCarousel: s.feedGalleryCarousel,
             subredditIcons: s.subredditIcons,
             postAvatars: s.postAvatars,
+            namePrefix: s.subredditPrefix,
             cornerScale: s.cornerRoundness.factor,
             trackHistory: s.trackHistory,
             dimReadTextOnly: s.dimReadTextOnly,
@@ -70,6 +73,21 @@ struct FeedRowConfig: Equatable {
             postTextLines: s.postTextLines
         )
     }
+}
+
+/// A subreddit's name as it shows on screen (#97, as the Kotlin app's): "r/pics", or just
+/// "pics" with Settings › "r/ and u/ before names" off. Takes the bare name or the prefixed
+/// one; a user's profile ("u/name", or its "u_name" subreddit) shows as the user. Display only.
+func subredditName(_ name: String, prefix: Bool) -> String {
+    let bare = name.hasPrefix("r/") ? String(name.dropFirst(2)) : name
+    if bare.hasPrefix("u_") || bare.hasPrefix("u/") { return userName(String(bare.dropFirst(2)), prefix: prefix) }
+    return prefix ? "r/\(bare)" : bare
+}
+
+/// A user's name as it shows on posts: "u/name", or just "name" with the same setting off (#289).
+func userName(_ name: String, prefix: Bool) -> String {
+    let bare = name.hasPrefix("u/") ? String(name.dropFirst(2)) : name
+    return prefix ? "u/\(bare)" : bare
 }
 
 /// Feed preview URL, mid-resolution when the data-saver setting is on.
@@ -182,8 +200,8 @@ struct PostRow: Identifiable, Equatable {
     @MainActor init(_ p: Post, config c: FeedRowConfig) {
         post = p
         config = c
-        subredditLabel = p.subredditPrefixed.isEmpty ? "r/\(p.subreddit)" : p.subredditPrefixed
-        authorLabel = "u/\(p.author)"
+        subredditLabel = subredditName(p.subredditPrefixed.isEmpty ? p.subreddit : p.subredditPrefixed, prefix: c.namePrefix)
+        authorLabel = userName(p.author, prefix: c.namePrefix)
         timeLabel = timeAgo(p.createdUtc)
         snippet = p.snippet
         snippetText = snippetMarkdown(p.snippet)

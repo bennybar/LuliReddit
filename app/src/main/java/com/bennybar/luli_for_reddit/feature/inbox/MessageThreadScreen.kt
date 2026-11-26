@@ -86,6 +86,7 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import com.bennybar.luli_for_reddit.ui.userName
 
 /** A private-message conversation. The root InboxItem is in NavCache under [fullname] (else fetched). */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -273,7 +274,7 @@ private fun Thread(root: InboxItem) {
                                 .background(if (mine) cs.primaryContainer else cs.surfaceContainerHighest, RoundedCornerShape(18.dp))
                                 .padding(12.dp),
                         ) {
-                            Text("u/${m.author} · ${timeAgo(m.createdUtc)}", fontSize = 11.sp, color = cs.onSurfaceVariant)
+                            Text("${userName(m.author)} · ${timeAgo(m.createdUtc)}", fontSize = 11.sp, color = cs.onSurfaceVariant)
                             Spacer(Modifier.height(4.dp))
                             RedditMarkdown(m.body, fontSize = 14.sp, selectable = true, onLinkClick = nav::openLink)
                         }

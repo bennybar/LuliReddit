@@ -90,6 +90,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.bennybar.luli_for_reddit.ui.userName
 
 class UserAboutViewModel(private val username: String) : ViewModel() {
     private val _about = MutableStateFlow<Async<RedditUser>>(Async.Loading)
@@ -353,7 +354,7 @@ private fun ProfileHeader(user: RedditUser, canFollow: Boolean, onSwitchAccount:
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
             if (onSwitchAccount == null) {
-                Text("u/${user.name}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+                Text(userName(user.name), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
             } else {
                 // Your name, with a ▾: the accounts (#144), as WhatsApp's.
                 Row(
@@ -362,7 +363,7 @@ private fun ProfileHeader(user: RedditUser, canFollow: Boolean, onSwitchAccount:
                         .clickable(onClickLabel = "Switch or add account", onClick = onSwitchAccount),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("u/${user.name}", Modifier.weight(1f, fill = false), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(userName(user.name), Modifier.weight(1f, fill = false), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Icon(Icons.Rounded.KeyboardArrowDown, null, tint = cs.onSurfaceVariant)
                 }
             }
