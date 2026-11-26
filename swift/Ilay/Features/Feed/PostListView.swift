@@ -449,6 +449,15 @@ private enum FeedItem: Hashable {
         // The list being replaced (sort / feed change): the new one starts at the top.
         let loading = new.ui.isLoading
         if loading && !lastUiLoading { scrollToTop(animated: false) }
+        // A pull to refresh's cards land where they'll stay: the spinner's space closes as
+        // they arrive, not after (they moved up 60 pt once landed, and iOS took that for a
+        // scroll down and shrank the tab bar).
+        if !loading && lastUiLoading, let refresh = collectionView.refreshControl, refresh.isRefreshing {
+            UIView.performWithoutAnimation {
+                refresh.endRefreshing()
+                collectionView.contentOffset.y = -collectionView.adjustedContentInset.top
+            }
+        }
         if loading && new.deckMode { dealArmed = true }
         if !loading && dealArmed {
             dealArmed = false
