@@ -84,7 +84,7 @@ let settingsCategories: [[(title: String, subtitle: String, icon: String, color:
 private let settingsSectionOrder = settingsCategories.flatMap { $0 }.map(\.title)
 private let settingsRenamed = ["AI summaries": "AI", "Account & keys": "Account", "Power-user features": "Account"]
 /// The headers of Appearance's groups, by group (`settingsMoves` places its rows).
-private let appearanceGroups = ["Posts", "Text", "Theme & colours", "Other"]
+private let appearanceGroups = ["Layout", "Colour", "Text", "Other"]
 
 private let settingsMoves: [String: (section: String, group: Int)] = [
     // Feed: what the Posts tab shows, and For You.
@@ -95,14 +95,14 @@ private let settingsMoves: [String: (section: String, group: Int)] = [
     "Mark read as you scroll": ("Read & hidden", 1), "Auto-hide read items in \"For You\"": ("Read & hidden", 1),
     "Content filters": ("Read & hidden", 2), "Hide posts for": ("Read & hidden", 2),
     "Hidden subreddits": ("Read & hidden", 2), "Hide NSFW posts": ("Read & hidden", 2),
-    // Appearance, under its pinned preview: posts, text, theme & colours, other
-    // (`appearanceGroups` heads each group).
+    // Appearance, under its pinned preview, by how much each changes it: layout, colour,
+    // text, then what the preview doesn't show (`appearanceGroups` heads each group).
     "Post display": ("Appearance", 0), "Corner roundness": ("Appearance", 0), "Post text in feeds": ("Appearance", 0),
-    "Subreddit icons": ("Appearance", 0), "Poster's picture on posts": ("Appearance", 0), "Floating filter chips": ("Appearance", 0),
-    "Font size": ("Appearance", 1), "Post titles": ("Appearance", 1), "Post text": ("Appearance", 1), "Comments": ("Appearance", 1),
-    "Reset text sizes": ("Appearance", 1),
-    "Theme": ("Appearance", 2), "Accent color": ("Appearance", 2),
-    "App icon": ("Appearance", 3), "u/ before your name in the side bar": ("Appearance", 3),
+    "Subreddit icons": ("Appearance", 0), "Poster's picture on posts": ("Appearance", 0),
+    "Theme": ("Appearance", 1), "Accent color": ("Appearance", 1),
+    "Font size": ("Appearance", 2), "Post titles": ("Appearance", 2), "Post text": ("Appearance", 2), "Reset text sizes": ("Appearance", 2),
+    "App icon": ("Appearance", 3), "Comments": ("Appearance", 3), "Floating filter chips": ("Appearance", 3),
+    "u/ before your name in the side bar": ("Appearance", 3),
     // Navigation: the tabs and side bar, then the top bar.
     "Navigation": ("Navigation", 0), "Inbox in Profile": ("Navigation", 0), "Explore sections": ("Navigation", 0),
     "Top bar": ("Navigation", 1), "New post in the top bar": ("Navigation", 1), "Floating button on Home": ("Navigation", 1),
@@ -1181,6 +1181,7 @@ struct SettingsScreen: View {
     @State private var query = ""
     @State private var prompts = SettingsPrompts()
     @State private var secure = SecureFlags()
+    @State private var scrolled = false
 
     var body: some View {
         if section == nil {
@@ -1237,8 +1238,10 @@ struct SettingsScreen: View {
         .listStyle(.insetGrouped)
         // A live sample post pinned above Appearance's options: every change shows on it at once.
         .safeAreaInset(edge: .top, spacing: 0) {
-            if section == "Appearance" && query.trimmed.isEmpty { AppearancePreview() }
+            if section == "Appearance" && query.trimmed.isEmpty { AppearancePreview(scrolled: scrolled) }
         }
+        // The preview's hairline shows only once the options have gone under it.
+        .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top > 1 } action: { _, now in scrolled = now }
         .navigationTitle(section ?? "Settings")
         // Settings itself gets the big title with Expandable, as Saved and History (#268).
         .navigationBarTitleDisplayMode(section == nil && app.settings.value.topBarMode == .expandable ? .large : .automatic)

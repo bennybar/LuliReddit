@@ -60,8 +60,9 @@ struct InlineChoice<T: Hashable>: View {
                                     if let icon = option.icon { Label(option.label, systemImage: icon) } else { Text(option.label) }
                                 }
                                 .font(.subheadline.weight(on ? .semibold : .regular))
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 7)
+                                .padding(.horizontal, 14)
+                                // At least 44pt to tap.
+                                .frame(minHeight: 44)
                                 .foregroundStyle(on ? Color.white : Color.primary)
                                 .background(on ? AnyShapeStyle(IlayTheme.accent) : AnyShapeStyle(Color(.tertiarySystemFill)), in: .capsule)
                             }
@@ -183,11 +184,17 @@ private struct HiddenSubsSheet: View {
     Overlays.launch(detents: [.medium, .large]) { _ in HiddenSubsSheet() }
 }
 
-/// Settings › Appearance's live preview: a sample post drawn by the feed's own `PostCard`,
-/// so every look option (layout, corners, text sizes, theme, accent, icons, flair…) shows
-/// as it changes. Pinned above the options; scaled down when the layout is tall. The
-/// sample is local — a picture drawn here, no Reddit requests — and the card is inert.
+/// Settings › Appearance's live preview: a window into the feed, not a shrunk card. The
+/// sample post is drawn by the feed's own `PostCard` at true size, with the feed's insets
+/// and spacing, on the feed's background, so every look option (layout, corners, text
+/// sizes, theme, accent, icons, flair…) shows exactly as it will. Pinned under the page
+/// title; up to 45% of the screen, a taller card fading out at the bottom with its top
+/// always readable. The sample is local (a picture drawn here, no Reddit requests) and inert.
+///
+/// `scrolled`: the options have gone under it, so a hairline sets it off from them.
 struct AppearancePreview: View {
+    var scrolled = false
+
     @State private var cardHeight: CGFloat = 0
 
     var body: some View {
@@ -196,23 +203,31 @@ struct AppearancePreview: View {
         // Read here (through `current`) so any appearance change redraws the card.
         let config = FeedRowConfig.current()
         let screen = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first?.screen.bounds.height ?? 874
-        // Up to about 40% of the screen, so the options keep most of it.
-        let maxHeight = screen * 0.4
-        let scale = cardHeight > maxHeight ? maxHeight / cardHeight : 1
+        let maxHeight = screen * 0.45
+        let top: CGFloat = 8
+        let clipped = cardHeight + top > maxHeight
+        let background = Color(config.isCarded ? .systemGroupedBackground : .systemBackground)
         PostCard(row: PostRow(Self.post, config: config))
             .fixedSize(horizontal: false, vertical: true)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { cardHeight = $0 }
-            .scaleEffect(scale, anchor: .top)
-            .frame(height: cardHeight > 0 ? cardHeight * scale : nil, alignment: .top)
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity)
-            .background(Color(config.isCarded ? .systemGroupedBackground : .systemBackground))
+            .padding(.top, top)
+            // True size, never scaled: a tall card is cut at the bottom, its top in full.
+            .frame(maxWidth: .infinity, maxHeight: cardHeight > 0 ? min(cardHeight + top, maxHeight) : nil, alignment: .top)
             .clipped()
+            .overlay(alignment: .bottom) {
+                if clipped {
+                    // The rest of a tall card fades into the stage instead of being cut hard.
+                    LinearGradient(colors: [background.opacity(0), background], startPoint: .top, endPoint: .bottom)
+                        .frame(height: 36)
+                }
+            }
+            .background(background)
+            .animation(.snappy, value: min(cardHeight + top, maxHeight))
             // Look, don't touch: no votes, menus or opening the post.
             .allowsHitTesting(false)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Preview of a post with these settings")
-            .overlay(alignment: .bottom) { Divider() }
+            .overlay(alignment: .bottom) { if scrolled { Divider() } }
     }
 
     /// Where the drawn picture sits in the image cache: `.invalid` never resolves, so it's
@@ -226,7 +241,7 @@ struct AppearancePreview: View {
         Post(
             id: "appearance_preview",
             fullname: "t3_appearance_preview",
-            title: "Morning fog over the lake, shot handheld at sunrise",
+            title: "Morning fog over the lake",
             subreddit: "photography",
             subredditPrefixed: "r/photography",
             author: "ilay_preview",
@@ -238,13 +253,14 @@ struct AppearancePreview: View {
             url: photo.absoluteString,
             domain: "i.redd.it",
             type: .image,
-            selftext: "A short body shows under the title in layouts that preview the text.",
+            selftext: "Shot handheld at sunrise.",
             linkFlairText: "OC",
             linkFlair: UserFlair(parts: [FlairPart(text: "OC")]),
             previewUrl: photo.absoluteString,
             previewMedUrl: photo.absoluteString,
-            previewWidth: 960,
-            previewHeight: 540
+            // About 2.4:1, so the stage stays low: one line of title, one flair, one of body.
+            previewWidth: 1200,
+            previewHeight: 500
         )
     }()
 
