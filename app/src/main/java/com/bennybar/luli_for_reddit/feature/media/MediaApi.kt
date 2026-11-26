@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.media
 
+import com.bennybar.luli_for_reddit.ui.theme.corner
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.Shape
@@ -171,7 +172,7 @@ fun GalleryM3Carousel(images: List<GalleryImage>, modifier: Modifier = Modifier,
             Box(
                 Modifier
                     .fillMaxSize()
-                    .maskClip(RoundedCornerShape(28.dp))
+                    .maskClip(RoundedCornerShape(corner(28.dp)))
                     .background(cs.surfaceContainerHighest)
                     .clickable { nav.openGallery(images, title, i) },
                 contentAlignment = Alignment.Center,
@@ -206,7 +207,7 @@ fun GalleryM3Carousel(images: List<GalleryImage>, modifier: Modifier = Modifier,
  * the first image's aspect ratio.
  */
 @Composable
-fun GalleryCarousel(images: List<GalleryImage>, modifier: Modifier = Modifier, title: String? = null, height: Dp? = null, shape: Shape = RoundedCornerShape(16.dp), cover: String? = null, standIn: String? = null) {
+fun GalleryCarousel(images: List<GalleryImage>, modifier: Modifier = Modifier, title: String? = null, height: Dp? = null, shape: Shape = RoundedCornerShape(corner(16.dp)), cover: String? = null, standIn: String? = null) {
     if (images.isEmpty()) return
     // A spoiler / NSFW gallery (#165): each image has its own cover, so you can still
     // swipe through them; revealing one reveals them all.

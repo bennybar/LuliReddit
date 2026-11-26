@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import com.bennybar.luli_for_reddit.ui.theme.corner
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.animation.core.animate
@@ -1522,6 +1523,7 @@ private fun openMedia(p: Post, nav: AppNavigator) {
 @Composable
 private fun PostMedia(p: Post, nav: AppNavigator, radius: androidx.compose.ui.unit.Dp = 16.dp) {
     if (p.type == PostType.SELF) return
+    val shape = RoundedCornerShape(corner(radius)) // Settings › Corner roundness (#283)
     val cs = MaterialTheme.colorScheme
     val blurNsfw by app.settings.state.collectAsState()
     val blur = (p.over18 && blurNsfw.blurNsfw) || p.spoiler
@@ -1532,7 +1534,7 @@ private fun PostMedia(p: Post, nav: AppNavigator, radius: androidx.compose.ui.un
         val cover = if (blur) label else null
         Box(Modifier.padding(bottom = 12.dp)) {
             if (p.gallery.size > 1) GalleryM3Carousel(p.gallery, title = p.title, cover = cover)
-            else GalleryCarousel(p.gallery, if (radius != 16.dp) Modifier.clip(RoundedCornerShape(radius)) else Modifier, title = p.title, cover = cover)
+            else GalleryCarousel(p.gallery, title = p.title, shape = shape, cover = cover)
         }
         return
     }
@@ -1543,7 +1545,7 @@ private fun PostMedia(p: Post, nav: AppNavigator, radius: androidx.compose.ui.un
             val w = p.previewWidth
             val h = p.previewHeight
             val aspect = if (w != null && h != null && h > 0) (w.toFloat() / h).coerceIn(0.5f, 2f) else 16f / 9f
-            NsfwBlur(blur, Modifier.padding(bottom = 8.dp), blurredImageUrl = p.blurredPreviewUrl, label = label) {
+            NsfwBlur(blur, Modifier.padding(bottom = 8.dp), blurredImageUrl = p.blurredPreviewUrl, label = label, shape = shape) {
                 AsyncImage(
                     model = preview,
                     contentDescription = p.title,
@@ -1551,7 +1553,7 @@ private fun PostMedia(p: Post, nav: AppNavigator, radius: androidx.compose.ui.un
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(aspect)
-                        .clip(RoundedCornerShape(radius))
+                        .clip(shape)
                         .background(cs.surfaceContainerHighest)
                         .clickable { openMedia(p, nav) },
                 )
@@ -1571,12 +1573,12 @@ private fun PostMedia(p: Post, nav: AppNavigator, radius: androidx.compose.ui.un
     val w = p.previewWidth
     val h = p.previewHeight
     val aspect = if (w != null && h != null && h > 0) (w.toFloat() / h).coerceIn(0.5f, 2f) else 16f / 9f
-    NsfwBlur(blur, Modifier.padding(bottom = 12.dp), blurredImageUrl = p.blurredPreviewUrl, label = label) {
+    NsfwBlur(blur, Modifier.padding(bottom = 12.dp), blurredImageUrl = p.blurredPreviewUrl, label = label, shape = shape) {
         Box(
             Modifier
                 .fillMaxWidth()
                 .aspectRatio(aspect)
-                .clip(RoundedCornerShape(radius))
+                .clip(shape)
                 .background(cs.surfaceContainerHighest)
                 .clickable { openMedia(p, nav) },
             contentAlignment = Alignment.Center,

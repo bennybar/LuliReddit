@@ -29,6 +29,7 @@ import androidx.compose.material.icons.rounded.Tag
 import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.AlternateEmail
 import com.bennybar.luli_for_reddit.settings.HeaderHeight
+import com.bennybar.luli_for_reddit.settings.CornerRoundness
 import com.bennybar.luli_for_reddit.settings.HomeFab
 import com.bennybar.luli_for_reddit.settings.ThreadFab
 import com.bennybar.luli_for_reddit.settings.ThreadFabPosition
@@ -129,6 +130,7 @@ import androidx.compose.material.icons.rounded.Gavel
 import androidx.compose.material.icons.rounded.Gif
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Height
+import androidx.compose.material.icons.rounded.RoundedCorner
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.OpenInBrowser
@@ -768,6 +770,11 @@ fun SettingsList(
         tile("Post display", s.postDisplay.label, s.postDisplay.icon, onClick = launch {
             pickOption(PostDisplay.entries.map { PickOption(it, it.label, icon = it.icon) }, s.postDisplay)
                 ?.let(ctrl::setPostDisplay)
+        })
+        // How round posts' cards and media are (#283).
+        tile("Corner roundness", s.cornerRoundness.label, Icons.Rounded.RoundedCorner, onClick = launch {
+            pickOption(CornerRoundness.entries.map { PickOption(it, it.label, it.description) }, s.cornerRoundness)
+                ?.let(ctrl::setCornerRoundness)
         })
         // How much of a post's text feeds show (#186).
         val textLines = listOf(PickOption(0, "Layout's default", "2 or 3 lines"), PickOption(5, "5 lines"), PickOption(10, "10 lines"))

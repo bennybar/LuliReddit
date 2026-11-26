@@ -83,6 +83,17 @@ enum class HeaderHeight(val label: String, val description: String) {
 }
 
 /**
+ * How round feed posts' cards and media are (#283): [factor] scales each corner's radius.
+ * Persisted by index (never reorder).
+ */
+enum class CornerRoundness(val label: String, val description: String, val factor: Float) {
+    ROUND("Round", "Soft, round corners, as designed", 1f),
+    MEDIUM("Medium", "Less round", 0.6f),
+    SMALL("Small", "Slightly rounded: photos keep more of their corners", 0.3f),
+    SQUARE("Square", "No rounding", 0f),
+}
+
+/**
  * A button in the top bar's menu panel (#108). Persisted by [id] (never change one) in
  * `topBarMenuExpandable` / `topBarMenuFull`: the panel's order, a hidden one as "-id".
  * [half]: two in a row share it, like New post / Settings always did.
@@ -318,6 +329,7 @@ data class Settings(
     val resumeThreads: Boolean = true, // reopening a thread scrolls back to where you left off (#179); off: from the top (#269)
     val topBarMode: TopBarMode = TopBarMode.EXPANDABLE, // Posts-screen action layout
     val headerHeight: HeaderHeight = HeaderHeight.MEDIUM, // the Expandable bar's open header (#240)
+    val cornerRoundness: CornerRoundness = CornerRoundness.ROUND, // feed posts' cards and media (#283)
     // The top bar menu panel's buttons and order, per mode (#108).
     val topBarMenuExpandable: List<TopBarMenuEntry> = TopBarMenuItem.parse(null, TopBarMode.EXPANDABLE),
     val topBarMenuFull: List<TopBarMenuEntry> = TopBarMenuItem.parse(null, TopBarMode.FULL),

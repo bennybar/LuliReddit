@@ -137,6 +137,7 @@ class SettingsStore(private val p: Prefs) {
                 TopBarMode.entries[it.coerceIn(0, TopBarMode.entries.size - 1)]
             } ?: d.topBarMode,
             headerHeight = idx(HeaderHeight.entries.toTypedArray(), "headerHeight", d.headerHeight),
+            cornerRoundness = idx(CornerRoundness.entries.toTypedArray(), "cornerRoundness", d.cornerRoundness),
             topBarMenuExpandable = TopBarMenuItem.parse(p.getStringList(TopBarMenuItem.prefsKey(TopBarMode.EXPANDABLE)), TopBarMode.EXPANDABLE),
             topBarMenuFull = TopBarMenuItem.parse(p.getStringList(TopBarMenuItem.prefsKey(TopBarMode.FULL)), TopBarMode.FULL),
             navLabels = b("navLabels", d.navLabels),
@@ -336,6 +337,7 @@ class SettingsStore(private val p: Prefs) {
     fun setThreadButtonsHideOnScroll(v: Boolean) { p.setBool("threadButtonsHideOnScroll", v); set { it.copy(threadButtonsHideOnScroll = v) } }
     fun setResumeThreads(v: Boolean) { p.setBool("resumeThreads", v); set { it.copy(resumeThreads = v) } }
     fun setHeaderHeight(v: HeaderHeight) { p.setInt("headerHeight", v.ordinal); set { it.copy(headerHeight = v) } }
+    fun setCornerRoundness(v: CornerRoundness) { p.setInt("cornerRoundness", v.ordinal); set { it.copy(cornerRoundness = v) } }
     fun setTopBarMode(v: TopBarMode) { p.setInt("topBarMode", v.ordinal); set { it.copy(topBarMode = v) } }
     /** [entries] null: back to the default panel (and whatever buttons later versions add to it). */
     fun setTopBarMenu(mode: TopBarMode, entries: List<TopBarMenuEntry>?) {

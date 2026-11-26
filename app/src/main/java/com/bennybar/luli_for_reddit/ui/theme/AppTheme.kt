@@ -335,6 +335,7 @@ fun IlayTheme(settings: Settings, content: @Composable () -> Unit) {
             LocalVoteColors provides if (dark) AppTheme.voteDark else AppTheme.voteLight,
             LocalDensity provides Density(density.density, settings.textScale.toFloat()),
             LocalTextScales provides TextScales(settings.titleTextScale.toFloat(), settings.postTextScale.toFloat(), settings.commentTextScale.toFloat()),
+            LocalCornerScale provides settings.cornerRoundness.factor,
             content = content,
         )
     }
@@ -345,6 +346,24 @@ fun IlayTheme(settings: Settings, content: @Composable () -> Unit) {
 data class TextScales(val title: Float = 1f, val postText: Float = 1f, val comment: Float = 1f)
 
 val LocalTextScales = androidx.compose.runtime.staticCompositionLocalOf { TextScales() }
+
+/**
+ * Settings › Appearance › Corner roundness (#283), as a factor on feed posts' corners.
+ * Not static: changing it recomposes only the corners that read it.
+ */
+val LocalCornerScale = androidx.compose.runtime.compositionLocalOf { 1f }
+
+/** [r] at [factor]: as is at 1, none at 0, otherwise scaled but not under 4dp (or [r] if smaller). */
+fun scaleCorner(r: androidx.compose.ui.unit.Dp, factor: Float): androidx.compose.ui.unit.Dp = when {
+    factor >= 1f -> r
+    factor <= 0f -> 0.dp
+    else -> maxOf(r * factor, minOf(r, 4.dp))
+}
+
+/** A feed post's corner [r] (its cards and media) at the chosen roundness (#283). */
+@Composable
+@androidx.compose.runtime.ReadOnlyComposable
+fun corner(r: androidx.compose.ui.unit.Dp): androidx.compose.ui.unit.Dp = scaleCorner(r, LocalCornerScale.current)
 
 enum class TextKind { TITLE, POST_TEXT, COMMENT }
 

@@ -1,5 +1,6 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import com.bennybar.luli_for_reddit.ui.theme.corner
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.LaunchedEffect
@@ -491,7 +492,7 @@ private val TitleLineHeight = 1.25.em
 @Composable
 private fun LargeCard(p: Post, a: PostActions, s: Settings, dim: Modifier, glow: Color?) {
     val cs = MaterialTheme.colorScheme
-    BloomCard(dim, onClick = a::openDetail, onLongClick = a::tune, glow = glow) {
+    BloomCard(dim, onClick = a::openDetail, onLongClick = a::tune, shape = RoundedCornerShape(corner(28.dp)), glow = glow) {
         Column(Modifier.padding(start = 16.dp, top = 14.dp, end = 8.dp, bottom = 6.dp)) {
             Header(p, a, s)
             Spacer(Modifier.height(10.dp))
@@ -532,7 +533,7 @@ private fun LargeCard(p: Post, a: PostActions, s: Settings, dim: Modifier, glow:
 @Composable
 private fun CardsCard(p: Post, a: PostActions, s: Settings, dim: Modifier, glow: Color?) {
     val cs = MaterialTheme.colorScheme
-    BloomCard(dim, onClick = a::openDetail, onLongClick = a::tune, glow = glow) {
+    BloomCard(dim, onClick = a::openDetail, onLongClick = a::tune, shape = RoundedCornerShape(corner(28.dp)), glow = glow) {
         Column(Modifier.padding(start = 16.dp, top = 14.dp, end = 8.dp, bottom = 6.dp)) {
             Header(p, a, s)
             Spacer(Modifier.height(10.dp))
@@ -569,7 +570,7 @@ private fun CardsCard(p: Post, a: PostActions, s: Settings, dim: Modifier, glow:
 /** "Mini cards" — compact: header + title with a small side thumbnail, full action row below. */
 @Composable
 private fun MiniCard(p: Post, a: PostActions, s: Settings, dim: Modifier, glow: Color?) {
-    BloomCard(dim, onClick = a::openDetail, onLongClick = a::tune, glow = glow) {
+    BloomCard(dim, onClick = a::openDetail, onLongClick = a::tune, shape = RoundedCornerShape(corner(28.dp)), glow = glow) {
         Column(Modifier.padding(start = 14.dp, top = 12.dp, end = 6.dp, bottom = 4.dp)) {
             Header(p, a, s)
             Spacer(Modifier.height(8.dp))
@@ -634,7 +635,7 @@ private fun BannerMedia(p: Post, a: PostActions, s: Settings, height: Dp) {
     if (p.type == PostType.VIDEO && !blur && autoplayNow(s) && !isExternalVideo(p)) {
         val vurl = postVideoUrl(p)
         if (vurl.isNotEmpty() && !vurl.lowercase().endsWith(".gif")) {
-            Box(Modifier.padding(bottom = 4.dp).clip(RoundedCornerShape(16.dp))) {
+            Box(Modifier.padding(bottom = 4.dp).clip(RoundedCornerShape(corner(16.dp)))) {
                 androidx.compose.runtime.key(p.id) {
                     InlineVideo(vurl, height = height, onTap = a::openMedia, poster = url)
                 }
@@ -642,12 +643,12 @@ private fun BannerMedia(p: Post, a: PostActions, s: Settings, height: Dp) {
             return
         }
     }
-    NsfwBlur(blur, Modifier.padding(bottom = 4.dp), blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, s)) {
+    NsfwBlur(blur, Modifier.padding(bottom = 4.dp), blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, s), shape = RoundedCornerShape(corner(16.dp))) {
         Box(
             Modifier
                 .fillMaxWidth()
                 .height(height)
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(corner(16.dp)))
                 .background(cs.surfaceContainerHighest)
                 .clickable(onClick = a::openMedia),
         ) {
@@ -672,7 +673,7 @@ private fun Thumb(p: Post, a: PostActions, s: Settings, size: Dp) {
     Box(
         Modifier
             .size(size)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(corner(14.dp)))
             .background(cs.surfaceContainerHighest)
             // The thumbnail opens the media full screen, as tapping media does on the
             // other layouts (a link opens the link); the rest of the card opens the
@@ -801,7 +802,7 @@ internal fun rememberFlairText(flair: UserFlair): Pair<AnnotatedString, Map<Stri
  * media height; the carousel keeps it between 220 and 340dp.
  */
 @Composable
-private fun FeedGallery(p: Post, s: Settings, modifier: Modifier = Modifier, height: Dp? = null, shape: Shape = RoundedCornerShape(16.dp)) {
+private fun FeedGallery(p: Post, s: Settings, modifier: Modifier = Modifier, height: Dp? = null, shape: Shape = RoundedCornerShape(corner(16.dp))) {
     // A spoiler / NSFW gallery covers each image, not the whole carousel, so it still swipes (#165).
     val cover = if (blurOf(p, s)) blurLabel(p, s) else null
     // A Reddit Home card has only the first picture so far; an unknown count takes the
@@ -924,10 +925,10 @@ private fun Media(p: Post, a: PostActions, s: Settings) {
         PostType.GALLERY -> if (isFeedGallery(p)) {
             FeedGallery(p, s, Modifier.padding(bottom = 4.dp))
         } else {
-            NsfwBlur(blur, blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, s)) { MediaPreview(p, a, s) }
+            NsfwBlur(blur, blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, s), shape = RoundedCornerShape(corner(16.dp))) { MediaPreview(p, a, s) }
         }
         PostType.IMAGE, PostType.GIF, PostType.VIDEO ->
-            NsfwBlur(blur, blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, s)) { MediaPreview(p, a, s) }
+            NsfwBlur(blur, blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, s), shape = RoundedCornerShape(corner(16.dp))) { MediaPreview(p, a, s) }
         PostType.LINK -> LinkPreview(p, a)
         PostType.SELF -> {}
     }
@@ -947,7 +948,7 @@ private fun MediaPreview(p: Post, a: PostActions, s: Settings) {
     if (p.type == PostType.VIDEO && !blurOf(p, s) && autoplayNow(s) && !isExternalVideo(p)) {
         val vurl = postVideoUrl(p)
         if (vurl.isNotEmpty() && !vurl.lowercase().endsWith(".gif")) {
-            BoxWithConstraints(Modifier.padding(bottom = 4.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp))) {
+            BoxWithConstraints(Modifier.padding(bottom = 4.dp).fillMaxWidth().clip(RoundedCornerShape(corner(16.dp)))) {
                 androidx.compose.runtime.key(p.id) {
                     InlineVideo(vurl, height = maxWidth / aspect.coerceIn(0.5f, 2.0f), onTap = a::openMedia, poster = url)
                 }
@@ -960,7 +961,7 @@ private fun MediaPreview(p: Post, a: PostActions, s: Settings) {
             .padding(bottom = 4.dp)
             .fillMaxWidth()
             .aspectRatio(aspect.coerceIn(0.5f, 2.0f))
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(corner(16.dp)))
             .background(cs.surfaceContainerHighest)
             .clickable(onClick = a::openMedia),
     ) {
@@ -1012,7 +1013,7 @@ private fun LinkPreview(p: Post, a: PostActions) {
         Modifier
             .padding(bottom = 4.dp)
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(corner(16.dp)))
             .background(cs.surfaceContainerHighest)
             .clickable(onClick = a::openMedia),
         verticalAlignment = Alignment.CenterVertically,
@@ -1023,7 +1024,7 @@ private fun LinkPreview(p: Post, a: PostActions) {
                 model = rememberSizedRequest(p.thumbnailUrl, px * 2),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.size(72.dp).clip(RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp)),
+                modifier = Modifier.size(72.dp).clip(RoundedCornerShape(topStart = corner(16.dp), bottomStart = corner(16.dp))),
             )
         } else {
             Box(Modifier.size(72.dp), contentAlignment = Alignment.Center) {
@@ -1170,7 +1171,7 @@ private val CalmInner = 6.dp
 /** Gap between a Calm cards post's connected segments. */
 private val CalmGap = 3.dp
 /** Calm media and link cards: evenly rounded (the one tighter corner read as a mistake, #33). */
-private val CalmExpressiveMedia = RoundedCornerShape(24.dp)
+private val CalmMediaRadius = 24.dp
 
 /**
  * Calm's surfaces. In light mode surfaceContainerLow is almost the page colour,
@@ -1228,9 +1229,9 @@ private fun rememberCalmLive(p: Post): CalmLive {
 private fun CalmCard(p: Post, a: PostActions, s: Settings, dim: Modifier, glow: Color?) {
     val live = rememberCalmLive(p)
     CompositionLocalProvider(LocalCalmOnCard provides true) {
-        BloomCard(dim, onClick = a::openDetail, onLongClick = a::tune, shape = RoundedCornerShape(CalmOuter), color = calmCardColor(), glow = glow) {
+        BloomCard(dim, onClick = a::openDetail, onLongClick = a::tune, shape = RoundedCornerShape(corner(CalmOuter)), color = calmCardColor(), glow = glow) {
             Column(Modifier.padding(start = 16.dp, top = 14.dp, end = 10.dp, bottom = 10.dp)) {
-                Column(Modifier.padding(end = 6.dp)) { CalmBody(p, a, s, CalmExpressiveMedia) }
+                Column(Modifier.padding(end = 6.dp)) { CalmBody(p, a, s, RoundedCornerShape(corner(CalmMediaRadius))) }
                 Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     CalmActionGroup(live, a, withComments = true)
                     Spacer(Modifier.weight(1f))
@@ -1255,7 +1256,7 @@ private fun CalmCardsCard(p: Post, a: PostActions, s: Settings, dim: Modifier, g
             BloomCard(
                 onClick = a::openDetail,
                 onLongClick = a::tune,
-                shape = RoundedCornerShape(topStart = CalmOuter, topEnd = CalmOuter, bottomStart = CalmInner, bottomEnd = CalmInner),
+                shape = RoundedCornerShape(topStart = corner(CalmOuter), topEnd = corner(CalmOuter), bottomStart = corner(CalmInner), bottomEnd = corner(CalmInner)),
                 color = color,
                 glow = glow, // the top segment's: the corner it glows from
             ) {
@@ -1263,11 +1264,11 @@ private fun CalmCardsCard(p: Post, a: PostActions, s: Settings, dim: Modifier, g
                     Column(Modifier.padding(end = 6.dp)) { CalmBody(p, a, s, mediaShape = null) }
                 }
             }
-            if (hasMedia) CalmMedia(p, a, s, RoundedCornerShape(CalmInner), topPad = 0.dp)
+            if (hasMedia) CalmMedia(p, a, s, RoundedCornerShape(corner(CalmInner)), topPad = 0.dp)
             BloomCard(
                 onClick = a::openDetail,
                 onLongClick = a::tune,
-                shape = RoundedCornerShape(topStart = CalmInner, topEnd = CalmInner, bottomStart = CalmOuter, bottomEnd = CalmOuter),
+                shape = RoundedCornerShape(topStart = corner(CalmInner), topEnd = corner(CalmInner), bottomStart = corner(CalmOuter), bottomEnd = corner(CalmOuter)),
                 color = color,
             ) {
                 Row(Modifier.padding(start = 10.dp, top = 8.dp, end = 6.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1297,7 +1298,7 @@ internal fun SpoilerTextCover(modifier: Modifier = Modifier, onReveal: () -> Uni
     Row(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(corner(16.dp)))
             .background(cs.surfaceContainerHighest)
             .clickable(onClickLabel = "Show spoiler", onClick = onReveal)
             .padding(horizontal = 16.dp, vertical = 14.dp),
