@@ -42,6 +42,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.bennybar.luli_for_reddit.settings.HeaderHeight
 import com.bennybar.luli_for_reddit.settings.TopBarMode
+import com.bennybar.luli_for_reddit.nav.searchMorphSource
+import com.bennybar.luli_for_reddit.nav.searchMorphSourceText
 import com.bennybar.luli_for_reddit.feature.home.SideBarButton
 import com.bennybar.luli_for_reddit.feature.home.LocalSideBar
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -299,11 +301,21 @@ fun SubredditScreen(name: String) {
                         onSearch = { nav.push(Route.Search(subreddit = name)) }, onMenu = openMenu,
                         onJoined = { joined -> joinPill = if (joined) "Joined ${subredditName("r/$name")}" else "Left ${subredditName("r/$name")}" },
                     )
+                } else if (settings.topBarMode == TopBarMode.FULL) {
+                    // The Full bar, as on the tabs (#285): a round search bar that grows into
+                    // the search page's field, its words with it.
+                    FullSearchBar(
+                        "Search in r/$name",
+                        onClick = { nav.push(Route.Search(subreddit = name)) },
+                        pillModifier = Modifier.searchMorphSource(),
+                        textModifier = Modifier.searchMorphSourceText(),
+                        actions = { IconButton(onClick = openMenu) { Icon(Icons.Rounded.MoreHoriz, "More") } },
+                    )
                 } else BloomTopBar(
                     subredditName(name),
                     // Search, and the rest in the ⋯ menu: a row of five cropped the name (#112).
                     actions = {
-                        IconButton(onClick = { nav.push(Route.Search(subreddit = name)) }) { Icon(SearchIcon, "Search") }
+                        IconButton(onClick = { nav.push(Route.Search(subreddit = name)) }, Modifier.searchMorphSource()) { Icon(SearchIcon, "Search") }
                         IconButton(onClick = openMenu) { Icon(Icons.Rounded.MoreHoriz, "More") }
                     },
                 )
@@ -486,7 +498,8 @@ private fun BannerTitleBar(
                 Spacer(Modifier.weight(1f))
                 // Search and ⋯ share one pill, spaced as on Posts (#282).
                 Row(back(1)) {
-                    IconButton(onClick = onSearch) { Icon(SearchIcon, "Search") }
+                    // What the search page's field grows out of (#285).
+                    IconButton(onClick = onSearch, Modifier.searchMorphSource()) { Icon(SearchIcon, "Search") }
                     IconButton(onClick = onMenu) { Icon(Icons.Rounded.MoreHoriz, "More") }
                 }
             }

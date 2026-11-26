@@ -336,7 +336,14 @@ fun BloomTopBar(
         app.settings.state.collectAsStateWithLifecycle().value.topBarMode == TopBarMode.FULL
     Box {
         if (full) {
-            FullSearchRow(search, showBack, navigation, actions)
+            FullSearchBar(
+                search.placeholder,
+                onClick = { search.open = true },
+                pillModifier = Modifier.onGloballyPositioned { search.origin = it.boundsInRoot() },
+                showBack = showBack,
+                navigation = navigation,
+                actions = actions,
+            )
         } else {
             BloomTopBarRow(title, {
                 IconButton(
@@ -352,13 +359,20 @@ fun BloomTopBar(
     }
 }
 
-/** The Full bar on a page (#285): its ☰ / ←, the round search bar as the tabs', its buttons. */
+/**
+ * The Full bar on a page (#285): its ☰ / ←, the round search bar as the tabs' with
+ * [placeholder] in the middle ([pillModifier] on the bar, [textModifier] on its words), and
+ * the page's buttons.
+ */
 @Composable
-private fun FullSearchRow(
-    search: BarSearch,
-    showBack: Boolean,
-    navigation: (@Composable () -> Unit)?,
-    actions: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit,
+fun FullSearchBar(
+    placeholder: String,
+    onClick: () -> Unit,
+    pillModifier: Modifier = Modifier,
+    textModifier: Modifier = Modifier,
+    showBack: Boolean = true,
+    navigation: (@Composable () -> Unit)? = null,
+    actions: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {},
 ) {
     val cs = MaterialTheme.colorScheme
     val nav = LocalNavigator.current
@@ -379,12 +393,12 @@ private fun FullSearchRow(
                 .weight(1f)
                 .padding(horizontal = 4.dp)
                 .height(56.dp)
-                .onGloballyPositioned { search.origin = it.boundsInRoot() },
+                .then(pillModifier),
             shape = CircleShape,
             color = cs.surfaceContainerHigh,
         ) {
-            Box(Modifier.fillMaxSize().clickable(onClickLabel = search.placeholder) { search.open = true }, contentAlignment = Alignment.Center) {
-                Text(search.placeholder, color = cs.onSurfaceVariant, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Box(Modifier.fillMaxSize().clickable(onClickLabel = placeholder, onClick = onClick), contentAlignment = Alignment.Center) {
+                Text(placeholder, textModifier, color = cs.onSurfaceVariant, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         actions()
