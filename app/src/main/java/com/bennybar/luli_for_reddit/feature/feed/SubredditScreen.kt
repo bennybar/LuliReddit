@@ -167,12 +167,14 @@ class SubredditAboutViewModel(private val name: String) : ViewModel() {
         }
     }
 
-    fun toggleSub(s: Subreddit, currentlySubscribed: Boolean) {
+    /** [done]: called once Reddit took it (the "Joined r/x" pill, #277), never on a failure. */
+    fun toggleSub(s: Subreddit, currentlySubscribed: Boolean, done: ((Boolean) -> Unit)? = null) {
         val next = !currentlySubscribed
         subOverride.value = next
         app.scope.launch {
             try {
                 app.repository.setSubscribed(s.name, next)
+                done?.invoke(next)
             } catch (e: Exception) {
                 subOverride.value = currentlySubscribed
                 app.navigatorOrNull?.showActionError(if (next) "join" else "leave", e)
@@ -436,7 +438,7 @@ private fun BannerTitleBar(
             val label = subredditName("r/$name")
             FilledTonalIconToggleButton(
                 checked = subscribed,
-                onCheckedChange = { vm.toggleSub(about, subscribed); onJoined(!subscribed) },
+                onCheckedChange = { vm.toggleSub(about, subscribed, onJoined) },
                 modifier = Modifier
                     .offset(width - 16.dp - JOIN, nameTop)
                     .size(JOIN)

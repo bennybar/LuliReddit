@@ -39,12 +39,14 @@ import SwiftUI
         load()
     }
 
-    func toggleSub(_ name: String, currentlySubscribed: Bool) {
+    /// `done`: called once Reddit took it (the "Joined r/x" pill, #277), never on a failure.
+    func toggleSub(_ name: String, currentlySubscribed: Bool, done: ((Bool) -> Void)? = nil) {
         let next = !currentlySubscribed
         subOverride = next
         Task {
             do {
                 try await app.repository.setSubscribed(name, subscribe: next)
+                done?(next)
             } catch {
                 subOverride = currentlySubscribed
                 app.navigator.showActionError(next ? "join" : "leave", error)
@@ -255,8 +257,7 @@ private struct SubredditBannerHeader: View {
                 Spacer(minLength: 0)
                 // Join as an icon by the name (#277): + to join, ✓ to leave; it never cuts the name.
                 Button {
-                    vm.toggleSub(about.name, currentlySubscribed: subscribed)
-                    onJoined(!subscribed)
+                    vm.toggleSub(about.name, currentlySubscribed: subscribed, done: onJoined)
                 } label: {
                     Image(systemName: subscribed ? "checkmark" : "plus")
                         .font(.body.weight(.semibold))
@@ -314,7 +315,7 @@ private struct SubredditBannerHeader: View {
                     .accessibilityLabel("Open picture")
                     .accessibilityAddTraits(.isButton)
                     // Where BannerBackdrop puts the ringed icon, in this header's coordinates.
-                    .offset(x: 13, y: bannerHeight - bannerIcon - 3 + 22)
+                    .offset(x: 13, y: bannerHeight - iconOver - 3)
             }
         }
     }
