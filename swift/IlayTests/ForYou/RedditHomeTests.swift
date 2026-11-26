@@ -421,7 +421,7 @@ private func fakePost(_ id: String) -> Post {
     /// Calls made, for checking batching (MainActor-only, so no data race).
     private final class Calls: @unchecked Sendable { var batches: [[String]] = [] }
 
-    func testAllInWithinTheDeadlineAndOneRequestAtATime() async {
+    func testAllInWithinTheDeadline() async {
         let calls = Calls()
         let early = EarlyFullPosts { ids in
             await MainActor.run { calls.batches.append(ids) }
@@ -431,9 +431,28 @@ private func fakePost(_ id: String) -> Post {
         early.add(["t3_a", "t3_b"])
         early.add(["t3_c", "t3_a"]) // a: already asked
         early.add(["t3_gone"])
-        let got = await early.posts(for: ["t3_a", "t3_b", "t3_c", "t3_gone"], deadline: 2_000)
-        XCTAssertEqual(Set(got?.keys ?? [:].keys), ["t3_a", "t3_b", "t3_c"], "one the API leaves out is just absent")
-        XCTAssertEqual(calls.batches, [["t3_a", "t3_b"], ["t3_c", "t3_gone"]], "the next request waits for the one in flight")
+        let got = await early.wait(for: ["t3_a", "t3_b", "t3_c", "t3_gone"], deadline: 2_000)
+        XCTAssertTrue(got.complete)
+        XCTAssertEqual(Set(got.posts.keys), ["t3_a", "t3_b", "t3_c"], "one the API leaves out is just absent")
+        XCTAssertEqual(Set(calls.batches), [["t3_a", "t3_b"], ["t3_c"], ["t3_gone"]], "each new id asked for once, at once while there's room")
+    }
+
+    func testABigBatchGoesOutInParallelChunks() async {
+        // The page shows ~25 posts at once: one request for all of them was too slow.
+        let calls = Calls()
+        let early = EarlyFullPosts { ids in
+            await MainActor.run { calls.batches.append(ids) }
+            try await Task.sleep(for: .milliseconds(50))
+            return ids.map { fakePost($0.removePrefix("t3_")) }
+        }
+        let ids = (1...30).map { "t3_p\($0)" }
+        early.add(ids)
+        try? await Task.sleep(for: .milliseconds(20))
+        XCTAssertEqual(calls.batches.map(\.count).sorted(), [9, 9, 9], "three at once, nine each")
+        let got = await early.wait(for: ids, deadline: 2_000)
+        XCTAssertTrue(got.complete)
+        XCTAssertEqual(got.posts.count, 30)
+        XCTAssertEqual(calls.batches.map(\.count).sorted(), [3, 9, 9, 9], "the rest once one is back")
     }
 
     func testTooSlowGivesNilAndAFailureGivesNil() async {
@@ -441,17 +460,31 @@ private func fakePost(_ id: String) -> Post {
             try await Task.sleep(for: .milliseconds(400))
             return ids.map { fakePost($0.removePrefix("t3_")) }
         }
-        let late = await slow.posts(for: ["t3_a"], deadline: 50)
-        XCTAssertNil(late)
+        let late = await slow.wait(for: ["t3_a"], deadline: 50)
+        XCTAssertFalse(late.complete)
+        XCTAssertTrue(late.posts.isEmpty)
         let failing = EarlyFullPosts { _ in throw URLError(.notConnectedToInternet) }
-        let failed = await failing.posts(for: ["t3_a"], deadline: 1_000)
-        XCTAssertNil(failed)
+        let failed = await failing.wait(for: ["t3_a"], deadline: 1_000)
+        XCTAssertFalse(failed.complete)
+    }
+
+    func testWhatsInByTheDeadlineComesBackWhenTheRestIsLate() async {
+        // Reddit's page shows its first few posts well before the rest: those are in.
+        let early = EarlyFullPosts { ids in
+            if ids.contains("t3_late") { try await Task.sleep(for: .seconds(5)) }
+            return ids.map { fakePost($0.removePrefix("t3_")) }
+        }
+        early.add(["t3_a"])
+        try? await Task.sleep(for: .milliseconds(100))
+        let got = await early.wait(for: ["t3_a", "t3_late"], deadline: 100)
+        XCTAssertFalse(got.complete)
+        XCTAssertEqual(Set(got.posts.keys), ["t3_a"])
     }
 
     func testACancelledOneGivesNil() async {
         let early = EarlyFullPosts { ids in ids.map { fakePost($0.removePrefix("t3_")) } }
         early.cancel()
-        let got = await early.posts(for: ["t3_a"], deadline: 200)
-        XCTAssertNil(got)
+        let got = await early.wait(for: ["t3_a"], deadline: 200)
+        XCTAssertFalse(got.complete)
     }
 }

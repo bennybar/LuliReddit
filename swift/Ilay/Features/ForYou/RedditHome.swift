@@ -550,9 +550,12 @@ final class EarlyFullPosts {
     private var asked = Set<String>()
     private var got: [String: Post] = [:] // by fullname
     private var failed = false
-    private var running: Task<Void, Never>?
+    private var inFlight: [Int: Task<Void, Never>] = [:]
+    private var nextRequest = 0
     /// When the first of them was asked for (debug timing).
     private(set) var firstAskedAt: Int?
+    /// Each answer's posts, as they come (the first cards' pictures are warmed with them).
+    var onArrive: (([Post]) -> Void)?
 
     init(fetch: @escaping @Sendable ([String]) async throws -> [Post]) { self.fetch = fetch }
 
@@ -562,35 +565,53 @@ final class EarlyFullPosts {
         pump()
     }
 
+    /// At most this many posts per request, and this many requests at once: the page shows
+    /// ~25 posts at once after its first few, and one request for all of them took ~700 ms
+    /// (measured), over the deadline; three of ~9 come back in about half that.
+    static let chunk = 9
+    static let parallel = 3
+
     private func pump() {
-        guard running == nil, !failed, !pending.isEmpty else { return }
-        let batch = pending
-        pending = []
-        if firstAskedAt == nil { firstAskedAt = nowMillis() }
-        let fetch = fetch
-        running = Task { [weak self] in
-            let result = try? await fetch(batch)
-            guard let self, !Task.isCancelled else { return }
-            if let result {
-                for p in result { got["t3_\(p.id)"] = p }
-            } else {
-                failed = true
+        while inFlight.count < Self.parallel, !failed, !pending.isEmpty {
+            let batch = Array(pending.prefix(Self.chunk))
+            pending.removeFirst(batch.count)
+            if firstAskedAt == nil { firstAskedAt = nowMillis() }
+            let fetch = fetch
+            let key = nextRequest
+            nextRequest += 1
+            #if DEBUG
+            let askedAt = nowMillis()
+            print("[home] ask \(batch.count) at +\(askedAt - (firstAskedAt ?? askedAt))ms")
+            #endif
+            inFlight[key] = Task { [weak self] in
+                let result = try? await fetch(batch)
+                #if DEBUG
+                print("[home] got \(result?.count ?? -1)/\(batch.count) in \(nowMillis() - askedAt)ms")
+                #endif
+                guard let self, !Task.isCancelled else { return }
+                if let result {
+                    for p in result { got["t3_\(p.id)"] = p }
+                    onArrive?(result)
+                } else {
+                    failed = true
+                }
+                inFlight[key] = nil
+                pump()
             }
-            running = nil
-            pump()
         }
     }
 
-    /// The full posts by fullname once every one of `ids` has been answered for, waiting at
-    /// most `deadline` ms; nil if a request failed or they aren't all in by then. One the API
-    /// leaves out (removed) is just absent.
-    func posts(for ids: [String], deadline: Int) async -> [String: Post]? {
+    /// The full posts in for `ids` (by fullname) after waiting at most `deadline` ms for all
+    /// of them, and whether every one was answered. One the API leaves out (removed) is just
+    /// absent; a failed request leaves it incomplete. Reddit's page shows its first few posts
+    /// well before the rest, so even an incomplete answer usually has the cards on screen.
+    func wait(for ids: [String], deadline: Int) async -> (posts: [String: Post], complete: Bool) {
         add(ids)
         let end = nowMillis() + deadline
         while true {
-            if failed { return nil }
-            if running == nil && pending.isEmpty { return got }
-            if nowMillis() >= end || Task.isCancelled { return nil }
+            if failed { return (got, false) }
+            if inFlight.isEmpty && pending.isEmpty { return (got, true) }
+            if nowMillis() >= end || Task.isCancelled { return (got, false) }
             try? await Task.sleep(for: .milliseconds(15))
         }
     }
@@ -598,8 +619,8 @@ final class EarlyFullPosts {
     /// Stops asking: a refresh or a later page doesn't need them.
     func cancel() {
         failed = true
-        running?.cancel()
-        running = nil
+        for task in inFlight.values { task.cancel() }
+        inFlight = [:]
     }
 }
 
@@ -698,8 +719,18 @@ final class RedditHomeEngine {
             if firstPage {
                 let f = earlyFullPosts()
                 full = f
-                page = try await l.next(restart: true, cookieHeader: cookie, onProgress: { [weak self] n in self?.progress = n }, onPosts: { posts in
+                // The first cards' pictures (icon, photo, poster) load while the deck still
+                // shows: from the page's posts as soon as it shows them, then from their full
+                // posts. They were only asked for once the cards had landed.
+                var firstIds: [String] = []
+                f.onArrive = { [weak self] posts in
+                    self?.warm(posts.filter { firstIds.contains($0.fullname) })
+                }
+                page = try await l.next(restart: true, cookieHeader: cookie, onProgress: { [weak self] n in self?.progress = n }, onPosts: { [weak self] posts in
                     if f.firstAskedAt == nil { homeTrace("first posts read", since: started) }
+                    let first = posts.prefix(max(0, Self.warmedCards - firstIds.count))
+                    firstIds += first.map(\.id)
+                    self?.warm(first.map { $0.toPost() })
                     f.add(posts.map(\.id))
                 })
                 homeTrace("page read (\(page.count))", since: started)
@@ -728,18 +759,21 @@ final class RedditHomeEngine {
             let gen = loadGen
             let user = c.session.username
             let cards: [Post]
-            if let got = await full.posts(for: page.map(\.id), deadline: Self.fullPostsDeadline) {
+            let (got, complete) = await full.wait(for: page.map(\.id), deadline: Self.fullPostsDeadline)
+            // The ones in (the first few, which the page shows well before the rest: the
+            // cards on screen) come complete; page cards for the others, which the requests
+            // in flight complete a moment later, below the fold.
+            cards = page.map { p in got[p.id].map { withCard($0, p) } ?? p.toPost() }
+            if complete {
                 homeTrace("full posts ready", since: started)
-                cards = page.map { p in got[p.id].map { withCard($0, p) } ?? p.toPost() }
                 if firstPage && !user.isEmpty && c.session.username == user && gen == loadGen {
                     let posts = page.compactMap { p in got[p.id].map { withCard($0, p) } }
                     let repo = c.repository
                     Task.detached { await saveForYouPage(user: user, posts: posts, raw: { repo.rawPost($0) }, feed: "home") }
                 }
             } else {
-                full.cancel()
-                cards = page.map { $0.toPost() }
-                Task { await upgrade(page, firstPage: firstPage, gen: gen) }
+                homeTrace("full posts in: \(got.count)/\(page.count)", since: started)
+                Task { await upgrade(page, firstPage: firstPage, gen: gen, early: full) }
             }
             // Read the next batch ahead, its full posts too, so reaching the end doesn't
             // wait and the next page comes complete.
@@ -871,6 +905,20 @@ final class RedditHomeEngine {
         }
     }
 
+    /// How many of the first cards get their pictures warmed while the deck shows.
+    static let warmedCards = 4
+
+    /// Into the image cache at the size each card will ask for.
+    private func warm(_ posts: [Post]) {
+        guard !posts.isEmpty else { return }
+        let config = FeedRowConfig.current()
+        for p in posts {
+            for image in PostRow(p, config: config).prefetch {
+                ImageLoader.shared.prefetch(urls: [image.url], maxPixelSize: image.pixels)
+            }
+        }
+    }
+
     private func earlyFullPosts() -> EarlyFullPosts {
         let repo = c.repository
         return EarlyFullPosts { ids in try await repo.getPostsByIds(ids) }
@@ -884,7 +932,7 @@ final class RedditHomeEngine {
     }
 
     /// Fetches the full posts for `page` and hands them to the feed.
-    private func upgrade(_ page: [PagePost], firstPage: Bool, gen: Int) async {
+    private func upgrade(_ page: [PagePost], firstPage: Bool, gen: Int, early: EarlyFullPosts? = nil) async {
         // The account these cards belong to: a switch mid-request must not give
         // its posts (or its saved Home page) to the next account. Likewise a
         // newer Home load (`gen`) makes these cards old: an upgrade finishing
@@ -894,7 +942,16 @@ final class RedditHomeEngine {
         // A failed fetch left cards without media (empty galleries); try again
         // a couple of times before leaving them as they are.
         var full: [Post]?
-        for wait in [0, 2_000, 5_000] {
+        // The requests already in flight first, not the same posts asked for again (that
+        // came about a second later than they did).
+        if let early {
+            let (got, complete) = await early.wait(for: page.map(\.id), deadline: 15_000)
+            if complete { full = page.compactMap { got[$0.id] } }
+            #if DEBUG
+            print("[home] upgraded from the early requests: \(complete)")
+            #endif
+        }
+        for wait in [0, 2_000, 5_000] where full == nil {
             try? await Task.sleep(for: .milliseconds(wait))
             full = try? await c.repository.getPostsByIds(page.map(\.id))
             if full != nil || stale() { break }
