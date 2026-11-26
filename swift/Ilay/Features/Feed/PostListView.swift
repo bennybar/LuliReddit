@@ -74,7 +74,8 @@ struct PostListView<Header: View>: View {
         ))
         .ignoresSafeArea()
         .overlay(alignment: .top) {
-            if controller.ui.state?.hasPending == true {
+            // Settings › "New posts" button off (#292): pull to refresh instead.
+            if s.newPostsPill, controller.ui.state?.hasPending == true {
                 NewPostsPill { controller.applyPending() }
                     .padding(.top, s.floatingChips ? 52 : 8)
                     .transition(.move(edge: .top).combined(with: .opacity))
