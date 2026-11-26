@@ -174,6 +174,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -338,15 +341,54 @@ fun SettingsScreen(section: String? = null) {
         },
     ) { padding ->
         if (section == "Appearance") {
-            // A live sample post pinned above the options: every change shows on it at once.
-            Column(Modifier.padding(top = padding.calculateTopPadding())) {
-                AppearancePreview(scrolled = listState.canScrollBackward)
+            // A live sample pinned above the options: every change shows on it at once. It
+            // follows the group in view (pickPreview): the post, a thread, the chips, or none.
+            val density = LocalDensity.current
+            var keys by remember { mutableStateOf(emptyList<String>()) }
+            var pageHeight by remember { mutableIntStateOf(0) }
+            var previewHeight by remember { mutableIntStateOf(-1) }
+            var kind by remember { mutableStateOf(PreviewKind.POST) }
+            val slack = with(density) { PREVIEW_SLACK.toPx() }
+            LaunchedEffect(listState, keys, slack) {
+                snapshotFlow {
+                    val info = listState.layoutInfo
+                    val first = info.visibleItemsInfo.firstOrNull()?.index ?: 0
+                    val visible = info.visibleItemsInfo.associate { it.key to it.offset }
+                    val under = previewHeight.coerceAtLeast(0) - info.viewportStartOffset
+                    APPEARANCE_GROUPS.mapNotNull { (key, k) ->
+                        val i = keys.indexOf(key).takeIf { it >= 0 } ?: return@mapNotNull null
+                        PreviewSection(
+                            k,
+                            when {
+                                // From the top of the page, which the preview doesn't move.
+                                key in visible -> (under + visible.getValue(key)).toFloat()
+                                i < first -> Float.NEGATIVE_INFINITY
+                                else -> Float.POSITIVE_INFINITY
+                            },
+                        )
+                    }
+                }.collect { kind = pickPreview(it, pageHeight * PREVIEW_LINE, slack, kind) }
+            }
+            Column(Modifier.padding(top = padding.calculateTopPadding()).onSizeChanged { pageHeight = it.height }) {
+                AppearancePreview(
+                    scrolled = listState.canScrollBackward,
+                    kind = kind,
+                    // The options stay where they are on screen while the preview grows or
+                    // shrinks (a swap, or a bigger card): the list scrolls by as much.
+                    modifier = Modifier.onSizeChanged {
+                        val old = previewHeight
+                        previewHeight = it.height
+                        if (old >= 0 && it.height != old) listState.dispatchRawDelta((it.height - old).toFloat())
+                    },
+                )
                 SettingsList(
                     Modifier.weight(1f),
-                    contentPadding = PaddingValues(bottom = padding.calculateBottomPadding()),
+                    // Room after the last group so it can come up to the line and get the whole screen.
+                    contentPadding = PaddingValues(bottom = padding.calculateBottomPadding() + with(density) { (pageHeight * (1 - PREVIEW_LINE)).toDp() }),
                     section = section,
                     listState = listState,
                     barSearch = barSearch,
+                    onKeys = { keys = it },
                 )
             }
         } else {
@@ -372,6 +414,8 @@ fun SettingsList(
     listState: LazyListState = rememberLazyListState(),
     // The bar's search (#247): its text filters the list, and the list's own field goes.
     barSearch: BarSearch? = null,
+    // The rows' keys in order, as shown (Appearance's preview finds its groups with them).
+    onKeys: ((List<String>) -> Unit)? = null,
 ) {
     val s by app.settings.state.collectAsStateWithLifecycle()
     val ctrl = app.settings
@@ -789,24 +833,13 @@ fun SettingsList(
             enabled = !defaultSizes,
             onClick = ctrl::resetTextScales,
         )
-        // What the preview doesn't show, last.
-        add(Entry("d:sub-other", null) { SettingsSubheading("Other") })
-        // A sheet that doesn't leave the page; the launcher icon isn't in the preview.
-        add(Entry("appIcon", "App icon launcher home screen colour") {
-            val current = AppIcon.parse(s.appIcon)
-            SettingTile("App icon", current.label, onClick = {
-                scope.launch {
-                    val picked = pickAppIcon(current) ?: return@launch
-                    if (picked == current) return@launch
-                    ctrl.setAppIcon(picked.key)
-                    AppIcon.apply(context, picked)
-                    nav.showSnackbar("App icon changed. Your home screen can take a few seconds to update.")
-                }
-            }, leading = { AppIconPreview(current, 24.dp) })
-        })
+        // The preview shows a sample thread from here.
+        add(Entry("d:sub-comments", null) { SettingsSubheading("Comments") })
         add(Entry("t:Comments size", "Comments text size font bigger smaller") {
             TextScaleRow("Comments", s.commentTextScale, ctrl::setCommentTextScale)
         })
+        // …and the floating chips from here.
+        add(Entry("d:sub-chips", null) { SettingsSubheading("Floating filter chips") })
         switch(
             "Floating filter chips", "On Home, subreddits and custom feeds, show the chips under the top bar when you scroll back up",
             Icons.Rounded.FilterList, s.floatingChips, ctrl::setFloatingChips,
@@ -822,6 +855,21 @@ fun SettingsList(
                 )
             })
         }
+        // What the preview can't show, last: it steps aside for these.
+        add(Entry("d:sub-other", null) { SettingsSubheading("Other") })
+        // A sheet that doesn't leave the page; the launcher icon isn't in the preview.
+        add(Entry("appIcon", "App icon launcher home screen colour") {
+            val current = AppIcon.parse(s.appIcon)
+            SettingTile("App icon", current.label, onClick = {
+                scope.launch {
+                    val picked = pickAppIcon(current) ?: return@launch
+                    if (picked == current) return@launch
+                    ctrl.setAppIcon(picked.key)
+                    AppIcon.apply(context, picked)
+                    nav.showSnackbar("App icon changed. Your home screen can take a few seconds to update.")
+                }
+            }, leading = { AppIconPreview(current, 24.dp) })
+        })
         switch(
             "u/ before your name in the side bar", "Show \"u/you\" at the top of the side bar. Off: just \"you\"",
             Icons.Rounded.AlternateEmail, s.sideBarUserPrefix, ctrl::setSideBarUserPrefix,
@@ -1467,6 +1515,10 @@ fun SettingsList(
         Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { Text("No settings found") }
     }
 
+    if (onKeys != null) {
+        val keys = shown.map { it.key }
+        LaunchedEffect(keys) { onKeys(keys) }
+    }
     if (embedded) {
         Column(modifier) {
             if (section == null) searchField()
@@ -1885,3 +1937,19 @@ private fun TextScaleRow(label: String, value: Double, onChange: (Double) -> Uni
         Slider(state = state, onValueChange = { onChange((it * 20).roundToInt() / 20.0) })
     }
 }
+
+/** Appearance's groups, in page order, and what its preview shows for each. */
+private val APPEARANCE_GROUPS = listOf(
+    "d:sub-layout" to PreviewKind.POST,
+    "d:sub-colour" to PreviewKind.POST,
+    "d:sub-text" to PreviewKind.POST,
+    "d:sub-comments" to PreviewKind.COMMENTS,
+    "d:sub-chips" to PreviewKind.CHIPS,
+    "d:sub-other" to PreviewKind.NONE,
+)
+
+/** Where a group takes the preview: its first row this far down the page (fraction). */
+private const val PREVIEW_LINE = 0.45f
+
+/** How far past that line a group must go before the preview changes back (no flicker). */
+private val PREVIEW_SLACK = 48.dp

@@ -1009,3 +1009,34 @@ private fun HomeStatusStrip(status: HomeStatus, onRetry: () -> Unit) {
         }
     }
 }
+
+/**
+ * Settings › Appearance's sample of the floating filter chips: the feed's own chip row
+ * (Best picked), on the top bar's surface when [solid], else outlined over what's under
+ * it, as the floating row is drawn over a feed. Inert: picks do nothing.
+ */
+@Composable
+internal fun FloatingChipsSample(solid: Boolean, modifier: Modifier = Modifier) {
+    val barColor = MaterialTheme.colorScheme.surface
+    Box(
+        modifier
+            .fillMaxWidth()
+            .then(if (solid) Modifier.drawBehind { drawRect(barColor) } else Modifier)
+            .padding(horizontal = 7.dp),
+    ) {
+        FeedChips(
+            outline = if (solid) 0f else 1f,
+            sort = PostSort.BEST,
+            time = TopTime.DAY,
+            state = rememberLazyListState(),
+            onPick = { _, _ -> },
+            isFrontpage = false,
+            forYou = false,
+            onForYou = {},
+            redditHome = false,
+            onRedditHome = null,
+            blend = false,
+            onBlend = null,
+        )
+    }
+}
