@@ -117,6 +117,7 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onVisibilityChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.LinkAnnotation
@@ -442,6 +443,8 @@ fun PostCard(listed: Post, modifier: Modifier = Modifier, swipeOverride: Pair<Sw
                     PostDisplay.MINI -> MiniCard(post, actions, settings, dim, glow)
                     PostDisplay.CALM -> CalmCard(post, actions, settings, dim, glow)
                     PostDisplay.CALM_CARDS -> CalmCardsCard(post, actions, settings, dim, glow)
+                    PostDisplay.COMPACT -> CompactCard(post, actions, settings, dim, glow)
+                    PostDisplay.COMPACT_CARDS -> CompactCardsCard(post, actions, settings, dim, glow)
                 }
             }
         }
@@ -919,23 +922,24 @@ fun PollOptions(p: Post) {
 
 /** Default layout media: gallery carousel, aspect-correct preview, or link card. */
 @Composable
-private fun Media(p: Post, a: PostActions, s: Settings) {
+private fun Media(p: Post, a: PostActions, s: Settings, radius: Dp = 16.dp) {
     val blur = blurOf(p, s)
+    val shape = RoundedCornerShape(corner(radius))
     when (p.type) {
         PostType.GALLERY -> if (isFeedGallery(p)) {
-            FeedGallery(p, s, Modifier.padding(bottom = 4.dp))
+            FeedGallery(p, s, Modifier.padding(bottom = 4.dp), shape = shape)
         } else {
-            NsfwBlur(blur, blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, s), shape = RoundedCornerShape(corner(16.dp))) { MediaPreview(p, a, s) }
+            NsfwBlur(blur, blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, s), shape = shape) { MediaPreview(p, a, s, radius) }
         }
         PostType.IMAGE, PostType.GIF, PostType.VIDEO ->
-            NsfwBlur(blur, blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, s), shape = RoundedCornerShape(corner(16.dp))) { MediaPreview(p, a, s) }
+            NsfwBlur(blur, blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, s), shape = shape) { MediaPreview(p, a, s, radius) }
         PostType.LINK -> LinkPreview(p, a)
         PostType.SELF -> {}
     }
 }
 
 @Composable
-private fun MediaPreview(p: Post, a: PostActions, s: Settings) {
+private fun MediaPreview(p: Post, a: PostActions, s: Settings, radius: Dp = 16.dp) {
     val cs = MaterialTheme.colorScheme
     // Mid-res when the data-saver setting is on, like the other layouts.
     val preview = if (s.midResThumbnails) p.previewMedUrl ?: p.previewUrl else p.previewUrl
@@ -948,7 +952,7 @@ private fun MediaPreview(p: Post, a: PostActions, s: Settings) {
     if (p.type == PostType.VIDEO && !blurOf(p, s) && autoplayNow(s) && !isExternalVideo(p)) {
         val vurl = postVideoUrl(p)
         if (vurl.isNotEmpty() && !vurl.lowercase().endsWith(".gif")) {
-            BoxWithConstraints(Modifier.padding(bottom = 4.dp).fillMaxWidth().clip(RoundedCornerShape(corner(16.dp)))) {
+            BoxWithConstraints(Modifier.padding(bottom = 4.dp).fillMaxWidth().clip(RoundedCornerShape(corner(radius)))) {
                 androidx.compose.runtime.key(p.id) {
                     InlineVideo(vurl, height = maxWidth / aspect.coerceIn(0.5f, 2.0f), onTap = a::openMedia, poster = url)
                 }
@@ -961,7 +965,7 @@ private fun MediaPreview(p: Post, a: PostActions, s: Settings) {
             .padding(bottom = 4.dp)
             .fillMaxWidth()
             .aspectRatio(aspect.coerceIn(0.5f, 2.0f))
-            .clip(RoundedCornerShape(corner(16.dp)))
+            .clip(RoundedCornerShape(corner(radius)))
             .background(cs.surfaceContainerHighest)
             .clickable(onClick = a::openMedia),
     ) {
@@ -1774,4 +1778,293 @@ fun CalmGhost(icon: ImageVector, label: String, tint: Color, onClick: () -> Unit
     Box(Modifier.size(size).clip(CircleShape).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
         Icon(icon, label, Modifier.size(iconSize), tint = tint)
     }
+}
+
+// ------------------------------------------------------------ Compact (#284)
+
+/** The feed list's side inset, which Compact's flat rows reach past to the screen's edges (#284). */
+internal val LocalFeedSideInset = staticCompositionLocalOf { 0.dp }
+
+/** [bleed] wider on each side than its parent allows: a flat row edge to edge in an inset list. */
+private fun Modifier.bleedX(bleed: Dp): Modifier = if (bleed == 0.dp) this else layout { m, c ->
+    if (!c.hasBoundedWidth) return@layout m.measure(c).let { p -> layout(p.width, p.height) { p.place(0, 0) } }
+    val extra = bleed.roundToPx() * 2
+    val p = m.measure(c.copy(minWidth = c.minWidth + extra, maxWidth = c.maxWidth + extra))
+    layout(p.width - extra, p.height) { p.place(-extra / 2, 0) }
+}
+
+/**
+ * "Compact" (#284, after Sync for Reddit): flat full-width rows with a small meta line,
+ * a medium title, media with small corners (a link's thumbnail on the right) and a slim
+ * row of [▲ score ▼][comments] … save, share, ⋯. Mark-read lives in the ⋮ sheet.
+ */
+@Composable
+private fun CompactCard(p: Post, a: PostActions, s: Settings, dim: Modifier, glow: Color?) {
+    val cs = MaterialTheme.colorScheme
+    val link = p.type == PostType.LINK
+    BloomCard(
+        Modifier.bleedX(LocalFeedSideInset.current).then(dim),
+        onClick = a::openDetail,
+        onLongClick = a::tune,
+        shape = RoundedCornerShape(0.dp),
+        color = cs.surfaceContainerLow,
+        glow = glow,
+    ) {
+        Column(Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 2.dp)) {
+            CompactMeta(p, a, s)
+            Spacer(Modifier.height(6.dp))
+            Row {
+                Column(Modifier.weight(1f)) {
+                    CompactTitle(p, FontWeight.Medium)
+                    ArrivingFlair(p) {
+                        Spacer(Modifier.height(6.dp))
+                        Flair(it)
+                    }
+                    CrosspostLine(p)
+                    ReminderLine(p)
+                }
+                if (link) {
+                    Spacer(Modifier.width(12.dp))
+                    Thumb(p, a, s, 64.dp)
+                }
+            }
+            if (p.type != PostType.SELF && !link) {
+                Spacer(Modifier.height(8.dp))
+                Media(p, a, s, radius = 8.dp)
+            }
+            PollOptions(p)
+            CompactSnippet(p, s)
+            CompactActions(p, a)
+        }
+    }
+}
+
+/**
+ * "Compact cards" (#284): lightly rounded cards led by the poster (their picture,
+ * u/name over r/sub, the time on the right), a plain-weight title, and ⋯ / share / save
+ * on the left with ▼ score ▲ on the right. Mark-read lives in the ⋮ sheet.
+ */
+@Composable
+private fun CompactCardsCard(p: Post, a: PostActions, s: Settings, dim: Modifier, glow: Color?) {
+    val cs = MaterialTheme.colorScheme
+    BloomCard(
+        Modifier.padding(horizontal = 3.dp).then(dim),
+        onClick = a::openDetail,
+        onLongClick = a::tune,
+        shape = RoundedCornerShape(corner(14.dp)),
+        color = cs.surfaceContainerLow,
+        glow = glow,
+    ) {
+        Column(Modifier.padding(start = 14.dp, top = 14.dp, end = 14.dp, bottom = 10.dp)) {
+            PosterHeader(p, a, s)
+            Spacer(Modifier.height(10.dp))
+            CompactTitle(p, FontWeight.Normal)
+            ArrivingFlair(p) {
+                Spacer(Modifier.height(6.dp))
+                Flair(it)
+            }
+            CrosspostLine(p)
+            ReminderLine(p)
+            if (p.type != PostType.SELF) {
+                Spacer(Modifier.height(10.dp))
+                Media(p, a, s, radius = 10.dp)
+            }
+            PollOptions(p)
+            CompactSnippet(p, s)
+            Spacer(Modifier.height(8.dp))
+            CompactCardsActions(p, a)
+        }
+    }
+}
+
+@Composable
+private fun CompactTitle(p: Post, weight: FontWeight) {
+    ScaledText(TextKind.TITLE) { Text(
+        p.title,
+        Modifier.readDim(),
+        fontSize = 15.5.sp,
+        fontWeight = weight,
+        lineHeight = 1.35.em,
+        color = MaterialTheme.colorScheme.onSurface,
+    ) }
+}
+
+/** A text post's first lines, under the title. */
+@Composable
+private fun CompactSnippet(p: Post, s: Settings) {
+    if (p.snippet.isEmpty()) return
+    SpoilerOr(p) {
+        ScaledText(TextKind.POST_TEXT) { Text(
+            rememberSnippet(p),
+            Modifier.padding(top = 4.dp).readDim(),
+            maxLines = s.textLines(2),
+            overflow = TextOverflow.Ellipsis,
+            fontSize = 14.sp,
+            lineHeight = 1.45.em,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        ) }
+    }
+}
+
+/** "r/sub · u/author · 2h · domain": r/sub opens the community, u/author the profile. */
+@Composable
+private fun CompactMeta(p: Post, a: PostActions, s: Settings) {
+    val cs = MaterialTheme.colorScheme
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        val text = remember(p.id, s.subredditPrefix) {
+            buildAnnotatedString {
+                withLink(LinkAnnotation.Clickable("sub") { a.openSubreddit() }) {
+                    append(subredditName(p.subredditPrefixed.ifEmpty { p.subreddit }, s.subredditPrefix))
+                }
+                append(" · ")
+                withLink(LinkAnnotation.Clickable("author") { a.openAuthor() }) { append("u/${p.author}") }
+                append(" · ${timeAgo(p.createdUtc)}")
+                if (p.type != PostType.SELF && p.domain.isNotEmpty() && !p.domain.startsWith("self.")) append(" · ${p.domain}")
+            }
+        }
+        Text(text, Modifier.weight(1f), fontSize = 12.5.sp, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        CompactTags(p)
+    }
+}
+
+/** The poster's picture, u/name over r/sub, and the time; the picture comes with the page's others (#270). */
+@Composable
+private fun PosterHeader(p: Post, a: PostActions, s: Settings) {
+    val cs = MaterialTheme.colorScheme
+    LaunchedEffect(p.authorFullname) { app.authorAvatars.wantPoster(p) }
+    val icons by app.authorAvatars.icons.collectAsState()
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        LetterAvatar(
+            p.author,
+            imageUrl = icons[p.author.lowercase()],
+            size = 36.dp,
+            container = cs.secondaryContainer,
+            content = cs.onSecondaryContainer,
+            modifier = Modifier.clickable(onClickLabel = "Open profile", onClick = a::openAuthor),
+        )
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                "u/${p.author}",
+                Modifier.clickable(onClick = a::openAuthor),
+                fontSize = 13.5.sp,
+                fontWeight = FontWeight.Medium,
+                color = cs.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                subredditName(p.subredditPrefixed.ifEmpty { p.subreddit }, s.subredditPrefix),
+                Modifier.clickable(onClick = a::openSubreddit),
+                fontSize = 12.5.sp,
+                color = cs.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        CompactTags(p)
+        Text(timeAgo(p.createdUtc), Modifier.padding(start = 8.dp), fontSize = 12.5.sp, color = cs.onSurfaceVariant)
+    }
+}
+
+/** Pinned and NSFW, as the other layouts' headers show them. */
+@Composable
+private fun CompactTags(p: Post) {
+    val cs = MaterialTheme.colorScheme
+    if (p.stickied) Icon(Icons.Rounded.PushPin, "Pinned", Modifier.padding(start = 6.dp).size(15.dp), tint = cs.primary)
+    if (p.over18) {
+        Text(
+            "NSFW",
+            Modifier
+                .padding(start = 6.dp)
+                .background(cs.errorContainer, RoundedCornerShape(6.dp))
+                .padding(horizontal = 6.dp, vertical = 2.dp),
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = cs.onErrorContainer,
+        )
+    }
+}
+
+/** Compact's row: [▲ score ▼] [comments] … save, share, ⋯. */
+@Composable
+private fun CompactActions(p: Post, a: PostActions) {
+    val cs = MaterialTheme.colorScheme
+    val live = rememberCalmLive(p)
+    Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        VotePill(live.score, live.likes, onUp = { a.vote(1) }, onDown = { a.vote(-1) })
+        Spacer(Modifier.width(8.dp))
+        CountChip(Icons.Outlined.ModeComment, compactNumber(live.numComments), onClick = a::openDetail)
+        Spacer(Modifier.weight(1f))
+        CalmGhost(
+            if (live.saved) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
+            if (live.saved) "Unsave" else "Save",
+            if (live.saved) cs.primary else cs.onSurfaceVariant,
+            a::toggleSave,
+            size = 40.dp,
+        )
+        CalmGhost(Icons.Rounded.Share, "Share", cs.onSurfaceVariant, a::share, size = 40.dp)
+        CalmGhost(Icons.Rounded.MoreVert, "More", cs.onSurfaceVariant, a::more, size = 40.dp)
+    }
+}
+
+/** Compact cards' row: ⋯, share, save in rounded squares … ▼ score ▲ in circles. */
+@Composable
+private fun CompactCardsActions(p: Post, a: PostActions) {
+    val cs = MaterialTheme.colorScheme
+    val votes = LocalVoteColors.current
+    val live = rememberCalmLive(p)
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        SquareAction(Icons.Rounded.MoreVert, "More", cs.onSurfaceVariant, a::more)
+        SquareAction(Icons.Rounded.Share, "Share", cs.onSurfaceVariant, a::share)
+        SquareAction(
+            if (live.saved) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
+            if (live.saved) "Unsave" else "Save",
+            if (live.saved) cs.primary else cs.onSurfaceVariant,
+            a::toggleSave,
+        )
+        Spacer(Modifier.weight(1f))
+        RoundVote(Icons.Rounded.ArrowDownward, "Downvote", live.likes == false, votes.down) { a.vote(-1) }
+        Text(
+            compactNumber(live.score),
+            Modifier.padding(horizontal = 4.dp),
+            fontSize = 13.5.sp,
+            fontWeight = FontWeight.Medium,
+            color = when (live.likes) {
+                true -> votes.up
+                false -> votes.down
+                null -> cs.onSurface
+            },
+        )
+        RoundVote(Icons.Rounded.ArrowUpward, "Upvote", live.likes == true, votes.up) { a.vote(1) }
+    }
+}
+
+@Composable
+private fun SquareAction(icon: ImageVector, label: String, tint: Color, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .size(36.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .clickable(onClickLabel = label, onClick = onClick)
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, null, Modifier.size(18.dp), tint = tint) }
+}
+
+/** A round vote button: filled with the vote colour when it's yours, as the vote swipe does (#93). */
+@Composable
+private fun RoundVote(icon: ImageVector, label: String, on: Boolean, color: Color, onClick: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val bg by animateColorAsState(if (on) color else cs.surfaceContainerHigh, MaterialTheme.motionScheme.fastEffectsSpec())
+    Box(
+        Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .background(bg)
+            .toggleable(value = on, role = Role.Switch) { onClick() }
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, null, Modifier.size(18.dp), tint = if (on) onVoteColor(color) else cs.onSurfaceVariant) }
 }

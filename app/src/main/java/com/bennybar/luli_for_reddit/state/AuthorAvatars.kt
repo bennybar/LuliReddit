@@ -94,7 +94,9 @@ class AuthorAvatars {
      * Nothing with the setting off, or with the website sign-in (it gets a 404 there).
      */
     fun wantPoster(post: Post) {
-        if (!app.settings.value.postAvatars) return
+        // Settings › Poster's picture, or a layout that always shows it (Compact cards, #284).
+        val s = app.settings.value
+        if (!s.postAvatars && !s.postDisplay.showsPosters) return
         val id = post.authorFullname
         if (!id.startsWith("t2_") || post.author.lowercase() in _icons.value || !askedIds.add(id)) return
         pending += id

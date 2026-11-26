@@ -11,6 +11,8 @@ import androidx.compose.material.icons.outlined.Settings as SettingsIcon // not 
 import androidx.compose.material.icons.outlined.Spa
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.outlined.ViewAgenda
+import androidx.compose.material.icons.outlined.ViewDay
+import androidx.compose.material.icons.rounded.TableRows
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DoNotDisturbOn
 import androidx.compose.material.icons.rounded.ArrowDownward
@@ -180,10 +182,19 @@ enum class PostDisplay(val label: String, val icon: ImageVector) {
     MINI("Mini cards", Icons.AutoMirrored.Rounded.ViewList),
     CALM("Calm", Icons.Rounded.Spa),
     CALM_CARDS("Calm cards", Icons.Outlined.Spa),
+    // #284, after Sync for Reddit: appended, as the setting is stored by index.
+    COMPACT("Compact", Icons.Rounded.TableRows),
+    COMPACT_CARDS("Compact cards", Icons.Outlined.ViewDay),
     ;
 
     /** Both Calm layouts share the Calm post view and the ⋮-sheet read toggle. */
     val isCalm: Boolean get() = this == CALM || this == CALM_CARDS
+
+    /** The card has its own read toggle; the others offer it in the ⋮ sheet. */
+    val readToggleOnCard: Boolean get() = this == LARGE || this == CARD || this == MINI
+
+    /** Shows the poster's picture, so it asks for posters' pictures (as Settings › Poster's picture). */
+    val showsPosters: Boolean get() = this == COMPACT_CARDS
 }
 
 /** What a swipe on a post or comment does. Persisted by [key] (Flutter's enum name). */

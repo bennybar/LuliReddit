@@ -508,8 +508,8 @@ private fun PostActionsSheet(post: Post, onComment: (() -> Unit)?, done: () -> U
                 }
             }
             MenuGroup {
-                // The Calm card has no read toggle of its own: it lives here.
-                if (app.settings.value.postDisplay.isCalm) {
+                // Calm and Compact cards have no read toggle of their own: it lives here.
+                if (!app.settings.value.postDisplay.readToggleOnCard) {
                     act(
                         if (seen) Icons.Rounded.CheckCircle else Icons.Outlined.CheckCircleOutline,
                         if (seen) "Mark as unread" else "Mark as read",

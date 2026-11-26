@@ -120,6 +120,8 @@ import com.bennybar.luli_for_reddit.ui.ErrorView
 import com.bennybar.luli_for_reddit.ui.Overlays
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
+import androidx.compose.foundation.layout.calculateStartPadding
 import com.bennybar.luli_for_reddit.model.Post
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.delay
@@ -612,11 +614,16 @@ private fun FeedList(
         }
     }
 
+    // Compact's flat rows (#284) reach past the list's side inset to the screen's edges,
+    // and sit closer together.
+    val display by remember { app.settings.state.map { it.postDisplay }.distinctUntilChanged() }.collectAsState(app.settings.value.postDisplay)
+    val sideInset = listPadding.calculateStartPadding(androidx.compose.ui.unit.LayoutDirection.Ltr)
+    CompositionLocalProvider(LocalFeedSideInset provides sideInset) {
     LazyColumn(
         Modifier.fillMaxSize(),
         state = listState,
         contentPadding = listPadding,
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(if (display == PostDisplay.COMPACT) 6.dp else 10.dp),
     ) {
         if (header != null) item(key = "header", contentType = "header") { header() }
         item(key = "sortbar", contentType = "sortbar") { chips() }
@@ -654,6 +661,7 @@ private fun FeedList(
                 }
             }
         }
+    }
     }
 }
 

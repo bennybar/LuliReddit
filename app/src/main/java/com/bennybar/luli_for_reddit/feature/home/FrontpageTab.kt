@@ -478,8 +478,9 @@ private fun ToolbarPanel(
                             fontWeight = FontWeight.SemiBold,
                             color = cs.primary,
                         )
+                        // Four to a row, so seven layouts keep readable labels (#284).
+                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) { PostDisplay.entries.chunked(4).forEach { all ->
                         Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                            val all = PostDisplay.entries
                             all.forEachIndexed { i, d ->
                                 val start = if (i == 0) 20.dp else PanelInner
                                 val end = if (i == all.lastIndex) 20.dp else PanelInner
@@ -502,7 +503,10 @@ private fun ToolbarPanel(
                                     Text(d.label, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = fg, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                             }
+                            // A short last row keeps its buttons the same width as the others.
+                            repeat(4 - all.size) { Spacer(Modifier.weight(1f)) }
                         }
+                        } }
                     }
                     TopBarMenuItem.AUTOPLAY -> Row(
                         Modifier
