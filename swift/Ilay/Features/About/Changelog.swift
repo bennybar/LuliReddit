@@ -12,6 +12,11 @@ struct Release: Identifiable {
 /// 2.0 (the native app, with Reddit Home). Add the new release at the top
 /// with every release.
 let CHANGELOG = [
+    Release(version: "2.0.117", date: "Nov 26, 2026", highlights: [
+        "Appearance: Corner roundness (Round, Medium, Small, Square) for posts' cards and media (#283)",
+        "Two new post layouts: Compact (flat rows, a meta line on top, a slim action row) and Compact cards (the poster's picture, votes on the right) (#284)",
+        "The poster's picture shows with the website sign-in too, where Reddit sends it with the post",
+    ]),
     Release(version: "2.0.116", date: "Nov 26, 2026", highlights: [
         "Home feed: posts arrive complete on the first paint (flair, icons, size), and faster; cards land where they stay after a pull to refresh",
         "Feeds: cards fly in once, stay put when updated, and a fresh page doesn't yank you to the top",
