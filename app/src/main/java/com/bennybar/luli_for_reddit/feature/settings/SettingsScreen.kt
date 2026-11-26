@@ -339,7 +339,21 @@ fun SettingsScreen(section: String? = null) {
             )
         },
     ) { padding ->
-        SettingsList(contentPadding = padding, section = section, listState = listState, barSearch = barSearch)
+        if (section == "Appearance") {
+            // A live sample post pinned above the options: every change shows on it at once.
+            Column(Modifier.padding(top = padding.calculateTopPadding())) {
+                AppearancePreview()
+                SettingsList(
+                    Modifier.weight(1f),
+                    contentPadding = PaddingValues(bottom = padding.calculateBottomPadding()),
+                    section = section,
+                    listState = listState,
+                    barSearch = barSearch,
+                )
+            }
+        } else {
+            SettingsList(contentPadding = padding, section = section, listState = listState, barSearch = barSearch)
+        }
     }
 }
 
