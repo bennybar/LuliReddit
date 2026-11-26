@@ -111,10 +111,13 @@ fun ThemeColorsScreen() {
     }
 }
 
-/** The page's controls, also the setup's Look step. */
+/**
+ * The page's controls, also the setup's Look step, and Settings › Appearance's colour
+ * part, where [showPreview] is off: the page's own sample post is pinned above it.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ThemeColorsContent() {
+fun ThemeColorsContent(showPreview: Boolean = true) {
     val s by app.settings.state.collectAsStateWithLifecycle()
     val ctrl = app.settings
     val cs = MaterialTheme.colorScheme
@@ -128,7 +131,7 @@ fun ThemeColorsContent() {
     val seed = if (s.useDynamicColor && wallpaper != null) wallpaper.toLong() and 0xFFFFFFFFL else s.seedColor
 
     Column(Modifier.padding(horizontal = 16.dp)) {
-        ThemePreview()
+        if (showPreview) ThemePreview()
 
         Heading("Mode")
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {

@@ -16,7 +16,6 @@ import androidx.compose.material.icons.outlined.ManageAccounts
 import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.FormatPaint
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.AccountCircle
@@ -704,32 +703,51 @@ fun SettingsList(
 
         // ---------------------------------------------------------------- Appearance
         section("Appearance")
-        // Light / dark, AMOLED, wallpaper colours, the accent and the palette style: one page (#114).
-        add(Entry("t:Theme & colours", "Theme & colours ${themeSummary(s)} dark light AMOLED black accent color colour wallpaper dynamic palette style hex") {
-            SettingTile("Theme & colours", themeSummary(s), Icons.Outlined.FormatPaint, onClick = { nav.push(Route.ThemeColors) })
+        // Every choice the pinned preview shows is made right here, not in a sheet or on
+        // another page, so options can be tried one after another while it follows.
+        add(Entry("d:sub-posts", null) { SettingsSubheading("Posts") })
+        // How posts look in feeds.
+        add(Entry("t:Post display", "Post display ${s.postDisplay.label} layout cards compact calm mini default") {
+            InlineChoice("Post display", null, PostDisplay.entries.map { Choice(it, it.label, it.icon) }, s.postDisplay, onSelect = ctrl::setPostDisplay)
         })
-        tile("App font", s.appFont.label, Icons.Rounded.FontDownload, onClick = launch {
-            pickOption(AppFont.entries.map { PickOption(it, it.label, subtitle = it.description) }, s.appFont)?.let(ctrl::setAppFont)
+        // How round posts' cards and media are (#283).
+        add(Entry("t:Corner roundness", "Corner roundness ${s.cornerRoundness.label} round medium small square corners") {
+            InlineChoice("Corner roundness", Icons.Rounded.RoundedCorner, CornerRoundness.entries.map { Choice(it, it.label) }, s.cornerRoundness, onSelect = ctrl::setCornerRoundness)
+        })
+        // How much of a post's text feeds show (#186).
+        add(Entry("t:Post text in feeds", "Post text in feeds layout's default 2 or 3 lines 5 lines 10 lines") {
+            InlineChoice(
+                "Post text in feeds", Icons.AutoMirrored.Rounded.Notes,
+                listOf(Choice(0, "Default"), Choice(5, "5 lines"), Choice(10, "10 lines")), s.postTextLines,
+                subtitle = "Default: the layout's 2 or 3 lines", onSelect = ctrl::setPostTextLines,
+            )
         })
         switch(
-            "r/ before subreddit names", "Show \"r/pics\" on posts and lists. Off: just \"pics\"",
-            Icons.Rounded.Tag, s.subredditPrefix, ctrl::setSubredditPrefix,
+            "Subreddit icons", "Show each community's icon on posts instead of its first letter",
+            Icons.Rounded.Image, s.subredditIcons, ctrl::setSubredditIcons,
         )
         switch(
-            "u/ before your name in the side bar", "Show \"u/you\" at the top of the side bar. Off: just \"you\"",
-            Icons.Rounded.AlternateEmail, s.sideBarUserPrefix, ctrl::setSideBarUserPrefix,
+            "Poster's picture on posts", "A small profile picture on the community's icon. One more Reddit request per page of posts",
+            Icons.Rounded.AccountCircle, s.postAvatars, ctrl::setPostAvatars,
         )
-        add(Entry("appIcon", "App icon launcher home screen colour") {
-            val current = AppIcon.parse(s.appIcon)
-            SettingTile("App icon", current.label, onClick = {
-                scope.launch {
-                    val picked = pickAppIcon(current) ?: return@launch
-                    if (picked == current) return@launch
-                    ctrl.setAppIcon(picked.key)
-                    AppIcon.apply(context, picked)
-                    nav.showSnackbar("App icon changed. Your home screen can take a few seconds to update.")
-                }
-            }, leading = { AppIconPreview(current, 24.dp) })
+        switch(
+            "Floating filter chips", "On Home, subreddits and custom feeds, show the chips under the top bar when you scroll back up",
+            Icons.Rounded.FilterList, s.floatingChips, ctrl::setFloatingChips,
+        )
+        if (s.floatingChips) {
+            // #91: the solid top-bar background of 2.0.58, or the outlined chips over the posts as before.
+            add(Entry("t:Floating chips background", "Floating chips background transparent solid") {
+                InlineChoice(
+                    "Floating chips background", Icons.Rounded.FilterList,
+                    listOf(Choice(false, "Transparent"), Choice(true, "Solid")), s.floatingChipsSolid,
+                    subtitle = if (s.floatingChipsSolid) "On the top bar's background" else "Just the outlined chips, over the posts",
+                    onSelect = ctrl::setFloatingChipsSolid,
+                )
+            })
+        }
+        add(Entry("d:sub-text", null) { SettingsSubheading("Text") })
+        add(Entry("t:App font", "App font ${s.appFont.label} ${AppFont.entries.joinToString(" ") { it.label }}") {
+            InlineChoice("App font", Icons.Rounded.FontDownload, AppFont.entries.map { Choice(it, it.label) }, s.appFont, subtitle = s.appFont.description, onSelect = ctrl::setAppFont)
         })
         tile("Font size", "${(s.textScale * 100).roundToInt()}% of normal", Icons.Rounded.FormatSize)
         add(Entry("fontSlider", null) {
@@ -779,46 +797,34 @@ fun SettingsList(
             enabled = !defaultSizes,
             onClick = ctrl::resetTextScales,
         )
-        divider("appearance-feeds")
-        // How posts look in feeds.
-        tile("Post display", s.postDisplay.label, s.postDisplay.icon, onClick = launch {
-            pickOption(PostDisplay.entries.map { PickOption(it, it.label, icon = it.icon) }, s.postDisplay)
-                ?.let(ctrl::setPostDisplay)
+        // Light / dark, AMOLED, wallpaper colours, the accent and the palette style (#114):
+        // the Theme & colours page's controls, here under the pinned preview.
+        add(Entry("d:sub-colour", null) { SettingsSubheading("Theme & colours") })
+        add(Entry("d:themeColors", "Theme & colours ${themeSummary(s)} dark light AMOLED black accent color colour wallpaper dynamic palette style hex mode") {
+            ThemeColorsContent(showPreview = false)
         })
-        // How round posts' cards and media are (#283).
-        tile("Corner roundness", s.cornerRoundness.label, Icons.Rounded.RoundedCorner, onClick = launch {
-            pickOption(CornerRoundness.entries.map { PickOption(it, it.label, it.description) }, s.cornerRoundness)
-                ?.let(ctrl::setCornerRoundness)
-        })
-        // How much of a post's text feeds show (#186).
-        val textLines = listOf(PickOption(0, "Layout's default", "2 or 3 lines"), PickOption(5, "5 lines"), PickOption(10, "10 lines"))
-        tile("Post text in feeds", textLines.first { it.value == s.postTextLines }.label, Icons.AutoMirrored.Rounded.Notes, onClick = launch {
-            pickOption(textLines, s.postTextLines)?.let(ctrl::setPostTextLines)
-        })
+        add(Entry("d:sub-other", null) { SettingsSubheading("Other") })
         switch(
-            "Subreddit icons", "Show each community's icon on posts instead of its first letter",
-            Icons.Rounded.Image, s.subredditIcons, ctrl::setSubredditIcons,
+            "r/ before subreddit names", "Show \"r/pics\" on posts and lists. Off: just \"pics\"",
+            Icons.Rounded.Tag, s.subredditPrefix, ctrl::setSubredditPrefix,
         )
         switch(
-            "Poster's picture on posts", "A small profile picture on the community's icon. One more Reddit request per page of posts",
-            Icons.Rounded.AccountCircle, s.postAvatars, ctrl::setPostAvatars,
+            "u/ before your name in the side bar", "Show \"u/you\" at the top of the side bar. Off: just \"you\"",
+            Icons.Rounded.AlternateEmail, s.sideBarUserPrefix, ctrl::setSideBarUserPrefix,
         )
-        switch(
-            "Floating filter chips", "On Home, subreddits and custom feeds, show the chips under the top bar when you scroll back up",
-            Icons.Rounded.FilterList, s.floatingChips, ctrl::setFloatingChips,
-        )
-        if (s.floatingChips) {
-            // #91: the solid top-bar background of 2.0.58, or the outlined chips over the posts as before.
-            tile("Floating chips background", if (s.floatingChipsSolid) "Solid" else "Transparent", Icons.Rounded.FilterList, onClick = launch {
-                pickOption(
-                    listOf(
-                        PickOption(false, "Transparent", "Just the outlined chips, over the posts"),
-                        PickOption(true, "Solid", "On the top bar's background, so posts don't show between the chips"),
-                    ),
-                    s.floatingChipsSolid,
-                )?.let(ctrl::setFloatingChipsSolid)
-            })
-        }
+        // A sheet that doesn't leave the page; the launcher icon isn't in the preview.
+        add(Entry("appIcon", "App icon launcher home screen colour") {
+            val current = AppIcon.parse(s.appIcon)
+            SettingTile("App icon", current.label, onClick = {
+                scope.launch {
+                    val picked = pickAppIcon(current) ?: return@launch
+                    if (picked == current) return@launch
+                    ctrl.setAppIcon(picked.key)
+                    AppIcon.apply(context, picked)
+                    nav.showSnackbar("App icon changed. Your home screen can take a few seconds to update.")
+                }
+            }, leading = { AppIconPreview(current, 24.dp) })
+        })
         divider("appearance")
 
         // ---------------------------------------------------------------- Navigation

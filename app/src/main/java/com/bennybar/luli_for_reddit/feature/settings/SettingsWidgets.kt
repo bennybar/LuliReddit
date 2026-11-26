@@ -61,6 +61,15 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bennybar.luli_for_reddit.ui.Overlays
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -303,4 +312,78 @@ internal fun showHiddenSubsDialog() {
             confirmButton = { TextButton(onClick = done, shapes = ButtonDefaults.shapes()) { Text("Done") } },
         )
     }
+}
+
+/** One choice of an [InlineChoice]: its value, label and optional icon. */
+internal class Choice<T>(val value: T, val label: String, val icon: ImageVector? = null)
+
+/**
+ * A setting picked right on the page (Appearance, under its pinned preview): segmented
+ * buttons for up to four short options, else a scrolling row of chips. Picking doesn't
+ * leave the page, so options can be tried one after another while the preview follows.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun <T> InlineChoice(
+    title: String,
+    icon: ImageVector?,
+    choices: List<Choice<T>>,
+    selected: T,
+    subtitle: String? = null,
+    onSelect: (T) -> Unit,
+) {
+    val cs = MaterialTheme.colorScheme
+    Column(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 12.dp)) {
+        Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (icon != null) {
+                Icon(icon, null, tint = cs.onSurfaceVariant)
+                Spacer(Modifier.size(16.dp))
+            }
+            Column {
+                Text(title, style = MaterialTheme.typography.bodyLarge)
+                if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        val segmented = choices.size <= 4 && choices.all { it.label.length <= 10 && it.icon == null }
+        if (segmented) {
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                choices.forEachIndexed { i, c ->
+                    SegmentedButton(
+                        selected = c.value == selected,
+                        onClick = { onSelect(c.value) },
+                        shape = SegmentedButtonDefaults.itemShape(i, choices.size),
+                        modifier = Modifier.semantics { contentDescription = "$title: ${c.label}" },
+                    ) { Text(c.label, maxLines = 1) }
+                }
+            }
+        } else {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp),
+            ) {
+                items(choices.size) { i ->
+                    val c = choices[i]
+                    FilterChip(
+                        selected = c.value == selected,
+                        onClick = { onSelect(c.value) },
+                        label = { Text(c.label, maxLines = 1) },
+                        leadingIcon = c.icon?.let { ic -> { Icon(ic, null, Modifier.size(18.dp)) } },
+                        modifier = Modifier.semantics { contentDescription = "$title: ${c.label}" },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** A sub-heading on a settings page (Appearance's Text, Posts…), between its row groups. */
+@Composable
+internal fun SettingsSubheading(text: String) {
+    Text(
+        text,
+        Modifier.fillMaxWidth().padding(start = 32.dp, top = 6.dp, end = 16.dp, bottom = 6.dp),
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
