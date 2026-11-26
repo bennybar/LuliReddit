@@ -37,7 +37,32 @@ fun Modifier.searchMorphSource(): Modifier = searchMorph(LocalScreenTransition.c
 @Composable
 fun Modifier.searchMorphField(): Modifier = searchMorph(LocalSearchOpenedFrom.current)
 
+/** On the search box's words: they travel to the Search screen's placeholder, not just fade (#285). */
+@Composable
+fun Modifier.searchMorphSourceText(): Modifier = searchMorphText(LocalScreenTransition.current?.entryId)
+
+/** On the Search screen's placeholder. */
+@Composable
+fun Modifier.searchMorphFieldText(): Modifier = searchMorphText(LocalSearchOpenedFrom.current)
+
 private val Emphasized = CubicBezierEasing(0.2f, 0f, 0f, 1f)
+
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+private fun Modifier.searchMorphText(from: String?): Modifier {
+    val shared = LocalSharedTransition.current
+    val screen = LocalScreenTransition.current
+    if (shared == null || screen == null || from == null) return this
+    return with(shared) {
+        this@searchMorphText.sharedElement(
+            rememberSharedContentState("searchText:$from"),
+            screen.scope,
+            boundsTransform = { _, _ -> tween(300, easing = Emphasized) },
+            // Over the field growing around it.
+            zIndexInOverlay = 1f,
+        )
+    }
+}
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable

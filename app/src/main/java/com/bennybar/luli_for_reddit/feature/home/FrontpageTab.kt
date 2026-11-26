@@ -90,6 +90,7 @@ import com.bennybar.luli_for_reddit.nav.AppNavigator
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.Route
 import com.bennybar.luli_for_reddit.nav.searchMorphSource
+import com.bennybar.luli_for_reddit.nav.searchMorphSourceText
 import androidx.compose.foundation.layout.RowScope
 import com.bennybar.luli_for_reddit.settings.PostDisplay
 import com.bennybar.luli_for_reddit.settings.TopBarMode
@@ -138,11 +139,13 @@ internal fun FrontpageTab(selected: Boolean) {
     // What the Search screen's field grows out of (#271). Only while this tab is the one
     // shown: Home can keep every tab composed, and a hidden one mustn't be the source.
     val searchSource = if (selected) Modifier.searchMorphSource() else Modifier
+    // Its words travel into the field's (#285).
+    val searchText = if (selected) Modifier.searchMorphSourceText() else Modifier
 
     // Full mode: Google-app style search bar with avatar.
     val actionRow: @Composable () -> Unit = {
         // The menu, without what's already in this bar (#78).
-        FullTopBar(username, searchSource) { showFloatingToolbar(nav, username, { openMediaBrowser(nav, feedKey, listState) }, compact = true) }
+        FullTopBar(username, searchSource, searchText) { showFloatingToolbar(nav, username, { openMediaBrowser(nav, feedKey, listState) }, compact = true) }
     }
     // Full mode's title row, which scrolls with the feed (the feed insets it 7dp).
     val titleRow: @Composable () -> Unit = {
@@ -236,13 +239,13 @@ private fun NewPostButton(onClick: () -> Unit) {
  * goes on the search bar itself (the Posts tab's: where the Search screen's field grows from).
  */
 @Composable
-internal fun FullTopBar(username: String, searchModifier: Modifier = Modifier, onAvatar: () -> Unit) {
+internal fun FullTopBar(username: String, searchModifier: Modifier = Modifier, textModifier: Modifier = Modifier, onAvatar: () -> Unit) {
     val settings by app.settings.state.collectAsStateWithLifecycle()
     val nav = LocalNavigator.current
     if (!settings.fullBarNewPost && !settings.showApiUsage) {
         // Without the New post button, Gmail's (#146): a fully round bar with "Search
         // Reddit" in the middle, the ☰ and your picture beside it, outside (#164).
-        RoundSearchBar(username, searchModifier, onAvatar)
+        RoundSearchBar(username, searchModifier, textModifier, onAvatar)
         return
     }
     Row(
@@ -260,7 +263,7 @@ internal fun FullTopBar(username: String, searchModifier: Modifier = Modifier, o
         if (settings.showApiUsage) {
             ApiUsagePill(Modifier.weight(1f))
         } else {
-            SearchPill("Search Reddit", onClick = { nav.push(Route.Search()) }, modifier = Modifier.weight(1f).then(searchModifier))
+            SearchPill("Search Reddit", onClick = { nav.push(Route.Search()) }, modifier = Modifier.weight(1f).then(searchModifier), labelModifier = textModifier)
         }
         if (settings.fullBarNewPost) {
             Spacer(Modifier.width(4.dp))
@@ -272,7 +275,7 @@ internal fun FullTopBar(username: String, searchModifier: Modifier = Modifier, o
 
 /** The Full bar as Gmail's (#146, #164): ☰, a fully round bar with "Search Reddit" in the middle, and your picture. */
 @Composable
-private fun RoundSearchBar(username: String, searchModifier: Modifier, onAvatar: () -> Unit) {
+private fun RoundSearchBar(username: String, searchModifier: Modifier, textModifier: Modifier, onAvatar: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     val nav = LocalNavigator.current
     val sideBar = LocalSideBar.current != null
@@ -287,7 +290,7 @@ private fun RoundSearchBar(username: String, searchModifier: Modifier, onAvatar:
             color = cs.surfaceContainerHigh,
         ) {
             Box(Modifier.fillMaxSize().clickable(onClickLabel = "Search Reddit") { nav.push(Route.Search()) }, contentAlignment = Alignment.Center) {
-                Text("Search Reddit", color = cs.onSurfaceVariant, fontSize = 16.sp, maxLines = 1)
+                Text("Search Reddit", textModifier, color = cs.onSurfaceVariant, fontSize = 16.sp, maxLines = 1)
             }
         }
         BarAvatar(username, onAvatar)

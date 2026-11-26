@@ -82,6 +82,12 @@ import com.bennybar.luli_for_reddit.model.RedditUser
 import com.bennybar.luli_for_reddit.model.Subreddit
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.searchMorphField
+import com.bennybar.luli_for_reddit.nav.searchMorphFieldText
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.add
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import com.bennybar.luli_for_reddit.ui.ErrorView
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -375,21 +381,31 @@ fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time:
     Scaffold(
         topBar = {
             Column {
-                BloomTopBar(
-                    "",
-                    titleContent = {
+                // The field across the whole bar, its ← inside at the start (#285), as Gmail's.
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .windowInsetsPadding(TopAppBarDefaults.windowInsets.add(WindowInsets(top = 2.dp)))
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                ) {
                         PillTextField(
                             value = text,
                             onValueChange = { text = it },
                             placeholder = if (restricted) "Search in r/$subreddit" else "Search Reddit",
-                            // Grows out of the search box it was opened from (#271).
-                            modifier = Modifier.fillMaxWidth().padding(end = 16.dp).searchMorphField().focusRequester(focus),
+                            // Grows out of the search box it was opened from (#271), its words with it (#285).
+                            modifier = Modifier.fillMaxWidth().searchMorphField().focusRequester(focus),
+                            placeholderModifier = Modifier.searchMorphFieldText(),
                             onSearch = { doSearch(withAuthor(it)) },
-                            leadingChip = author?.let { a ->
-                                {
-                                    AuthorChip(a) {
-                                        author = null
-                                        if (text.isNotBlank()) doSearch(text) else vm.clear()
+                            leadingContent = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconButton(onClick = { nav.pop() }, Modifier.padding(start = 4.dp)) {
+                                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back")
+                                    }
+                                    author?.let { a ->
+                                        AuthorChip(a) {
+                                            author = null
+                                            if (text.isNotBlank()) doSearch(text) else vm.clear()
+                                        }
                                     }
                                 }
                             },
@@ -419,8 +435,7 @@ fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time:
                                 }
                             }),
                         )
-                    },
-                )
+                }
                 if (!restricted) {
                     val selected = if (results) pager.currentPage else picked
                     PrimaryTabRow(selectedTabIndex = selected, containerColor = cs.surface) {

@@ -472,15 +472,17 @@ fun PillTextField(
     trailing: (@Composable () -> Unit)? = null,
     onSearch: ((String) -> Unit)? = null,
     singleLine: Boolean = true,
-    leadingChip: (@Composable () -> Unit)? = null, // in place of the icon: a tag on the search (#271)
+    // In place of the icon: the search page's ← (#285) and a tag on the search (#271).
+    leadingContent: (@Composable () -> Unit)? = null,
+    placeholderModifier: Modifier = Modifier,
 ) {
     val cs = MaterialTheme.colorScheme
     TextField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier,
-        placeholder = { Text(placeholder, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        leadingIcon = leadingChip ?: { Icon(leading, null) },
+        placeholder = { Text(placeholder, placeholderModifier, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        leadingIcon = leadingContent ?: { Icon(leading, null) },
         trailingIcon = trailing,
         singleLine = singleLine,
         // A capsule at any height: a 28dp radius on the search screen's taller
@@ -503,7 +505,7 @@ fun PillTextField(
  * field, 60dp tall with its icon and text where the field has them (#115).
  */
 @Composable
-fun SearchPill(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector = SearchIcon) {
+fun SearchPill(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector = SearchIcon, labelModifier: Modifier = Modifier) {
     val cs = MaterialTheme.colorScheme
     GlassSurface(modifier) {
         Row(
@@ -512,7 +514,7 @@ fun SearchPill(label: String, onClick: () -> Unit, modifier: Modifier = Modifier
         ) {
             Icon(icon, null, tint = cs.onSurfaceVariant)
             Spacer(Modifier.width(16.dp))
-            Text(label, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(label, labelModifier, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
