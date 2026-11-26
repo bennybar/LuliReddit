@@ -1,6 +1,36 @@
 import XCTest
 @testable import Ilay
 
+/// `postDisplay` is stored by raw value: the Compact layouts (#284) come after the old ones,
+/// as the Kotlin app's PostDisplayTest.
+final class PostDisplayTests: XCTestCase {
+    func testStoredLayoutsKeepTheirMeaning() {
+        XCTAssertEqual([0, 1, 2, 3, 4].compactMap(PostDisplay.init(rawValue:)), [.large, .card, .mini, .calm, .calmCards])
+        XCTAssertEqual(PostDisplay(rawValue: 5), .compact)
+        XCTAssertEqual(PostDisplay(rawValue: 6), .compactCards)
+    }
+
+    func testCompactLayoutsKeepMarkReadInTheSheetAndOnlyCompactCardsAsksForPosters() {
+        XCTAssertFalse(PostDisplay.compact.readToggleOnCard)
+        XCTAssertFalse(PostDisplay.compactCards.readToggleOnCard)
+        XCTAssertTrue(PostDisplay.large.readToggleOnCard)
+        XCTAssertFalse(PostDisplay.calm.readToggleOnCard)
+        XCTAssertTrue(PostDisplay.compactCards.showsPosters)
+        XCTAssertFalse(PostDisplay.compact.showsPosters)
+    }
+
+    @MainActor func testCompactRowsRunEdgeToEdgeAndCompactCardsInsetTen() {
+        var c = FeedRowConfig.current(width: 400)
+        c.display = .compact
+        XCTAssertEqual(c.cardInset, 0)
+        XCTAssertEqual(c.contentInset, 16)
+        XCTAssertTrue(c.isCarded)
+        c.display = .compactCards
+        XCTAssertEqual(c.cardInset, 10)
+        XCTAssertEqual(c.contentInset, 14)
+    }
+}
+
 /// Settings › Appearance › Corner roundness (#283), as the Kotlin app's CornerRoundnessTest.
 final class CornerRoundnessTests: XCTestCase {
     func testRoundIsTheDefaultAndKeepsTodaysCorners() {

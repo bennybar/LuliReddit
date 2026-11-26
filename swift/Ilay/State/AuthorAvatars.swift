@@ -73,7 +73,9 @@ import Foundation
     /// other cards shown about now, so a page of posts costs one request (100 a request).
     /// Nothing with the setting off, or with the website sign-in (it gets a 404 there).
     func wantPoster(_ post: Post) {
-        guard app.settings.value.postAvatars else { return }
+        // Settings › Poster's picture, or a layout that always shows it (Compact cards, #284).
+        let s = app.settings.value
+        guard s.postAvatars || s.postDisplay.showsPosters else { return }
         let id = post.authorFullname
         guard id.hasPrefix("t2_"), icons[post.author.lowercased()] == nil, askedIds.insert(id).inserted else { return }
         pending.append(id)

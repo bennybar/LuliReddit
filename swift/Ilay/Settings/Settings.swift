@@ -93,7 +93,8 @@ enum HomeFab: Int, CaseIterable, Sendable {
 
 /// How posts are laid out in feeds. Persisted by index (`postDisplay`).
 enum PostDisplay: Int, CaseIterable, Sendable {
-    case large, card, mini, calm, calmCards
+    // compact / compactCards (#284, after Sync for Reddit): appended, as it's stored by raw value.
+    case large, card, mini, calm, calmCards, compact, compactCards
 
     var label: String {
         switch self {
@@ -102,6 +103,8 @@ enum PostDisplay: Int, CaseIterable, Sendable {
         case .mini: return "Mini cards"
         case .calm: return "Calm"
         case .calmCards: return "Calm cards"
+        case .compact: return "Compact"
+        case .compactCards: return "Compact cards"
         }
     }
 
@@ -113,11 +116,19 @@ enum PostDisplay: Int, CaseIterable, Sendable {
         case .mini: return "list.bullet"
         case .calm: return "leaf.fill"
         case .calmCards: return "leaf"
+        case .compact: return "list.bullet.rectangle"
+        case .compactCards: return "rectangle.stack"
         }
     }
 
     /// Both Calm layouts share the Calm post view and the ⋮-sheet read toggle.
     var isCalm: Bool { self == .calm || self == .calmCards }
+
+    /// The card has its own read toggle; the others offer it in the ⋮ sheet.
+    var readToggleOnCard: Bool { self == .large || self == .card || self == .mini }
+
+    /// Shows the poster's picture, so it asks for posters' pictures (as Settings › Poster's picture).
+    var showsPosters: Bool { self == .compactCards }
 }
 
 /// What a swipe on a post or comment does. Persisted by [rawValue] (Flutter's enum name).

@@ -407,8 +407,8 @@ private struct PostActionsSheet: View {
                             }
                         }
                     }
-                    // The Calm card has no read toggle of its own: it lives here.
-                    if app.settings.value.postDisplay.isCalm {
+                    // Calm and Compact cards have no read toggle of their own: it lives here.
+                    if !app.settings.value.postDisplay.readToggleOnCard {
                         let seen = app.history.contains(post.id)
                         item(seen ? "checkmark.circle.fill" : "checkmark.circle", seen ? "Mark as unread" : "Mark as read") {
                             if seen { app.history.removeViewed(post.id) } else { app.history.markViewed(post) }

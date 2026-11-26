@@ -29,10 +29,16 @@ struct FeedRowConfig: Equatable {
     var isCarded: Bool { display != .large && display != .mini }
     /// A feed post's corner `r` (its card and media) at the chosen roundness (#283).
     func corner(_ r: CGFloat) -> CGFloat { scaleCorner(r, cornerScale) }
-    /// The page margin around a card.
-    var cardInset: CGFloat { isCarded ? 12 : 0 }
+    /// The page margin around a card. Compact's flat rows run edge to edge (#284).
+    var cardInset: CGFloat {
+        switch display {
+        case .compact: 0
+        case .compactCards: 10
+        default: isCarded ? 12 : 0
+        }
+    }
     /// A card's content margin (a plain row's, from the screen edge).
-    var contentInset: CGFloat { display.isCalm ? 11 : isCarded ? 14 : 16 }
+    var contentInset: CGFloat { display.isCalm ? 11 : display == .compact ? 16 : isCarded ? 14 : 16 }
 
     /// How wide media is: Calm cards' runs from one edge of the card to the other.
     var mediaWidth: CGFloat {
@@ -252,6 +258,11 @@ struct PostRow: Identifiable, Equatable {
         }
         if p.type == .selfPost { return .none }
         let img = feedImageUrl(p, midRes: c.midResThumbnails)
+        // Compact: a link's small thumbnail beside its title, not a link box (#284).
+        if c.display == .compact, p.type == .link {
+            let raw = cardImage(p, midRes: c.midResThumbnails) ?? p.thumbnailUrl
+            return .thumbnail(url: blur ? nil : raw.flatMap(URL.init(string:)), pixels: Int(64 * c.scale * 2), symbol: blur ? "eye.slash" : "link", play: false)
+        }
         if p.type == .link {
             if c.display.isCalm {
                 let hero = (cardImage(p, midRes: c.midResThumbnails) ?? p.thumbnailUrl).flatMap(URL.init(string:))

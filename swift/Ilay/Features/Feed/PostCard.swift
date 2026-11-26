@@ -30,6 +30,8 @@ struct PostCard: View {
             case .mini: MiniCard(row: row, a: actions)
             case .calm: CalmCard(row: row, a: actions)
             case .calmCards: CalmCardsCard(row: row, a: actions)
+            case .compact: CompactCard(row: row, a: actions)
+            case .compactCards: CompactCardsCard(row: row, a: actions)
             }
         }
         .contentShape(Rectangle())
@@ -183,6 +185,270 @@ private struct CalmCardsCard: View {
         .overlay { ReadVeil(row: row) }
         .padding(.horizontal, row.config.cardInset)
         .padding(.bottom, 12)
+    }
+}
+
+/// "Compact" (#284, after Sync for Reddit): flat full-width rows with a small meta line, a
+/// medium title, media with small corners (a link's thumbnail beside the title) and a slim
+/// row of [↑ score ↓][comments] … save, share, ⋯. Mark-read lives in the ⋮ sheet.
+private struct CompactCard: View {
+    let row: PostRow
+    let a: PostActions
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            CompactMeta(row: row, a: a)
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 0) {
+                    CardTitle(row: row, font: .callout.weight(.medium))
+                    TextBelowTitle(row: row)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if case let .thumbnail(url, pixels, symbol, play) = row.media {
+                    // A link's thumbnail opens the link; a covered one opens the post.
+                    if row.blur {
+                        Thumbnail(url: url, pixels: pixels, symbol: symbol, play: play, radius: row.config.corner(8), size: 64)
+                    } else {
+                        Button(action: a.openMedia) {
+                            Thumbnail(url: url, pixels: pixels, symbol: symbol, play: play, radius: row.config.corner(8), size: 64).zoomSource()
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Open link")
+                    }
+                }
+            }
+            .padding(.top, 6)
+            CardMedia(row: row, a: a, radius: row.config.corner(8))
+                .padding(.top, row.kind == .text || row.kind == .thumbnail ? 0 : 8)
+            PollOptionsView(post: row.post).padding(.top, row.post.pollOptions.isEmpty ? 0 : 8)
+            CardSnippet(row: row, lines: 2)
+            CompactActions(row: row, a: a).padding(.top, 4)
+        }
+        .padding(.horizontal, row.config.contentInset)
+        .padding(.top, 12)
+        .padding(.bottom, 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background { CardVoteGlow(post: row.post, radius: 0, fadeTop: true) }
+        .background(Color(.secondarySystemGroupedBackground))
+        .overlay { ReadVeil(row: row) }
+        .padding(.bottom, 6)
+    }
+}
+
+/// "Compact cards" (#284): lightly rounded cards led by the poster (their picture, u/name
+/// over r/sub, the time on the right), a plain-weight title, and ⋯ / share / save on the
+/// left with ↓ score ↑ on the right. Mark-read lives in the ⋮ sheet.
+private struct CompactCardsCard: View {
+    let row: PostRow
+    let a: PostActions
+
+    private var radius: CGFloat { row.config.corner(14) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            PosterHeader(row: row, a: a)
+            CardTitle(row: row, font: .callout).padding(.top, 10)
+            TextBelowTitle(row: row)
+            CardMedia(row: row, a: a, radius: row.config.corner(10)).padding(.top, row.kind == .text ? 0 : 10)
+            PollOptionsView(post: row.post).padding(.top, row.post.pollOptions.isEmpty ? 0 : 8)
+            CardSnippet(row: row, lines: 2)
+            CompactCardsActions(row: row, a: a).padding(.top, 10)
+        }
+        .padding(.horizontal, row.config.contentInset)
+        .padding(.top, 14)
+        .padding(.bottom, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background { CardVoteGlow(post: row.post, radius: radius) }
+        .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: radius))
+        .overlay { ReadVeil(row: row, radius: radius) }
+        .padding(.horizontal, row.config.cardInset)
+        .padding(.bottom, 8)
+    }
+}
+
+/// "r/sub · u/author · 2h · domain": r/sub opens the community, u/author the profile.
+private struct CompactMeta: View {
+    let row: PostRow
+    let a: PostActions
+
+    var body: some View {
+        let p = row.post
+        let domain = p.type != .selfPost && !p.domain.isEmpty && !p.domain.hasPrefix("self.") ? p.domain : nil
+        HStack(spacing: 4) {
+            Button(action: a.openSubreddit) { Text(row.subredditLabel) }.buttonStyle(.plain).layoutPriority(1)
+            Text("·")
+            Button(action: a.openAuthor) { Text(row.authorLabel) }.buttonStyle(.plain)
+            Text("·")
+            Text(row.timeLabel).layoutPriority(1)
+            if let domain {
+                Text("·")
+                Text(domain)
+            }
+            Spacer(minLength: 0)
+            HeaderBadges(post: p)
+        }
+        .font(.footnote)
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+    }
+}
+
+/// The poster's picture, u/name over r/sub, and the time; the picture comes with the page's others (#270).
+private struct PosterHeader: View {
+    let row: PostRow
+    let a: PostActions
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button(action: a.openAuthor) { PosterAvatar(post: row.post, size: 36, pixels: Int(36 * row.config.scale)) }
+                .buttonStyle(.plain)
+                .accessibilityLabel(row.authorLabel)
+            VStack(alignment: .leading, spacing: 1) {
+                Button(action: a.openAuthor) {
+                    Text(row.authorLabel).font(.subheadline.weight(.medium)).foregroundStyle(.primary).lineLimit(1)
+                }
+                .buttonStyle(.plain)
+                Button(action: a.openSubreddit) {
+                    Text(row.subredditLabel).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer(minLength: 0)
+            HeaderBadges(post: row.post)
+            Text(row.timeLabel).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+        }
+    }
+}
+
+/// The poster's profile picture, or their first letter on a soft tone until (or without) one.
+private struct PosterAvatar: View {
+    let post: Post
+    let size: CGFloat
+    let pixels: Int
+
+    var body: some View {
+        ZStack {
+            if let url = app.authorAvatars.icons[post.author.lowercased()].flatMap(URL.init(string:)) {
+                SlotImage(url: url, pixels: pixels)
+            } else {
+                let tones = avatarTones(post.author)
+                tones.background
+                Text(post.author.first.map { String($0).uppercased() } ?? "?")
+                    .font(.system(size: size * 0.42, weight: .bold))
+                    .foregroundStyle(tones.letter)
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+        .task(id: post.authorFullname) { app.authorAvatars.wantPoster(post) }
+    }
+}
+
+/// Compact's row: [↑ score ↓] [comments] … save, share, ⋯.
+private struct CompactActions: View {
+    let row: PostRow
+    let a: PostActions
+
+    var body: some View {
+        HStack(spacing: 8) {
+            VoteCluster(post: row.post, a: a).background(Color(.tertiarySystemFill), in: .capsule)
+            CommentsButton(post: row.post, a: a).background(Color(.tertiarySystemFill), in: .capsule)
+            Spacer(minLength: 0)
+            SaveButton(post: row.post, a: a)
+            Button(action: a.share) {
+                Image(systemName: "square.and.arrow.up")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 40, height: 36)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Share")
+            Button(action: a.more) {
+                Image(systemName: "ellipsis")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 40, height: 36)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("More")
+        }
+        .padding(.trailing, -10)
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+    }
+}
+
+/// Compact cards' row: ⋯, share, save in rounded squares … ↓ score ↑ in circles. Reads the
+/// shared overrides itself, so a vote or save re-runs this and not the card.
+private struct CompactCardsActions: View {
+    let row: PostRow
+    let a: PostActions
+
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        let o = app.postOverrides.effective(row.post)
+        let votes = IlayTheme.voteColors(dark: scheme == .dark)
+        let up = o.likes == true, down = o.likes == false
+        HStack(spacing: 6) {
+            SquareAction(symbol: "ellipsis", label: "More", action: a.more)
+            SquareAction(symbol: "square.and.arrow.up", label: "Share", action: a.share)
+            SquareAction(symbol: o.saved ? "bookmark.fill" : "bookmark", label: o.saved ? "Unsave" : "Save", on: o.saved, action: a.toggleSave)
+            Spacer(minLength: 0)
+            RoundVote(symbol: "arrow.down", label: "Downvote", on: down, tint: votes.down) { a.vote(-1) }
+            Text(compactNumber(o.score))
+                .font(.subheadline.weight(.medium).monospacedDigit())
+                .foregroundStyle(up ? votes.up : down ? votes.down : .primary)
+                .lineLimit(1)
+                .fixedSize()
+                .padding(.horizontal, 4)
+            RoundVote(symbol: "arrow.up", label: "Upvote", on: up, tint: votes.up) { a.vote(1) }
+        }
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+    }
+}
+
+private struct SquareAction: View {
+    let symbol: String
+    let label: String
+    var on = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(on ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                .frame(width: 36, height: 36)
+                .background(Color(.tertiarySystemFill), in: .rect(cornerRadius: 12))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+}
+
+/// A round vote button: filled with the vote colour when it's yours, as the vote swipe does (#93).
+private struct RoundVote: View {
+    let symbol: String
+    let label: String
+    let on: Bool
+    let tint: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(on ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
+                .frame(width: 36, height: 36)
+                .background(on ? AnyShapeStyle(tint) : AnyShapeStyle(Color(.tertiarySystemFill)), in: Circle())
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .sensoryFeedback(.impact(weight: .light), trigger: on)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(on ? .isSelected : [])
+        .animation(.easeOut(duration: 0.15), value: on)
     }
 }
 
@@ -765,6 +1031,7 @@ private struct Thumbnail: View {
     let symbol: String
     let play: Bool
     var radius: CGFloat = 12
+    var size: CGFloat = 88
 
     var body: some View {
         ZStack {
@@ -778,7 +1045,7 @@ private struct Thumbnail: View {
                 Image(systemName: "play.circle.fill").font(.system(size: 26)).foregroundStyle(.white)
             }
         }
-        .frame(width: 88, height: 88)
+        .frame(width: size, height: size)
         .clipShape(.rect(cornerRadius: radius))
     }
 }
