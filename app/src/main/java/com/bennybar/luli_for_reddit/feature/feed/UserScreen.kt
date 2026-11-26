@@ -22,7 +22,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.shape.CircleShape
+import com.bennybar.luli_for_reddit.feature.media.opensPicture
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.rounded.Block
@@ -348,7 +348,7 @@ private fun ProfileHeader(user: RedditUser, canFollow: Boolean, onSwitchAccount:
         LetterAvatar(
             user.name, 60.dp, cs.primaryContainer, cs.onPrimaryContainer, imageUrl = user.iconUrl,
             // A tap opens the picture full screen (#279).
-            modifier = user.iconUrl?.let { icon -> Modifier.clip(CircleShape).clickable(onClickLabel = "Open picture") { nav.openPicture(icon, "u/${user.name}") } } ?: Modifier,
+            modifier = user.iconUrl?.let { icon -> Modifier.opensPicture(icon, "u/${user.name}") } ?: Modifier,
         )
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {

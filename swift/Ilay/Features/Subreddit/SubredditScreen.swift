@@ -243,8 +243,12 @@ private struct SubredditBannerHeader: View {
     @ScaledMetric(relativeTo: .body) private var textScale: CGFloat = 1
 
     @State private var open = false
+    /// Grown to the whole text (or growing): `open` shows it, `tall` animates the card's
+    /// height between the 3 lines and it, so Show all / Show less doesn't jump (#286).
+    @State private var tall = false
     @State private var fullHeight: CGFloat = 0
     @State private var shownHeight: CGFloat = 0
+    @State private var markdownHeight: CGFloat = 0
 
     var body: some View {
         let subscribed = vm.subOverride ?? about.userIsSubscriber ?? false
@@ -287,6 +291,10 @@ private struct SubredditBannerHeader: View {
                     if open {
                         // Reddit text, its links working, once it's all shown.
                         RedditMarkdown(text: about.description, fontSize: 15, color: .secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .onGeometryChange(for: CGFloat.self, of: \.size.height) { markdownHeight = $0 }
+                            .frame(height: tall ? markdownHeight : shownHeight, alignment: .top)
+                            .clipped()
                     } else {
                         Text(snippet)
                             .font(.system(size: size))
@@ -302,8 +310,17 @@ private struct SubredditBannerHeader: View {
                             }
                     }
                     if open || fullHeight > shownHeight + 1 {
-                        Button(open ? "Show less" : "Show all") { withAnimation(.easeOut(duration: 0.2)) { open.toggle() } }
-                            .font(.subheadline.weight(.semibold))
+                        Button(tall ? "Show less" : "Show all") {
+                            if tall {
+                                // Shrinks to the 3 lines' height, then they take the text's place.
+                                withAnimation(.easeInOut(duration: 0.26)) { tall = false } completion: { if !tall { open = false } }
+                            } else {
+                                // The text takes the 3 lines' place at their height, then grows.
+                                open = true
+                                DispatchQueue.main.async { withAnimation(.easeInOut(duration: 0.28)) { tall = true } }
+                            }
+                        }
+                        .font(.subheadline.weight(.semibold))
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -320,7 +337,7 @@ private struct SubredditBannerHeader: View {
                 Color.clear
                     .frame(width: bannerIcon + 6, height: bannerIcon + 6)
                     .contentShape(Circle())
-                    .zoomSource()
+                    .zoomSource(circle: true)
                     .onTapGesture { app.navigator.openPicture(icon, name: about.namePrefixed) }
                     .accessibilityLabel("Open picture")
                     .accessibilityAddTraits(.isButton)
@@ -650,7 +667,7 @@ extension View {
     /// itself (#279). Nothing for a letter avatar.
     @ViewBuilder func pictureOpens(_ url: String?, name: String) -> some View {
         if let url {
-            zoomSource()
+            zoomSource(circle: true)
                 .contentShape(Circle())
                 .onTapGesture { app.navigator.openPicture(url, name: name) }
                 .accessibilityLabel("Open picture")

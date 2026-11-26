@@ -1,6 +1,9 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
@@ -53,6 +56,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.foundation.shape.CircleShape
+import com.bennybar.luli_for_reddit.feature.media.opensPicture
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.offset
@@ -429,7 +433,7 @@ private fun BannerTitleBar(
             val icon = about?.iconUrl
             LetterAvatar(
                 name, iconSize, cs.secondaryContainer, cs.onSecondaryContainer, imageUrl = icon,
-                modifier = if (icon != null) Modifier.clip(CircleShape).clickable(onClickLabel = "Open picture") { nav.openPicture(icon, "r/$name") } else Modifier,
+                modifier = if (icon != null) Modifier.opensPicture(icon, "r/$name") else Modifier,
             )
         }
         val nameX = lerp(16.dp + ICON + 12.dp, iconX + iconSize + 10.dp, p)
@@ -546,7 +550,8 @@ private fun SubredditAbout(s: Subreddit) {
     // The same text size and spacing collapsed and open (#277): RedditMarkdown's.
     val style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp, lineHeight = 1.45.em)
     BloomCard(Modifier.padding(start = 10.dp, top = 4.dp, end = 10.dp, bottom = 4.dp).fillMaxWidth()) {
-        Column(Modifier.padding(start = 14.dp, top = 12.dp, end = 10.dp, bottom = 8.dp)) {
+        // Show all / Show less grows and shrinks the card rather than jumping (#286).
+        Column(Modifier.animateContentSize(tween(260, easing = FastOutSlowInEasing)).padding(start = 14.dp, top = 12.dp, end = 10.dp, bottom = 8.dp)) {
             // Reddit text, its links working, once it's all shown.
             if (open) RedditMarkdown(s.description, color = cs.onSurfaceVariant, fontSize = 15.sp)
             else Text(
@@ -590,7 +595,7 @@ private fun SubredditHeader(s: Subreddit, vm: SubredditAboutViewModel) {
                     LetterAvatar(
                         s.name, 52.dp, cs.secondaryContainer, cs.onSecondaryContainer, imageUrl = s.iconUrl,
                         // A tap opens the picture full screen (#279).
-                        modifier = s.iconUrl?.let { icon -> Modifier.clip(CircleShape).clickable(onClickLabel = "Open picture") { nav.openPicture(icon, s.namePrefixed) } } ?: Modifier,
+                        modifier = s.iconUrl?.let { icon -> Modifier.opensPicture(icon, s.namePrefixed) } ?: Modifier,
                     )
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {

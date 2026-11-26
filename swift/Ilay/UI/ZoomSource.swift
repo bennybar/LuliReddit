@@ -5,12 +5,14 @@ extension View {
     /// Marks media that opens the full-screen viewer: the viewer zooms out of it, and back
     /// into it on close, like Photos. An empty view behind the content, so taps and layout
     /// are untouched.
-    func zoomSource() -> some View { background(ZoomSource()) }
+    /// `circle`: a round picture, which grows out of its circle and shrinks back into it (#287).
+    func zoomSource(circle: Bool = false) -> some View { background(ZoomSource(circle: circle)) }
 }
 
 private struct ZoomSource: UIViewRepresentable {
+    let circle: Bool
     func makeUIView(context: Context) -> ZoomSourceView { ZoomSourceView() }
-    func updateUIView(_ view: ZoomSourceView, context: Context) {}
+    func updateUIView(_ view: ZoomSourceView, context: Context) { view.circle = circle }
 }
 
 /// Where a viewer zooms from. SwiftUI's media aren't UIViews, and the viewer is opened from
@@ -22,6 +24,8 @@ final class ZoomSourceView: UIView {
     private static weak var recordingWindow: UIWindow?
     /// The last touch down, in window coordinates.
     fileprivate static var lastTouch: (point: CGPoint, time: Date)?
+    /// Round: the zoom takes the source's corners, so it opens out of a circle.
+    var circle = false { didSet { setNeedsLayout() } }
 
     init() {
         super.init(frame: .zero)
@@ -30,6 +34,11 @@ final class ZoomSourceView: UIView {
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        layer.cornerRadius = circle ? min(bounds.width, bounds.height) / 2 : 0
+    }
 
     override func didMoveToWindow() {
         super.didMoveToWindow()

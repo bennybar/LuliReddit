@@ -12,6 +12,11 @@ import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterExitState
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -369,15 +374,21 @@ fun MediaViewerHost(stack: ViewerStack) {
     LaunchedEffect(covered) { app.media.inlinePlayer.setCovered(covered) }
     for (entry in stack.entries) {
         key(entry.id) {
+            // A picture opened from its circle grows out of it and back (#287) instead of fading.
+            val grows = (entry.viewer as? MediaViewer.Image)?.from?.isNotEmpty() == true
             AnimatedVisibility(
                 visibleState = entry.visibility,
-                enter = fadeIn(tween(220)),
-                exit = fadeOut(tween(180)),
+                enter = if (grows) EnterTransition.None else fadeIn(tween(220)),
+                exit = if (grows) ExitTransition.None else fadeOut(tween(180)),
             ) {
+                val growth = if (grows) transition.animateFloat(
+                    transitionSpec = { tween(if (targetState == EnterExitState.Visible) 320 else 260, easing = FastOutSlowInEasing) },
+                    label = "grow",
+                ) { if (it == EnterExitState.Visible) 1f else 0f } else null
                 // Swallows touches the viewer doesn't use, so they never reach the screen beneath.
                 Box(Modifier.fillMaxSize().pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } }) {
                     when (val v = entry.viewer) {
-                        is MediaViewer.Image -> ImageViewer(v.url, v.title)
+                        is MediaViewer.Image -> ImageViewer(v, progress = { growth?.value ?: 1f })
                         is MediaViewer.Gallery -> GalleryViewer(v)
                         is MediaViewer.Video -> VideoViewer(v)
                         is MediaViewer.Feed -> FeedMediaBrowser(v)
