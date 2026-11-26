@@ -59,12 +59,18 @@ func postCommentsVariables(_ postFullname: String, _ sort: String, _ focusCommen
 /// shape /api/morechildren returns. Depths are relative (a loaded "more"
 /// starts deeper, a focused thread's parents are negative), so the shallowest
 /// entries hang off the forest's own parent, else [linkFullname].
+/// An authorInfo's picture: `iconSmall` as the comment forest has it, else `icon` / `snoovatarIcon`.
+func gqlAuthorIcon(_ info: JsonElement?) -> String? {
+    let url = info["iconSmall"]["url"].str() ?? info["icon"]["url"].str() ?? info["snoovatarIcon"]["url"].str()
+    return url.flatMap { $0.hasPrefix("http") ? $0 : nil }
+}
+
 /// Each comment author's picture in a GraphQL comment forest: lowercased name → its iconSmall url.
 func gqlAuthorIcons(_ trees: [JsonElement]) -> [String: String] {
     var out: [String: String] = [:]
     for tree in trees {
         let info = tree["node"]["authorInfo"]
-        guard let name = info["name"].str(), let url = info["iconSmall"]["url"].str() else { continue }
+        guard let name = info["name"].str(), let url = gqlAuthorIcon(info) else { continue }
         out[name.lowercased()] = url
     }
     return out

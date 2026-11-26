@@ -76,6 +76,11 @@ import Foundation
         // Settings › Poster's picture, or a layout that always shows it (Compact cards, #284).
         let s = app.settings.value
         guard s.postAvatars || s.postDisplay.showsPosters else { return }
+        // The post brought its poster's picture (GraphQL, the website sign-in): no request.
+        if let icon = post.authorIcon {
+            if icons[post.author.lowercased()] != icon { add([post.author.lowercased(): icon]) }
+            return
+        }
         let id = post.authorFullname
         guard id.hasPrefix("t2_"), icons[post.author.lowercased()] == nil, askedIds.insert(id).inserted else { return }
         pending.append(id)

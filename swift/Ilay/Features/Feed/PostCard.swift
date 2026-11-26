@@ -340,7 +340,7 @@ private struct PosterAvatar: View {
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
-        .task(id: post.authorFullname) { app.authorAvatars.wantPoster(post) }
+        .task(id: post.authorFullname + (post.authorIcon ?? "")) { app.authorAvatars.wantPoster(post) }
     }
 }
 
@@ -729,7 +729,7 @@ private struct PosterBadge: View {
         }
         .frame(width: size + 3, height: size + 3)
         .allowsHitTesting(false)
-        .task(id: post.authorFullname) { app.authorAvatars.wantPoster(post) }
+        .task(id: post.authorFullname + (post.authorIcon ?? "")) { app.authorAvatars.wantPoster(post) }
     }
 }
 

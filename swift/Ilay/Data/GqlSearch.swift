@@ -248,6 +248,10 @@ func gqlPostData(_ n: JsonObject) -> JsonObject {
     ]
     // Left out when the response doesn't carry it: For You reads a missing ratio as neutral, not 0.
     if let ratio = n["upvoteRatio"].double() { o["upvote_ratio"] = .double(ratio) }
+    // The poster's id and picture, when the response carries them (#284): the comment
+    // forest's authorInfo has `iconSmall` (gqlAuthorIcons); a post's may share the shape.
+    if let aid = n["authorInfo"]["id"].str(), aid.hasPrefix("t2_") { o["author_fullname"] = .string(aid) }
+    if let icon = gqlAuthorIcon(n["authorInfo"]) { o["author_icon"] = .string(icon) }
     switch n["voteState"].str() {
     case "UP": o["likes"] = true
     case "DOWN": o["likes"] = false

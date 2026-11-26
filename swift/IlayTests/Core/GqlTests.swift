@@ -180,6 +180,30 @@ final class GqlSearchTests: XCTestCase {
         """#).obj()!
     }
 
+    func testThePostersIdAndPictureComeAlongWhenTheAuthorInfoHasThem() {
+        // #284: the comment forest's authorInfo shape (iconSmall), on a post.
+        let n = json(#"""
+        {"__typename":"SubredditPost","id":"t3_abc","postTitle":"A post",
+         "authorInfo":{"__typename":"Redditor","id":"t2_xyz","name":"someone","iconSmall":{"url":"https://i.redd.it/snoovatar/a.png"}},
+         "subreddit":{"name":"pics","prefixedName":"r/pics"},"score":1,"commentCount":0,
+         "createdAt":"2026-10-04T00:26:11.575000+0000","permalink":"/r/pics/comments/abc/a_post/"}
+        """#).obj()!
+        let p = Post.fromData(.object(gqlPostData(n)))
+        XCTAssertEqual(p.authorFullname, "t2_xyz")
+        XCTAssertEqual(p.authorIcon, "https://i.redd.it/snoovatar/a.png")
+        // Without one (as today's fixtures): no picture, no id, as before.
+        let plain = Post.fromData(.object(gqlPostData(node(#""url":"https://i.redd.it/x.jpg""#))))
+        XCTAssertNil(plain.authorIcon)
+        XCTAssertEqual(plain.authorFullname, "")
+    }
+
+    func testAnAuthorInfosPictureFallsBackToIconThenSnoovatarIcon() {
+        XCTAssertEqual(gqlAuthorIcon(json(#"{"icon":{"url":"https://a/i.png"}}"#)), "https://a/i.png")
+        XCTAssertEqual(gqlAuthorIcon(json(#"{"snoovatarIcon":{"url":"https://a/s.png"}}"#)), "https://a/s.png")
+        XCTAssertNil(gqlAuthorIcon(json(#"{"iconSmall":null}"#)))
+        XCTAssertNil(gqlAuthorIcon(nil))
+    }
+
     func testAGalleryKeepsEveryImage() {
         let p = Post.fromData(.object(gqlPostData(node(#""url":"https://www.reddit.com/gallery/abc","gallery":{"items":[{"media":{"url":"https://i.redd.it/1.jpg","width":800,"height":600}},{"media":{"url":"https://i.redd.it/2.jpg","width":600,"height":800}}]}"#))))
         XCTAssertEqual(p.gallery.map(\.url), ["https://i.redd.it/1.jpg", "https://i.redd.it/2.jpg"])

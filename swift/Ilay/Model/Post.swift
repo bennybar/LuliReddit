@@ -20,6 +20,9 @@ struct Post: Identifiable, Equatable, Sendable, Copyable {
     var author: String
     /// The author's account id (t2_…), for their picture on cards (#270); empty when unknown.
     var authorFullname: String = ""
+    /// The author's picture when the post's own data has it (GraphQL's authorInfo, with the
+    /// website sign-in): shown on cards without a lookup (#284). Nil from the REST API.
+    var authorIcon: String? = nil
     var score: Int
     var numComments: Int
     /// Nil when the source doesn't say (a card read from the Home page; GraphQL without the field).
@@ -143,6 +146,7 @@ struct Post: Identifiable, Equatable, Sendable, Copyable {
             subredditIcon: subredditIcon,
             author: d["author"].str() ?? "[deleted]",
             authorFullname: d["author_fullname"].str() ?? "",
+            authorIcon: d["author_icon"].str().flatMap { $0.hasPrefix("http") ? $0 : nil },
             score: d["score"].int() ?? 0,
             numComments: d["num_comments"].int() ?? 0,
             upvoteRatio: d["upvote_ratio"].double(),
