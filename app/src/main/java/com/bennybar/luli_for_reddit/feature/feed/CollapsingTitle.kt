@@ -141,6 +141,11 @@ class CollapsingTitle(private val atTop: () -> Boolean) : NestedScrollConnection
     internal suspend fun expand() {
         animate(progress, 0f) { v, _ -> progress = v }
     }
+
+    /** Folds it into the bar, e.g. for the bar's own search field (#247). */
+    internal suspend fun fold() {
+        if (extra > 0.dp) animate(progress, 1f) { v, _ -> progress = v }
+    }
 }
 
 /**

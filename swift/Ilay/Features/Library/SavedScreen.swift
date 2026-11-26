@@ -149,7 +149,7 @@ struct SavedScreen: View {
             .background(PagedListHook(generation: state.items.count))
         }
         .pageTitle("Saved")
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search saved")
+        .barSearch(text: $query, prompt: "Search saved", placement: .navigationBarDrawer(displayMode: .always))
         .onChange(of: query) { _, new in model.setQuery(new) }
         .onChange(of: app.contentFilters.value.hideNsfw) { _, new in model.setHideNsfw(new) }
         .onChange(of: "\(state.items.count)|\(state.after ?? "")|\(state.loading)|\(state.loadingMore)", initial: true) { model.fillIfShort() }

@@ -57,6 +57,7 @@ import com.bennybar.luli_for_reddit.core.routeForRedditUrl
 import com.bennybar.luli_for_reddit.core.timeAgo
 import com.bennybar.luli_for_reddit.feature.feed.BloomTopBar
 import com.bennybar.luli_for_reddit.feature.feed.PillTextField
+import com.bennybar.luli_for_reddit.feature.feed.rememberBarSearch
 import com.bennybar.luli_for_reddit.feature.markdown.RedditMarkdown
 import com.bennybar.luli_for_reddit.nav.LocalNavigator
 import com.bennybar.luli_for_reddit.nav.Route
@@ -71,7 +72,11 @@ fun SummariesScreen() {
     val cs = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
     val items by app.summaries.items.collectAsStateWithLifecycle()
-    var query by rememberSaveable { mutableStateOf("") }
+    val queryState = rememberSaveable { mutableStateOf("") }
+    var query by queryState
+    // With the Expandable top bar, search lives in the bar (#247): a 🔍 that opens a field across it.
+    val expandable = app.settings.state.collectAsStateWithLifecycle().value.topBarMode == com.bennybar.luli_for_reddit.settings.TopBarMode.EXPANDABLE
+    val barSearch = if (expandable) rememberBarSearch("Search summaries", queryState) else null
     val shown = remember(items, query) {
         val q = query.trim().lowercase()
         if (q.isEmpty()) items
@@ -118,7 +123,7 @@ fun SummariesScreen() {
                     },
                 )
             } else {
-                BloomTopBar("Summaries", actions = {
+                BloomTopBar("Summaries", search = barSearch?.takeIf { items.size > 3 }, actions = {
                     if (items.isNotEmpty()) {
                         IconButton(onClick = { selected = emptyList() }) { Icon(Icons.Rounded.Checklist, "Select") }
                     }
@@ -128,7 +133,7 @@ fun SummariesScreen() {
         containerColor = cs.surface,
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
-            if (items.size > 3) {
+            if (barSearch == null && items.size > 3) {
                 PillTextField(
                     value = query,
                     onValueChange = { query = it },

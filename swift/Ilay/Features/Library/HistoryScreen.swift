@@ -92,7 +92,7 @@ struct HistoryScreen: View {
                 .overlay {
                     if filtered.isEmpty { ContentUnavailableView.search }
                 }
-                .searchable(text: $query, prompt: "Search history")
+                .barSearch(text: $query, prompt: "Search history")
                 .environment(\.editMode, $editMode)
             }
         }

@@ -1163,7 +1163,7 @@ struct SettingsScreen: View {
 
     var body: some View {
         if section == nil {
-            list.searchable(text: $query, prompt: "Search settings")
+            list.barSearch(text: $query, prompt: "Search settings")
         } else {
             list
         }

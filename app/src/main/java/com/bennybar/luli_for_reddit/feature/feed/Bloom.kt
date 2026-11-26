@@ -19,6 +19,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.ProvideTextStyle
@@ -304,6 +310,116 @@ fun BloomTopBar(
     // The page's big header (#247, see rememberPageHeader): the title starts big under the
     // buttons and folds into the bar, as on the tabs.
     collapsing: CollapsingTitle? = null,
+    // The page's search in the bar (#247, WhatsApp's): a 🔍 among the actions that opens a
+    // field across the bar, in place of a full-width box under the title.
+    search: BarSearch? = null,
+) {
+    if (search == null) {
+        BloomTopBarRow(title, actions, titleContent, showBack, navigation, collapsing)
+        return
+    }
+    androidx.activity.compose.BackHandler(enabled = search.open) { search.close() }
+    LaunchedEffect(search.open) { if (search.open) collapsing?.fold() }
+    Box {
+        BloomTopBarRow(title, {
+            IconButton(onClick = { search.open = true }, shapes = IconButtonDefaults.shapes()) { Icon(SearchIcon, search.placeholder) }
+            actions()
+        }, titleContent, showBack, navigation, collapsing)
+        BarSearchRow(search, collapsing != null)
+    }
+}
+
+/**
+ * A page's search in its top bar (#247): [open] while its field shows across the bar,
+ * [query] the page's own filter text, cleared on close.
+ */
+@androidx.compose.runtime.Stable
+class BarSearch internal constructor(
+    val placeholder: String,
+    private val queryState: androidx.compose.runtime.MutableState<String>,
+    private val openState: androidx.compose.runtime.MutableState<Boolean>,
+) {
+    var open: Boolean
+        get() = openState.value
+        set(v) { openState.value = v }
+    var query: String
+        get() = queryState.value
+        set(v) { queryState.value = v }
+
+    fun close() {
+        open = false
+        query = ""
+    }
+}
+
+/** [query] is the page's filter text; the field stays open across a rotation while it has some. */
+@Composable
+fun rememberBarSearch(placeholder: String, query: androidx.compose.runtime.MutableState<String>): BarSearch {
+    val open = androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(query.value.isNotEmpty()) }
+    return remember(placeholder, query, open) { BarSearch(placeholder, query, open) }
+}
+
+/** The field across the bar's button row, growing out of the 🔍 at its end as WhatsApp's. */
+@Composable
+private fun BarSearchRow(search: BarSearch, collapsing: Boolean) {
+    val cs = MaterialTheme.colorScheme
+    val row = if (collapsing) {
+        // As CollapsingTitleBar's row: 10dp under the status bar, 48dp tall.
+        Modifier.statusBarsPadding().padding(top = 10.dp).height(48.dp)
+    } else {
+        Modifier.windowInsetsPadding(TopAppBarDefaults.windowInsets.add(WindowInsets(top = 2.dp))).height(64.dp)
+    }
+    Box(Modifier.fillMaxWidth().then(row), contentAlignment = Alignment.CenterEnd) {
+        androidx.compose.animation.AnimatedVisibility(
+            search.open,
+            enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(120)) +
+                androidx.compose.animation.expandHorizontally(androidx.compose.animation.core.tween(260), expandFrom = Alignment.End),
+            exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(160)) +
+                androidx.compose.animation.shrinkHorizontally(androidx.compose.animation.core.tween(220), shrinkTowards = Alignment.End),
+        ) {
+            val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+            Row(
+                Modifier.fillMaxWidth().fillMaxHeight().background(cs.surface).padding(start = 4.dp, end = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = { search.close() }, shapes = IconButtonDefaults.shapes()) {
+                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Close search")
+                }
+                Row(
+                    Modifier.weight(1f).height(44.dp).clip(CircleShape).background(cs.surfaceContainerHigh).padding(start = 14.dp, end = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                        if (search.query.isEmpty()) Text(search.placeholder, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        androidx.compose.foundation.text.BasicTextField(
+                            value = search.query,
+                            onValueChange = { search.query = it },
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodyLarge.copy(color = cs.onSurface),
+                            cursorBrush = androidx.compose.ui.graphics.SolidColor(cs.primary),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                        )
+                    }
+                    if (search.query.isNotEmpty()) {
+                        IconButton(onClick = { search.query = "" }) { Icon(androidx.compose.material.icons.Icons.Rounded.Close, "Clear") }
+                    }
+                }
+            }
+            LaunchedEffect(Unit) { focus.requestFocus() }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BloomTopBarRow(
+    title: String,
+    actions: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit,
+    titleContent: (@Composable () -> Unit)?,
+    showBack: Boolean,
+    navigation: (@Composable () -> Unit)?,
+    collapsing: CollapsingTitle?,
 ) {
     val nav = LocalNavigator.current
     if (collapsing != null && titleContent == null) {
