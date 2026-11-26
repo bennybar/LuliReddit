@@ -1241,10 +1241,14 @@ struct SettingsScreen: View {
             if section == "Appearance" && query.trimmed.isEmpty { AppearancePreview(scrolled: scrolled) }
         }
         // The preview's hairline shows only once the options have gone under it.
-        .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top > 1 } action: { _, now in scrolled = now }
+        // (Well past the top: at 1 pt the bounce there flipped it back and forth, and each
+        // flip redrew the page, which shook.)
+        .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top > 12 } action: { _, now in scrolled = now }
         .navigationTitle(section ?? "Settings")
         // Settings itself gets the big title with Expandable, as Saved and History (#268).
-        .navigationBarTitleDisplayMode(section == nil && app.settings.value.topBarMode == .expandable ? .large : .automatic)
+        // Appearance keeps the small title: a big one growing back at the top changed the
+        // room under the pinned preview, which moved the list, which shrank it again (it shook).
+        .navigationBarTitleDisplayMode(section == nil && app.settings.value.topBarMode == .expandable ? .large : section == "Appearance" ? .inline : .automatic)
         // Secure-storage state, re-read after edits and account changes.
         .task(id: "\(prompts.refresh)|\(app.session.session?.identity ?? "")") {
             let store = app.secureStore
