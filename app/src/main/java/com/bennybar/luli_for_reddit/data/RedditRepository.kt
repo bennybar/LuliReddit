@@ -882,21 +882,36 @@ class RedditRepository(val client: RedditClient) {
      * (= media_id, needed for galleries and richtext images).
      */
     suspend fun uploadMediaAsset(bytes: ByteArray, filename: String, mimeType: String): MediaAsset {
-        val lease = client.post("/api/media/asset.json", mapOf("filepath" to filename, "mimetype" to mimeType))
-        val args = lease["args"]
+        // Images lease under their real format, without a filepath (#296, see MediaUpload).
+        var data = bytes
+        var type = if (mimeType.startsWith("video/")) mimeType else MediaUpload.imageMimeType(bytes, mimeType)
+        // Reddit takes no HEIC: it goes up as a JPEG.
+        if (type == "image/heic") {
+            data = withContext(Dispatchers.Default) {
+                val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    ?: throw Exception("Couldn't read the image.")
+                java.io.ByteArrayOutputStream()
+                    .also { bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 92, it) }
+                    .toByteArray()
+            }
+            type = "image/jpeg"
+        }
+        val name = MediaUpload.fileName(filename, type)
+        val lease = client.post("/api/media/asset.json", MediaUpload.leaseParams(name, type))
+        val args = MediaUpload.uploadForm(lease)
         val action = args["action"].str() ?: throw Exception("Could not get an upload lease.")
-        val assetId = lease["asset"]["asset_id"].str() ?: ""
         val form = MultipartBody.Builder().setType(MultipartBody.FORM)
         for (f in args["fields"].arr() ?: emptyList()) {
-            val name = f["name"].str() ?: continue
-            form.addFormDataPart(name, (f["value"] as? JsonPrimitive)?.content ?: "")
+            val field = f["name"].str() ?: continue
+            form.addFormDataPart(field, (f["value"] as? JsonPrimitive)?.content ?: "")
         }
-        form.addFormDataPart("file", filename, bytes.toRequestBody())
+        form.addFormDataPart("file", name, data.toRequestBody())
         val uploadUrl = if (action.startsWith("http")) action else "https:$action"
         val xml = Http.client.await(Request.Builder().url(uploadUrl).post(form.build()).build())
             .use { withContext(Dispatchers.IO) { it.body.string() } }
-        val location = Regex("<Location>(.*?)</Location>").find(xml)?.groupValues?.get(1)?.replace("&amp;", "&")
-            ?: throw Exception("Upload failed (no location).")
+        val location = MediaUpload.xmlTag(xml, "Location") ?: throw Exception("Upload failed (no location).")
+        // An image lease can come without its asset: the uploaded file's key is its media id.
+        val assetId = lease["asset"]["asset_id"].str() ?: MediaUpload.xmlTag(xml, "Key") ?: ""
         return MediaAsset(location, assetId)
     }
 
