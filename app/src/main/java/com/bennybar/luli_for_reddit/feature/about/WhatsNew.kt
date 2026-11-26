@@ -47,6 +47,16 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.120", "Nov 26, 2026",
+        listOf(
+            "Image posts upload their image again: Reddit had started rejecting how Ilay asked for the upload, so posts went up as text only (#296)",
+            "Community banners: the status bar icons follow the banner under them and come back right when you leave (#291); a short, low-resolution banner shows sharp over its soft backdrop (#294)",
+            "Settings › Feed › \"New posts\" button: turn off the pop-up that offers newer posts (#292)",
+            "Search suggestions sit in a rounded group like the rest of the search page (#290)",
+            "Explore, Profile and Inbox open search with the same growing animation as Posts (#295)",
+        ),
+    ),
+    Release(
         "2.0.119", "Nov 26, 2026",
         listOf(
             "Appearance: a Preview button on each group (Layout, Colour, Text, Comments) opens the real post with that group's options under it, instead of a preview pinned over the page (#288)",
