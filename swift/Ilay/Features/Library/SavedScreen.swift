@@ -148,8 +148,9 @@ struct SavedScreen: View {
             }
             .background(PagedListHook(generation: state.items.count))
         }
+        // Inside the title: the open field's small title wins over the big one (#285).
+        .barSearch(text: $query, prompt: "Search saved")
         .pageTitle("Saved")
-        .barSearch(text: $query, prompt: "Search saved", placement: .navigationBarDrawer(displayMode: .always))
         .onChange(of: query) { _, new in model.setQuery(new) }
         .onChange(of: app.contentFilters.value.hideNsfw) { _, new in model.setHideNsfw(new) }
         .onChange(of: "\(state.items.count)|\(state.after ?? "")|\(state.loading)|\(state.loadingMore)", initial: true) { model.fillIfShort() }

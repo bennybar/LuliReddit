@@ -1202,9 +1202,13 @@ struct SettingsScreen: View {
 
     var body: some View {
         if section == nil {
+            // Settings itself gets the big title with Expandable, as Saved and History (#268):
+            // its search sets it, small while the field is open (#285).
             list.barSearch(text: $query, prompt: "Search settings")
         } else {
-            list
+            // Appearance keeps the small title: a big one growing back at the top changed the
+            // room under the pinned preview, which moved the list, which shrank it again (it shook).
+            list.navigationBarTitleDisplayMode(section == "Appearance" ? .inline : .automatic)
         }
     }
 
@@ -1289,10 +1293,6 @@ struct SettingsScreen: View {
         // flip redrew the page, which shook.)
         .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top > 12 } action: { _, now in scrolled = now }
         .navigationTitle(section ?? "Settings")
-        // Settings itself gets the big title with Expandable, as Saved and History (#268).
-        // Appearance keeps the small title: a big one growing back at the top changed the
-        // room under the pinned preview, which moved the list, which shrank it again (it shook).
-        .navigationBarTitleDisplayMode(section == nil && app.settings.value.topBarMode == .expandable ? .large : section == "Appearance" ? .inline : .automatic)
         // Secure-storage state, re-read after edits and account changes.
         .task(id: "\(prompts.refresh)|\(app.session.session?.identity ?? "")") {
             let store = app.secureStore

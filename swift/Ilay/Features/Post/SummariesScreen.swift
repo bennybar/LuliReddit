@@ -48,10 +48,11 @@ struct SummariesScreen: View {
                 .listStyle(.plain)
             }
         }
+        // Inside the title: the open field's small title wins over the big one (#285).
+        .modifier(SummarySearch(enabled: items.count > 3, query: $query))
         .navigationTitle(selecting ? "\(selection.count) selected" : "Summaries")
         .navigationBarTitleDisplayMode(selecting ? .inline : .large)
         .environment(\.editMode, $editMode)
-        .modifier(SummarySearch(enabled: items.count > 3, query: $query))
         .toolbar {
             if selecting {
                 ToolbarItem(placement: .topBarLeading) {

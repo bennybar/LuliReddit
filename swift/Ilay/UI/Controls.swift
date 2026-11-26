@@ -149,49 +149,73 @@ extension View {
             .navigationBarTitleDisplayMode(app.settings.value.topBarMode == .expandable ? .large : .inline)
     }
 
-    /// A page's search (#247): with Expandable, a 🔍 in the bar that opens a field across it,
-    /// as WhatsApp's, instead of a full-width box under the title; else `.searchable` as before.
-    func barSearch(text: Binding<String>, prompt: String, placement: SearchFieldPlacement = .automatic) -> some View {
-        modifier(BarSearchModifier(text: text, prompt: prompt, placement: placement, inBar: app.settings.value.topBarMode == .expandable))
+    /// A page's search in its bar, as WhatsApp's: with Expandable a 🔍 (#247), with the Full
+    /// bar the tabs' round search bar in place of the title (#285). Either opens a field across
+    /// the bar, a pill with its ← inside, growing out of where it was tapped.
+    func barSearch(text: Binding<String>, prompt: String) -> some View {
+        modifier(BarSearchModifier(text: text, prompt: prompt, full: app.settings.value.topBarMode == .full))
     }
 }
 
 private struct BarSearchModifier: ViewModifier {
     @Binding var text: String
     let prompt: String
-    let placement: SearchFieldPlacement
-    let inBar: Bool
+    let full: Bool
 
     @State private var open = false
-    @FocusState private var focused: Bool
+    /// The page's width: the bar's field spans it (a bar item only takes what it asks for).
+    @State private var width: CGFloat = 0
 
     func body(content: Content) -> some View {
-        if inBar {
-            content
-                .navigationBarBackButtonHidden(open)
-                .navigationBarTitleDisplayMode(open ? .inline : .large)
-                .toolbar {
-                    if open {
-                        ToolbarItem(placement: .topBarLeading) {
-                            Button("Close search", systemImage: "chevron.backward") { close() }
-                        }
-                        ToolbarItem(placement: .principal) {
-                            field.transition(.move(edge: .trailing).combined(with: .opacity))
-                        }
-                    } else {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button(prompt, systemImage: "magnifyingglass") { withAnimation(.snappy) { open = true } }
+        content
+            .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width = $0 }
+            .navigationBarBackButtonHidden(open)
+            .navigationBarTitleDisplayMode(open || full ? .inline : .large)
+            .toolbar {
+                if open {
+                    ToolbarItem(placement: .principal) {
+                        BarSearchField(text: $text, prompt: prompt, fromSearchBar: full, width: max(0, width - 32)) {
+                            text = ""
+                            open = false
                         }
                     }
+                } else if full {
+                    ToolbarItem(placement: .principal) {
+                        Button { open = true } label: {
+                            Text(prompt)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .frame(width: 220, alignment: .center)
+                        }
+                    }
+                } else {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(prompt, systemImage: "magnifyingglass") { open = true }
+                    }
                 }
-        } else {
-            content.searchable(text: $text, placement: placement, prompt: prompt)
-        }
+            }
     }
+}
 
-    private var field: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+/// The open field: a pill as tall as the bar allows, its ← inside, growing out of the 🔍 at
+/// the bar's end or the search bar in its middle (`fromSearchBar`), and shrinking back into
+/// it on close, while its contents, laid out at full width, fade in. (A bar button's place
+/// on screen can't be read: it's measured in the bar's own space.)
+private struct BarSearchField: View {
+    @Binding var text: String
+    let prompt: String
+    let fromSearchBar: Bool
+    let width: CGFloat
+    let onClose: () -> Void
+
+    @State private var grown = false
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Button("Close search", systemImage: "chevron.backward") { close() }
+                .labelStyle(.iconOnly)
+                .frame(width: 36, height: 36)
             TextField(prompt, text: $text)
                 .focused($focused)
                 .submitLabel(.search)
@@ -202,16 +226,35 @@ private struct BarSearchModifier: ViewModifier {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.horizontal, 12)
-        .frame(height: 36)
-        .frame(maxWidth: .infinity)
-        .background(Color(.tertiarySystemFill), in: .capsule)
-        .onAppear { focused = true }
+        .padding(.leading, 4)
+        .padding(.trailing, 12)
+        .frame(height: 44)
+        .frame(width: width)
+        .opacity(grown ? 1 : 0)
+        .background(alignment: .topLeading) {
+            let r = pill
+            Capsule()
+                .fill(Color(.tertiarySystemFill))
+                .frame(width: r.width, height: r.height)
+                .offset(x: r.minX, y: r.minY)
+        }
+        .onAppear {
+            // After its first frame, at the button's size.
+            Task { withAnimation(.snappy(duration: 0.3)) { grown = true } }
+            focused = true
+        }
+    }
+
+    /// The pill, in this view's space: the button it grew from, or all of it.
+    private var pill: CGRect {
+        if grown { return CGRect(x: 0, y: 0, width: width, height: 44) }
+        return fromSearchBar
+            ? CGRect(x: (width - 220) / 2, y: 0, width: 220, height: 44)
+            : CGRect(x: width - 44, y: 0, width: 44, height: 44)
     }
 
     private func close() {
         focused = false
-        text = ""
-        withAnimation(.snappy) { open = false }
+        withAnimation(.snappy(duration: 0.25)) { grown = false } completion: { onClose() }
     }
 }
