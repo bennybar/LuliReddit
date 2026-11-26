@@ -127,6 +127,17 @@ import XCTest
         XCTAssertNil(none?.previewWidth)
     }
 
+    func testASpoilerCardsPagePhotoIsTheCoverNotThePhoto() {
+        // Reddit's page gives spoiler / NSFW cards its blurred copy: revealing must not show it.
+        let p = PagePost.parse(try? AppJson.parse(#"{"id":"t3_s","type":"image","img":"https://preview.redd.it/blur.jpg","spoiler":true}"#))?.toPost()
+        XCTAssertNil(p?.previewUrl)
+        XCTAssertNil(p?.previewMedUrl)
+        XCTAssertEqual(p?.blurredPreviewUrl, "https://preview.redd.it/blur.jpg")
+        let plain = PagePost.parse(try? AppJson.parse(#"{"id":"t3_t","type":"image","img":"https://preview.redd.it/a.jpg"}"#))?.toPost()
+        XCTAssertEqual(plain?.previewMedUrl, "https://preview.redd.it/a.jpg")
+        XCTAssertNil(plain?.blurredPreviewUrl)
+    }
+
     func testPagePostToPost() {
         func page(type: String, image: String? = nil, href: String = "") -> PagePost {
             PagePost(
