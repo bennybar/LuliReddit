@@ -321,14 +321,14 @@ private struct ProfileHeader: View {
                 if let onSwitchAccount {
                     Button(action: onSwitchAccount) {
                         HStack(spacing: 4) {
-                            Text("u/\(user.name)").font(.title3.bold()).lineLimit(1)
+                            Text(userName(user.name)).font(.title3.bold()).lineLimit(1)
                             Image(systemName: "chevron.down").font(.caption.bold()).foregroundStyle(.secondary)
                         }
                     }
                     .buttonStyle(.plain)
                     .accessibilityHint("Switch or add account")
                 } else {
-                    Text("u/\(user.name)").font(.title3.bold()).lineLimit(1)
+                    Text(userName(user.name)).font(.title3.bold()).lineLimit(1)
                 }
                 Text("\(compactNumber(user.linkKarma + user.commentKarma)) karma · joined \(Date(timeIntervalSince1970: Double(user.createdUtc) / 1000).formatted(.dateTime.month(.abbreviated).year()))")
                     .font(.subheadline)
@@ -379,7 +379,7 @@ struct ProfileCommentCard: View {
             if !comment.linkTitle.isEmpty {
                 Text(comment.linkTitle).font(.subheadline.bold()).lineLimit(2)
             }
-            Text("r/\(comment.subreddit) · \(compactNumber(vote.score)) pts · \(timeAgo(comment.createdUtc))")
+            Text("\(subredditName(comment.subreddit)) · \(compactNumber(vote.score)) pts · \(timeAgo(comment.createdUtc))")
                 .font(.caption)
                 .foregroundStyle(tint)
             Text(comment.body.replacingOccurrences(of: "\n", with: " "))

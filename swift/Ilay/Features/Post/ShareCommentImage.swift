@@ -76,7 +76,7 @@ private struct ChainCard: View {
     var body: some View {
         let names = CommentTree.shareNames(chain, hide: hideNames)
         VStack(alignment: .leading, spacing: 0) {
-            Text(verbatim: "r/\(post.subreddit)").font(.caption.bold()).foregroundStyle(.secondary)
+            Text(verbatim: subredditName(post.subreddit)).font(.caption.bold()).foregroundStyle(.secondary)
             Text(verbatim: post.title).font(.headline).padding(.top, 4).padding(.bottom, 12)
             ForEach(Array(chain.enumerated()), id: \.offset) { i, c in
                 VStack(alignment: .leading, spacing: 4) {

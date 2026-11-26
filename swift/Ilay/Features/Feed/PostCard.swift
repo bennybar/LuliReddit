@@ -769,7 +769,7 @@ private struct TextBelowTitle: View {
             Button {
                 if let id = row.post.crosspostId { app.navigator.push(.post(subreddit: from, postId: id)) }
             } label: {
-                Label("Crossposted from \(crosspostSource(from))", systemImage: "arrow.2.squarepath")
+                Label("Crossposted from \(crosspostSource(from, prefix: app.settings.value.subredditPrefix))", systemImage: "arrow.2.squarepath")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

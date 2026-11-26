@@ -126,7 +126,7 @@ private struct SummaryRow: View {
         let s = summary
         VStack(alignment: .leading, spacing: 6) {
             Label {
-                Text(verbatim: "r/\(s.subreddit) · \(s.style) · \(timeAgo(s.createdAt))").lineLimit(1)
+                Text(verbatim: "\(subredditName(s.subreddit)) · \(s.style) · \(timeAgo(s.createdAt))").lineLimit(1)
             } icon: {
                 Image(systemName: "sparkles").foregroundStyle(.tint)
             }

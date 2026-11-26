@@ -272,7 +272,7 @@ struct SearchScreen: View {
         // pause; none inside a subreddit's search.
         .searchSuggestions {
             ForEach(suggestions, id: \.name) { s in
-                ResultRow(name: s.name, iconUrl: s.iconUrl, title: s.namePrefixed, subtitle: "\(compactNumber(s.subscribers)) members", route: .subreddit(name: s.name)) {
+                ResultRow(name: s.name, iconUrl: s.iconUrl, title: subredditName(s.namePrefixed), subtitle: "\(compactNumber(s.subscribers)) members", route: .subreddit(name: s.name)) {
                     vm.rememberOpened(kind: "r", name: s.name, icon: s.iconUrl)
                 }
             }
@@ -352,7 +352,7 @@ struct SearchScreen: View {
                 let subs = app.contentFilters.value.hideNsfw ? vm.subs.filter { !$0.over18 } : vm.subs
                 tabResults(error: vm.subsError, empty: subs.isEmpty) {
                     ForEach(subs, id: \.name) { s in
-                        ResultRow(name: s.name, iconUrl: s.iconUrl, title: s.namePrefixed, subtitle: "\(compactNumber(s.subscribers)) members", route: .subreddit(name: s.name)) {
+                        ResultRow(name: s.name, iconUrl: s.iconUrl, title: subredditName(s.namePrefixed), subtitle: "\(compactNumber(s.subscribers)) members", route: .subreddit(name: s.name)) {
                             vm.rememberOpened(kind: "r", name: s.name, icon: s.iconUrl)
                         }
                     }
@@ -360,7 +360,7 @@ struct SearchScreen: View {
             default:
                 tabResults(error: vm.usersError, empty: vm.users.isEmpty) {
                     ForEach(vm.users, id: \.name) { u in
-                        ResultRow(name: u.name, iconUrl: u.iconUrl, title: "u/\(u.name)", subtitle: "\(compactNumber(u.linkKarma + u.commentKarma)) karma", route: .user(username: u.name)) {
+                        ResultRow(name: u.name, iconUrl: u.iconUrl, title: userName(u.name), subtitle: "\(compactNumber(u.linkKarma + u.commentKarma)) karma", route: .user(username: u.name)) {
                             vm.rememberOpened(kind: "u", name: u.name, icon: u.iconUrl)
                         }
                     }
@@ -459,7 +459,7 @@ struct RecentSearch {
         }
     }
 
-    var label: String { kind == "u" ? "u/\(name)" : "r/\(name)" }
+    @MainActor var label: String { kind == "u" ? userName(name) : subredditName(name) }
     var route: Route { kind == "u" ? .user(username: name) : .subreddit(name: name) }
 
     static func result(kind: String, name: String, icon: String?) -> String {

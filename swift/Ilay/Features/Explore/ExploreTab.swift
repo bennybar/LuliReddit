@@ -406,7 +406,7 @@ struct ExploreTab: View {
                                         LetterAvatar(name: sub.name, size: 60, imageUrl: sub.iconUrl)
                                             .overlay { Circle().strokeBorder(Color(.secondarySystemGroupedBackground), lineWidth: 3) }
                                             .padding(.bottom, 6)
-                                        Text(sub.namePrefixed).font(.subheadline.weight(.semibold)).lineLimit(1)
+                                        Text(subredditName(sub.namePrefixed)).font(.subheadline.weight(.semibold)).lineLimit(1)
                                         Text("\(compactNumber(sub.subscribers)) members").font(.caption).foregroundStyle(.secondary).lineLimit(1)
                                     }
                                     .frame(maxWidth: .infinity)
@@ -506,7 +506,7 @@ private struct SubredditRow: View {
             HStack(spacing: 12) {
                 LetterAvatar(name: sub.name, size: 40, imageUrl: sub.iconUrl)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(sub.namePrefixed).lineLimit(1)
+                    Text(subredditName(sub.namePrefixed)).lineLimit(1)
                     // Recently visited: how often you opened it (#92).
                     Text("\(compactNumber(sub.subscribers)) \(isUser ? "followers" : "members")\(visits.map { " · \($0) \($0 == 1 ? "visit" : "visits")" } ?? "")")
                         .font(.footnote)

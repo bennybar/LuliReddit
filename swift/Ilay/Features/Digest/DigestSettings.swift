@@ -70,10 +70,10 @@ private let explainedKey = "digestExplained"
 }
 
 /// The Communities row's subtitle.
-func digestCommunitiesLabel(_ chosen: [String]?) -> String {
+@MainActor func digestCommunitiesLabel(_ chosen: [String]?) -> String {
     guard let chosen else { return "Your favourites" }
     if chosen.isEmpty { return "None chosen" }
-    if chosen.count <= 3 { return chosen.map { "r/\($0)" }.joined(separator: ", ") }
+    if chosen.count <= 3 { return chosen.map { subredditName($0) }.joined(separator: ", ") }
     return "\(chosen.count) communities"
 }
 
@@ -147,7 +147,7 @@ private struct DigestCommunitiesSheet: View {
                                 HStack {
                                     Image(systemName: on ? "checkmark.circle.fill" : "circle")
                                         .foregroundStyle(on ? Color.accentColor : .secondary)
-                                    Text("r/\(s.name)").foregroundStyle(on || !full ? .primary : .secondary)
+                                    Text(subredditName(s.name)).foregroundStyle(on || !full ? .primary : .secondary)
                                     Spacer()
                                     if s.userHasFavorited { Image(systemName: "star.fill").font(.caption).foregroundStyle(.tint) }
                                 }

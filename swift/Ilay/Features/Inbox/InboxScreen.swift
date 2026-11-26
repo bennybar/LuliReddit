@@ -302,7 +302,7 @@ private struct InboxRow: View {
             HStack(spacing: 6) {
                 Image(systemName: icon).font(.caption.weight(.semibold)).foregroundStyle(.tint)
                 Text(label).font(.caption.weight(.semibold)).foregroundStyle(.tint)
-                Text("u/\(item.author) · \(timeAgo(item.createdUtc))")
+                Text("\(userName(item.author)) · \(timeAgo(item.createdUtc))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

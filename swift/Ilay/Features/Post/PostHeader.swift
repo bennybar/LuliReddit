@@ -59,7 +59,7 @@ struct PostHeaderView: View {
                 Button {
                     if let id = post.crosspostId { nav.push(.post(subreddit: from, postId: id)) }
                 } label: {
-                    Label("Crossposted from \(crosspostSource(from))", systemImage: "repeat")
+                    Label("Crossposted from \(crosspostSource(from, prefix: app.settings.value.subredditPrefix))", systemImage: "repeat")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -364,7 +364,7 @@ private struct PostMediaView: View {
             Button {
                 openMedia(p)
             } label: {
-                let inApp = redditLinkLabel(p)
+                let inApp = redditLinkLabel(p, prefix: app.settings.value.subredditPrefix)
                 Label(inApp ?? p.domain, systemImage: inApp == nil ? "arrow.up.right.square" : "link").lineLimit(1)
             }
             .buttonStyle(.bordered)

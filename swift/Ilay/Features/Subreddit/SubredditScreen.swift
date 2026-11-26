@@ -108,7 +108,7 @@ struct SubredditScreen: View {
                 PostListView(feedKey: name, fabScroll: fab) {
                     if banner, case let .data(s) = vm.about {
                         SubredditBannerHeader(about: s, vm: vm) { joined in
-                            joinPill = joined ? "Joined \(s.namePrefixed)" : "Left \(s.namePrefixed)"
+                            joinPill = joined ? "Joined \(subredditName(s.namePrefixed))" : "Left \(subredditName(s.namePrefixed))"
                         }
                             .onGeometryChange(for: CGFloat.self, of: { $0.frame(in: .global).minY }) { top in
                                 headerTop = top
@@ -132,7 +132,7 @@ struct SubredditScreen: View {
                         .accessibilityHidden(true)
                 }
             }
-            .navigationTitle(banner ? "" : "r/\(name)")
+            .navigationTitle(banner ? "" : subredditName(name))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 // Its own id: this page sits over Posts, whose button has the plain one.
@@ -142,7 +142,7 @@ struct SubredditScreen: View {
                     ToolbarItem(placement: .principal) {
                         HStack(spacing: 8) {
                             LetterAvatar(name: name, size: 24, imageUrl: vm.about.value?.iconUrl)
-                            Text("r/\(name)").font(.headline).lineLimit(1)
+                            Text(subredditName(name)).font(.headline).lineLimit(1)
                         }
                         .opacity(folded ? 1 : 0)
                         .animation(.easeOut(duration: 0.2), value: folded)
@@ -285,7 +285,7 @@ private struct SubredditBannerHeader: View {
                 Color.clear.frame(width: bannerIcon, height: bannerIcon - iconOver - 10)
                 // Bigger, and a little further from the banner's foot (#268).
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(about.namePrefixed).font(.title.bold()).lineLimit(1)
+                    Text(subredditName(about.namePrefixed)).font(.title.bold()).lineLimit(1)
                     Text("\(compactNumber(about.subscribers)) members").font(.subheadline).foregroundStyle(.secondary)
                 }
                 .layoutPriority(1)
@@ -302,7 +302,7 @@ private struct SubredditBannerHeader: View {
                         .background(subscribed ? AnyShapeStyle(Color(.tertiarySystemFill)) : AnyShapeStyle(IlayTheme.accent), in: .circle)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(subscribed ? "Leave \(about.namePrefixed)" : "Join \(about.namePrefixed)")
+                .accessibilityLabel(subscribed ? "Leave \(subredditName(about.namePrefixed))" : "Join \(subredditName(about.namePrefixed))")
                 .accessibilityAddTraits(subscribed ? .isSelected : [])
             }
             .padding(.horizontal, 16)
@@ -383,7 +383,7 @@ private struct SubredditHeader: View {
             HStack(spacing: 14) {
                 LetterAvatar(name: vm.name, size: 52)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("r/\(vm.name)").font(.title3.bold()).lineLimit(1)
+                    Text(subredditName(vm.name)).font(.title3.bold()).lineLimit(1)
                     Text(friendlyError(error)).font(.subheadline).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
@@ -411,7 +411,7 @@ private struct SubredditHeader: View {
                     LetterAvatar(name: s.name, size: 52, imageUrl: s.iconUrl)
                         .pictureOpens(s.iconUrl, name: s.namePrefixed)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(s.namePrefixed).font(.title3.bold()).lineLimit(1)
+                        Text(subredditName(s.namePrefixed)).font(.title3.bold()).lineLimit(1)
                         Text("\(compactNumber(s.subscribers)) members").font(.subheadline).foregroundStyle(.secondary)
                     }
                     Spacer(minLength: 0)
@@ -491,7 +491,7 @@ private struct SubredditAboutSheet: View {
                     }
                 }
             }
-            .navigationTitle("r/\(name)")
+            .navigationTitle(subredditName(name))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { Button("Done", systemImage: "xmark", action: onClose) }

@@ -168,7 +168,7 @@ private struct HiddenSubsSheet: View {
                 }
                 ForEach(subs, id: \.self) { sub in
                     HStack {
-                        Text("r/\(sub)")
+                        Text(subredditName(sub))
                         Spacer()
                         Button("Unhide") { app.hiddenHomeSubs.remove(sub) }.buttonStyle(.borderless)
                     }

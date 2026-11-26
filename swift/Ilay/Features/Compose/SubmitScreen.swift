@@ -378,7 +378,7 @@ private struct SubredditPicker: View {
                             Button { done(s.name) } label: {
                                 HStack(spacing: 12) {
                                     LetterAvatar(name: s.name, size: 32, imageUrl: s.iconUrl)
-                                    Text(s.namePrefixed).foregroundStyle(.primary)
+                                    Text(subredditName(s.namePrefixed)).foregroundStyle(.primary)
                                 }
                             }
                         }
