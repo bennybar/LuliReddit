@@ -66,6 +66,8 @@ struct GalleryM3Carousel: View {
     /// A spoiler / NSFW gallery's label (#165): each image gets its own cover, so you
     /// can still swipe through them; revealing one reveals them all.
     var cover: String? = nil
+    /// The post's id: a reveal also counts on its post page / feed card (`RevealedMedia`).
+    var revealKey = ""
     /// Shown under the first image until it loads (the Reddit Home card's photo).
     var placeholder: URL? = nil
     /// Its images' corners: Settings › Corner roundness (#283).
@@ -73,8 +75,13 @@ struct GalleryM3Carousel: View {
 
     @State private var revealed = false
 
+    private func reveal() {
+        revealed = true
+        RevealedMedia.shared.insert(revealKey)
+    }
+
     var body: some View {
-        let covered = cover != nil && !revealed
+        let covered = cover != nil && !revealed && !RevealedMedia.shared.contains(revealKey)
         if !images.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 KeylineCarousel(
@@ -86,7 +93,7 @@ struct GalleryM3Carousel: View {
                         return [w - medium - small - 16, medium, small]
                     },
                     cornerRadius: radius,
-                    onTap: { if covered { revealed = true } else { app.navigator.openGallery(images, title: title, initialIndex: $0) } },
+                    onTap: { if covered { reveal() } else { app.navigator.openGallery(images, title: title, initialIndex: $0) } },
                     label: { "Image \($0 + 1) of \(images.count)" }
                 ) { i in
                     GalleryImageView(url: URL(string: images[i].url), placeholder: i == 0 ? placeholder : nil).zoomSource()
@@ -132,11 +139,18 @@ struct GalleryCarousel: View {
     /// A spoiler / NSFW gallery's label (#165): each image gets its own cover, so you
     /// can still swipe through them; revealing one reveals them all.
     var cover: String? = nil
+    /// The post's id: a reveal also counts on its post page / feed card (`RevealedMedia`).
+    var revealKey = ""
     /// Shown under the first image until it loads (the Reddit Home card's photo).
     var placeholder: URL? = nil
 
     @State private var page: Int? = 0
     @State private var revealed = false
+
+    private func reveal() {
+        revealed = true
+        RevealedMedia.shared.insert(revealKey)
+    }
 
     private var aspect: CGFloat {
         guard let first = images.first, let w = first.width, let h = first.height, h > 0 else { return 16.0 / 9.0 }
@@ -181,12 +195,12 @@ struct GalleryCarousel: View {
             LazyHStack(spacing: 0) {
                 ForEach(images.indices, id: \.self) { i in
                     Button {
-                        if cover != nil && !revealed { revealed = true } else { app.navigator.openGallery(images, title: title, initialIndex: i) }
+                        if cover != nil && !revealed && !RevealedMedia.shared.contains(revealKey) { reveal() } else { app.navigator.openGallery(images, title: title, initialIndex: i) }
                     } label: {
                         // Gallery images are full size (often 12MP photos): RemoteImage
                         // decodes them to the slot.
                         GalleryImageView(url: URL(string: images[i].url), placeholder: i == 0 ? placeholder : nil).zoomSource()
-                            .overlay { if let cover, !revealed { MediaCover(label: cover) } }
+                            .overlay { if let cover, !revealed, !RevealedMedia.shared.contains(revealKey) { MediaCover(label: cover) } }
                     }
                     .buttonStyle(.plain)
                     .containerRelativeFrame(.horizontal)
@@ -228,7 +242,7 @@ struct NsfwBlur<Content: View>: View {
 
     var body: some View {
         Group {
-            if !blur || revealedId == id {
+            if !blur || revealedId == id || RevealedMedia.shared.contains(id) {
                 content()
             } else {
                 ZStack {
@@ -248,7 +262,7 @@ struct NsfwBlur<Content: View>: View {
                 }
                 .clipShape(.rect(cornerRadius: radius))
                 .contentShape(Rectangle())
-                .onTapGesture { revealedId = id }
+                .onTapGesture { revealedId = id; RevealedMedia.shared.insert(id) }
             }
         }
         .onDisappear { revealedId = nil }
@@ -294,4 +308,14 @@ private struct MediaCover: View {
             CoverLabel(label: label, iconOnly: iconOnly)
         }
     }
+}
+
+/// Spoiler / NSFW posts revealed this session, by post id: one reveal covers the feed
+/// card and the post page.
+@MainActor @Observable final class RevealedMedia {
+    static let shared = RevealedMedia()
+    private(set) var ids: Set<String> = []
+
+    func contains(_ id: String) -> Bool { !id.isEmpty && ids.contains(id) }
+    func insert(_ id: String) { if !id.isEmpty { ids.insert(id) } }
 }

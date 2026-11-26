@@ -430,7 +430,7 @@ internal fun FeedMediaBrowser(route: MediaViewer.Feed) {
                 val onZoom = { z: Boolean -> if (i == pager.currentPage) zoomed = z }
                 val active = i == pager.settledPage
                 Box(Modifier.fillMaxSize().semantics { contentDescription = p.title }) {
-                    NsfwBlur(blurOf(p, settings), Modifier.fillMaxSize(), blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, settings)) {
+                    NsfwBlur(blurOf(p, settings), Modifier.fillMaxSize(), blurredImageUrl = p.blurredPreviewUrl, revealKey = p.id, label = blurLabel(p, settings)) {
                         when {
                             p.type == PostType.GALLERY -> GalleryPage(p, decodeSize, onTap, onZoom)
                             isVideoPost(p) -> VideoPage(p, active, video, decodeWidth, autoplayNow(settings), onTap)

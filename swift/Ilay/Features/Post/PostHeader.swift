@@ -332,9 +332,9 @@ private struct PostMediaView: View {
             // A spoiler / NSFW gallery covers each image, so it still swipes (#165).
             Group {
                 if p.gallery.count > 1 {
-                    GalleryM3Carousel(images: p.gallery, title: p.title, cover: blur ? label : nil, radius: scaleCorner(28, factor))
+                    GalleryM3Carousel(images: p.gallery, title: p.title, cover: blur ? label : nil, revealKey: p.id, radius: scaleCorner(28, factor))
                 } else {
-                    GalleryCarousel(images: p.gallery, title: p.title, radius: radius, cover: blur ? label : nil)
+                    GalleryCarousel(images: p.gallery, title: p.title, radius: radius, cover: blur ? label : nil, revealKey: p.id)
                 }
             }
             .padding(.bottom, 12)
@@ -345,7 +345,7 @@ private struct PostMediaView: View {
                     guard let w = p.previewWidth, let h = p.previewHeight, h > 0 else { return 16.0 / 9.0 }
                     return min(max(CGFloat(w) / CGFloat(h), 0.5), 2)
                 }()
-                NsfwBlur(blur: blur, blurredImageUrl: p.blurredPreviewUrl, label: label, radius: radius) {
+                NsfwBlur(blur: blur, blurredImageUrl: p.blurredPreviewUrl, label: label, id: p.id, radius: radius) {
                     Button {
                         openMedia(p)
                     } label: {
@@ -376,7 +376,7 @@ private struct PostMediaView: View {
                 guard let w = p.previewWidth, let h = p.previewHeight, h > 0 else { return 16.0 / 9.0 }
                 return min(max(CGFloat(w) / CGFloat(h), 0.5), 2)
             }()
-            NsfwBlur(blur: blur, blurredImageUrl: p.blurredPreviewUrl, label: label, radius: radius) {
+            NsfwBlur(blur: blur, blurredImageUrl: p.blurredPreviewUrl, label: label, id: p.id, radius: radius) {
                 Button {
                     openMedia(p)
                 } label: {

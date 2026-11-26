@@ -1539,8 +1539,8 @@ private fun PostMedia(p: Post, nav: AppNavigator, radius: androidx.compose.ui.un
         // swipes, and the first tap reveals them all.
         val cover = if (blur) label else null
         Box(Modifier.padding(bottom = 12.dp)) {
-            if (p.gallery.size > 1) GalleryM3Carousel(p.gallery, title = p.title, cover = cover)
-            else GalleryCarousel(p.gallery, title = p.title, shape = shape, cover = cover)
+            if (p.gallery.size > 1) GalleryM3Carousel(p.gallery, title = p.title, cover = cover, revealKey = p.id)
+            else GalleryCarousel(p.gallery, title = p.title, shape = shape, cover = cover, revealKey = p.id)
         }
         return
     }
@@ -1551,7 +1551,7 @@ private fun PostMedia(p: Post, nav: AppNavigator, radius: androidx.compose.ui.un
             val w = p.previewWidth
             val h = p.previewHeight
             val aspect = if (w != null && h != null && h > 0) (w.toFloat() / h).coerceIn(0.5f, 2f) else 16f / 9f
-            NsfwBlur(blur, Modifier.padding(bottom = 8.dp), blurredImageUrl = p.blurredPreviewUrl, label = label, shape = shape) {
+            NsfwBlur(blur, Modifier.padding(bottom = 8.dp), blurredImageUrl = p.blurredPreviewUrl, revealKey = p.id, label = label, shape = shape) {
                 AsyncImage(
                     model = preview,
                     contentDescription = p.title,
@@ -1579,7 +1579,7 @@ private fun PostMedia(p: Post, nav: AppNavigator, radius: androidx.compose.ui.un
     val w = p.previewWidth
     val h = p.previewHeight
     val aspect = if (w != null && h != null && h > 0) (w.toFloat() / h).coerceIn(0.5f, 2f) else 16f / 9f
-    NsfwBlur(blur, Modifier.padding(bottom = 12.dp), blurredImageUrl = p.blurredPreviewUrl, label = label, shape = shape) {
+    NsfwBlur(blur, Modifier.padding(bottom = 12.dp), blurredImageUrl = p.blurredPreviewUrl, revealKey = p.id, label = label, shape = shape) {
         Box(
             Modifier
                 .fillMaxWidth()

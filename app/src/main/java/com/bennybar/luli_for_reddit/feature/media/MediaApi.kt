@@ -154,12 +154,12 @@ suspend fun saveMediaToGallery(url: String, isVideo: Boolean, title: String? = n
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GalleryM3Carousel(images: List<GalleryImage>, modifier: Modifier = Modifier, title: String? = null, height: Dp = 300.dp, cover: String? = null, standIn: String? = null) {
+fun GalleryM3Carousel(images: List<GalleryImage>, modifier: Modifier = Modifier, title: String? = null, height: Dp = 300.dp, cover: String? = null, standIn: String? = null, revealKey: String? = null) {
     if (images.isEmpty()) return
     // A spoiler / NSFW gallery (#165): each image has its own cover, so you can still
     // swipe through them; revealing one reveals them all.
-    var revealed by remember { mutableStateOf(false) }
-    val covered = cover != null && !revealed
+    var shown by remember { mutableStateOf(false) }
+    val covered = cover != null && !shown && (revealKey == null || revealKey !in RevealedMedia.ids)
     val nav = LocalNavigator.current
     val cs = MaterialTheme.colorScheme
     val decodeWidth = feedDecodeWidth()
@@ -199,7 +199,7 @@ fun GalleryM3Carousel(images: List<GalleryImage>, modifier: Modifier = Modifier,
                         // Gone below three quarters of the full width.
                         alpha = if (info.maxSize <= 0f) 1f else ((info.size / info.maxSize - 0.75f) * 4f).coerceIn(0f, 1f)
                     },
-                ) { revealed = true }
+                ) { shown = true; revealKey?.let { RevealedMedia.ids.add(it) } }
             }
         }
     }
@@ -212,12 +212,12 @@ fun GalleryM3Carousel(images: List<GalleryImage>, modifier: Modifier = Modifier,
  * the first image's aspect ratio.
  */
 @Composable
-fun GalleryCarousel(images: List<GalleryImage>, modifier: Modifier = Modifier, title: String? = null, height: Dp? = null, shape: Shape = RoundedCornerShape(corner(16.dp)), cover: String? = null, standIn: String? = null) {
+fun GalleryCarousel(images: List<GalleryImage>, modifier: Modifier = Modifier, title: String? = null, height: Dp? = null, shape: Shape = RoundedCornerShape(corner(16.dp)), cover: String? = null, standIn: String? = null, revealKey: String? = null) {
     if (images.isEmpty()) return
     // A spoiler / NSFW gallery (#165): each image has its own cover, so you can still
     // swipe through them; revealing one reveals them all.
-    var revealed by remember { mutableStateOf(false) }
-    val covered = cover != null && !revealed
+    var shown by remember { mutableStateOf(false) }
+    val covered = cover != null && !shown && (revealKey == null || revealKey !in RevealedMedia.ids)
     val nav = LocalNavigator.current
     val cs = MaterialTheme.colorScheme
     val first = images.first()
@@ -246,7 +246,7 @@ fun GalleryCarousel(images: List<GalleryImage>, modifier: Modifier = Modifier, t
                     onError = { failed = true },
                 )
                 if (failed) Icon(Icons.Outlined.BrokenImage, null, tint = cs.onSurfaceVariant)
-                if (covered) MediaCover(cover!!) { revealed = true }
+                if (covered) MediaCover(cover!!) { shown = true; revealKey?.let { RevealedMedia.ids.add(it) } }
             }
         }
         // Counter badge
@@ -303,11 +303,13 @@ fun NsfwBlur(
     label: String = "NSFW",
     // The media's own shape, so the cover's corners match it (#165).
     shape: Shape = RoundedCornerShape(16.dp),
+    // The post's id: revealing it in the feed keeps it revealed on its post page
+    // (and the other way) for the rest of the session.
+    revealKey: String? = null,
     content: @Composable () -> Unit,
 ) {
-    // Plain remember (not saveable): like Flutter, an item scrolled away and
-    // back is blurred again.
-    var revealed by remember { mutableStateOf(false) }
+    var shown by remember { mutableStateOf(false) }
+    val revealed = shown || (revealKey != null && revealKey in RevealedMedia.ids)
     if (!blur || revealed) {
         Box(modifier) { content() }
         return
@@ -328,7 +330,7 @@ fun NsfwBlur(
                     error = { Box(Modifier.fillMaxSize().background(Color.Black)) },
                 )
             }
-            MediaCover(label) { revealed = true }
+            MediaCover(label) { shown = true; revealKey?.let { RevealedMedia.ids.add(it) } }
         }
     }
 }
@@ -400,4 +402,9 @@ fun MediaViewerHost(stack: ViewerStack) {
             }
         }
     }
+}
+
+/** Spoiler / NSFW posts revealed this session, by post id: one reveal covers the feed card and the post page. */
+object RevealedMedia {
+    val ids = androidx.compose.runtime.mutableStateSetOf<String>()
 }

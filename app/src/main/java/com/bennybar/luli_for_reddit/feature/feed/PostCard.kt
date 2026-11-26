@@ -649,7 +649,7 @@ private fun BannerMedia(p: Post, a: PostActions, s: Settings, height: Dp) {
             return
         }
     }
-    NsfwBlur(blur, Modifier.padding(bottom = 4.dp), blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, s), shape = RoundedCornerShape(corner(16.dp))) {
+    NsfwBlur(blur, Modifier.padding(bottom = 4.dp), blurredImageUrl = p.blurredPreviewUrl, revealKey = p.id, label = blurLabel(p, s), shape = RoundedCornerShape(corner(16.dp))) {
         Box(
             Modifier
                 .fillMaxWidth()
@@ -815,9 +815,9 @@ private fun FeedGallery(p: Post, s: Settings, modifier: Modifier = Modifier, hei
     // carousel, as the full post most likely will.
     val images = p.gallery.ifEmpty { p.previewMedUrl?.let { listOf(GalleryImage(it, p.previewWidth, p.previewHeight)) }.orEmpty() }
     if (s.feedGalleryCarousel && (p.gallery.size > 1 || p.gallery.isEmpty())) {
-        GalleryM3Carousel(images, modifier, title = p.title, height = (height ?: 300.dp).coerceIn(220.dp, 340.dp), cover = cover, standIn = p.previewMedUrl)
+        GalleryM3Carousel(images, modifier, title = p.title, height = (height ?: 300.dp).coerceIn(220.dp, 340.dp), cover = cover, standIn = p.previewMedUrl, revealKey = p.id)
     } else {
-        GalleryCarousel(images, modifier, title = p.title, height = height, shape = shape, cover = cover, standIn = p.previewMedUrl)
+        GalleryCarousel(images, modifier, title = p.title, height = height, shape = shape, cover = cover, standIn = p.previewMedUrl, revealKey = p.id)
     }
 }
 
@@ -932,10 +932,10 @@ private fun Media(p: Post, a: PostActions, s: Settings, radius: Dp = 16.dp) {
         PostType.GALLERY -> if (isFeedGallery(p)) {
             FeedGallery(p, s, Modifier.padding(bottom = 4.dp), shape = shape)
         } else {
-            NsfwBlur(blur, blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, s), shape = shape) { MediaPreview(p, a, s, radius) }
+            NsfwBlur(blur, blurredImageUrl = p.blurredPreviewUrl, revealKey = p.id, label = blurLabel(p, s), shape = shape) { MediaPreview(p, a, s, radius) }
         }
         PostType.IMAGE, PostType.GIF, PostType.VIDEO ->
-            NsfwBlur(blur, blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, s), shape = shape) { MediaPreview(p, a, s, radius) }
+            NsfwBlur(blur, blurredImageUrl = p.blurredPreviewUrl, revealKey = p.id, label = blurLabel(p, s), shape = shape) { MediaPreview(p, a, s, radius) }
         PostType.LINK -> LinkPreview(p, a)
         PostType.SELF -> {}
     }
@@ -1563,7 +1563,7 @@ private fun CalmMedia(p: Post, a: PostActions, s: Settings, shape: androidx.comp
         val inApp = remember(p.url) { redditLinkLabel(p) }
         Column(top.fillMaxWidth().clip(shape).background(calmControlColor()).clickable(onClick = a::openMedia)) {
             if (img != null) {
-                NsfwBlur(blur, blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, s), shape = RectangleShape) {
+                NsfwBlur(blur, blurredImageUrl = p.blurredPreviewUrl, revealKey = p.id, label = blurLabel(p, s), shape = RectangleShape) {
                     Box(Modifier.fillMaxWidth().aspectRatio(2f).background(cs.surfaceContainerHighest)) {
                         FeedImage(img, Modifier.fillMaxSize(), standIn = p.previewMedUrl)
                     }
@@ -1603,7 +1603,7 @@ private fun CalmMedia(p: Post, a: PostActions, s: Settings, shape: androidx.comp
                 return@BoxWithConstraints
             }
         }
-        NsfwBlur(blur, blurredImageUrl = p.blurredPreviewUrl, label = blurLabel(p, s), shape = shape) {
+        NsfwBlur(blur, blurredImageUrl = p.blurredPreviewUrl, revealKey = p.id, label = blurLabel(p, s), shape = shape) {
             Box(
                 Modifier
                     .fillMaxWidth()

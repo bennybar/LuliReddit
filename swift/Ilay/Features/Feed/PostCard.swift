@@ -952,9 +952,9 @@ private struct CardMedia: View {
                 : row.post.gallery
             Group {
                 if let carouselHeight {
-                    GalleryM3Carousel(images: images, title: row.post.title, height: carouselHeight, cover: cover, placeholder: row.post.previewMedUrl.flatMap(URL.init(string:)), radius: row.config.corner(28))
+                    GalleryM3Carousel(images: images, title: row.post.title, height: carouselHeight, cover: cover, revealKey: row.post.id, placeholder: row.post.previewMedUrl.flatMap(URL.init(string:)), radius: row.config.corner(28))
                 } else {
-                    GalleryCarousel(images: images, title: row.post.title, height: height, radius: radius, cover: cover, placeholder: row.post.previewMedUrl.flatMap(URL.init(string:)))
+                    GalleryCarousel(images: images, title: row.post.title, height: height, radius: radius, cover: cover, revealKey: row.post.id, placeholder: row.post.previewMedUrl.flatMap(URL.init(string:)))
                 }
             }
             .id(row.id)

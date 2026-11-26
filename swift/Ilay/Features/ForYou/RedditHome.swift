@@ -54,6 +54,7 @@ struct PagePost: Equatable, Sendable {
         case "link": .link
         default: image != nil ? .image : .selfPost
         }
+        let covered = nsfw || spoiler
         return Post(
             id: bare,
             fullname: id,
@@ -81,8 +82,11 @@ struct PagePost: Equatable, Sendable {
             // The page's flair is only words.
             linkFlair: flair.map { UserFlair(parts: [FlairPart(text: $0)]) },
             feedReason: reason,
-            previewUrl: image,
-            previewMedUrl: image,
+            // A spoiler / NSFW card's photo on the page is Reddit's blurred copy: it's
+            // the cover, not the photo, or revealing it shows the blur again.
+            previewUrl: covered ? nil : image,
+            previewMedUrl: covered ? nil : image,
+            blurredPreviewUrl: covered ? image : nil,
             previewWidth: imageWidth,
             previewHeight: imageHeight,
             hlsUrl: vreddit.map { "https://v.redd.it/\($0)/HLSPlaylist.m3u8" }
@@ -898,7 +902,8 @@ final class RedditHomeEngine {
         // The card keeps the photo it already showed (the page's copy of the same
         // picture): Reddit's own preview URL differs, so the card loaded it again. A
         // gallery shows it under its first image until that loads.
-        let keep = card.image
+        // Not a spoiler / NSFW card's: that's the blurred copy.
+        let keep = card.nsfw || card.spoiler ? nil : card.image
         return p.with {
             if let r = card.reason { $0.feedReason = r }
             if let keep { $0.previewMedUrl = keep }

@@ -94,6 +94,7 @@ data class PagePost(
             "link" -> PostType.LINK
             else -> if (image != null) PostType.IMAGE else PostType.SELF
         }
+        val covered = nsfw || spoiler
         return Post(
             id = bare,
             fullname = id,
@@ -121,8 +122,11 @@ data class PagePost(
             // The page's flair is only words.
             linkFlair = flair?.let { UserFlair(listOf(FlairPart(text = it))) },
             feedReason = reason,
-            previewUrl = image,
-            previewMedUrl = image,
+            // A spoiler / NSFW card's photo on the page is Reddit's blurred copy: it's
+            // the cover, not the photo, or revealing it shows the blur again.
+            previewUrl = image.takeUnless { covered },
+            previewMedUrl = image.takeUnless { covered },
+            blurredPreviewUrl = image.takeIf { covered },
             previewWidth = imageWidth,
             previewHeight = imageHeight,
             hlsUrl = vreddit?.let { "https://v.redd.it/${it.pathSegments.first()}/HLSPlaylist.m3u8" },
@@ -948,7 +952,8 @@ class RedditHomeEngine internal constructor(private val c: AppContainer, private
         // The card keeps the photo it already showed (the page's copy of the same
         // picture): Reddit's own preview URL differs, so the card loaded it again. A
         // gallery shows it under its first image until that loads.
-        val keep = card.image
+        // Not a spoiler / NSFW card's: that's the blurred copy.
+        val keep = card.image.takeUnless { card.nsfw || card.spoiler }
         return p.copy(feedReason = card.reason ?: p.feedReason, previewMedUrl = keep ?: p.previewMedUrl)
     }
 
