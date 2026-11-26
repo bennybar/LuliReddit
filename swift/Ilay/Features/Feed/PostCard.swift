@@ -48,7 +48,7 @@ private struct LargeCard: View {
             CardHeader(row: row, a: a)
             CardTitle(row: row, font: .headline).padding(.top, 8)
             TextBelowTitle(row: row)
-            CardMedia(row: row, a: a, radius: 12).padding(.top, row.kind == .text ? 0 : 10)
+            CardMedia(row: row, a: a, radius: row.config.corner(12)).padding(.top, row.kind == .text ? 0 : 10)
             PollOptionsView(post: row.post).padding(.top, row.post.pollOptions.isEmpty ? 0 : 8)
             CardSnippet(row: row, lines: 3)
             ActionsRow(row: row, a: a).padding(.top, 4)
@@ -73,7 +73,7 @@ private struct CardsCard: View {
             CardHeader(row: row, a: a)
             CardTitle(row: row, font: .headline).padding(.top, 8)
             TextBelowTitle(row: row)
-            CardMedia(row: row, a: a, radius: 12).padding(.top, row.kind == .text ? 0 : 10)
+            CardMedia(row: row, a: a, radius: row.config.corner(12)).padding(.top, row.kind == .text ? 0 : 10)
             PollOptionsView(post: row.post).padding(.top, row.post.pollOptions.isEmpty ? 0 : 8)
             CardSnippet(row: row, lines: 2)
             ActionsRow(row: row, a: a).padding(.top, 4)
@@ -106,10 +106,10 @@ private struct MiniCard: View {
                     // post (#104). Blurred (NSFW/spoiler) ones keep opening the post, so a
                     // tap never shows them uncovered.
                     if row.blur {
-                        Thumbnail(url: url, pixels: pixels, symbol: symbol, play: play)
+                        Thumbnail(url: url, pixels: pixels, symbol: symbol, play: play, radius: row.config.corner(12))
                     } else {
                         Button(action: a.openMedia) {
-                            Thumbnail(url: url, pixels: pixels, symbol: symbol, play: play).zoomSource()
+                            Thumbnail(url: url, pixels: pixels, symbol: symbol, play: play, radius: row.config.corner(12)).zoomSource()
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Open media")
@@ -160,8 +160,8 @@ private struct CalmCardsCard: View {
     let row: PostRow
     let a: PostActions
 
-    private let outer: CGFloat = 20
-    private let inner: CGFloat = 6
+    private var outer: CGFloat { row.config.corner(20) }
+    private var inner: CGFloat { row.config.corner(6) }
 
     var body: some View {
         VStack(spacing: 3) {
@@ -193,9 +193,9 @@ private struct CardSurface: ViewModifier {
     func body(content: Content) -> some View {
         content
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background { CardVoteGlow(post: row.post, radius: 20) }
-            .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 20))
-            .overlay { ReadVeil(row: row, radius: 20) }
+            .background { CardVoteGlow(post: row.post, radius: row.config.corner(20)) }
+            .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: row.config.corner(20)))
+            .overlay { ReadVeil(row: row, radius: row.config.corner(20)) }
             .padding(.horizontal, row.config.cardInset)
             .padding(.bottom, 12)
     }
@@ -636,7 +636,7 @@ private struct CalmBody: View {
             CardTitle(row: row, font: .headline).padding(.top, 8)
             TextBelowTitle(row: row)
             if media, row.kind != .text {
-                CardMedia(row: row, a: a, radius: 16).padding(.top, 10)
+                CardMedia(row: row, a: a, radius: row.config.corner(16)).padding(.top, 10)
             }
             PollOptionsView(post: row.post).padding(.top, row.post.pollOptions.isEmpty ? 0 : 10)
             CardSnippet(row: row, lines: 2)
@@ -686,7 +686,7 @@ private struct CardMedia: View {
                 : row.post.gallery
             Group {
                 if let carouselHeight {
-                    GalleryM3Carousel(images: images, title: row.post.title, height: carouselHeight, cover: cover, placeholder: row.post.previewMedUrl.flatMap(URL.init(string:)))
+                    GalleryM3Carousel(images: images, title: row.post.title, height: carouselHeight, cover: cover, placeholder: row.post.previewMedUrl.flatMap(URL.init(string:)), radius: row.config.corner(28))
                 } else {
                     GalleryCarousel(images: images, title: row.post.title, height: height, radius: radius, cover: cover, placeholder: row.post.previewMedUrl.flatMap(URL.init(string:)))
                 }
@@ -697,7 +697,7 @@ private struct CardMedia: View {
                 if row.config.display.isCalm {
                     CalmLink(row: row, hero: hero, height: heroHeight, pixels: heroPixels, radius: radius)
                 } else {
-                    PlainLink(domain: row.inAppLinkLabel ?? row.post.domain, external: row.inAppLinkLabel == nil, thumb: thumb, pixels: thumbPixels)
+                    PlainLink(domain: row.inAppLinkLabel ?? row.post.domain, external: row.inAppLinkLabel == nil, thumb: thumb, pixels: thumbPixels, radius: row.config.corner(12))
                 }
             }
             .buttonStyle(.plain)
@@ -710,6 +710,7 @@ private struct PlainLink: View {
     let external: Bool
     let thumb: URL?
     let pixels: Int
+    var radius: CGFloat = 12
 
     var body: some View {
         HStack(spacing: 12) {
@@ -722,8 +723,8 @@ private struct PlainLink: View {
             Spacer(minLength: 0)
             if external { Image(systemName: "arrow.up.right").font(.footnote).foregroundStyle(.tertiary).padding(.trailing, 12) }
         }
-        .background(Color(.tertiarySystemFill), in: .rect(cornerRadius: 12))
-        .clipShape(.rect(cornerRadius: 12))
+        .background(Color(.tertiarySystemFill), in: .rect(cornerRadius: radius))
+        .clipShape(.rect(cornerRadius: radius))
     }
 }
 
@@ -763,6 +764,7 @@ private struct Thumbnail: View {
     let pixels: Int
     let symbol: String
     let play: Bool
+    var radius: CGFloat = 12
 
     var body: some View {
         ZStack {
@@ -777,7 +779,7 @@ private struct Thumbnail: View {
             }
         }
         .frame(width: 88, height: 88)
-        .clipShape(.rect(cornerRadius: 12))
+        .clipShape(.rect(cornerRadius: radius))
     }
 }
 

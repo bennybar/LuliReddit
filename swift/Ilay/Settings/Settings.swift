@@ -38,6 +38,46 @@ enum TopBarMode: Int, CaseIterable, Sendable {
     }
 }
 
+/// How round feed posts' cards and media are (#283): `factor` scales each corner's radius.
+/// Persisted by index (`cornerRoundness`, never reorder).
+enum CornerRoundness: Int, CaseIterable, Sendable {
+    case round, medium, small, square
+
+    var label: String {
+        switch self {
+        case .round: "Round"
+        case .medium: "Medium"
+        case .small: "Small"
+        case .square: "Square"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .round: "Soft, round corners, as designed"
+        case .medium: "Less round"
+        case .small: "Slightly rounded: photos keep more of their corners"
+        case .square: "No rounding"
+        }
+    }
+
+    var factor: CGFloat {
+        switch self {
+        case .round: 1
+        case .medium: 0.6
+        case .small: 0.3
+        case .square: 0
+        }
+    }
+}
+
+/// `r` at `factor`: as is at 1, none at 0, otherwise scaled but not under 4pt (or `r` if smaller).
+func scaleCorner(_ r: CGFloat, _ factor: CGFloat) -> CGFloat {
+    if factor >= 1 { return r }
+    if factor <= 0 { return 0 }
+    return max(r * factor, min(r, 4))
+}
+
 /// The floating button on Home (#62). Persisted by index (`homeFab`).
 enum HomeFab: Int, CaseIterable, Sendable {
     case off, newPost, search
@@ -314,6 +354,7 @@ struct Settings: Equatable, Sendable {
     var threadButtonsHideOnScroll = false // the thread's buttons step aside while you scroll (#210)
     var resumeThreads = true // reopening a thread scrolls back to where you left off (#179); off: from the top (#269)
     var topBarMode: TopBarMode = .expandable // Posts-screen action layout
+    var cornerRoundness: CornerRoundness = .round // feed posts' cards and media (#283)
     var navLabels = true // show text labels on the bottom nav bar
     var inboxInProfile = false // Inbox opens from Profile's top bar instead of being a tab
     var navStyle = 0 // 0 bottom bar, 1 side bar, 2 both (#25)

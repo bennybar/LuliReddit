@@ -1,6 +1,30 @@
 import XCTest
 @testable import Ilay
 
+/// Settings › Appearance › Corner roundness (#283), as the Kotlin app's CornerRoundnessTest.
+final class CornerRoundnessTests: XCTestCase {
+    func testRoundIsTheDefaultAndKeepsTodaysCorners() {
+        XCTAssertEqual(Settings().cornerRoundness, .round)
+        XCTAssertEqual(scaleCorner(28, CornerRoundness.round.factor), 28)
+    }
+
+    func testMediumAndSmallScaleDownButNeverUnder4() {
+        XCTAssertEqual(scaleCorner(20, CornerRoundness.medium.factor), 12, accuracy: 0.001)
+        XCTAssertEqual(scaleCorner(20, CornerRoundness.small.factor), 6, accuracy: 0.001)
+        XCTAssertEqual(scaleCorner(6, CornerRoundness.small.factor), 4)
+        XCTAssertEqual(scaleCorner(3, CornerRoundness.small.factor), 3, "a corner under 4 isn't rounded more")
+    }
+
+    func testSquareHasNoRounding() {
+        XCTAssertEqual(scaleCorner(28, CornerRoundness.square.factor), 0)
+    }
+
+    func testPersistedByIndexNeverReordered() {
+        XCTAssertEqual(CornerRoundness.allCases.map(\.rawValue), [0, 1, 2, 3])
+        XCTAssertEqual(CornerRoundness.allCases.map(\.label), ["Round", "Medium", "Small", "Square"])
+    }
+}
+
 final class SharedTextTests: XCTestCase {
     func testABarePostLink() {
         let url = "https://www.reddit.com/r/Android/comments/abc123/some_title/"

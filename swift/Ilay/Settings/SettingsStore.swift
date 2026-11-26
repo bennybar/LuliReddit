@@ -126,6 +126,9 @@ final class SettingsStore {
         s.resumeThreads = b("resumeThreads", s.resumeThreads)
         // Old installs may have stored the removed "compact" (1) or the old
         // expandable index (2); clamping maps both safely.
+        if let m = p.getInt("cornerRoundness") {
+            s.cornerRoundness = CornerRoundness(rawValue: min(max(m, 0), CornerRoundness.allCases.count - 1))!
+        }
         if let m = p.getInt("topBarMode") {
             s.topBarMode = TopBarMode(rawValue: min(max(m, 0), TopBarMode.allCases.count - 1))!
         }
@@ -313,6 +316,7 @@ final class SettingsStore {
     func setThreadButtonsHideOnScroll(_ v: Bool) { p.setBool("threadButtonsHideOnScroll", v); set { $0.threadButtonsHideOnScroll = v } }
     func setResumeThreads(_ v: Bool) { p.setBool("resumeThreads", v); set { $0.resumeThreads = v } }
     func setTopBarMode(_ v: TopBarMode) { p.setInt("topBarMode", v.rawValue); set { $0.topBarMode = v } }
+    func setCornerRoundness(_ v: CornerRoundness) { p.setInt("cornerRoundness", v.rawValue); set { $0.cornerRoundness = v } }
     func setTitleTextScale(_ v: Double) { p.setDouble("titleTextScale", v); set { $0.titleTextScale = v } }
     func setPostTextScale(_ v: Double) { p.setDouble("postTextScale", v); set { $0.postTextScale = v } }
     func setCommentTextScale(_ v: Double) { p.setDouble("commentTextScale", v); set { $0.commentTextScale = v } }

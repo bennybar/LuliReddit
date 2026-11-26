@@ -68,6 +68,8 @@ struct GalleryM3Carousel: View {
     var cover: String? = nil
     /// Shown under the first image until it loads (the Reddit Home card's photo).
     var placeholder: URL? = nil
+    /// Its images' corners: Settings › Corner roundness (#283).
+    var radius: CGFloat = 28
 
     @State private var revealed = false
 
@@ -83,6 +85,7 @@ struct GalleryM3Carousel: View {
                         let small: CGFloat = 40, medium = w * 0.2
                         return [w - medium - small - 16, medium, small]
                     },
+                    cornerRadius: radius,
                     onTap: { if covered { revealed = true } else { app.navigator.openGallery(images, title: title, initialIndex: $0) } },
                     label: { "Image \($0 + 1) of \(images.count)" }
                 ) { i in

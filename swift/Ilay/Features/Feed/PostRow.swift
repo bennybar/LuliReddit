@@ -10,6 +10,8 @@ struct FeedRowConfig: Equatable {
     var feedGalleryCarousel: Bool
     var subredditIcons: Bool
     var postAvatars = false
+    /// Settings › Corner roundness (#283), as a factor: see `corner(_:)`.
+    var cornerScale: CGFloat = 1
     var trackHistory: Bool
     var dimReadTextOnly: Bool
     var dimRead: Bool
@@ -25,6 +27,8 @@ struct FeedRowConfig: Equatable {
 
     /// Default and Mini are plain rows with hairlines; the others are cards on a grouped page.
     var isCarded: Bool { display != .large && display != .mini }
+    /// A feed post's corner `r` (its card and media) at the chosen roundness (#283).
+    func corner(_ r: CGFloat) -> CGFloat { scaleCorner(r, cornerScale) }
     /// The page margin around a card.
     var cardInset: CGFloat { isCarded ? 12 : 0 }
     /// A card's content margin (a plain row's, from the screen edge).
@@ -47,6 +51,7 @@ struct FeedRowConfig: Equatable {
             feedGalleryCarousel: s.feedGalleryCarousel,
             subredditIcons: s.subredditIcons,
             postAvatars: s.postAvatars,
+            cornerScale: s.cornerRoundness.factor,
             trackHistory: s.trackHistory,
             dimReadTextOnly: s.dimReadTextOnly,
             dimRead: s.dimRead,

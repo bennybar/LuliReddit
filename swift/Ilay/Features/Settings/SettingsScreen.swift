@@ -94,7 +94,7 @@ private let settingsMoves: [String: (section: String, group: Int)] = [
     "Hidden subreddits": ("Read & hidden", 2), "Hide NSFW posts": ("Read & hidden", 2),
     // Appearance: how posts look in feeds, after theme and text.
     "u/ before your name in the side bar": ("Appearance", 0),
-    "Post display": ("Appearance", 1), "Post text in feeds": ("Appearance", 1),
+    "Post display": ("Appearance", 1), "Corner roundness": ("Appearance", 1), "Post text in feeds": ("Appearance", 1),
     "Subreddit icons": ("Appearance", 1), "Floating filter chips": ("Appearance", 1),
     // Navigation: the tabs and side bar, then the top bar.
     "Navigation": ("Navigation", 0), "Inbox in Profile": ("Navigation", 0), "Explore sections": ("Navigation", 0),
@@ -167,6 +167,10 @@ struct SettingsCatalog {
     private func feed(_ b: RowBuilder) {
         b.section("Feed")
         b.picker("Post display", value: s.postDisplay, options: PostDisplay.allCases.map { PickOption(value: $0, label: $0.label, icon: $0.icon) }, set: ctrl.setPostDisplay)
+        // How round posts' cards and media are (#283).
+        b.picker("Corner roundness", value: s.cornerRoundness,
+                 options: CornerRoundness.allCases.map { PickOption(value: $0, label: $0.label, subtitle: $0.description) },
+                 set: ctrl.setCornerRoundness)
         // How much of a post's text feeds show (#186).
         b.picker("Post text in feeds", value: s.postTextLines,
                  options: [PickOption(value: 0, label: "Layout's default"), PickOption(value: 5, label: "5 lines"), PickOption(value: 10, label: "10 lines")],

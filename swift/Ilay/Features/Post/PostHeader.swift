@@ -323,15 +323,18 @@ private struct PostMediaView: View {
         let p = post
         let blur = (p.over18 && app.settings.value.blurNsfw) || p.spoiler
         let label = p.over18 ? "NSFW" : "Spoiler"
+        // Settings › Corner roundness (#283), as in the feed.
+        let factor = app.settings.value.cornerRoundness.factor
+        let radius = scaleCorner(16, factor)
         if p.type == .selfPost {
             EmptyView()
         } else if p.type == .gallery, !p.gallery.isEmpty {
             // A spoiler / NSFW gallery covers each image, so it still swipes (#165).
             Group {
                 if p.gallery.count > 1 {
-                    GalleryM3Carousel(images: p.gallery, title: p.title, cover: blur ? label : nil)
+                    GalleryM3Carousel(images: p.gallery, title: p.title, cover: blur ? label : nil, radius: scaleCorner(28, factor))
                 } else {
-                    GalleryCarousel(images: p.gallery, title: p.title, cover: blur ? label : nil)
+                    GalleryCarousel(images: p.gallery, title: p.title, radius: radius, cover: blur ? label : nil)
                 }
             }
             .padding(.bottom, 12)
@@ -342,7 +345,7 @@ private struct PostMediaView: View {
                     guard let w = p.previewWidth, let h = p.previewHeight, h > 0 else { return 16.0 / 9.0 }
                     return min(max(CGFloat(w) / CGFloat(h), 0.5), 2)
                 }()
-                NsfwBlur(blur: blur, blurredImageUrl: p.blurredPreviewUrl, label: label) {
+                NsfwBlur(blur: blur, blurredImageUrl: p.blurredPreviewUrl, label: label, radius: radius) {
                     Button {
                         openMedia(p)
                     } label: {
@@ -351,7 +354,7 @@ private struct PostMediaView: View {
                             RemoteImage(url: URL(string: preview))
                         }
                         .aspectRatio(aspect, contentMode: .fit)
-                        .clipShape(.rect(cornerRadius: 16))
+                        .clipShape(.rect(cornerRadius: radius))
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Open link")
@@ -373,7 +376,7 @@ private struct PostMediaView: View {
                 guard let w = p.previewWidth, let h = p.previewHeight, h > 0 else { return 16.0 / 9.0 }
                 return min(max(CGFloat(w) / CGFloat(h), 0.5), 2)
             }()
-            NsfwBlur(blur: blur, blurredImageUrl: p.blurredPreviewUrl, label: label) {
+            NsfwBlur(blur: blur, blurredImageUrl: p.blurredPreviewUrl, label: label, radius: radius) {
                 Button {
                     openMedia(p)
                 } label: {
@@ -390,7 +393,7 @@ private struct PostMediaView: View {
                         }
                     }
                     .aspectRatio(aspect, contentMode: .fit)
-                    .clipShape(.rect(cornerRadius: 16))
+                    .clipShape(.rect(cornerRadius: radius))
                     .zoomSource()
                 }
                 .buttonStyle(.plain)
