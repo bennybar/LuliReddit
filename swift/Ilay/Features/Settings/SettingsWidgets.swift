@@ -188,7 +188,7 @@ private struct HiddenSubsSheet: View {
 /// sample post is drawn by the feed's own `PostCard` at true size, with the feed's insets
 /// and spacing, on the feed's background, so every look option (layout, corners, text
 /// sizes, theme, accent, icons, flair…) shows exactly as it will. Pinned under the page
-/// title; up to 45% of the screen, a taller card fading out at the bottom with its top
+/// title; up to half the screen, a taller card fading out at the bottom with its top
 /// always readable. The sample is local (a picture drawn here, no Reddit requests) and inert.
 ///
 /// `scrolled`: the options have gone under it, so a hairline sets it off from them.
@@ -203,7 +203,7 @@ struct AppearancePreview: View {
         // Read here (through `current`) so any appearance change redraws the card.
         let config = FeedRowConfig.current()
         let screen = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first?.screen.bounds.height ?? 874
-        let maxHeight = screen * 0.45
+        let maxHeight = screen * 0.5
         let top: CGFloat = 8
         let clipped = cardHeight + top > maxHeight
         let background = Color(config.isCarded ? .systemGroupedBackground : .systemBackground)

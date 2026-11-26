@@ -45,7 +45,7 @@ import com.bennybar.luli_for_reddit.settings.PostDisplay
  * sample post is drawn by the feed's own [PostCard] at true size, with the feed list's side
  * inset and spacing, on the feed's background, so every look option (layout, corners,
  * text sizes, font, theme, icons, flair…) shows exactly as it will. Pinned under the page
- * title; up to 45% of the screen, a taller card fading out at the bottom with its top
+ * title; up to about half the screen, a taller card fading out at the bottom with its top
  * always readable. The sample is local (a bundled picture, no Reddit requests) and inert.
  *
  * [scrolled]: the options have gone under it, so a hairline sets it off from them.
@@ -57,7 +57,7 @@ fun AppearancePreview(scrolled: Boolean, modifier: Modifier = Modifier) {
     val display by remember { app.settings.state }.collectAsStateWithLifecycle()
     val cs = MaterialTheme.colorScheme
     BoxWithConstraints(modifier.fillMaxWidth().background(cs.background)) {
-        val max = (maxHeight.takeIf { it != Dp.Infinity } ?: 800.dp) * 0.45f
+        val max = (maxHeight.takeIf { it != Dp.Infinity } ?: 800.dp) * 0.52f
         var clipped by remember { mutableStateOf(false) }
         Box(
             Modifier

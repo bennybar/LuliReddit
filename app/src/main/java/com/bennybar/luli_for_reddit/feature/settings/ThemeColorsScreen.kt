@@ -146,7 +146,7 @@ fun ThemeColorsContent(showPreview: Boolean = true) {
         }
         SwitchTile("AMOLED black", "Pure black surfaces in dark mode", Icons.Rounded.DarkMode, s.amoled, onChange = ctrl::setAmoled)
 
-        Heading("Colour")
+        Heading("Accent colour")
         SwitchTile("Wallpaper colours", "Take the colours from your wallpaper", Icons.Rounded.Wallpaper, s.useDynamicColor, onChange = ctrl::setUseDynamicColor)
         if (!s.useDynamicColor) {
             FlowRow(
