@@ -41,16 +41,34 @@ import SwiftUI
 struct UserScreen: View {
     let username: String
     @State private var tab = "Posts"
+    /// Home's namespace: the Search screen grows out of this page's search button (#293, as #285).
+    @Environment(\.searchZoom) private var homeZoom
+    /// Outside Home (previews): one of its own, matching nothing.
+    @Namespace private var ownZoom
+
+    /// Its own id: this page sits over a tab, whose button has the plain one.
+    private var zoomSource: String { "\(searchZoomSource):u/\(username)" }
 
     var body: some View {
         let nav = app.navigator
         let me = app.session.username
         let isSelf = !me.isEmpty && me.lowercased() == username.lowercased()
+        // Expandable: the community page's header, the banner behind the bar (#293).
+        let banner = app.settings.value.topBarMode == .expandable
 
         UserProfileBody(username: username, tab: $tab)
-            .navigationTitle("u/\(username)")
+            .navigationTitle(banner ? "" : "u/\(username)")
             .navigationBarTitleDisplayMode(.inline)
+            .barZoomSource(zoomSource, in: homeZoom ?? ownZoom, label: "Search")
             .toolbar {
+                if banner {
+                    // Their posts, as your Profile's search finds yours.
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Search", systemImage: "magnifyingglass") {
+                            nav.push(.search(query: "author:\(username)"), zoom: true, zoomSource: zoomSource)
+                        }
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     let share = { nav.share("https://reddit.com/user/\(username)") }
                     if isSelf {
@@ -106,6 +124,12 @@ struct UserProfileBody: View {
         isSelf ? ["Posts", "Comments", "Saved", "Upvoted", "Downvoted"] : ["Posts", "Comments"]
     }
 
+    /// Expandable: the community page's header (#293), the banner behind the bar.
+    private var banner: Bool { app.settings.value.topBarMode == .expandable }
+
+    /// "Followed u/x" / "Unfollowed u/x" after the round Follow, as Join's (#277).
+    @State private var followPill: String?
+
     var body: some View {
         let me = app.session.username
         let current = tabs.contains(tab) ? tab : "Posts"
@@ -130,7 +154,13 @@ struct UserProfileBody: View {
                         case let .error(error):
                             ErrorView(message: error, onRetry: model.retry)
                         case let .data(user):
-                            ProfileHeader(user: user, canFollow: !isSelf && !me.isEmpty, onSwitchAccount: onSwitchAccount)
+                            if banner {
+                                UserBannerHeader(user: user, canFollow: !isSelf && !me.isEmpty, onSwitchAccount: onSwitchAccount) { on in
+                                    followPill = "\(on ? "Followed" : "Unfollowed") \(userName(user.name))"
+                                }
+                            } else {
+                                ProfileHeader(user: user, canFollow: !isSelf && !me.isEmpty, onSwitchAccount: onSwitchAccount)
+                            }
                         }
                     } tabs: {
                         // Posts / Comments / Saved as segments; Upvoted and Downvoted (picked from the
@@ -151,9 +181,40 @@ struct UserProfileBody: View {
                         .padding(.horizontal, 16)
                         .padding(.vertical, 6)
                     }
+                    if banner, case let .data(user) = model.about, user.bannerUrl != nil {
+                        // The banner from the screen's top, behind the bar, and the picture over
+                        // its foot; it moves with the header.
+                        UserBannerBackdrop(model: model, user: user)
+                    }
                 }
             }
         }
+        .toolbar {
+            if banner, case let .data(user) = model.about {
+                // The picture and name, in the bar once the header has gone under it.
+                ToolbarItem(placement: .principal) { FoldedName(model: model, user: user) }
+            }
+        }
+        // Above the bottom bar, in the inverse of the page's colours, as Join's.
+        .overlay(alignment: .bottom) {
+            if let followPill {
+                Text(followPill)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color(.systemBackground))
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 10)
+                    .background(Color(.label), in: .capsule)
+                    .shadow(color: .black.opacity(0.2), radius: 8, y: 3)
+                    .padding(.bottom, 84)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .id(followPill)
+                    .task {
+                        try? await Task.sleep(for: .seconds(3))
+                        withAnimation(.easeOut(duration: 0.25)) { self.followPill = nil }
+                    }
+            }
+        }
+        .animation(.spring(duration: 0.3), value: followPill)
         .task { model.load() }
     }
 
@@ -358,6 +419,202 @@ private struct ProfileHeader: View {
             }
         }
         .padding(EdgeInsets(top: 8, leading: 16, bottom: 12, trailing: 16))
+    }
+}
+
+private let profileBanner: CGFloat = 64 // under the bar, as a community's
+private let profileIcon: CGFloat = 76
+private let profileIconOver: CGFloat = 26 // a third of it over the banner's foot (#277's)
+
+/// The banner from the screen's top to its foot, behind the bar, and the picture over its
+/// foot (#293, as a community's BannerBackdrop); it slides away with the header.
+private struct UserBannerBackdrop: View {
+    let model: UserProfileModel
+    let user: RedditUser
+
+    var body: some View {
+        let page = Color(.systemBackground)
+        Color.clear
+            .frame(maxWidth: .infinity)
+            .frame(height: profileBanner)
+            .background {
+                Rectangle()
+                    .fill(IlayTheme.accent.opacity(0.35).gradient)
+                    .overlay {
+                        if let url = user.bannerUrl.flatMap(URL.init(string:)) { BannerImage(url: url) }
+                    }
+                    .clipped()
+                    .ignoresSafeArea(edges: .top)
+            }
+            .overlay(alignment: .topLeading) {
+                LetterAvatar(name: user.name, size: profileIcon, imageUrl: user.iconUrl)
+                    .padding(3)
+                    .background(page, in: Circle())
+                    .offset(x: 13, y: profileBanner - profileIconOver - 3)
+            }
+            .offset(y: model.pull - model.collapse)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+}
+
+/// The picture and name in the bar once the header has slid under it.
+private struct FoldedName: View {
+    let model: UserProfileModel
+    let user: RedditUser
+
+    var body: some View {
+        let folded = model.collapse > profileBanner + 40
+        HStack(spacing: 8) {
+            LetterAvatar(name: user.name, size: 24, imageUrl: user.iconUrl)
+            Text(userName(user.name)).font(.headline).lineLimit(1)
+        }
+        .opacity(folded ? 1 : 0)
+        .animation(.easeOut(duration: 0.2), value: folded)
+    }
+}
+
+/// A profile's header as a community's (#293): with a banner, room for it (drawn behind, by
+/// UserBannerBackdrop), the picture over its foot and the name beside it; without one, no
+/// band of colour standing in but the picture big and centred. Karma and the account's age,
+/// Follow as a round + / ✓, and the description in a card when there is one.
+private struct UserBannerHeader: View {
+    let user: RedditUser
+    let canFollow: Bool
+    let onSwitchAccount: (() -> Void)?
+    /// Followed (true) or stopped (false) by the + / ✓.
+    let onFollowed: (Bool) -> Void
+
+    @State private var following: Bool
+    @State private var busy = false
+    @State private var open = false
+
+    init(user: RedditUser, canFollow: Bool, onSwitchAccount: (() -> Void)?, onFollowed: @escaping (Bool) -> Void) {
+        self.user = user
+        self.canFollow = canFollow
+        self.onSwitchAccount = onSwitchAccount
+        self.onFollowed = onFollowed
+        _following = State(initialValue: user.following)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if user.bannerUrl != nil {
+                Color.clear.frame(height: profileBanner)
+                HStack(alignment: .top, spacing: 12) {
+                    // The picture's place: drawn with the banner, the rest of it below its foot.
+                    Color.clear.frame(width: profileIcon, height: profileIcon - profileIconOver - 10)
+                    VStack(alignment: .leading, spacing: 2) {
+                        name(.title.bold())
+                        karma
+                    }
+                    .layoutPriority(1)
+                    Spacer(minLength: 0)
+                    if canFollow { follow }
+                }
+                .padding(.horizontal, 16)
+            } else {
+                VStack(spacing: 8) {
+                    LetterAvatar(name: user.name, size: 112, imageUrl: user.iconUrl)
+                        .pictureOpens(user.iconUrl, name: "u/\(user.name)")
+                    name(.largeTitle.bold())
+                    HStack(spacing: 12) {
+                        karma
+                        if canFollow { follow }
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 8)
+            }
+            if !user.description.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(user.description)
+                        .font(.system(size: 15))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(open ? nil : 3)
+                    if user.description.count > 120 {
+                        Button(open ? "Show less" : "Show all") {
+                            withAnimation(.easeInOut(duration: 0.26)) { open.toggle() }
+                        }
+                        .font(.subheadline.weight(.semibold))
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(14)
+                .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 22))
+                .padding(.horizontal, 12)
+            }
+        }
+        .padding(.bottom, 8)
+        .overlay(alignment: .topLeading) {
+            // The picture is drawn behind (UserBannerBackdrop), which takes no touches: a clear
+            // circle at its place opens it full screen and is where it zooms from (#279).
+            if user.bannerUrl != nil, let icon = user.iconUrl {
+                Color.clear
+                    .frame(width: profileIcon + 6, height: profileIcon + 6)
+                    .contentShape(Circle())
+                    .zoomSource(circle: true)
+                    .onTapGesture { app.navigator.openPicture(icon, name: "u/\(user.name)") }
+                    .accessibilityLabel("Open picture")
+                    .accessibilityAddTraits(.isButton)
+                    .offset(x: 13, y: profileBanner - profileIconOver - 3)
+            }
+        }
+    }
+
+    /// u/name (the "r/ and u/ before names" setting's, #289); your own opens the accounts (#144).
+    @ViewBuilder private func name(_ font: Font) -> some View {
+        if let onSwitchAccount {
+            Button(action: onSwitchAccount) {
+                HStack(spacing: 4) {
+                    Text(userName(user.name)).font(font).lineLimit(1)
+                    Image(systemName: "chevron.down").font(.caption.bold()).foregroundStyle(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Switch or add account")
+        } else {
+            Text(userName(user.name)).font(font).lineLimit(1)
+        }
+    }
+
+    /// "6.2M karma · 20y": karma and how long the account has been around.
+    private var karma: some View {
+        Text("\(compactNumber(user.linkKarma + user.commentKarma)) karma · \(timeAgo(user.createdUtc))")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+    }
+
+    /// Follow as Join is on a community (#277): + to follow, ✓ to stop. Following a user is
+    /// subscribing to their profile (u_<name>): their posts then show in your feeds.
+    private var follow: some View {
+        Button {
+            let next = !following
+            following = next
+            busy = true
+            Task {
+                do {
+                    try await app.repository.setSubscribed("u_\(user.name)", subscribe: next)
+                    onFollowed(next)
+                } catch {
+                    following = !next
+                    app.navigator.showActionError(next ? "follow" : "unfollow", error)
+                }
+                busy = false
+            }
+        } label: {
+            Image(systemName: following ? "checkmark" : "plus")
+                .font(.body.weight(.semibold))
+                .contentTransition(.symbolEffect(.replace))
+                .frame(width: 40, height: 40)
+                .foregroundStyle(following ? Color.secondary : Color.white)
+                .background(following ? AnyShapeStyle(Color(.tertiarySystemFill)) : AnyShapeStyle(IlayTheme.accent), in: .circle)
+        }
+        .buttonStyle(.plain)
+        .disabled(busy)
+        .accessibilityLabel(following ? "Unfollow \(userName(user.name))" : "Follow \(userName(user.name))")
+        .accessibilityAddTraits(following ? .isSelected : [])
     }
 }
 

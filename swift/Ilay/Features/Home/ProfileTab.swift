@@ -41,8 +41,9 @@ struct ProfileTab: View {
         }
         // Settings › Appearance › Top bar, as Posts and Explore (#214): Full, a search bar
         // for your own posts (Reddit's search finds posts by author, not comments).
-        .navigationTitle(fullBar ? "" : "Profile")
-        .navigationBarTitleDisplayMode(fullBar ? .inline : .automatic)
+        // Expandable, signed in: your banner and name in its place (#293), as a community's header.
+        .navigationTitle(fullBar || !(anonymous || username.isEmpty) ? "" : "Profile")
+        .navigationBarTitleDisplayMode(fullBar || !(anonymous || username.isEmpty) ? .inline : .automatic)
         // What the Search screen grows out of, as on Posts (#295).
         .barZoomSource(profileZoomSource, in: homeZoom ?? ownZoom, label: anonymous || username.isEmpty ? "Search Reddit" : "Search your posts")
         .toolbar {

@@ -651,7 +651,7 @@ private enum FlairPick {
 /// times (Reddit feedback, r/Howtomen). One that would need more than 1.5× becomes a soft
 /// wash of its own colours with the banner sharp across it (#294) instead of a blurry
 /// zoom; a big enough one shows as it is.
-private struct BannerImage: View {
+struct BannerImage: View {
     let url: URL
 
     @State private var image: UIImage?
