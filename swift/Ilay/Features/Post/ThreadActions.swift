@@ -2,7 +2,8 @@ import SwiftUI
 
 /// Row actions for the comment list, in one object every cell shares.
 @MainActor final class ThreadActions {
-    let vm: CommentsViewModel
+    /// nil: Settings › Appearance's sample thread, which draws real rows but never acts.
+    let vm: CommentsViewModel?
     var post: Post?
     var flat: [Comment] = []
     /// Comments translated one by one (set by the screen).
@@ -12,11 +13,11 @@ import SwiftUI
 
     private var nav: AppNavigator { app.navigator }
 
-    init(vm: CommentsViewModel) { self.vm = vm }
+    init(vm: CommentsViewModel?) { self.vm = vm }
 
-    func toggle(_ c: Comment) { vm.toggleCollapse(c.id) }
-    func unfold(_ c: Comment) { vm.unfold(c.id) }
-    func toggleButtons(_ c: Comment) { vm.toggleButtons(c.id) }
+    func toggle(_ c: Comment) { vm?.toggleCollapse(c.id) }
+    func unfold(_ c: Comment) { vm?.unfold(c.id) }
+    func toggleButtons(_ c: Comment) { vm?.toggleButtons(c.id) }
 
     func loadMore(_ c: Comment) {
         guard let p = post else { return }
@@ -26,13 +27,13 @@ import SwiftUI
         if c.moreChildren.isEmpty, c.parentId.hasPrefix("t1_") {
             nav.openPost(p, focusCommentId: c.parentId.removePrefix("t1_"))
         } else {
-            vm.loadMore(c)
+            vm?.loadMore(c)
         }
     }
 
     private func onReplied(_ parent: String, _ reply: Comment) {
         guard let p = post else { return }
-        vm.insertReply(parent, reply)
+        vm?.insertReply(parent, reply)
         // The new comment lands at the top of the thread or under its parent:
         // often off-screen, so it looked like nothing happened. Bring it in.
         reveal(reply.fullname)
@@ -56,7 +57,7 @@ import SwiftUI
 
     func edit(_ c: Comment) {
         Task {
-            if let text = await showEditSheet(c.fullname, initialText: c.body) { vm.applyEdit(c.fullname, text) }
+            if let text = await showEditSheet(c.fullname, initialText: c.body) { vm?.applyEdit(c.fullname, text) }
         }
     }
 
@@ -65,7 +66,7 @@ import SwiftUI
             guard await confirmDelete("comment") else { return }
             do {
                 try await app.repository.deleteThing(c.fullname)
-                vm.removeComment(c.fullname)
+                vm?.removeComment(c.fullname)
             } catch {
                 nav.showActionError("delete", error)
             }
@@ -77,7 +78,7 @@ import SwiftUI
         let target = current == dir ? 0 : dir
         // Upvoting comments says you're into this thread's subreddit.
         if target == 1, let post { app.forYou.forYouLearner.commentUpvote(post) }
-        vm.updateComment(c.fullname) { x in
+        vm?.updateComment(c.fullname) { x in
             x.with {
                 $0.score = x.score + target - current
                 $0.likes = LocalVotes.likesOf(target)
@@ -88,7 +89,7 @@ import SwiftUI
             do {
                 try await app.repository.vote(c.fullname, dir: target)
             } catch {
-                vm.updateComment(c.fullname) { x in
+                vm?.updateComment(c.fullname) { x in
                     x.with {
                         $0.score = c.score
                         $0.likes = c.likes
@@ -102,12 +103,12 @@ import SwiftUI
 
     func toggleSave(_ c: Comment) {
         let next = !c.saved
-        vm.updateComment(c.fullname) { $0.with { $0.saved = next } }
+        vm?.updateComment(c.fullname) { $0.with { $0.saved = next } }
         Task {
             do {
                 try await app.repository.setSaved(c.fullname, saved: next)
             } catch {
-                vm.updateComment(c.fullname) { $0.with { $0.saved = !next } }
+                vm?.updateComment(c.fullname) { $0.with { $0.saved = !next } }
                 nav.showActionError(next ? "save" : "unsave", error)
             }
         }
@@ -122,7 +123,7 @@ import SwiftUI
 
     /// ⋯ → Translate / Show original on one comment.
     func translate(_ c: Comment) {
-        vm.translateComment(c.fullname) { targets in
+        vm?.translateComment(c.fullname) { targets in
             await Overlays.alert("Translate", buttons: targets.map { (title: "Translate to \(Translate.languageName($0))", role: ButtonRole?.none, value: $0) }
                 + [(title: "Cancel", role: ButtonRole?.some(.cancel), value: "")]).flatMap(\.nilIfEmpty)
         }
@@ -140,9 +141,9 @@ import SwiftUI
         Task {
             guard await modAction(doneMsg, action) else { return }
             if doneMsg.hasPrefix("Distinguished") {
-                vm.updateComment(c.fullname) { $0.with { $0.distinguished = "moderator" } }
+                vm?.updateComment(c.fullname) { $0.with { $0.distinguished = "moderator" } }
             } else if doneMsg.hasPrefix("Undistinguished") {
-                vm.updateComment(c.fullname) { $0.with { $0.distinguished = nil } }
+                vm?.updateComment(c.fullname) { $0.with { $0.distinguished = nil } }
             }
         }
     }

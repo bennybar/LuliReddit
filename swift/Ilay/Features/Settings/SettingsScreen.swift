@@ -84,7 +84,19 @@ let settingsCategories: [[(title: String, subtitle: String, icon: String, color:
 private let settingsSectionOrder = settingsCategories.flatMap { $0 }.map(\.title)
 private let settingsRenamed = ["AI summaries": "AI", "Account & keys": "Account", "Power-user features": "Account"]
 /// The headers of Appearance's groups, by group (`settingsMoves` places its rows).
-private let appearanceGroups = ["Layout", "Colour", "Text", "Other"]
+private let appearanceGroups = ["Layout", "Colour", "Text", "Comments", "Other"]
+/// What Appearance's preview shows for each group (`pickPreview`). The floating chips need
+/// a live feed, so their switch is with what the preview can't show.
+private let appearancePreviews: [PreviewKind] = [.post, .post, .post, .comments, .none]
+/// Where a group takes Appearance's preview: its header this far down the page (fraction).
+private let appearanceLine: CGFloat = 0.55
+
+/// Where Appearance's group headers last were (global y), and the page's top: kept out of
+/// SwiftUI's state so scrolling doesn't redraw the page; only the preview's kind does.
+private final class GroupTops {
+    var tops: [Int: CGFloat] = [:]
+    var pageTop: CGFloat = 0
+}
 
 private let settingsMoves: [String: (section: String, group: Int)] = [
     // Feed: what the Posts tab shows, and For You.
@@ -101,8 +113,9 @@ private let settingsMoves: [String: (section: String, group: Int)] = [
     "Subreddit icons": ("Appearance", 0), "Poster's picture on posts": ("Appearance", 0),
     "Theme": ("Appearance", 1), "Accent color": ("Appearance", 1),
     "Font size": ("Appearance", 2), "Post titles": ("Appearance", 2), "Post text": ("Appearance", 2), "Reset text sizes": ("Appearance", 2),
-    "App icon": ("Appearance", 3), "Comments": ("Appearance", 3), "Floating filter chips": ("Appearance", 3),
-    "u/ before your name in the side bar": ("Appearance", 3),
+    "Comments": ("Appearance", 3),
+    "App icon": ("Appearance", 4), "Floating filter chips": ("Appearance", 4),
+    "u/ before your name in the side bar": ("Appearance", 4),
     // Navigation: the tabs and side bar, then the top bar.
     "Navigation": ("Navigation", 0), "Inbox in Profile": ("Navigation", 0), "Explore sections": ("Navigation", 0),
     "Top bar": ("Navigation", 1), "New post in the top bar": ("Navigation", 1), "Floating button on Home": ("Navigation", 1),
@@ -1182,6 +1195,10 @@ struct SettingsScreen: View {
     @State private var prompts = SettingsPrompts()
     @State private var secure = SecureFlags()
     @State private var scrolled = false
+    /// Appearance: what its preview shows for the group in view, and where the groups are.
+    @State private var previewKind = PreviewKind.post
+    @State private var groupTops = GroupTops()
+    @State private var pageHeight: CGFloat = 0
 
     var body: some View {
         if section == nil {
@@ -1189,6 +1206,17 @@ struct SettingsScreen: View {
         } else {
             list
         }
+    }
+
+    /// Appearance's preview for the group in view: each group's header, from the top of
+    /// the page (unseen ones below it), against a fixed line; only a change redraws.
+    private func updatePreview() {
+        guard section == "Appearance", pageHeight > 0 else { return }
+        let sections = appearancePreviews.indices.map { i in
+            PreviewSection(kind: appearancePreviews[i], top: groupTops.tops[i].map { $0 - groupTops.pageTop } ?? .infinity)
+        }
+        let next = pickPreview(sections, line: pageHeight * appearanceLine, slack: 44, current: previewKind)
+        if next != previewKind { previewKind = next }
     }
 
     private var list: some View {
@@ -1211,8 +1239,15 @@ struct SettingsScreen: View {
                     Section {
                         ForEach(rows.filter { $0.group == group }) { $0.content }
                     } header: {
-                        // Appearance's groups are headed (Posts, Text…), under its preview.
-                        if section == "Appearance", appearanceGroups.indices.contains(group) { Text(appearanceGroups[group]) }
+                        // Appearance's groups are headed (Posts, Text…), under its preview,
+                        // which follows the one in view (`pickPreview`).
+                        if section == "Appearance", appearanceGroups.indices.contains(group) {
+                            Text(appearanceGroups[group])
+                                .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { y in
+                                    groupTops.tops[group] = y
+                                    updatePreview()
+                                }
+                        }
                     }
                 }
             } else {
@@ -1238,8 +1273,17 @@ struct SettingsScreen: View {
         .listStyle(.insetGrouped)
         // A live sample post pinned above Appearance's options: every change shows on it at once.
         .safeAreaInset(edge: .top, spacing: 0) {
-            if section == "Appearance" && query.trimmed.isEmpty { AppearancePreview(scrolled: scrolled) }
+            if section == "Appearance" && query.trimmed.isEmpty { AppearancePreview(scrolled: scrolled, kind: previewKind) }
         }
+        // Where the page is: the groups' places are measured from its top, which the preview
+        // doesn't move (it's the list's inset: the rows stay where they are on screen).
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
+            groupTops.pageTop = frame.minY
+            pageHeight = frame.height
+            updatePreview()
+        }
+        // Room after the last group, so it can come up to the line and get the whole screen.
+        .contentMargins(.bottom, section == "Appearance" ? pageHeight * (1 - appearanceLine) : 0, for: .scrollContent)
         // The preview's hairline shows only once the options have gone under it.
         // (Well past the top: at 1 pt the bounce there flipped it back and forth, and each
         // flip redrew the page, which shook.)

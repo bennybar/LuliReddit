@@ -659,3 +659,70 @@ struct MoreRowView: View {
         .threadCellTheme(env)
     }
 }
+
+/// Settings › Appearance's sample thread (a comment and the poster's reply): the real
+/// rows (`CommentRowView`) in the style threads use, with an inert `ThreadActions` (no
+/// view model: nothing loads and nothing a row would do can run; the preview takes no
+/// touches either). In Calm the thread's platter is drawn by the list's UIKit cell
+/// (`CommentCell`), which lives only in the thread's collection view: here the same
+/// rounded card (white, or 16% grey in dark mode, radius 32, 12 from the edges) and the
+/// reply's rail stand in for it behind the real rows.
+struct SampleCommentThread: View {
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        let s = app.settings.value
+        let env = ThreadRowEnv(
+            calm: s.calmComments, tapToCollapse: s.tapToCollapse, buttonsOnTap: s.commentButtonsOnTap, voteEdge: s.voteEdge, voteGlow: s.voteGlow,
+            dark: scheme == .dark, textScale: s.textScale, commentTextScale: s.commentTextScale, accent: IlayTheme.accent
+        )
+        let rows = Self.rows
+        VStack(spacing: 0) {
+            ForEach(rows.indices, id: \.self) { i in
+                CommentRowView(row: rows[i], env: env, actions: Self.actions)
+                    .overlay(alignment: .topLeading) {
+                        // The reply's rail, where the thread's cell draws it (#166).
+                        if env.calm, rows[i].comment.depth > 0 {
+                            Capsule()
+                                .fill(Color(uiColor: railColors[0]))
+                                .frame(width: 2.5)
+                                .padding(.top, 6)
+                                .padding(.bottom, rows[i].last ? 21 : 0)
+                                .padding(.leading, 12 + calmRailStep - 1.25)
+                        }
+                    }
+            }
+        }
+        .background {
+            if env.calm {
+                RoundedRectangle(cornerRadius: 32, style: .continuous)
+                    .fill(scheme == .dark ? Color(white: 0.16) : .white)
+                    .shadow(color: .black.opacity(scheme == .dark ? 0 : 0.10), radius: 22, y: 10)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 10)
+            }
+        }
+        .padding(.top, 6)
+        .background(Color(env.calm ? .systemBackground : .systemGroupedBackground))
+    }
+
+    @MainActor private static let actions = ThreadActions(vm: nil)
+
+    private static let rows: [CommentRowModel] = {
+        let now = Int(Date().timeIntervalSince1970 * 1000)
+        let parent = Comment(
+            id: "appearance_preview_c1", fullname: "t1_appearance_preview_c1", parentId: "t3_appearance_preview",
+            author: "early_riser", body: "That light on the water is unreal. What time did you get there?",
+            score: 212, createdUtc: now - 90 * 60_000, depth: 0
+        )
+        let reply = Comment(
+            id: "appearance_preview_c2", fullname: "t1_appearance_preview_c2", parentId: "t1_appearance_preview_c1",
+            author: "ilay_preview", body: "Just before six, the fog lifted twenty minutes later.",
+            score: 87, createdUtc: now - 60 * 60_000, depth: 1
+        )
+        return [
+            CommentRowModel(comment: parent, first: true, prevDepth: 0, nextDepth: 1),
+            CommentRowModel(comment: reply, isOp: true, last: true, prevDepth: 0, nextDepth: 0),
+        ]
+    }()
+}
