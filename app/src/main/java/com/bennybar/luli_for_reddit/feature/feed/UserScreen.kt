@@ -1,5 +1,25 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import com.bennybar.luli_for_reddit.nav.searchMorphSource
+import com.bennybar.luli_for_reddit.settings.HeaderHeight
+import com.bennybar.luli_for_reddit.settings.TopBarMode
+import com.bennybar.luli_for_reddit.ui.SearchIcon
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalDensity
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.MutableFloatState
 import com.bennybar.luli_for_reddit.ui.subredditName
 import androidx.compose.runtime.LaunchedEffect
@@ -116,35 +136,53 @@ fun UserScreen(username: String) {
     val scope = rememberCoroutineScope()
     val me = currentSessionUsername()
     val isSelf = me.isNotEmpty() && me.equals(username, ignoreCase = true)
+    val settings by app.settings.state.collectAsStateWithLifecycle()
+    // Expandable, Medium or Tall: the community page's header, the banner under the status
+    // bar and the bar's buttons over it (#293); Folded and the Full bar keep the plain bar.
+    val bannerHeader = settings.topBarMode == TopBarMode.EXPANDABLE && settings.headerHeight != HeaderHeight.FOLDED
+    val actions: @Composable RowScope.() -> Unit = {
+        val share = { nav.share("https://reddit.com/user/$username") }
+        // Their posts, as your Profile's search finds yours; the search page grows out of it (#285).
+        if (bannerHeader) {
+            IconButton(onClick = { nav.push(Route.Search(query = "author:$username")) }, Modifier.searchMorphSource()) {
+                Icon(SearchIcon, "Search u/$username's posts")
+            }
+        }
+        // Your own page has only Share; anyone else's actions go in ⋯, like a
+        // subreddit's, instead of four icons crowding the name (#275).
+        if (isSelf) {
+            IconButton(onClick = share) { Icon(Icons.Outlined.Share, "Share") }
+        } else {
+            IconButton(onClick = {
+                showBarMenu(
+                    listOf(
+                        MenuAction(Icons.Rounded.MailOutline, "Send message") { nav.push(Route.ComposeMessage(to = username)) },
+                        MenuAction(Icons.Outlined.Share, "Share", onClick = share),
+                        // #221
+                        MenuAction(Icons.Outlined.Flag, "Report user") {
+                            scope.launch { showReportDialog("u/$username") { app.repository.reportUser(username, it) } }
+                        },
+                        MenuAction(Icons.Rounded.Block, "Block user") { scope.launch { confirmBlockUser(username) } },
+                    ),
+                )
+            }) { Icon(Icons.Rounded.MoreHoriz, "More") }
+        }
+    }
 
-    Scaffold(
-        topBar = {
-            BloomTopBar(
-                "u/$username",
-                actions = {
-                    val share = { nav.share("https://reddit.com/user/$username") }
-                    // Your own page has only Share; anyone else's actions go in ⋯, like a
-                    // subreddit's, instead of four icons crowding the name (#275).
-                    if (isSelf) {
-                        IconButton(onClick = share) { Icon(Icons.Outlined.Share, "Share") }
-                    } else {
-                        IconButton(onClick = {
-                            showBarMenu(
-                                listOf(
-                                    MenuAction(Icons.Rounded.MailOutline, "Send message") { nav.push(Route.ComposeMessage(to = username)) },
-                                    MenuAction(Icons.Outlined.Share, "Share", onClick = share),
-                                    // #221
-                                    MenuAction(Icons.Outlined.Flag, "Report user") {
-                                        scope.launch { showReportDialog("u/$username") { app.repository.reportUser(username, it) } }
-                                    },
-                                    MenuAction(Icons.Rounded.Block, "Block user") { scope.launch { confirmBlockUser(username) } },
-                                ),
-                            )
-                        }) { Icon(Icons.Rounded.MoreHoriz, "More") }
-                    }
-                },
+    if (bannerHeader) {
+        Scaffold(containerColor = MaterialTheme.colorScheme.surface) { _ ->
+            UserProfileBody(
+                username, Modifier.fillMaxSize(),
+                bannerBar = BannerBar(
+                    leading = { IconButton(onClick = { nav.pop() }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") } },
+                    actions = actions,
+                ),
             )
-        },
+        }
+        return
+    }
+    Scaffold(
+        topBar = { BloomTopBar("u/$username", actions = actions) },
         containerColor = MaterialTheme.colorScheme.surface,
     ) { padding ->
         UserProfileBody(username, Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()))
@@ -165,6 +203,9 @@ fun UserProfileBody(
     // How far the header is slid away (0 = all shown, only at a list's top): the Profile
     // tab's big title opens again only then (#247).
     headerOffsetState: MutableFloatState = remember { mutableFloatStateOf(0f) },
+    // The community page's header (#293): the banner under the status bar, this bar's
+    // buttons over it. Null: the plain header under the screen's own bar.
+    bannerBar: BannerBar? = null,
 ) {
     val scope = rememberCoroutineScope()
     val vm = viewModel(key = "user_$username") { UserAboutViewModel(username) }
@@ -199,11 +240,15 @@ fun UserProfileBody(
     // a pull refreshes.
     var headerHeight by remember { mutableIntStateOf(0) }
     var headerOffset by headerOffsetState
+    // With the banner header, it slides up only to the bar's row, which stays over it.
+    val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val barRoom = remember { mutableFloatStateOf(0f) }
+    barRoom.floatValue = if (bannerBar == null) 0f else with(LocalDensity.current) { bannerBarHeight(top).toPx() }
     val collapse = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 if (available.y >= 0) return Offset.Zero
-                val next = (headerOffset + available.y).coerceAtLeast(-headerHeight.toFloat())
+                val next = (headerOffset + available.y).coerceAtLeast(-(headerHeight - barRoom.floatValue).coerceAtLeast(0f))
                 val used = next - headerOffset
                 headerOffset = next
                 return Offset(0f, used)
@@ -221,7 +266,25 @@ fun UserProfileBody(
     val listModifier = Modifier.nestedScroll(collapse)
     LaunchedEffect(scrollTop) { scrollTop?.drop(1)?.collect { headerOffset = 0f } }
 
-    Column(modifier) {
+    // The banner (one decode for the header and the blur in the bar's circles), and whether
+    // it's light where the status bar and buttons sit on it.
+    val cs = MaterialTheme.colorScheme
+    val user = (about as? Async.Data)?.value
+    val bannerPx = with(LocalDensity.current) { (top + BANNER.dp).roundToPx() }
+    val request = if (bannerBar == null) null else rememberCoverRequest(user?.bannerUrl, feedDecodeWidth(), bannerPx)
+    var imageLight by remember(user?.bannerUrl) { mutableStateOf<Boolean?>(null) }
+    val light = imageLight ?: ((if (user?.bannerUrl != null) cs.primaryContainer else cs.surface).luminance() > 0.5f)
+    val fraction = {
+        val range = headerHeight - barRoom.floatValue
+        if (range <= 0f) 0f else (-headerOffset / range).coerceIn(0f, 1f)
+    }
+    if (bannerBar != null) BannerStatusBar(light = light, shown = { fraction() < 0.5f })
+    // "Followed u/x" / "Unfollowed u/x" after the round Follow, as Join's pill (#277).
+    var followPill by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(followPill) { if (followPill != null) { delay(3_000); followPill = null } }
+
+    Box(modifier) {
+    Column(Modifier.fillMaxSize()) {
         Column(
             Modifier.clipToBounds().layout { measurable, constraints ->
                 val p = measurable.measure(constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity))
@@ -230,12 +293,20 @@ fun UserProfileBody(
                 layout(p.width, p.height + offset) { p.place(0, offset) }
             },
         ) {
+            // Under the bar's row with the banner header: the status bar and buttons are over it.
+            val room = if (bannerBar != null) bannerBarHeight(top) else 0.dp
             when (val a = about) {
-                Async.Loading -> Box(Modifier.fillMaxWidth().height(96.dp), contentAlignment = Alignment.Center) {
+                Async.Loading -> Box(Modifier.fillMaxWidth().padding(top = room).height(96.dp), contentAlignment = Alignment.Center) {
                     Loading()
                 }
-                is Async.Error -> Text("Could not load profile: ${friendlyError(a.error)}", Modifier.padding(16.dp))
-                is Async.Data -> ProfileHeader(a.value, canFollow = !isSelf && me.isNotEmpty(), onSwitchAccount)
+                is Async.Error -> Text("Could not load profile: ${friendlyError(a.error)}", Modifier.padding(top = room).padding(16.dp))
+                is Async.Data -> if (bannerBar != null) {
+                    UserBannerHeader(
+                        a.value, canFollow = !isSelf && me.isNotEmpty(), onSwitchAccount, top, request,
+                        onLight = { imageLight = it },
+                        onFollowed = { on -> followPill = "${if (on) "Followed" else "Unfollowed"} ${userName(a.value.name)}" },
+                    )
+                } else ProfileHeader(a.value, canFollow = !isSelf && me.isNotEmpty(), onSwitchAccount)
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -327,6 +398,23 @@ fun UserProfileBody(
                 ) { PostCard(it) }
             }
         }
+    }
+    if (bannerBar != null) {
+        UserBannerBar(bannerBar, user, light, top, request, fraction, bannerShift = { headerOffset })
+        // Above the bottom bar, in the theme's inverse colours, as Join's.
+        AnimatedVisibility(
+            followPill != null,
+            Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 92.dp),
+            enter = fadeIn() + slideInVertically { it / 2 },
+            exit = fadeOut() + slideOutVertically { it / 2 },
+        ) {
+            var last by remember { mutableStateOf("") }
+            followPill?.let { last = it }
+            Surface(shape = CircleShape, color = cs.inverseSurface, contentColor = cs.inverseOnSurface, shadowElevation = 6.dp) {
+                Text(last, Modifier.padding(horizontal = 18.dp, vertical = 10.dp), style = MaterialTheme.typography.labelLarge)
+            }
+        }
+    }
     }
 }
 

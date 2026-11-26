@@ -401,7 +401,8 @@ fun HomeScreen() {
                 2 -> InboxScreen(reselect = inboxReselect, selected = index == 2) // under the status bar, with its own fade (#246)
                 // Only while it's a tab (it was built for everyone).
                 4 -> if (4 in order) com.bennybar.luli_for_reddit.feature.digest.DigestScreen(tab = true, selected = index == 4, reselect = digestReselect)
-                else -> Box(Modifier.statusBarsPadding()) { ProfileTab(selected = index == 3) }
+                // Under the status bar with its banner header (#293); it pads itself otherwise.
+                else -> ProfileTab(selected = index == 3)
             }
         }
         // No fade under the status bar here for Inbox and Profile (#74's): Inbox has its own

@@ -333,12 +333,12 @@ fun SubredditScreen(name: String) {
 
 /** The banner header's room under the bar's row: the banner, the icon over its foot, the name and members. */
 private val BANNER_EXTRA = 150.dp
-private const val BANNER = 136f // the banner's height under the status bar, dp
-private val ICON = 76.dp // the icon over the banner's foot (#268: bigger), 30dp in the bar
-private val NAME_GAP = 10.dp // the name under the banner's foot (#268: a little lower)
-private val ICON_OVER = 26.dp // how much of the icon is over the banner's foot: about a third (#277)
-private val JOIN = 40.dp // the + / ✓ button by the name (#277)
-private val BAR_ROW_TOP = 10.dp // the bar's row, under the status bar (CollapsingTitle's)
+internal const val BANNER = 136f // the banner's height under the status bar, dp
+internal val ICON = 76.dp // the icon over the banner's foot (#268: bigger), 30dp in the bar
+internal val NAME_GAP = 10.dp // the name under the banner's foot (#268: a little lower)
+internal val ICON_OVER = 26.dp // how much of the icon is over the banner's foot: about a third (#277)
+internal val JOIN = 40.dp // the + / ✓ button by the name (#277)
+internal val BAR_ROW_TOP = 10.dp // the bar's row, under the status bar (CollapsingTitle's)
 
 /**
  * A subreddit's header with Settings › Header height on Medium or Tall (#257), as a
@@ -533,7 +533,7 @@ private fun BannerTitleBar(
  * header is open (#268); the theme's again once it folds, and when the page goes.
  */
 @Composable
-private fun BannerStatusBar(light: Boolean, shown: () -> Boolean) {
+internal fun BannerStatusBar(light: Boolean, shown: () -> Boolean) {
     val view = LocalView.current
     val controller = remember(view) {
         generateSequence(view.context) { (it as? ContextWrapper)?.baseContext }.firstNotNullOfOrNull { it as? Activity }
@@ -580,7 +580,7 @@ private object BannerBarOwner {
  * of its pixels (off the main thread: a hardware bitmap is copied to read them). The box is
  * filled by cropping (#291): only the part that shows counts, not the whole picture.
  */
-private suspend fun isLight(bitmap: Bitmap, boxW: Int, boxH: Int, topFraction: Float): Boolean = withContext(Dispatchers.Default) {
+internal suspend fun isLight(bitmap: Bitmap, boxW: Int, boxH: Int, topFraction: Float): Boolean = withContext(Dispatchers.Default) {
     val b = if (bitmap.config == Bitmap.Config.HARDWARE) bitmap.copy(Bitmap.Config.ARGB_8888, false) else bitmap
     val r = bannerSampleRect(b.width, b.height, boxW, boxH, topFraction)
     var sum = 0.0
@@ -599,11 +599,15 @@ private suspend fun isLight(bitmap: Bitmap, boxW: Int, boxH: Int, topFraction: F
  * by the name in the header (#277), so without a description there's no card (#278).
  */
 @Composable
-private fun SubredditAbout(s: Subreddit) {
+private fun SubredditAbout(s: Subreddit) = AboutCard(s.description)
+
+/** A banner header's description card (a community's, a user's #293): 3 lines then Show all; none without one. */
+@Composable
+internal fun AboutCard(description: String) {
     val cs = MaterialTheme.colorScheme
     var open by rememberSaveable { mutableStateOf(false) }
     var long by remember { mutableStateOf(false) }
-    if (s.description.isEmpty()) {
+    if (description.isEmpty()) {
         Spacer(Modifier.height(4.dp))
         return
     }
@@ -613,9 +617,9 @@ private fun SubredditAbout(s: Subreddit) {
         // Show all / Show less grows and shrinks the card rather than jumping (#286).
         Column(Modifier.animateContentSize(tween(260, easing = FastOutSlowInEasing)).padding(start = 14.dp, top = 12.dp, end = 10.dp, bottom = 8.dp)) {
             // Reddit text, its links working, once it's all shown.
-            if (open) RedditMarkdown(s.description, color = cs.onSurfaceVariant, fontSize = 15.sp)
+            if (open) RedditMarkdown(description, color = cs.onSurfaceVariant, fontSize = 15.sp)
             else Text(
-                remember(s.description) { snippetMarkdown(s.description, cs.onSurfaceVariant) },
+                remember(description) { snippetMarkdown(description, cs.onSurfaceVariant) },
                 color = cs.onSurfaceVariant,
                 style = style,
                 maxLines = 3,
