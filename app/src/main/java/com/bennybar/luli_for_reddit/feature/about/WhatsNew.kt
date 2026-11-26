@@ -47,6 +47,17 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.119", "Nov 26, 2026",
+        listOf(
+            "Appearance: a Preview button on each group (Layout, Colour, Text, Comments) opens the real post with that group's options under it, instead of a preview pinned over the page (#288)",
+            "\"r/ and u/ before names\": the setting now also hides the u/ before user names (#289)",
+            "Search: a full-width field with ← inside it, growing out of the search button with the words travelling along; page searches (Saved, History, Settings, Summaries) grow from their own 🔍 as a thicker pill, and with the Full top bar they and communities get the round search bar (#285)",
+            "Community and profile pictures grow out of their circle into the viewer and back; the viewers close with a back arrow instead of × (#287)",
+            "A community's description grows and shrinks smoothly on Show all / Show less (#286)",
+            "Spoilers in the Home feed show the photo when tapped, not a blur, and stay revealed on the post page",
+        ),
+    ),
+    Release(
         "2.0.118", "Nov 26, 2026",
         listOf(
             "Appearance: a live preview of a real post at the top, at true size, that changes as you change any option; it switches to a sample comment thread for comment sizes and steps aside for options it can't show",
