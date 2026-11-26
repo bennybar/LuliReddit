@@ -347,6 +347,17 @@ fun SettingsScreen(section: String? = null) {
             var keys by remember { mutableStateOf(emptyList<String>()) }
             var pageHeight by remember { mutableIntStateOf(0) }
             var previewHeight by remember { mutableIntStateOf(-1) }
+            // The options stay where they are on screen while the preview grows or shrinks (a
+            // swap, or a bigger card): the list scrolls by as much. After the frame, never from
+            // the size callback itself: scrolling during layout crashed ("performMeasureAndLayout
+            // called during measure layout").
+            var appliedHeight by remember { mutableIntStateOf(-1) }
+            LaunchedEffect(previewHeight) {
+                if (appliedHeight >= 0 && previewHeight >= 0 && previewHeight != appliedHeight) {
+                    listState.dispatchRawDelta((previewHeight - appliedHeight).toFloat())
+                }
+                appliedHeight = previewHeight
+            }
             var kind by remember { mutableStateOf(PreviewKind.POST) }
             val slack = with(density) { PREVIEW_SLACK.toPx() }
             LaunchedEffect(listState, keys, slack) {
@@ -373,13 +384,7 @@ fun SettingsScreen(section: String? = null) {
                 AppearancePreview(
                     scrolled = listState.canScrollBackward,
                     kind = kind,
-                    // The options stay where they are on screen while the preview grows or
-                    // shrinks (a swap, or a bigger card): the list scrolls by as much.
-                    modifier = Modifier.onSizeChanged {
-                        val old = previewHeight
-                        previewHeight = it.height
-                        if (old >= 0 && it.height != old) listState.dispatchRawDelta((it.height - old).toFloat())
-                    },
+                    modifier = Modifier.onSizeChanged { previewHeight = it.height },
                 )
                 SettingsList(
                     Modifier.weight(1f),
