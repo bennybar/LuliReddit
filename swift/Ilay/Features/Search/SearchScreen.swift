@@ -381,8 +381,9 @@ struct SearchScreen: View {
                         }
                     }
                 }
-                .listStyle(.plain)
-                .background(Color(.systemBackground))
+                // Grouped, as Recent below it is (#290).
+                .listStyle(.insetGrouped)
+                .background(Color(.systemGroupedBackground))
             }
         }
         .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width = $0 }

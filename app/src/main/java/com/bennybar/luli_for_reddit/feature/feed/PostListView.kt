@@ -494,7 +494,7 @@ fun PostListView(
                 // On the solid background the chips need no outline to stand out (#132).
             ) { chipsIn(floatingChipsState, if (settings.floatingChipsSolid) 0f else floatingOutline) }
         }
-        val pending = !showDigest && (ui as? FeedUi.Data)?.state?.hasPending == true
+        val pending = !showDigest && settings.newPostsPill && (ui as? FeedUi.Data)?.state?.hasPending == true
         if (pending) {
             NewPostsPill(
                 Modifier.align(Alignment.TopCenter).padding(top = 8.dp + topPadding),

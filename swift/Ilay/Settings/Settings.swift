@@ -305,6 +305,7 @@ struct Settings: Equatable, Sendable {
     var floatingChips = true // Home: filter chips float under the top bar past the list's own
     var fullBarNewPost = true // Full top bar: a New post button beside your avatar
     var trackHistory = true
+    var newPostsPill = true // a stale feed's fresh posts wait behind a "New posts" pill (#292)
     var showRecentlyVisited = true // Explore and the side bar list the subreddits you opened last
     var exploreSections = ExploreSection.parse(nil) // Explore's sections, and their order (#161)
     var offlineCache = true

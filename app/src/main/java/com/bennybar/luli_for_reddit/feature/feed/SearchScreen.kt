@@ -459,16 +459,22 @@ fun SearchScreen(subreddit: String?, query: String?, sort: String? = null, time:
         Box(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
             when {
                 state.error != null -> ErrorView(state.error, onRetry = { vm.search(state.query, saveRecent = false) })
-                typing -> LazyColumn(Modifier.fillMaxSize()) {
+                // One grouped container, as Recent and Saved (#290).
+                typing -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 130.dp)) {
+                    val rows = 1 + suggestions.size
                     item(key = "searchFor") {
                         Tile(
                             title = { Text("Search for “${text.trim()}”") },
+                            modifier = Modifier.inGroup(0, rows, cs.surfaceContainerLow),
                             leading = { Icon(SearchIcon, null, Modifier.padding(horizontal = 8.dp)) },
                             onClick = { doSearch(withAuthor(text)) },
                         )
                     }
-                    items(suggestions, key = { it.name }) { s ->
-                        ResultTile(s.name, s.iconUrl, subredditName(s.namePrefixed), "${compactNumber(s.subscribers)} members") {
+                    itemsIndexed(suggestions, key = { _, it -> it.name }) { i, s ->
+                        ResultTile(
+                            s.name, s.iconUrl, subredditName(s.namePrefixed), "${compactNumber(s.subscribers)} members",
+                            Modifier.inGroup(i + 1, rows, cs.surfaceContainerLow),
+                        ) {
                             vm.rememberOpened("r", s.name, s.iconUrl)
                             nav.openSubreddit(s.name)
                         }
@@ -711,10 +717,11 @@ private fun RefreshableResults(
 }
 
 @Composable
-private fun ResultTile(name: String, iconUrl: String?, title: String, subtitle: String, onClick: () -> Unit) {
+private fun ResultTile(name: String, iconUrl: String?, title: String, subtitle: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     Tile(
         title = { Text(title) },
+        modifier = modifier,
         subtitle = { Text(subtitle) },
         leading = { LetterAvatar(name, 40.dp, cs.secondaryContainer, cs.onSecondaryContainer, imageUrl = iconUrl) },
         onClick = onClick,
