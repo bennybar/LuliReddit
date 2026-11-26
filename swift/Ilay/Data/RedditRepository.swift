@@ -58,7 +58,55 @@ enum SavedItem: Sendable {
 
 private let leadingR = Re(#"^/?r/"#, ignoreCase: true)
 private let flairCode = Re(#":[\w-]+:"#)
-private let locationRe = Re(#"<Location>(.*?)</Location>"#)
+
+/// Reddit's media lease (`/api/media/asset.json`), #296. An image leased with a `filepath`
+/// comes back from Reddit as `{"status": "failed"}` (seen since about November 2026): an
+/// image post went up as just its title, a gallery or an image in a body as a "Processing
+/// img" placeholder. Images lease with only their mimetype, as Infinity for Reddit does since
+/// then; videos keep the filepath. The mimetype must be the file's real format.
+enum MediaUpload {
+    static func leaseParams(_ filename: String, mimeType: String) -> [(String, String)] {
+        mimeType.hasPrefix("video/") ? [("filepath", filename), ("mimetype", mimeType)] : [("mimetype", mimeType)]
+    }
+
+    /// An image's real format from its first bytes (a picker can mislabel it); else `fallback`.
+    static func imageMimeType(_ data: Data, fallback: String) -> String {
+        let b = [UInt8](data.prefix(12))
+        func at(_ i: Int) -> Int { i < b.count ? Int(b[i]) : -1 }
+        func ascii(_ from: Int, _ s: String) -> Bool { s.utf8.enumerated().allSatisfy { at(from + $0.offset) == Int($0.element) } }
+        if at(0) == 0xFF, at(1) == 0xD8, at(2) == 0xFF { return "image/jpeg" }
+        if at(0) == 0x89, ascii(1, "PNG") { return "image/png" }
+        if ascii(0, "GIF8") { return "image/gif" }
+        if ascii(0, "RIFF"), ascii(8, "WEBP") { return "image/webp" }
+        return fallback
+    }
+
+    /// `filename` with the extension of `mimeType`, so the name, the lease and the bytes agree.
+    static func fileName(_ filename: String, mimeType: String) -> String {
+        let ext: String
+        switch mimeType {
+        case "image/jpeg": ext = "jpg"
+        case "image/png": ext = "png"
+        case "image/gif": ext = "gif"
+        case "image/webp": ext = "webp"
+        default: return filename
+        }
+        let dot = filename.lastIndex(of: ".")
+        let base = dot.map { String(filename[..<$0]) } ?? filename
+        return "\(base.isEmpty ? "image" : base).\(ext)"
+    }
+
+    /// The upload form: wrapped in `args` (a filepath lease) or bare (an image lease).
+    static func uploadForm(_ lease: JsonElement?) -> JsonElement? {
+        lease["args"].obj() != nil ? lease["args"] : lease
+    }
+
+    /// A tag's text in S3's XML answer (`Location`, `Key`).
+    static func xmlTag(_ xml: String, _ tag: String) -> String? {
+        Re("<\(tag)>(.*?)</\(tag)>").firstMatch(xml)?.groups[1].htmlAmpFixed()
+    }
+}
+
 private let notFeedName = Re(#"[^a-z0-9_]+"#)
 
 /// Every Reddit endpoint the app uses. Parsing mirrors the Flutter build
@@ -852,22 +900,26 @@ final class RedditRepository: Sendable {
     /// Returns the public S3 url (link/image/video posts) and the asset id
     /// (= media_id, needed for galleries and richtext images).
     func uploadMediaAsset(_ bytes: Data, filename: String, mimeType: String) async throws -> MediaAsset {
-        let lease = try await client.post("/api/media/asset.json", [("filepath", filename), ("mimetype", mimeType)])
-        let args = lease["args"]
+        // Images lease under their real format, without a filepath (#296, see MediaUpload).
+        let type = mimeType.hasPrefix("video/") ? mimeType : MediaUpload.imageMimeType(bytes, fallback: mimeType)
+        let name = MediaUpload.fileName(filename, mimeType: type)
+        let lease = try await client.post("/api/media/asset.json", MediaUpload.leaseParams(name, mimeType: type))
+        let args = MediaUpload.uploadForm(lease)
         guard let action = args["action"].str() else { throw AppException("Could not get an upload lease.") }
-        let assetId = lease["asset"]["asset_id"].str() ?? ""
         var form = MultipartForm()
         for f in args["fields"].arr() ?? [] {
-            guard let name = f["name"].str() else { continue }
-            form.add(name: name, value: f["value"].content() ?? "")
+            guard let field = f["name"].str() else { continue }
+            form.add(name: field, value: f["value"].content() ?? "")
         }
-        form.add(name: "file", filename: filename, data: bytes)
+        form.add(name: "file", filename: name, data: bytes)
         var req = URLRequest(url: URL(string: action.hasPrefix("http") ? action : "https:\(action)")!)
         req.httpMethod = "POST"
         req.setValue(form.contentType, forHTTPHeaderField: "Content-Type")
         req.httpBody = form.finished()
         let xml = String(decoding: try await Http.session.send(req).body, as: UTF8.self)
-        guard let location = locationRe.firstMatch(xml)?.groups[1].htmlAmpFixed() else { throw AppException("Upload failed (no location).") }
+        guard let location = MediaUpload.xmlTag(xml, "Location") else { throw AppException("Upload failed (no location).") }
+        // An image lease can come without its asset: the uploaded file's key is its media id.
+        let assetId = lease["asset"]["asset_id"].str() ?? MediaUpload.xmlTag(xml, "Key") ?? ""
         return MediaAsset(url: location, assetId: assetId)
     }
 
