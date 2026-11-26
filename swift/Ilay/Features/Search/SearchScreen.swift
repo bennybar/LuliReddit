@@ -301,7 +301,10 @@ struct SearchScreen: View {
                 Button { authorTokens = [] } label: {
                     Label("From u/\(token.name)", systemImage: "person")
                         .font(.subheadline)
+                        // Its words too (a bar shows a label's icon alone).
+                        .labelStyle(.titleAndIcon)
                         .lineLimit(1)
+                        .fixedSize()
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                         .background(Color(.secondarySystemFill), in: .capsule)
