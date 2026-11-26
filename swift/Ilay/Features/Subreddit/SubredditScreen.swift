@@ -84,6 +84,8 @@ struct SubredditScreen: View {
     /// Expandable: the community's banner as the header, as a messaging app's profile (#257).
     private var banner: Bool { app.settings.value.topBarMode == .expandable }
     private var folded: Bool { headerTop + bannerHeight + 8 < restTop }
+    /// Its own id: this page sits over Posts, whose button has the plain one.
+    private var zoomSource: String { "\(searchZoomSource):r/\(name)" }
 
     init(name: String) {
         self.name = name
@@ -134,9 +136,9 @@ struct SubredditScreen: View {
             }
             .navigationTitle(banner ? "" : "r/\(name)")
             .navigationBarTitleDisplayMode(.inline)
+            // What the Search screen grows out of, as on Posts (#285): its button in the bar.
+            .barZoomSource(zoomSource, in: homeZoom ?? ownZoom, label: banner ? "Search" : "Search in r/\(name)")
             .toolbar {
-                // Its own id: this page sits over Posts, whose button has the plain one.
-                let zoomSource = "\(searchZoomSource):r/\(name)"
                 if banner {
                     // The icon and name, in the bar once the header has gone under it.
                     ToolbarItem(placement: .principal) {
@@ -151,7 +153,6 @@ struct SubredditScreen: View {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Search", systemImage: "magnifyingglass") { nav.push(.search(subreddit: name), zoom: true, zoomSource: zoomSource) }
                     }
-                    .matchedTransitionSource(id: zoomSource, in: homeZoom ?? ownZoom)
                 } else {
                     // The Full bar, as the tabs' (#285): a round search bar in place of the title.
                     ToolbarItem(placement: .principal) {
@@ -162,7 +163,6 @@ struct SubredditScreen: View {
                                 .frame(width: 220, alignment: .center)
                         }
                     }
-                    .matchedTransitionSource(id: zoomSource, in: homeZoom ?? ownZoom)
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Menu("More", systemImage: "ellipsis") {

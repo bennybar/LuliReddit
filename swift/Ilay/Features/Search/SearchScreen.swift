@@ -208,10 +208,12 @@ struct SearchScreen: View {
     @FocusState private var focused: Bool
     /// The page's width: the bar's field spans it (a bar item only takes what it asks for).
     @State private var width: CGFloat = 0
-    /// What the field grows out of as the page zooms out of a search button (#285); nil
-    /// when opened from anywhere else. `grown`: it has.
-    @State private var growFrom: GrowSource?
+    /// The search button the field grows out of as the page zooms out of it (#285), on
+    /// screen; nil when opened from anywhere else. `grown`: it has.
+    @State private var growFrom: CGRect?
     @State private var grown: Bool
+    /// On the Posts tab's Full bar the words follow a 🔍; elsewhere they're the button's middle.
+    private let wordsAfterIcon: Bool
 
     init(subreddit: String?, query: String?, sort: String? = nil, time: String? = nil) {
         self.subreddit = subreddit
@@ -224,35 +226,33 @@ struct SearchScreen: View {
         _text = State(initialValue: words)
         _authorTokens = State(initialValue: author.map { [AuthorToken(name: $0)] } ?? [])
         // Read as it's pushed, like `SearchZoom`: the Posts tab's or a community's button.
-        let settings = app.settings.value
-        let from: GrowSource? = !app.navigator.zoomsNextSearch ? nil
-            : settings.topBarMode == .expandable ? .button
-            : subreddit == nil && settings.fullBarNewPost ? .bar(width: 190, leading: true)
-            : .bar(width: 220, leading: false)
+        let from = app.navigator.zoomsNextSearch ? app.navigator.nextSearchFrame : nil
         _growFrom = State(initialValue: from)
         _grown = State(initialValue: from == nil)
+        wordsAfterIcon = subreddit == nil && app.settings.value.fullBarNewPost
     }
 
     private var prompt: String { restricted ? "Search in r/\(subreddit ?? "")" : "Search Reddit" }
 
-    /// The pill, in the field's space (`w` wide): where it grows from, or all of it.
-    private func pill(_ w: CGFloat) -> CGRect {
-        switch grown ? nil : growFrom {
-        case nil: CGRect(x: 0, y: 0, width: w, height: 44)
-        // The 🔍, left of the bar's ⋯ (a bar button's place can't be read: measured on screen).
-        case .button: CGRect(x: w - 105, y: 0, width: 44, height: 44)
-        case let .bar(barWidth, _): CGRect(x: (w - barWidth) / 2, y: 0, width: barWidth, height: 44)
-        }
+    /// The field's width: the page's, less 16 a side.
+    private var fieldWidth: CGFloat { max(0, width - 32) }
+
+    /// The pill, in the field's space: the button it grows from, or all of it.
+    private var pill: CGRect {
+        guard !grown, let from = growFrom else { return CGRect(x: 0, y: 0, width: fieldWidth, height: 44) }
+        return CGRect(x: from.minX - 16, y: 0, width: from.width, height: 44)
     }
 
+    /// The 🔍 alone (Expandable) has no words: the field's fade in as it grows.
+    private var fromIcon: Bool { (growFrom?.width ?? 100) < 60 }
+
     /// From the round search bar, the words start where they were on it and travel to the
-    /// field's start, as on Android (#285): how far right of there they start.
-    private func travel(_ w: CGFloat) -> CGFloat {
-        guard !grown, case let .bar(barWidth, leading) = growFrom else { return 0 }
+    /// field's start (after the ←), as on Android (#285): how far right of there they start.
+    private var travel: CGFloat {
+        guard !grown, let from = growFrom, !fromIcon else { return 0 }
         let words = (prompt as NSString).size(withAttributes: [.font: UIFont.preferredFont(forTextStyle: .body)]).width
-        // Its icon then the words, or the words in its middle; the field's start is after the ←.
-        let start = leading ? (w - barWidth) / 2 + 26 : (w - words) / 2
-        return start - 44
+        let start = wordsAfterIcon ? from.minX + 34 : from.midX - words / 2
+        return start - 16 - 44
     }
 
     private func withAuthor(_ words: String) -> String {
@@ -340,12 +340,11 @@ struct SearchScreen: View {
         }
         .padding(.leading, 4)
         .padding(.trailing, 12)
-        .offset(x: travel(max(0, width - 32)))
-        // From the 🔍 there are no words to move: they fade in as it grows.
-        .opacity(grown || growFrom != .button ? 1 : 0)
-        .frame(width: max(0, width - 32), height: 44)
+        .offset(x: travel)
+        .opacity(grown || !fromIcon ? 1 : 0)
+        .frame(width: fieldWidth, height: 44)
         .background(alignment: .topLeading) {
-            let r = pill(max(0, width - 32))
+            let r = pill
             Capsule()
                 .fill(Color(.tertiarySystemFill))
                 .frame(width: r.width, height: r.height)
@@ -704,13 +703,6 @@ private struct EmptySearch: View {
 }
 
 /// The "From u/name" token of a search in someone's posts (#271).
-/// What the Search screen's field grows out of (#285): the bar's 🔍 (Expandable), or its
-/// round search bar (Full), `width` wide, its words in the middle or after an icon (`leading`).
-private enum GrowSource: Equatable {
-    case button
-    case bar(width: CGFloat, leading: Bool)
-}
-
 struct AuthorToken: Identifiable, Equatable {
     let name: String
     var id: String { name }

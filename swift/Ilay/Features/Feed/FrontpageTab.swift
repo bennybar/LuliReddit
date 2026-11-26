@@ -49,6 +49,8 @@ struct FrontpageTab: View {
             .navigationTitle(expandable ? title : "")
             .navigationSubtitle(expandable ? subtitle : "")
             .navigationBarTitleDisplayMode(expandable ? .large : .inline)
+            // What the Search screen grows out of (#271): its button in the bar.
+            .barZoomSource(searchZoomSource, in: zoom, label: expandable ? "Search" : "Search Reddit")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { SideBarButton() }
                 if expandable {
@@ -56,7 +58,6 @@ struct FrontpageTab: View {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Search", systemImage: "magnifyingglass") { nav.push(.search(), zoom: true) }
                     }
-                    .matchedTransitionSource(id: searchZoomSource, in: zoom)
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu("Toolbar", systemImage: "ellipsis") { ToolbarPanel(compact: false) }
                             // Layout and autoplay apply at once and leave the menu open,
@@ -83,7 +84,6 @@ struct FrontpageTab: View {
                             }
                         }
                     }
-                    .matchedTransitionSource(id: searchZoomSource, in: zoom)
                     ToolbarItemGroup(placement: .topBarTrailing) {
                         if settings.fullBarNewPost {
                             Button("New post", systemImage: "square.and.pencil") { nav.push(.submit()) }
