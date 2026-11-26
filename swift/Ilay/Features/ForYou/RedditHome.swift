@@ -550,7 +550,8 @@ final class EarlyFullPosts {
     private var asked = Set<String>()
     private var got: [String: Post] = [:] // by fullname
     private var failed = false
-    private var running: Task<Void, Never>?
+    private var inFlight: [Int: Task<Void, Never>] = [:]
+    private var nextRequest = 0
     /// When the first of them was asked for (debug timing).
     private(set) var firstAskedAt: Int?
     /// Each answer's posts, as they come (the first cards' pictures are warmed with them).
@@ -564,30 +565,39 @@ final class EarlyFullPosts {
         pump()
     }
 
+    /// At most this many posts per request, and this many requests at once: the page shows
+    /// ~25 posts at once after its first few, and one request for all of them took ~700 ms
+    /// (measured), over the deadline; three of ~9 come back in about half that.
+    static let chunk = 9
+    static let parallel = 3
+
     private func pump() {
-        guard running == nil, !failed, !pending.isEmpty else { return }
-        let batch = pending
-        pending = []
-        if firstAskedAt == nil { firstAskedAt = nowMillis() }
-        let fetch = fetch
-        #if DEBUG
-        let askedAt = nowMillis()
-        print("[home] ask \(batch.count) at +\(askedAt - (firstAskedAt ?? askedAt))ms")
-        #endif
-        running = Task { [weak self] in
-            let result = try? await fetch(batch)
+        while inFlight.count < Self.parallel, !failed, !pending.isEmpty {
+            let batch = Array(pending.prefix(Self.chunk))
+            pending.removeFirst(batch.count)
+            if firstAskedAt == nil { firstAskedAt = nowMillis() }
+            let fetch = fetch
+            let key = nextRequest
+            nextRequest += 1
             #if DEBUG
-            print("[home] got \(result?.count ?? -1)/\(batch.count) in \(nowMillis() - askedAt)ms")
+            let askedAt = nowMillis()
+            print("[home] ask \(batch.count) at +\(askedAt - (firstAskedAt ?? askedAt))ms")
             #endif
-            guard let self, !Task.isCancelled else { return }
-            if let result {
-                for p in result { got["t3_\(p.id)"] = p }
-                onArrive?(result)
-            } else {
-                failed = true
+            inFlight[key] = Task { [weak self] in
+                let result = try? await fetch(batch)
+                #if DEBUG
+                print("[home] got \(result?.count ?? -1)/\(batch.count) in \(nowMillis() - askedAt)ms")
+                #endif
+                guard let self, !Task.isCancelled else { return }
+                if let result {
+                    for p in result { got["t3_\(p.id)"] = p }
+                    onArrive?(result)
+                } else {
+                    failed = true
+                }
+                inFlight[key] = nil
+                pump()
             }
-            running = nil
-            pump()
         }
     }
 
@@ -600,7 +610,7 @@ final class EarlyFullPosts {
         let end = nowMillis() + deadline
         while true {
             if failed { return (got, false) }
-            if running == nil && pending.isEmpty { return (got, true) }
+            if inFlight.isEmpty && pending.isEmpty { return (got, true) }
             if nowMillis() >= end || Task.isCancelled { return (got, false) }
             try? await Task.sleep(for: .milliseconds(15))
         }
@@ -609,8 +619,8 @@ final class EarlyFullPosts {
     /// Stops asking: a refresh or a later page doesn't need them.
     func cancel() {
         failed = true
-        running?.cancel()
-        running = nil
+        for task in inFlight.values { task.cancel() }
+        inFlight = [:]
     }
 }
 

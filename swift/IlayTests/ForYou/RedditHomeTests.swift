@@ -421,7 +421,7 @@ private func fakePost(_ id: String) -> Post {
     /// Calls made, for checking batching (MainActor-only, so no data race).
     private final class Calls: @unchecked Sendable { var batches: [[String]] = [] }
 
-    func testAllInWithinTheDeadlineAndOneRequestAtATime() async {
+    func testAllInWithinTheDeadline() async {
         let calls = Calls()
         let early = EarlyFullPosts { ids in
             await MainActor.run { calls.batches.append(ids) }
@@ -434,7 +434,25 @@ private func fakePost(_ id: String) -> Post {
         let got = await early.wait(for: ["t3_a", "t3_b", "t3_c", "t3_gone"], deadline: 2_000)
         XCTAssertTrue(got.complete)
         XCTAssertEqual(Set(got.posts.keys), ["t3_a", "t3_b", "t3_c"], "one the API leaves out is just absent")
-        XCTAssertEqual(calls.batches, [["t3_a", "t3_b"], ["t3_c", "t3_gone"]], "the next request waits for the one in flight")
+        XCTAssertEqual(Set(calls.batches), [["t3_a", "t3_b"], ["t3_c"], ["t3_gone"]], "each new id asked for once, at once while there's room")
+    }
+
+    func testABigBatchGoesOutInParallelChunks() async {
+        // The page shows ~25 posts at once: one request for all of them was too slow.
+        let calls = Calls()
+        let early = EarlyFullPosts { ids in
+            await MainActor.run { calls.batches.append(ids) }
+            try await Task.sleep(for: .milliseconds(50))
+            return ids.map { fakePost($0.removePrefix("t3_")) }
+        }
+        let ids = (1...30).map { "t3_p\($0)" }
+        early.add(ids)
+        try? await Task.sleep(for: .milliseconds(20))
+        XCTAssertEqual(calls.batches.map(\.count).sorted(), [9, 9, 9], "three at once, nine each")
+        let got = await early.wait(for: ids, deadline: 2_000)
+        XCTAssertTrue(got.complete)
+        XCTAssertEqual(got.posts.count, 30)
+        XCTAssertEqual(calls.batches.map(\.count).sorted(), [3, 9, 9, 9], "the rest once one is back")
     }
 
     func testTooSlowGivesNilAndAFailureGivesNil() async {
