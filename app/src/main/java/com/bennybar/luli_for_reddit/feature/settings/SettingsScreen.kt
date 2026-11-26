@@ -323,13 +323,14 @@ fun SettingsScreen(section: String? = null) {
     // as Saved and History (#268). Pushed from elsewhere (←), the plain bar.
     val sideBar = LocalSideBar.current != null
     val header = rememberPageHeader(listState).takeIf { sideBar }
-    // With the big header, search lives in the bar (#247): a 🔍 that opens a field across it.
+    // From the side bar, search lives in the bar: with the big header a 🔍 that opens a field
+    // across it (#247), with the Full bar the tabs' round search bar (#285).
     val queryState = remember { mutableStateOf("") }
-    val barSearch = if (header != null && section == null) rememberBarSearch("Search settings", queryState) else null
+    val barSearch = if (sideBar && section == null) rememberBarSearch("Search settings", queryState) else null
     Scaffold(
         Modifier.collapsingHeader(header),
         topBar = {
-            if (header != null) BloomTopBar(section ?: "Settings", collapsing = header, search = barSearch)
+            if (header != null || barSearch != null) BloomTopBar(section ?: "Settings", collapsing = header, search = barSearch)
             else TopAppBar(
                 title = { Text(section ?: "Settings") },
                 navigationIcon = {

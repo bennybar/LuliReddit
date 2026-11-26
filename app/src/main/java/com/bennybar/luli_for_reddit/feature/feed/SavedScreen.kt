@@ -2,18 +2,13 @@ package com.bennybar.luli_for_reddit.feature.feed
 
 import com.bennybar.luli_for_reddit.ui.subredditName
 import com.bennybar.luli_for_reddit.ui.Loading
-import com.bennybar.luli_for_reddit.ui.SearchIcon
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.rounded.BookmarkRemove
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.offset
-import androidx.compose.material3.IconButton
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
@@ -75,7 +70,7 @@ fun SavedScreen() {
     val source = rememberPagedSource<Any>("saved_hub_$username") { a -> app.repository.getUserSaved(username, after = a) }
     val state by source.state.collectAsStateWithLifecycle()
     val queryState = rememberSaveable { mutableStateOf("") }
-    var query by queryState
+    val query by queryState
     var type by rememberSaveable { mutableStateOf("all") } // all | posts | comments
 
     // Unsaved here (swipe either way): gone from the list at once, Undo restores.
@@ -123,17 +118,14 @@ fun SavedScreen() {
 
     // Laid out like a subreddit (#143): the top bar hides as you scroll and comes
     // back as you scroll up, the feed runs under a faded status bar, and the
-    // filter chips float under the bar (Settings › Floating chips). The search
-    // field scrolls away with the list; the bar's 🔍 brings it back.
+    // filter chips float under the bar (Settings › Floating chips).
     val settings by app.settings.state.collectAsStateWithLifecycle()
-    val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val bar = rememberHidingBar(listState)
     val header = rememberPageHeader(listState)
-    // With the big header, search lives in the bar (#247): a 🔍 that opens a field across it.
-    val barSearch = if (header != null) rememberBarSearch("Search saved", queryState) else null
-    val focus = remember { FocusRequester() }
-    val searchGone by remember(listState) { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
+    // Search lives in the bar: with the big header a 🔍 that opens a field across it (#247),
+    // with the Full bar the tabs' round search bar (#285).
+    val barSearch = rememberBarSearch("Search saved", queryState)
     val chipsRow = @Composable { modifier: Modifier ->
         Row(modifier.padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             for ((k, label) in listOf("all" to "All", "posts" to "Posts", "comments" to "Comments")) {
@@ -158,14 +150,6 @@ fun SavedScreen() {
             state = listState,
             contentPadding = PaddingValues(top = with(LocalDensity.current) { bar.height.toDp() }, bottom = 32.dp),
         ) {
-            if (barSearch == null) item(key = "search") {
-                PillTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    placeholder = "Search saved",
-                    modifier = Modifier.fillMaxWidth().padding(start = 12.dp, top = 4.dp, end = 12.dp).focusRequester(focus),
-                )
-            }
             item(key = "chips") {
                 chipsRow(Modifier.graphicsLayer { alpha = if (floatChips && past) 0f else 1f })
             }
@@ -234,20 +218,7 @@ fun SavedScreen() {
             )
         }
         HidingTopBar(bar) {
-            BloomTopBar(
-                "Saved",
-                collapsing = header,
-                search = barSearch,
-                actions = {
-                    if (barSearch == null && searchGone) IconButton(onClick = {
-                        scope.launch {
-                            listState.animateScrollToItem(0)
-                            bar.slide(0f)
-                            focus.requestFocus()
-                        }
-                    }) { Icon(SearchIcon, "Search saved") }
-                },
-            )
+            BloomTopBar("Saved", collapsing = header, search = barSearch)
         }
     }
 }

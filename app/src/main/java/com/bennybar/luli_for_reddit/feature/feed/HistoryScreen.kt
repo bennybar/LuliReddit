@@ -22,18 +22,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import com.bennybar.luli_for_reddit.core.timeAgo
 import com.bennybar.luli_for_reddit.state.HistoryEntry
-import com.bennybar.luli_for_reddit.ui.SearchIcon
-import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -78,7 +72,7 @@ fun HistoryScreen() {
     val nav = LocalNavigator.current
     val history by app.history.state.collectAsStateWithLifecycle()
     val queryState = rememberSaveable { mutableStateOf("") }
-    var query by queryState
+    val query by queryState
     var subFilterRaw by rememberSaveable { mutableStateOf<String?>(null) } // null = all subreddits
     var filterOpen by remember { mutableStateOf(false) }
     var clearOpen by remember { mutableStateOf(false) }
@@ -99,18 +93,15 @@ fun HistoryScreen() {
     }
 
     // Laid out like Saved and a subreddit (#142, #143): the top bar hides as you
-    // scroll, the list runs under a faded status bar, and the search field
-    // scrolls away (the bar's 🔍 brings it back). Rows sit in one connected
+    // scroll and the list runs under a faded status bar. Rows sit in one connected
     // container, Gmail-like (#142); swipe one to the left to remove it.
-    val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val bar = rememberHidingBar(listState)
     val header = rememberPageHeader(listState)
-    // With the big header, search lives in the bar (#247): a 🔍 that opens a field across it.
-    val barSearch = if (header != null) rememberBarSearch("Search history", queryState) else null
-    val focus = remember { FocusRequester() }
+    // Search lives in the bar: with the big header a 🔍 that opens a field across it (#247),
+    // with the Full bar the tabs' round search bar (#285).
+    val barSearch = rememberBarSearch("Search history", queryState)
     var noteShown by remember { mutableStateOf(app.prefs.getBool("historyNoteDismissed") != true) } // closed once, gone for good (#119)
-    val searchGone by remember(listState) { derivedStateOf { listState.layoutInfo.visibleItemsInfo.none { it.key == "search" } && listState.layoutInfo.totalItemsCount > 0 } }
     val removeColor = cs.error
     // The day each entry was read, in order (#159); legacy entries with no time come last.
     val today = remember { LocalDate.now() }
@@ -160,14 +151,6 @@ fun HistoryScreen() {
                         Icon(Icons.Rounded.Close, "Close", tint = cs.onSurfaceVariant)
                     }
                 }
-            }
-            if (barSearch == null && visible.isNotEmpty()) item(key = "search") {
-                PillTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    placeholder = "Search history",
-                    modifier = Modifier.fillMaxWidth().padding(start = 12.dp, top = 4.dp, end = 12.dp, bottom = 12.dp).focusRequester(focus),
-                )
             }
             val empty = when {
                 history.isEmpty() -> "No history yet"
@@ -242,15 +225,8 @@ fun HistoryScreen() {
             ) else BloomTopBar(
                 "History",
                 collapsing = header,
-                search = barSearch?.takeIf { visible.isNotEmpty() },
+                search = barSearch.takeIf { visible.isNotEmpty() },
                 actions = {
-                    if (barSearch == null && searchGone && visible.isNotEmpty()) IconButton(onClick = {
-                        scope.launch {
-                            listState.animateScrollToItem(0)
-                            bar.slide(0f)
-                            focus.requestFocus()
-                        }
-                    }) { Icon(SearchIcon, "Search history") }
                         if (subs.isNotEmpty()) {
                             Box {
                                 IconButton(onClick = { filterOpen = true }) {
