@@ -205,7 +205,6 @@ struct SearchScreen: View {
     @State private var tab = "Posts"
     /// Communities named like what's being typed (#190), asked once typing pauses.
     @State private var suggestions: [Subreddit] = []
-    @FocusState private var focused: Bool
     /// The page's width: the bar's field spans it (a bar item only takes what it asks for).
     @State private var width: CGFloat = 0
     /// The search button the field grows out of as the page zooms out of it (#285), on
@@ -270,7 +269,8 @@ struct SearchScreen: View {
         let tokens = author.map { [AuthorToken(name: $0)] } ?? []
         if authorTokens != tokens { authorTokens = tokens }
         if text != words { text = words }
-        focused = false
+        endEditing()
+        suggestions = []
         vm.search(t, saveRecent: save)
     }
 
@@ -289,7 +289,7 @@ struct SearchScreen: View {
     private func field(isSaved: Bool, current: SavedSearch) -> some View {
         HStack(spacing: 4) {
             Button("Back", systemImage: "chevron.backward") {
-                focused = false
+                endEditing()
                 // Back into the button as the page shrinks into it.
                 if growFrom != nil { withAnimation(.snappy(duration: 0.25)) { grown = false } }
                 app.navigator.pop()
@@ -309,15 +309,13 @@ struct SearchScreen: View {
                 .buttonStyle(.plain)
                 .accessibilityHint("Removes it")
             }
-            TextField(prompt, text: $text)
-                .focused($focused)
-                .submitLabel(.search)
-                .onSubmit { doSearch(withAuthor(text)) }
+            BarTextField(prompt: prompt, text: $text, autofocus: initialQuery.isEmpty) { doSearch(withAuthor(text)) }
             if !text.isEmpty || !authorTokens.isEmpty {
                 Button("Clear", systemImage: "xmark.circle.fill") {
                     text = ""
                     authorTokens = []
-                    focused = true
+                    // Typing again, as the system field's ✕ did.
+                    focusBarField(placeholder: prompt)
                 }
                 .labelStyle(.iconOnly)
                 .foregroundStyle(.secondary)
@@ -371,7 +369,8 @@ struct SearchScreen: View {
         }
         // The suggestions show over the page while typing, as the system search's did.
         .overlay {
-            if focused && !suggestions.isEmpty {
+            // (Cleared once searched: the words are then the search's.)
+            if !suggestions.isEmpty {
                 List {
                     ForEach(suggestions, id: \.name) { s in
                         ResultRow(name: s.name, iconUrl: s.iconUrl, title: s.namePrefixed, subtitle: "\(compactNumber(s.subscribers)) members", route: .subreddit(name: s.name)) {
@@ -397,7 +396,10 @@ struct SearchScreen: View {
             try? await Task.sleep(for: .milliseconds(350))
             if Task.isCancelled { return }
             let hideNsfw = app.contentFilters.value.hideNsfw
-            if let found = try? await app.repository.subredditSuggestions(t) { suggestions = found.filter { !(hideNsfw && $0.over18) } }
+            // Not once these words were searched while it was asked.
+            if let found = try? await app.repository.subredditSuggestions(t), t != vm.query {
+                suggestions = found.filter { !(hideNsfw && $0.over18) }
+            }
         }
         // The field's ✕ (and Cancel): back to saved and recent searches.
         .onChange(of: text) { _, new in
@@ -414,7 +416,7 @@ struct SearchScreen: View {
                 if initialSort != nil || initialTime != nil {
                     vm.setFilters(sort: initialSort ?? vm.sort, time: initialTime ?? vm.time)
                 }
-                if initialQuery.isEmpty { focused = true } else { doSearch(initialQuery) }
+                if !initialQuery.isEmpty { doSearch(initialQuery) }
             }
         }
     }
@@ -700,6 +702,44 @@ private struct EmptySearch: View {
             s.time != "all" ? (SEARCH_TIMES.first { $0.key == s.time }?.label ?? s.time) : nil,
         ].compactMap { $0 }.joined(separator: " · ")
     }
+}
+
+/// The bar's text field. `autofocus`: the keyboard opens once it's there. A focus state
+/// can't reach a field in the bar, so it's focused as UIKit's own text field.
+private struct BarTextField: View {
+    let prompt: String
+    @Binding var text: String
+    let autofocus: Bool
+    let onSubmit: () -> Void
+
+    var body: some View {
+        TextField(prompt, text: $text)
+            .submitLabel(.search)
+            .onSubmit(onSubmit)
+            .onAppear {
+                guard autofocus else { return }
+                Task {
+                    try? await Task.sleep(for: .milliseconds(150))
+                    focusBarField(placeholder: prompt)
+                }
+            }
+    }
+}
+
+/// Puts the keyboard on the shown text field with `placeholder`.
+@MainActor private func focusBarField(placeholder: String) {
+    guard let window = topViewController()?.view.window else { return }
+    func find(_ v: UIView) -> UITextField? {
+        if let f = v as? UITextField, f.placeholder == placeholder, !f.isHidden { return f }
+        for s in v.subviews { if let f = find(s) { return f } }
+        return nil
+    }
+    find(window)?.becomeFirstResponder()
+}
+
+/// Closes the keyboard, wherever it's typing.
+@MainActor private func endEditing() {
+    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
 }
 
 /// The "From u/name" token of a search in someone's posts (#271).
