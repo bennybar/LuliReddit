@@ -453,6 +453,9 @@ private struct UserBannerBackdrop: View {
                     .offset(x: 13, y: profileBanner - profileIconOver - 3)
             }
             .offset(y: model.pull - model.collapse)
+            // Gone once folded: the header stops at the bar, which would leave the picture
+            // peeking out behind the status bar.
+            .opacity(max(0, 1 - max(0, model.collapse - profileBanner) / 50))
             .allowsHitTesting(false)
             .accessibilityHidden(true)
     }
