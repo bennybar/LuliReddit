@@ -9,7 +9,15 @@ import SwiftUI
     @ObservationIgnored let name: String
     @ObservationIgnored private var started = false
 
-    init(name: String) { self.name = name }
+    /// Abouts seen this session: a community opened again paints its header at once, then
+    /// refreshes it. It used to slot in above the cached posts a moment later and push them
+    /// down ~150 pt (measured on the simulator).
+    private static var seen: [String: Subreddit] = [:]
+
+    init(name: String) {
+        self.name = name
+        if let known = Self.seen[name.lowercased()] { about = .data(known) }
+    }
 
     func load() {
         if started { return }
@@ -18,9 +26,11 @@ import SwiftUI
             do {
                 let about = try await app.repository.getSubredditAbout(name)
                 if app.settings.value.trackHistory { app.recentSubreddits.visit(about) }
-                self.about = .data(about)
+                Self.seen[name.lowercased()] = about
+                if self.about.value != about { self.about = .data(about) }
             } catch {
-                self.about = .error(error)
+                // Keep the header from earlier this session rather than drop it.
+                if self.about.value == nil { self.about = .error(error) }
                 // A quarantined or gated community refuses its about but can still be
                 // joined (or left): whether you're in it comes from your subscriptions.
                 let reason = (error as? RedditApiException)?.reason
@@ -572,10 +582,20 @@ private struct BannerImage: View {
                     .frame(width: geo.size.width, height: geo.size.height)
                     .blur(radius: soft ? 30 : 0, opaque: true)
                     .clipped()
+                    .transition(.opacity)
             }
         }
         // Full size: its real height decides between sharp and soft.
-        .task(id: url) { image = await ImageLoader.shared.image(url: url, maxPixelSize: 0) }
+        .task(id: url) {
+            // From memory at once; else it fades in over the band (it popped in a moment
+            // after the header, measured on the simulator).
+            if let hit = ImageLoader.shared.cached(url: url, maxPixelSize: 0) {
+                image = hit
+                return
+            }
+            let loaded = await ImageLoader.shared.image(url: url, maxPixelSize: 0)
+            withAnimation(.easeOut(duration: 0.25)) { image = loaded }
+        }
     }
 }
 

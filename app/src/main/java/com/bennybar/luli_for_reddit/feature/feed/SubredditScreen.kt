@@ -129,7 +129,7 @@ import kotlinx.coroutines.launch
 
 /** A subreddit's about info (header + about sheet). */
 class SubredditAboutViewModel(private val name: String) : ViewModel() {
-    private val _about = MutableStateFlow<Async<Subreddit>>(Async.Loading)
+    private val _about = MutableStateFlow<Async<Subreddit>>(seen[name.lowercase()]?.let { Async.Data(it) } ?: Async.Loading)
     val about: StateFlow<Async<Subreddit>> = _about
 
     /** Optimistic subscribe state. */
@@ -137,18 +137,28 @@ class SubredditAboutViewModel(private val name: String) : ViewModel() {
 
     init {
         viewModelScope.launch {
-            _about.value = try {
-                Async.Data(
-                    app.repository.getSubredditAbout(name).also {
-                        if (app.settings.value.trackHistory) app.recentSubreddits.visit(it)
-                    },
-                )
+            try {
+                val fresh = app.repository.getSubredditAbout(name).also {
+                    if (app.settings.value.trackHistory) app.recentSubreddits.visit(it)
+                }
+                seen[name.lowercase()] = fresh
+                if ((_about.value as? Async.Data)?.value != fresh) _about.value = Async.Data(fresh)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Async.Error(e)
+                // Keep the header from earlier this session rather than drop it.
+                if (_about.value !is Async.Data) _about.value = Async.Error(e)
             }
         }
+    }
+
+    companion object {
+        /**
+         * Abouts seen this session: a community opened again paints its header at once, then
+         * refreshes it. On iPhone it slotted in above the cached posts a moment later and
+         * pushed them down (measured on the simulator); the same order holds here.
+         */
+        private val seen = java.util.concurrent.ConcurrentHashMap<String, Subreddit>()
     }
 
     fun toggleSub(s: Subreddit, currentlySubscribed: Boolean) {
