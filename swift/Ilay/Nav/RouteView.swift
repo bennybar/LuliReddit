@@ -121,7 +121,7 @@ private struct BarZoomSource: ViewModifier {
 
 /// Where the shown navigation bar's element labelled `label` is, in the window's space (an
 /// accessibility frame: SwiftUI's bar items aren't plain views).
-@MainActor private func barButtonFrame(_ label: String) -> CGRect? {
+@MainActor func barButtonFrame(_ label: String) -> CGRect? {
     guard let window = topViewController()?.view.window else { return nil }
     func visible(_ v: UIView) -> Bool {
         var cur: UIView? = v

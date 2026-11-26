@@ -729,22 +729,6 @@ private struct BarTextField: View {
     }
 }
 
-/// Puts the keyboard on the shown text field with `placeholder`.
-@MainActor private func focusBarField(placeholder: String) {
-    guard let window = topViewController()?.view.window else { return }
-    func find(_ v: UIView) -> UITextField? {
-        if let f = v as? UITextField, f.placeholder == placeholder, !f.isHidden { return f }
-        for s in v.subviews { if let f = find(s) { return f } }
-        return nil
-    }
-    find(window)?.becomeFirstResponder()
-}
-
-/// Closes the keyboard, wherever it's typing.
-@MainActor private func endEditing() {
-    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-}
-
 /// The "From u/name" token of a search in someone's posts (#271).
 struct AuthorToken: Identifiable, Equatable {
     let name: String

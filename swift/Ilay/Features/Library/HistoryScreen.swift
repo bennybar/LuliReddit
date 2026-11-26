@@ -47,6 +47,8 @@ struct HistoryScreen: View {
     /// Select mode (#155): pick several rows and remove them together (Undo puts them back).
     @State private var selection = Set<String>()
     @State private var editMode = EditMode.inactive
+    /// Its search field is open in the bar: the bar's buttons give way to it (#285).
+    @State private var searching = false
 
     var body: some View {
         let history = app.history.state
@@ -97,8 +99,9 @@ struct HistoryScreen: View {
             }
         }
         .pageTitle("History")
+        .onPreferenceChange(BarSearchOpenKey.self) { searching = $0 }
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
+            if !searching { ToolbarItemGroup(placement: .topBarTrailing) {
                 if editMode.isEditing {
                     Button("Remove", systemImage: "trash", role: .destructive) {
                         let gone = history.filter { selection.contains($0.id) }
@@ -141,7 +144,7 @@ struct HistoryScreen: View {
                         }
                     }
                 }
-            }
+            } }
         }
     }
 
