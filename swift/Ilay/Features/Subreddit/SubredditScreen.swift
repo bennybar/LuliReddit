@@ -127,7 +127,7 @@ struct SubredditScreen: View {
                 if banner, case let .data(s) = vm.about, restTop > 0 {
                     // From the screen's top to the banner's foot, moving with the list; the
                     // icon over its foot is drawn here too, so the banner never covers it.
-                    BannerBackdrop(about: s, height: restTop + bannerHeight)
+                    BannerBackdrop(about: s, height: restTop + bannerHeight, folded: folded)
                         .offset(y: headerTop - restTop)
                         .ignoresSafeArea()
                         .allowsHitTesting(false)
@@ -224,6 +224,8 @@ private let iconOver: CGFloat = 26 // how much of it is over the banner's foot: 
 private struct BannerBackdrop: View {
     let about: Subreddit
     let height: CGFloat
+    /// The bar's small icon is showing: this one goes as it comes, not left over the bar (#298).
+    let folded: Bool
 
     var body: some View {
         let page = Color(FeedRowConfig.current().isCarded ? .systemGroupedBackground : .systemBackground)
@@ -235,6 +237,8 @@ private struct BannerBackdrop: View {
                 .padding(3)
                 .background(page, in: Circle())
                 .offset(x: 13, y: height - iconOver - 3)
+                .opacity(folded ? 0 : 1)
+                .animation(.easeOut(duration: 0.2), value: folded)
         }
         .frame(height: height + bannerIcon - iconOver + 3, alignment: .top)
     }

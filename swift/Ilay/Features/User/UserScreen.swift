@@ -459,6 +459,10 @@ private struct UserBannerBackdrop: View {
                     .padding(3)
                     .background(page, in: Circle())
                     .offset(x: 13, y: profileBanner - profileIconOver - 3)
+                    // The bar's small picture takes over: this one goes as it comes, not left
+                    // over the bar (#298); FoldedName's moment.
+                    .opacity(model.scrolled > profileBanner + 8 ? 0 : 1)
+                    .animation(.easeOut(duration: 0.2), value: model.scrolled > profileBanner + 8)
             }
             .offset(y: model.pull - model.scrolled)
             .allowsHitTesting(false)
