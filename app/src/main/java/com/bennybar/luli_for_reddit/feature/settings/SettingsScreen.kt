@@ -636,6 +636,10 @@ fun SettingsList(
             Icons.Outlined.Visibility, s.trackHistory, ctrl::setTrackHistory,
         )
         if (s.trackHistory) {
+            switch(
+                "Save search history", "Keep your recent searches in Search (local only)",
+                Icons.Rounded.History, s.saveSearchHistory, ctrl::setSaveSearchHistory,
+            )
             tile(
                 "Dim read posts",
                 when (s.readDim) {

@@ -167,14 +167,16 @@ class SearchViewModel(private val subreddit: String?) : ViewModel() {
         key
     }
 
+    private val keepsHistory get() = app.settings.value.let { it.trackHistory && it.saveSearchHistory }
+
     init {
         // A bare "author:name" (opening search from a profile) was saved before #281: not a search.
-        _state.update { it.copy(recent = (app.prefs.getStringList(recentKey) ?: emptyList()).filter { e -> splitAuthorQuery(e).second.isNotBlank() || !e.trim().startsWith("author:") }) }
+        if (keepsHistory) _state.update { it.copy(recent = (app.prefs.getStringList(recentKey) ?: emptyList()).filter { e -> splitAuthorQuery(e).second.isNotBlank() || !e.trim().startsWith("author:") }) }
     }
 
     private fun saveRecent(q: String) {
-        // Recent searches are history: none kept while tracking is off.
-        if (!app.settings.value.trackHistory) return
+        // Recent searches are history: none kept while tracking or search history is off (#302).
+        if (!keepsHistory) return
         // Only "From u/name" with no words of your own isn't a search to keep (#281).
         if (splitAuthorQuery(q).first != null && splitAuthorQuery(q).second.isBlank()) return
         val list = (listOf(q) + _state.value.recent.filter { it != q }).take(12)
@@ -193,7 +195,7 @@ class SearchViewModel(private val subreddit: String?) : ViewModel() {
      * the search that found it in Recent, with its picture.
      */
     fun rememberOpened(kind: String, name: String, icon: String?) {
-        if (!app.settings.value.trackHistory) return
+        if (!keepsHistory) return
         val q = _state.value.query
         val rest = _state.value.recent.filter { e ->
             e != q && parseRecent(e).let { it.kind != kind || !it.name.equals(name, ignoreCase = true) }

@@ -735,6 +735,7 @@ struct SettingsCatalog {
         b.section("Data & storage")
         b.toggle("Track history", s.dimRead ? "Remember and dim viewed posts (local only)" : "Remember viewed posts (local only)", s.trackHistory, set: ctrl.setTrackHistory)
         if s.trackHistory {
+            b.toggle("Save search history", "Keep your recent searches in Search (local only)", s.saveSearchHistory, set: ctrl.setSaveSearchHistory)
             // Like Sync for Reddit's: the subreddits you open most stay on top (#92).
             b.picker(
                 "Recently visited order", value: s.recentSubsByVisits,

@@ -197,6 +197,16 @@ final class FlutterPrefsCompatTests: XCTestCase {
         XCTAssertTrue(back.fabHideOnScroll)
     }
 
+    /// Search history is kept until switched off (#302).
+    @MainActor
+    func testSaveSearchHistorySetting() {
+        XCTAssertTrue(Settings().saveSearchHistory)
+        let p = Prefs(defaults: defaults)
+        SettingsStore(prefs: p).setSaveSearchHistory(false)
+        XCTAssertEqual(p.getBool("saveSearchHistory"), false)
+        XCTAssertFalse(SettingsStore(prefs: p).value.saveSearchHistory)
+    }
+
     /// Dim read posts → Off (#106) is its own key: `dimReadTextOnly` keeps its meaning.
     @MainActor
     func testDimReadOffKeepsTheTextOnlyChoice() {

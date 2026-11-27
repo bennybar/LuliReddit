@@ -70,7 +70,8 @@ struct SearchFetcher {
         self.subreddit = subreddit
         self.prefs = prefs
         self.fetcher = fetcher ?? .reddit
-        self.trackHistory = trackHistory ?? { app.settings.value.trackHistory }
+        let keepsHistory = trackHistory ?? { app.settings.value.trackHistory && app.settings.value.saveSearchHistory }
+        self.trackHistory = keepsHistory
         let user = (username ?? app.session.username).lowercased()
         let legacy = SearchViewModel.legacyRecentKey
         let key = user.isEmpty ? legacy : "\(legacy)_\(user)"
@@ -80,11 +81,11 @@ struct SearchFetcher {
         }
         recentKey = key
         // A bare "author:name" (opening search from a profile) was saved before #281: not a search.
-        recent = (prefs.getStringList(key) ?? []).filter { e in !splitAuthorQuery(e).1.isEmpty || !e.trimmingCharacters(in: .whitespaces).hasPrefix("author:") }
+        recent = !keepsHistory() ? [] : (prefs.getStringList(key) ?? []).filter { e in !splitAuthorQuery(e).1.isEmpty || !e.trimmingCharacters(in: .whitespaces).hasPrefix("author:") }
     }
 
     private func saveRecent(_ q: String) {
-        // Recent searches are history: none kept while tracking is off.
+        // Recent searches are history: none kept while tracking or search history is off (#302).
         if !trackHistory() { return }
         // Only "From u/name" with no words of your own isn't a search to keep (#281).
         let (author, words) = splitAuthorQuery(q)

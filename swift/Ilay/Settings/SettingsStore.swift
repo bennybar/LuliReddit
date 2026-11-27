@@ -68,6 +68,7 @@ final class SettingsStore {
         s.floatingChips = b("floatingChips", s.floatingChips)
         s.fullBarNewPost = b("fullBarNewPost", s.fullBarNewPost)
         s.trackHistory = b("trackHistory", s.trackHistory)
+        s.saveSearchHistory = b("saveSearchHistory", s.saveSearchHistory)
         s.showRecentlyVisited = b("showRecentlyVisited", s.showRecentlyVisited)
         s.newPostsPill = b("newPostsPill", s.newPostsPill)
         s.exploreSections = ExploreSection.parse(p.getStringList(ExploreSection.prefsKey))
@@ -188,6 +189,7 @@ final class SettingsStore {
     func setFloatingChips(_ v: Bool) { p.setBool("floatingChips", v); set { $0.floatingChips = v } }
     func setFullBarNewPost(_ v: Bool) { p.setBool("fullBarNewPost", v); set { $0.fullBarNewPost = v } }
     func setTrackHistory(_ v: Bool) { p.setBool("trackHistory", v); set { $0.trackHistory = v } }
+    func setSaveSearchHistory(_ v: Bool) { p.setBool("saveSearchHistory", v); set { $0.saveSearchHistory = v } }
     func setNewPostsPill(_ v: Bool) { p.setBool("newPostsPill", v); set { $0.newPostsPill = v } }
     func setShowRecentlyVisited(_ v: Bool) { p.setBool("showRecentlyVisited", v); set { $0.showRecentlyVisited = v } }
     /// `entries` nil: back to the default Explore (and whatever sections later versions add to it).
