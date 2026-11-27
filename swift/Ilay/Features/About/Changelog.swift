@@ -12,6 +12,9 @@ struct Release: Identifiable {
 /// 2.0 (the native app, with Reddit Home). Add the new release at the top
 /// with every release.
 let CHANGELOG = [
+    Release(version: "2.0.123", date: "Nov 27, 2026", highlights: [
+        "User pages and community pages: the big picture fades out as the bar's small one comes in, instead of staying over the bar (#298)",
+    ]),
     Release(version: "2.0.122", date: "Nov 27, 2026", highlights: [
         "User pages and your Profile tab fold exactly like a community page: the picture and name slide into the top bar, the round buttons keep their blur, and the banner no longer lingers under the status bar (#298)",
         "A low-resolution banner no longer shows a blurry line where it meets the page",

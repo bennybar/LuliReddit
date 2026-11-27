@@ -47,6 +47,14 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.123", "Nov 27, 2026",
+        listOf(
+            "Updates install inside the app: Update downloads the release for your phone and Android asks to install it. The first time, Android asks you to allow Ilay to install apps. Settings › About › Install updates in the app; off: download it in your browser as before",
+            "Settings › About › Once a week at most: the update check at launch runs no more than once every 7 days (#303)",
+            "User pages, your Profile tab and community pages: the banner scrolls away sharp instead of leaving a smear under the status bar, the picture no longer flashes a plain circle as it slides into the bar, and a big centred picture reaches the bar before the name (#298)",
+        ),
+    ),
+    Release(
         "2.0.122", "Nov 27, 2026",
         listOf(
             "User pages and your Profile tab fold exactly like a community page: the picture and name slide into the top bar, the round buttons keep their blur, and the banner no longer lingers under the status bar (#298)",
