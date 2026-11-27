@@ -1,5 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.feed
 
+import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -447,16 +449,19 @@ internal fun BannerHeaderBar(
     // with the banner itself sharp across it at its own shape, as the website shows it (#294).
     var soft by remember(bannerUrl) { mutableStateOf(false) }
     val light = imageLight ?: ((band ?: cs.surface).luminance() > 0.5f)
-    BannerStatusBar(light = light, shown = { state.progress < 0.5f })
+    // The banner's icons until the banner has slid out from under the status bar (#298).
+    val bannerLeaves = if (centered) 0.5f else BANNER / (BANNER + top.value)
+    BannerStatusBar(light = light, shown = { state.progress < bannerLeaves })
     val onBanner = if (centered) cs.onSurface else androidx.compose.ui.graphics.lerp(if (light) Color.Black.copy(alpha = 0.87f) else Color.White, cs.onSurface, p)
     // Where the name and picture end up: after ← (or ☰), or at the start with neither.
     val barX = if (leading != null) 58.dp else 16.dp
     // The name's way from under the banner's foot (or the big picture) into the bar; the banner moves with it.
     val openNameTop = if (centered) bannerBarHeight(top) + BIG_PICTURE + 10.dp else top + BANNER.dp + NAME_GAP
     val nameTop = lerp(openNameTop, top + BAR_ROW_TOP + 10.dp, p)
-    val bannerShift = (BANNER.dp + NAME_GAP - BAR_ROW_TOP - 10.dp) * p
-    // Gone, not covered, once folded: a covered banner left a line under the status bar (#268).
-    val bannerAlpha = 1f - (p * 1.2f).coerceAtMost(1f)
+    // All of it out past the screen's top once folded, sharp all the way: a fading banner
+    // left a smear under the status bar (#298), a covered one a line (#268). It goes a little
+    // faster than the name, so the name still never runs over it.
+    val bannerShift = (top + BANNER.dp) * p
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
     val bannerPx = with(density) { (top + BANNER.dp).roundToPx() }
@@ -471,12 +476,12 @@ internal fun BannerHeaderBar(
     ) {
         val width = maxWidth
         val boxW = with(density) { width.roundToPx() }
-        if (band != null && bannerAlpha > 0f) {
+        if (band != null && p < 1f) {
             Box(
                 Modifier
                     .fillMaxWidth()
                     .height(top + BANNER.dp)
-                    .graphicsLayer { translationY = -bannerShift.toPx(); alpha = bannerAlpha }
+                    .graphicsLayer { translationY = -bannerShift.toPx() }
                     .background(band),
             ) {
                 if (request != null) {
@@ -516,7 +521,7 @@ internal fun BannerHeaderBar(
                             val path = Path().apply { shapes.forEach { addRoundRect(RoundRect(it, CornerRadius(it.height / 2))) } }
                             clipPath(path) { this@drawWithContent.drawContent() }
                         }
-                        .graphicsLayer { translationY = -bannerShift.toPx(); alpha = bannerAlpha },
+                        .graphicsLayer { translationY = -bannerShift.toPx() },
                 ) {
                     AsyncImage(
                         model = request,
@@ -528,20 +533,37 @@ internal fun BannerHeaderBar(
             }
         }
         // The picture and name, from over the banner's foot (or big and centred) into the bar after ←.
-        val iconSize = lerp(if (centered) BIG_PICTURE else ICON, 30.dp, p)
-        val iconX = lerp(if (centered) (width - BIG_PICTURE) / 2 else 16.dp, barX, p)
+        // Big and centred, the picture is in the bar by 60% of the way, so the name coming up
+        // from under it never runs over it (#298).
+        val pp = if (centered) (p / 0.6f).coerceAtMost(1f) else p
+        val openSize = if (centered) BIG_PICTURE else ICON
+        val iconSize = lerp(openSize, 30.dp, pp)
+        val iconX = lerp(if (centered) (width - BIG_PICTURE) / 2 else 16.dp, barX, pp)
         // About a third of it over the banner's foot (#277), the rest beside the name.
-        val iconY = lerp(if (centered) bannerBarHeight(top) else top + BANNER.dp - ICON_OVER, top + BAR_ROW_TOP + 9.dp, p)
+        val iconY = lerp(if (centered) bannerBarHeight(top) else top + BANNER.dp - ICON_OVER, top + BAR_ROW_TOP + 9.dp, pp)
         // The ring is a disc behind the icon, not a border over it: a border let the
         // picture's edge show around it (#268). None without a banner to set it off.
-        val ring = if (centered) 0.dp else lerp(3.dp, 0.dp, p)
+        val ring = if (centered) 0.dp else lerp(3.dp, 0.dp, pp)
         Box(
             Modifier
                 .offset(iconX - ring, iconY - ring)
                 .size(iconSize + ring * 2)
                 .background(cs.surface, CircleShape)
                 .padding(ring),
-        ) { picture(iconSize) }
+        ) {
+            // Drawn at its open size and scaled: a picture asked for at each frame's size
+            // reloaded as it moved, its plain colour showing until it came (#298).
+            Box(
+                Modifier
+                    .wrapContentSize(Alignment.TopStart, unbounded = true)
+                    .graphicsLayer {
+                        val k = iconSize / openSize
+                        scaleX = k
+                        scaleY = k
+                        transformOrigin = TransformOrigin(0f, 0f)
+                    },
+            ) { picture(openSize) }
+        }
         // Centred under the big picture, it slides to the start; beside the picture over a banner.
         val nameStart = lerp(if (centered) 16.dp else 16.dp + ICON + 12.dp, barX + 40.dp, p)
         // Clear of the + / ✓ button open, of the bar's buttons once in the bar.
