@@ -667,9 +667,10 @@ struct BannerImage: View {
                     .frame(width: geo.size.width, height: geo.size.height)
                     .blur(radius: soft ? 30 : 0, opaque: true)
                     .clipped()
-                    .overlay {
+                    .overlay(alignment: .bottom) {
                         // The banner itself sharp across the wash, at its own shape, as the
-                        // website shows it (#294).
+                        // website shows it (#294); down on the banner's foot: a strip of the
+                        // wash under it read as a blurry seam above the page (#298).
                         if soft {
                             Image(uiImage: image).resizable().scaledToFit()
                         }
