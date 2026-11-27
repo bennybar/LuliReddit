@@ -11,14 +11,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Surface
-import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.platform.LocalDensity
 import kotlinx.coroutines.delay
 import androidx.compose.runtime.MutableFloatState
 import com.bennybar.luli_for_reddit.ui.subredditName
@@ -240,22 +235,23 @@ fun UserProfileBody(
     // a pull refreshes.
     var headerHeight by remember { mutableIntStateOf(0) }
     var headerOffset by headerOffsetState
-    // With the banner header, it slides up only to the bar's row, which stays over it.
-    val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val barRoom = remember { mutableFloatStateOf(0f) }
-    barRoom.floatValue = if (bannerBar == null) 0f else with(LocalDensity.current) { bannerBarHeight(top).toPx() }
+    // Whether the list under the header is at its top, as the last scroll found it: the
+    // banner header (#293) opens again only then, and after the part under it is all back.
+    var listAtTop by remember { mutableStateOf(true) }
     val collapse = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 if (available.y >= 0) return Offset.Zero
-                val next = (headerOffset + available.y).coerceAtLeast(-(headerHeight - barRoom.floatValue).coerceAtLeast(0f))
+                val next = (headerOffset + available.y).coerceAtLeast(-headerHeight.toFloat())
                 val used = next - headerOffset
                 headerOffset = next
                 return Offset(0f, used)
             }
 
             override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (consumed.y < 0) listAtTop = false
                 if (available.y <= 0) return Offset.Zero
+                listAtTop = true
                 val next = (headerOffset + available.y).coerceAtMost(0f)
                 val used = next - headerOffset
                 headerOffset = next
@@ -263,28 +259,28 @@ fun UserProfileBody(
             }
         }
     }
-    val listModifier = Modifier.nestedScroll(collapse)
-    LaunchedEffect(scrollTop) { scrollTop?.drop(1)?.collect { headerOffset = 0f } }
-
-    // The banner (one decode for the header and the blur in the bar's circles), and whether
-    // it's light where the status bar and buttons sit on it.
-    val cs = MaterialTheme.colorScheme
     val user = (about as? Async.Data)?.value
-    val bannerPx = with(LocalDensity.current) { (top + BANNER.dp).roundToPx() }
-    val request = if (bannerBar == null) null else rememberCoverRequest(user?.bannerUrl, feedDecodeWidth(), bannerPx)
-    var imageLight by remember(user?.bannerUrl) { mutableStateOf<Boolean?>(null) }
-    val light = imageLight ?: ((if (user?.bannerUrl != null) cs.primaryContainer else cs.surface).luminance() > 0.5f)
-    val fraction = {
-        val range = headerHeight - barRoom.floatValue
-        if (range <= 0f) 0f else (-headerOffset / range).coerceIn(0f, 1f)
-    }
-    if (bannerBar != null) BannerStatusBar(light = light, shown = { fraction() < 0.5f })
+    // The community page's header (#298: the same one, not a look-alike): it folds first as a
+    // list scrolls, the picture and name sliding into the bar, then the rest slides away.
+    val title = rememberCollapsingTitle(extra = userHeaderExtra(user)) { listAtTop && headerOffset == 0f }
+    val listModifier = if (bannerBar == null) Modifier.nestedScroll(collapse) else Modifier.nestedScroll(title).nestedScroll(collapse)
+    LaunchedEffect(scrollTop) { scrollTop?.drop(1)?.collect { headerOffset = 0f; listAtTop = true } }
+    // Another tab's list may be anywhere: found out at its next scroll.
+    LaunchedEffect(pager.currentPage) { listAtTop = false }
+
+    val cs = MaterialTheme.colorScheme
     // "Followed u/x" / "Unfollowed u/x" after the round Follow, as Join's pill (#277).
     var followPill by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(followPill) { if (followPill != null) { delay(3_000); followPill = null } }
 
     Box(modifier) {
     Column(Modifier.fillMaxSize()) {
+        if (bannerBar != null) {
+            UserHeaderBar(
+                title, username, user, canFollow = !isSelf && me.isNotEmpty(), onSwitchAccount, bannerBar,
+                onFollowed = { on -> followPill = "${if (on) "Followed" else "Unfollowed"} ${userName(username)}" },
+            )
+        }
         Column(
             Modifier.clipToBounds().layout { measurable, constraints ->
                 val p = measurable.measure(constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity))
@@ -293,19 +289,19 @@ fun UserProfileBody(
                 layout(p.width, p.height + offset) { p.place(0, offset) }
             },
         ) {
-            // Under the bar's row with the banner header: the status bar and buttons are over it.
-            val room = if (bannerBar != null) bannerBarHeight(top) else 0.dp
             when (val a = about) {
-                Async.Loading -> Box(Modifier.fillMaxWidth().padding(top = room).height(96.dp), contentAlignment = Alignment.Center) {
+                Async.Loading -> Box(Modifier.fillMaxWidth().height(96.dp), contentAlignment = Alignment.Center) {
                     Loading()
                 }
-                is Async.Error -> Text("Could not load profile: ${friendlyError(a.error)}", Modifier.padding(top = room).padding(16.dp))
+                is Async.Error -> Text("Could not load profile: ${friendlyError(a.error)}", Modifier.padding(16.dp))
+                // Under the banner header, only the user's description, as a community's (#277).
                 is Async.Data -> if (bannerBar != null) {
-                    UserBannerHeader(
-                        a.value, canFollow = !isSelf && me.isNotEmpty(), onSwitchAccount, top, request,
-                        onLight = { imageLight = it },
-                        onFollowed = { on -> followPill = "${if (on) "Followed" else "Unfollowed"} ${userName(a.value.name)}" },
-                    )
+                    if (a.value.description.isNotBlank()) {
+                        Column {
+                            AboutCard(a.value.description)
+                            Spacer(Modifier.height(8.dp))
+                        }
+                    }
                 } else ProfileHeader(a.value, canFollow = !isSelf && me.isNotEmpty(), onSwitchAccount)
             }
         }
@@ -400,7 +396,6 @@ fun UserProfileBody(
         }
     }
     if (bannerBar != null) {
-        UserBannerBar(bannerBar, user, light, top, request, fraction, bannerShift = { headerOffset })
         // Above the bottom bar, in the theme's inverse colours, as Join's.
         AnimatedVisibility(
             followPill != null,
