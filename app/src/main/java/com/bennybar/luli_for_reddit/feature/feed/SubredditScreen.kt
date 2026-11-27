@@ -91,6 +91,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.ui.BiasAlignment
+import androidx.compose.ui.unit.Dp
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -333,7 +337,7 @@ fun SubredditScreen(name: String) {
 }
 
 /** The banner header's room under the bar's row: the banner, the icon over its foot, the name and members. */
-private val BANNER_EXTRA = 150.dp
+internal val BANNER_EXTRA = 150.dp
 internal const val BANNER = 136f // the banner's height under the status bar, dp
 internal val ICON = 76.dp // the icon over the banner's foot (#268: bigger), 30dp in the bar
 internal val NAME_GAP = 10.dp // the name under the banner's foot (#268: a little lower)
@@ -357,23 +361,99 @@ private fun BannerTitleBar(
     val cs = MaterialTheme.colorScheme
     val nav = LocalNavigator.current
     val sideBar = LocalSideBar.current != null
-    val p = state.progress
-    val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     // Without a banner or a colour of its own: the theme's soft accent, not a grey block.
     val band = about?.keyColor?.let { runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull() } ?: cs.primaryContainer
+    val icon = about?.iconUrl
+    BannerHeaderBar(
+        state,
+        bannerUrl = about?.bannerUrl,
+        band = band,
+        name = subredditName("r/$name"),
+        picture = { size ->
+            // A tap opens the picture full screen (#279); a letter avatar has none.
+            LetterAvatar(
+                name, size, cs.secondaryContainer, cs.onSecondaryContainer, imageUrl = icon,
+                modifier = if (icon != null) Modifier.opensPicture(icon, "r/$name") else Modifier,
+            )
+        },
+        subtitle = about?.let { "${compactNumber(it.subscribers)} members" },
+        leading = {
+            if (sideBar) SideBarButton()
+            else IconButton(onClick = { nav.pop() }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
+        },
+        trailing = if (about == null) null else { enabled ->
+            // Join as an icon by the name (#277): + to join, ✓ to leave; it never cuts the name.
+            val override by vm.subOverride.collectAsStateWithLifecycle()
+            val subscribed = override ?: about.userIsSubscriber ?: false
+            val label = subredditName("r/$name")
+            FilledTonalIconToggleButton(
+                checked = subscribed,
+                onCheckedChange = { vm.toggleSub(about, subscribed, onJoined) },
+                modifier = Modifier.size(JOIN).semantics { contentDescription = if (subscribed) "Leave $label" else "Join $label" },
+                enabled = enabled,
+            ) {
+                AnimatedContent(
+                    subscribed,
+                    transitionSpec = { (scaleIn(initialScale = 0.5f) + fadeIn()) togetherWith (scaleOut(targetScale = 0.5f) + fadeOut()) },
+                    label = "join",
+                ) { joined -> Icon(if (joined) Icons.Rounded.Check else Icons.Rounded.Add, null) }
+            }
+        },
+    ) {
+        // Search and ⋯ share one pill, spaced as on Posts (#282).
+        // What the search page's field grows out of (#285).
+        IconButton(onClick = onSearch, Modifier.searchMorphSource()) { Icon(SearchIcon, "Search") }
+        IconButton(onClick = onMenu) { Icon(Icons.Rounded.MoreHoriz, "More") }
+    }
+}
+
+/** A profile without a banner (#298): the open header's room for its big centred picture, name and karma. */
+internal val CENTERED_EXTRA = 212.dp
+private val BIG_PICTURE = 112.dp
+
+/**
+ * The banner header (a community's, #257, and a profile's, #293/#298): the banner (or [band])
+ * behind the bar's buttons, which sit in blurred circles (#268) to stay readable; the
+ * [picture] on the left over the banner's foot, the [name] and [subtitle] beside it. As the
+ * list scrolls, the banner slides up with the name, so the name never runs over it (#268),
+ * and fades into the bar's colour; the picture and name slide into the bar together.
+ * [band] null: no banner and no band (a profile without one), the picture big and centred
+ * with the name under it, both sliding into the bar the same way. [trailing] is the + / ✓
+ * by the name (enabled while it shows); [onName] puts a ▾ after the name (your accounts).
+ */
+@Composable
+internal fun BannerHeaderBar(
+    state: CollapsingTitle,
+    bannerUrl: String?,
+    band: Color?,
+    name: String,
+    picture: @Composable (Dp) -> Unit,
+    subtitle: String?,
+    leading: (@Composable () -> Unit)?,
+    trailing: (@Composable (enabled: Boolean) -> Unit)?,
+    onName: (() -> Unit)? = null,
+    actions: @Composable RowScope.() -> Unit,
+) {
+    val cs = MaterialTheme.colorScheme
+    val p = state.progress
+    val centered = band == null
+    val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     // A light banner gets dark icons, on it and in the status bar (#268); a picture's
     // lightness is known once it's loaded, the band's until then.
-    var imageLight by remember(about?.bannerUrl) { mutableStateOf<Boolean?>(null) }
+    var imageLight by remember(bannerUrl) { mutableStateOf<Boolean?>(null) }
     // Reddit's desktop banners are 4000 px wide and as little as 128 tall: filling this box
     // shows a sliver of one blown up several times (Reddit feedback, r/Howtomen). One that
     // would need more than 1.5× becomes a soft wash of its own colours, not a blurry zoom,
     // with the banner itself sharp across it at its own shape, as the website shows it (#294).
-    var soft by remember(about?.bannerUrl) { mutableStateOf(false) }
-    val light = imageLight ?: (band.luminance() > 0.5f)
+    var soft by remember(bannerUrl) { mutableStateOf(false) }
+    val light = imageLight ?: ((band ?: cs.surface).luminance() > 0.5f)
     BannerStatusBar(light = light, shown = { state.progress < 0.5f })
-    val onBanner = androidx.compose.ui.graphics.lerp(if (light) Color.Black.copy(alpha = 0.87f) else Color.White, cs.onSurface, p)
-    // The name's way from under the banner's foot into the bar; the banner moves with it.
-    val nameTop = lerp(top + BANNER.dp + NAME_GAP, top + BAR_ROW_TOP + 10.dp, p)
+    val onBanner = if (centered) cs.onSurface else androidx.compose.ui.graphics.lerp(if (light) Color.Black.copy(alpha = 0.87f) else Color.White, cs.onSurface, p)
+    // Where the name and picture end up: after ← (or ☰), or at the start with neither.
+    val barX = if (leading != null) 58.dp else 16.dp
+    // The name's way from under the banner's foot (or the big picture) into the bar; the banner moves with it.
+    val openNameTop = if (centered) bannerBarHeight(top) + BIG_PICTURE + 10.dp else top + BANNER.dp + NAME_GAP
+    val nameTop = lerp(openNameTop, top + BAR_ROW_TOP + 10.dp, p)
     val bannerShift = (BANNER.dp + NAME_GAP - BAR_ROW_TOP - 10.dp) * p
     // Gone, not covered, once folded: a covered banner left a line under the status bar (#268).
     val bannerAlpha = 1f - (p * 1.2f).coerceAtMost(1f)
@@ -382,7 +462,7 @@ private fun BannerTitleBar(
     val bannerPx = with(density) { (top + BANNER.dp).roundToPx() }
     // The status bar and the buttons' row: the part of the banner their colour follows.
     val barPx = with(density) { (top + BAR_ROW_TOP + 48.dp).toPx() }
-    val request = rememberCoverRequest(about?.bannerUrl, feedDecodeWidth(), bannerPx)
+    val request = rememberCoverRequest(if (centered) null else bannerUrl, feedDecodeWidth(), bannerPx)
     // The round buttons' places in the header, for the blurred banner behind them.
     var root by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val holes = remember { mutableStateMapOf<Int, Rect>() }
@@ -391,7 +471,7 @@ private fun BannerTitleBar(
     ) {
         val width = maxWidth
         val boxW = with(density) { width.roundToPx() }
-        if (bannerAlpha > 0f) {
+        if (band != null && bannerAlpha > 0f) {
             Box(
                 Modifier
                     .fillMaxWidth()
@@ -411,11 +491,14 @@ private fun BannerTitleBar(
                         },
                     )
                     if (soft) {
-                        // The same decoded picture, whole and sharp, under the status bar.
+                        // The same decoded picture, whole and sharp, under the status bar, down
+                        // on the banner's foot: a strip of the wash under it read as a blurry
+                        // seam between the banner and the page (#298).
                         AsyncImage(
                             model = request,
                             contentDescription = null,
                             contentScale = ContentScale.Fit,
+                            alignment = Alignment.BottomCenter,
                             modifier = Modifier.fillMaxSize().padding(top = top),
                         )
                     }
@@ -444,86 +527,80 @@ private fun BannerTitleBar(
                 }
             }
         }
-        // The icon and name, from over the banner's foot into the bar after ←.
-        val iconSize = lerp(ICON, 30.dp, p)
-        val iconX = lerp(16.dp, 58.dp, p)
+        // The picture and name, from over the banner's foot (or big and centred) into the bar after ←.
+        val iconSize = lerp(if (centered) BIG_PICTURE else ICON, 30.dp, p)
+        val iconX = lerp(if (centered) (width - BIG_PICTURE) / 2 else 16.dp, barX, p)
         // About a third of it over the banner's foot (#277), the rest beside the name.
-        val iconY = lerp(top + BANNER.dp - ICON_OVER, top + BAR_ROW_TOP + 9.dp, p)
+        val iconY = lerp(if (centered) bannerBarHeight(top) else top + BANNER.dp - ICON_OVER, top + BAR_ROW_TOP + 9.dp, p)
         // The ring is a disc behind the icon, not a border over it: a border let the
-        // picture's edge show around it (#268).
-        val ring = lerp(3.dp, 0.dp, p)
+        // picture's edge show around it (#268). None without a banner to set it off.
+        val ring = if (centered) 0.dp else lerp(3.dp, 0.dp, p)
         Box(
             Modifier
                 .offset(iconX - ring, iconY - ring)
                 .size(iconSize + ring * 2)
                 .background(cs.surface, CircleShape)
                 .padding(ring),
+        ) { picture(iconSize) }
+        // Centred under the big picture, it slides to the start; beside the picture over a banner.
+        val nameStart = lerp(if (centered) 16.dp else 16.dp + ICON + 12.dp, barX + 40.dp, p)
+        // Clear of the + / ✓ button open, of the bar's buttons once in the bar.
+        val nameEnd = lerp(if (centered || trailing == null) 16.dp else 16.dp + JOIN + 8.dp, 104.dp, p)
+        val fontSize = if (centered) (28f - 10f * p).sp else (26f - 8f * p).sp
+        Box(
+            Modifier.offset(y = nameTop).fillMaxWidth().padding(start = nameStart, end = nameEnd),
+            contentAlignment = BiasAlignment(if (centered) -p else -1f, 0f),
         ) {
-            // A tap opens the picture full screen (#279); a letter avatar has none.
-            val icon = about?.iconUrl
-            LetterAvatar(
-                name, iconSize, cs.secondaryContainer, cs.onSecondaryContainer, imageUrl = icon,
-                modifier = if (icon != null) Modifier.opensPicture(icon, "r/$name") else Modifier,
-            )
-        }
-        val nameX = lerp(16.dp + ICON + 12.dp, iconX + iconSize + 10.dp, p)
-        Text(
-            subredditName("r/$name"),
-            Modifier
-                .offset(nameX, nameTop)
-                // Clear of the + / ✓ button open, of the search and ⋯ buttons once in the bar.
-                .widthIn(max = width - nameX - lerp(16.dp + JOIN + 8.dp, 104.dp, p)),
-            fontSize = (26f - 8f * p).sp,
-            fontWeight = FontWeight.ExtraBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        if (about != null) {
-            // Join as an icon by the name (#277): + to join, ✓ to leave; it never cuts the name.
-            val override by vm.subOverride.collectAsStateWithLifecycle()
-            val subscribed = override ?: about.userIsSubscriber ?: false
-            val label = subredditName("r/$name")
-            FilledTonalIconToggleButton(
-                checked = subscribed,
-                onCheckedChange = { vm.toggleSub(about, subscribed, onJoined) },
-                modifier = Modifier
-                    .offset(width - 16.dp - JOIN, nameTop)
-                    .size(JOIN)
-                    .graphicsLayer { alpha = (1f - p * 2.5f).coerceAtLeast(0f) }
-                    .semantics { contentDescription = if (subscribed) "Leave $label" else "Join $label" },
-                enabled = p < 0.4f,
-            ) {
-                AnimatedContent(
-                    subscribed,
-                    transitionSpec = { (scaleIn(initialScale = 0.5f) + fadeIn()) togetherWith (scaleOut(targetScale = 0.5f) + fadeOut()) },
-                    label = "join",
-                ) { joined -> Icon(if (joined) Icons.Rounded.Check else Icons.Rounded.Add, null) }
+            if (onName == null) {
+                Text(name, fontSize = fontSize, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            } else {
+                Row(
+                    Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClickLabel = "Switch or add account", onClick = onName),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(name, Modifier.weight(1f, fill = false), fontSize = fontSize, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Icon(Icons.Rounded.KeyboardArrowDown, null, tint = cs.onSurfaceVariant)
+                }
             }
-            Text(
-                "${compactNumber(about.subscribers)} members",
-                Modifier.offset(16.dp + ICON + 12.dp, nameTop + 36.dp).graphicsLayer { alpha = (1f - p * 2.5f).coerceAtLeast(0f) },
-                color = cs.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+        }
+        val fade = (1f - p * 2.5f).coerceAtLeast(0f)
+        if (centered) {
+            // Karma and + / ✓ on one line under the name, centred.
+            Row(
+                Modifier.offset(y = nameTop + 40.dp).fillMaxWidth().height(JOIN).graphicsLayer { alpha = fade },
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                subtitle?.let { Text(it, color = cs.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium) }
+                if (trailing != null) {
+                    Spacer(Modifier.width(12.dp))
+                    trailing(p < 0.4f)
+                }
+            }
+        } else {
+            if (trailing != null) {
+                Box(Modifier.offset(width - 16.dp - JOIN, nameTop).graphicsLayer { alpha = fade }) { trailing(p < 0.4f) }
+            }
+            if (subtitle != null) {
+                Text(
+                    subtitle,
+                    Modifier.offset(16.dp + ICON + 12.dp, nameTop + 36.dp).graphicsLayer { alpha = fade },
+                    color = cs.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
         }
         // The bar's row, over the banner: blurred, lightly tinted circles keep the buttons readable on any picture.
         CompositionLocalProvider(LocalContentColor provides onBanner) {
             Row(Modifier.padding(start = 4.dp, top = top + BAR_ROW_TOP, end = 4.dp).height(48.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                val tint = (if (light) Color.White.copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.25f)).let { it.copy(alpha = it.alpha * (1f - p)) }
+                val tint = if (centered) cs.surfaceContainerHigh.copy(alpha = 1f - p)
+                else (if (light) Color.White.copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.25f)).let { it.copy(alpha = it.alpha * (1f - p)) }
                 fun back(i: Int) = Modifier
                     .onGloballyPositioned { c -> root?.takeIf { it.isAttached }?.let { r -> holes[i] = r.localBoundingBoxOf(c) } }
                     .background(tint, CircleShape) // a circle, or a pill when wider
-                Box(back(0)) {
-                    if (sideBar) SideBarButton()
-                    else IconButton(onClick = { nav.pop() }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
-                }
+                leading?.let { Box(back(0)) { it() } }
                 Spacer(Modifier.weight(1f))
-                // Search and ⋯ share one pill, spaced as on Posts (#282).
-                Row(back(1)) {
-                    // What the search page's field grows out of (#285).
-                    IconButton(onClick = onSearch, Modifier.searchMorphSource()) { Icon(SearchIcon, "Search") }
-                    IconButton(onClick = onMenu) { Icon(Icons.Rounded.MoreHoriz, "More") }
-                }
+                Row(back(1), content = actions)
             }
         }
     }

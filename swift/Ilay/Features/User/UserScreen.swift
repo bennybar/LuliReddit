@@ -8,6 +8,9 @@ import SwiftUI
     /// How far the list is pulled down past its top (pull to refresh): the header moves down
     /// with it, or the large title, which follows the pull, slides in behind the header.
     var pull: CGFloat = 0
+    /// How far the rows have scrolled, up to the banner's whole height: the banner moves with
+    /// them, as a community's does, until it's gone (#298), not only as far as the header.
+    var scrolled: CGFloat = 0
 
     @ObservationIgnored private let username: String
     @ObservationIgnored private var started = false
@@ -307,6 +310,8 @@ struct UserProfileBody: View {
             if collapse != model.collapse { model.collapse = collapse }
             let pull = max(-scrolled, 0)
             if pull != model.pull { model.pull = pull }
+            let moved = min(max(scrolled, 0), bannerTravel)
+            if moved != model.scrolled { model.scrolled = moved }
         }
     }
 }
@@ -425,9 +430,12 @@ private struct ProfileHeader: View {
 private let profileBanner: CGFloat = 64 // under the bar, as a community's
 private let profileIcon: CGFloat = 76
 private let profileIconOver: CGFloat = 26 // a third of it over the banner's foot (#277's)
+/// Past this, the banner and picture have left the screen: the status and nav bars and the banner under them.
+private let bannerTravel: CGFloat = 400
 
 /// The banner from the screen's top to its foot, behind the bar, and the picture over its
-/// foot (#293, as a community's BannerBackdrop); it slides away with the header.
+/// foot (#293, as a community's BannerBackdrop); it moves with the rows, as a community's, and
+/// so leaves the screen: stopping with the header, it lingered behind the status bar (#298).
 private struct UserBannerBackdrop: View {
     let model: UserProfileModel
     let user: RedditUser
@@ -452,10 +460,7 @@ private struct UserBannerBackdrop: View {
                     .background(page, in: Circle())
                     .offset(x: 13, y: profileBanner - profileIconOver - 3)
             }
-            .offset(y: model.pull - model.collapse)
-            // Gone once folded: the header stops at the bar, which would leave the picture
-            // peeking out behind the status bar.
-            .opacity(max(0, 1 - max(0, model.collapse - profileBanner) / 50))
+            .offset(y: model.pull - model.scrolled)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
     }
@@ -467,7 +472,9 @@ private struct FoldedName: View {
     let user: RedditUser
 
     var body: some View {
-        let folded = model.collapse > profileBanner + 40
+        // As a community's: once the banner's foot has gone under the bar; without a banner,
+        // once the big picture and the name under it have.
+        let folded = model.scrolled > (user.bannerUrl != nil ? profileBanner + 8 : 150)
         HStack(spacing: 8) {
             LetterAvatar(name: user.name, size: 24, imageUrl: user.iconUrl)
             Text(userName(user.name)).font(.headline).lineLimit(1)
