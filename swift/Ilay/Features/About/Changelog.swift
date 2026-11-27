@@ -12,6 +12,14 @@ struct Release: Identifiable {
 /// 2.0 (the native app, with Reddit Home). Add the new release at the top
 /// with every release.
 let CHANGELOG = [
+    Release(version: "2.0.122", date: "Nov 27, 2026", highlights: [
+        "User pages and your Profile tab fold exactly like a community page: the picture and name slide into the top bar, the round buttons keep their blur, and the banner no longer lingers under the status bar (#298)",
+        "A low-resolution banner no longer shows a blurry line where it meets the page",
+        "Settings › Floating button in subreddits: its own choice, separate from Home (#300)",
+        "Hide the floating button while scrolling: it disappears as you scroll down and comes back on the way up (#301)",
+        "Settings › Read & hidden › Save search history: turn it off to keep no recent searches (#302)",
+        "Translation: the \"OpenAI\" service is now \"Your AI service\"; it uses your AI summaries key and base URL, so OpenAI-compatible services like Grok, Groq or Gemini work too (#299)",
+    ]),
     Release(version: "2.0.121", date: "Nov 26, 2026", highlights: [
         "User pages and your Profile tab get the community page's header: the banner under the status bar with round buttons on it, the picture over its edge, the name once, karma and account age, a round Follow and the description; without a banner, a large centred picture and name (#293)",
         "Another user's page has a 🔍 that searches their posts",
