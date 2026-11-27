@@ -894,9 +894,24 @@ fun SettingsList(
             "Top bar menu", "Choose and order the buttons in the menu " + if (s.topBarMode == TopBarMode.EXPANDABLE) "⋯ opens" else "your profile picture opens",
             Icons.Rounded.Tune,
         ) { showTopBarMenuSettings(s.topBarMode) }
-        tile("Floating button", s.homeFab.label, Icons.Rounded.Edit, onClick = launch {
+        tile("Floating button on Home", s.homeFab.label, Icons.Rounded.Edit, onClick = launch {
             pickOption(HomeFab.entries.map { PickOption(it, it.label) }, s.homeFab)?.let(ctrl::setHomeFab)
         })
+        // Subreddits' own button, or Home's (#300). -1 is "Same as Home" (null is a dismissed picker).
+        tile(
+            "Floating button in subreddits", s.subredditFab?.label ?: "Same as Home (${s.homeFab.label})", Icons.Rounded.Edit,
+            onClick = launch {
+                pickOption(
+                    listOf(PickOption(-1, "Same as Home", s.homeFab.label)) + HomeFab.entries.map { PickOption(it.ordinal, it.label) },
+                    s.subredditFab?.ordinal ?: -1,
+                )?.let { ctrl.setSubredditFab(HomeFab.entries.getOrNull(it)) }
+            },
+        )
+        switch(
+            "Hide the floating button while scrolling",
+            "It slips away as you scroll down and comes back on the way up, instead of just folding",
+            Icons.Rounded.UnfoldLess, s.fabHideOnScroll, ctrl::setFabHideOnScroll,
+        )
         divider("navigation")
 
         // ---------------------------------------------------------------- Posts & comments
@@ -1123,13 +1138,17 @@ fun SettingsList(
         )
         tile(
             "Translation service",
-            (when (s.translateService) { "azure" -> "Azure Translator"; "deepl" -> "DeepL"; else -> "OpenAI (your AI key)" }) +
+            (when (s.translateService) { "azure" -> "Azure Translator"; "deepl" -> "DeepL"; else -> "Your AI service" }) +
                 " · for languages your phone can't translate",
             Icons.Outlined.Dns,
             onClick = launch {
                 pickOption(
                     listOf(
-                        PickOption("openai", "OpenAI", "Your AI summaries key; each translation costs a little"),
+                        // Whatever AI summaries use: OpenAI, or any OpenAI-compatible base URL (#299).
+                        PickOption(
+                            "openai", "Your AI service",
+                            "Your AI summaries key and base URL: OpenAI, or an OpenAI-compatible one like Grok, Groq or Gemini; each translation costs a little",
+                        ),
                         PickOption("azure", "Azure Translator", "Your Azure key; 2 million characters a month free"),
                         PickOption("deepl", "DeepL", "Your DeepL API key"),
                     ),

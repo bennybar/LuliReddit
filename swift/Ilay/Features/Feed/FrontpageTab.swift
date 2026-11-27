@@ -102,7 +102,8 @@ struct FrontpageTab: View {
                     CollapsingFab(
                         systemImage: newPost ? "square.and.pencil" : "magnifyingglass",
                         label: settings.homeFab.label,
-                        expanded: fab.expanded
+                        expanded: fab.expanded,
+                        hideOnScroll: settings.fabHideOnScroll
                     ) { nav.push(newPost ? .submit() : .search()) }
                     .padding(.trailing, 16)
                     .padding(.bottom, 12) // a little clear of the tab bar, as every floating button over it
@@ -220,7 +221,10 @@ struct FrontpageScreen: View {
                 }
             }
             .overlay(alignment: .bottomTrailing) {
-                CollapsingFab(systemImage: "square.and.pencil", label: "New post", expanded: fab.expanded) {
+                CollapsingFab(
+                    systemImage: "square.and.pencil", label: "New post", expanded: fab.expanded,
+                    hideOnScroll: app.settings.value.fabHideOnScroll
+                ) {
                     nav.push(.submit())
                 }
                 .padding(.trailing, 16)

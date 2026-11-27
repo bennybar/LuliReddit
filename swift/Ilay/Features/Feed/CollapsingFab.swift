@@ -24,26 +24,33 @@ import SwiftUI
 }
 
 /// A floating button with a label, or just its icon once scrolled, like Mail's compose.
+/// `hideOnScroll`: instead of folding, it's gone while scrolling down (#301).
 struct CollapsingFab: View {
     let systemImage: String
     let label: String
     let expanded: Bool
+    var hideOnScroll = false
     let action: () -> Void
 
     var body: some View {
+        let hidden = hideOnScroll && !expanded
         Button(action: action) {
             HStack(spacing: 8) {
                 Image(systemName: systemImage)
-                if expanded {
+                if expanded || hideOnScroll {
                     Text(label).lineLimit(1).fixedSize().transition(.opacity)
                 }
             }
             .font(.subheadline.weight(.semibold))
             .frame(minWidth: 26, minHeight: 30)
-            .padding(.horizontal, expanded ? 2 : 0)
+            .padding(.horizontal, expanded || hideOnScroll ? 2 : 0)
         }
         .buttonStyle(.glassProminent)
         .accessibilityLabel(label)
+        .scaleEffect(hidden ? 0.4 : 1)
+        .opacity(hidden ? 0 : 1)
+        .allowsHitTesting(!hidden)
+        .accessibilityHidden(hidden)
         // Opens with a little bounce, folds without one (#177).
         .animation(expanded ? .bouncy(duration: 0.4, extraBounce: 0.05) : .smooth(duration: 0.3), value: expanded)
     }

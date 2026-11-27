@@ -210,6 +210,7 @@ internal fun FrontpageTab(selected: Boolean) {
             // The Full bar's own New post button already does it: not two of them.
             if (!expandable && settings.fullBarNewPost && settings.homeFab == HomeFab.NEW_POST) HomeFab.OFF else settings.homeFab,
             fab.expanded,
+            settings.fabHideOnScroll,
             onNewPost = { nav.push(Route.Submit()) },
             onSearch = { nav.push(Route.Search()) },
             onTop = { scope.launch { listState.animateScrollToItem(0) } },

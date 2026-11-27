@@ -120,6 +120,8 @@ final class SettingsStore {
         s.notifyInbox = b("notifyInbox", s.notifyInbox)
         s.inboxCheckMinutes = p.getInt("inboxCheckMinutes") ?? s.inboxCheckMinutes
         s.homeFab = idx("homeFab", s.homeFab)
+        s.subredditFab = idx("subredditFab", s.subredditFab)
+        s.fabHideOnScroll = b("fabHideOnScroll", s.fabHideOnScroll)
         s.threadFabPosition = idx("threadFabPosition", s.threadFabPosition)
         s.threadJumpOp = b("threadJumpOp", s.threadJumpOp)
         s.threadJumpMine = b("threadJumpMine", s.threadJumpMine)
@@ -313,6 +315,8 @@ final class SettingsStore {
     func setNotifyInbox(_ v: Bool) { p.setBool("notifyInbox", v); set { $0.notifyInbox = v } }
     func setInboxCheckMinutes(_ v: Int) { p.setInt("inboxCheckMinutes", v); set { $0.inboxCheckMinutes = v } }
     func setHomeFab(_ v: HomeFab) { p.setInt("homeFab", v.rawValue); set { $0.homeFab = v } }
+    func setSubredditFab(_ v: HomeFab) { p.setInt("subredditFab", v.rawValue); set { $0.subredditFab = v } }
+    func setFabHideOnScroll(_ v: Bool) { p.setBool("fabHideOnScroll", v); set { $0.fabHideOnScroll = v } }
     func setThreadFabPosition(_ v: ThreadFabPosition) { p.setInt("threadFabPosition", v.rawValue); set { $0.threadFabPosition = v } }
     func setThreadJumpOp(_ v: Bool) { p.setBool("threadJumpOp", v); set { $0.threadJumpOp = v } }
     func setThreadJumpMine(_ v: Bool) { p.setBool("threadJumpMine", v); set { $0.threadJumpMine = v } }

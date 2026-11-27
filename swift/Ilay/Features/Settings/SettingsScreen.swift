@@ -111,6 +111,7 @@ private let settingsMoves: [String: (section: String, group: Int)] = [
     // Navigation: the tabs and side bar, then the top bar.
     "Navigation": ("Navigation", 0), "Inbox in Profile": ("Navigation", 0), "Explore sections": ("Navigation", 0),
     "Top bar": ("Navigation", 1), "New post in the top bar": ("Navigation", 1), "Floating button on Home": ("Navigation", 1),
+    "Floating button in subreddits": ("Navigation", 1), "Hide the floating button while scrolling": ("Navigation", 1),
     // Posts & comments: opening links, then the thread's floating buttons.
     "Open reddit links in Ilay": ("Posts & comments", 1), "Safari extension: ask which app": ("Posts & comments", 1),
     "Thread buttons position": ("Posts & comments", 2), "Next comment button": ("Posts & comments", 2),
@@ -451,6 +452,11 @@ struct SettingsCatalog {
             b.toggle("New post in the top bar", "A New post button beside your profile picture", s.fullBarNewPost, set: ctrl.setFullBarNewPost)
         }
         b.picker("Floating button on Home", value: s.homeFab, options: HomeFab.allCases.map { PickOption(value: $0, label: $0.label) }, set: ctrl.setHomeFab)
+        b.picker("Floating button in subreddits", value: s.subredditFab, options: HomeFab.allCases.map { PickOption(value: $0, label: $0.label) }, set: ctrl.setSubredditFab)
+        b.toggle(
+            "Hide the floating button while scrolling", "It slips away as you scroll down and comes back on the way up, instead of just folding",
+            s.fabHideOnScroll, set: ctrl.setFabHideOnScroll
+        )
         b.picker(
             "Navigation", value: min(max(s.navStyle, 0), 2),
             options: navStyles.indices.map { PickOption(value: $0, label: navStyles[$0].0, subtitle: navStyles[$0].1) }, set: ctrl.setNavStyle
@@ -587,7 +593,11 @@ struct SettingsCatalog {
         b.picker(
             "Translation service", "For languages your phone can't translate", value: s.translateService,
             options: [
-                PickOption(value: "openai", label: "OpenAI", subtitle: "Your AI summaries key; each translation costs a little"),
+                // Whatever AI summaries use: OpenAI, or any OpenAI-compatible base URL (#299).
+                PickOption(
+                    value: "openai", label: "Your AI service",
+                    subtitle: "Your AI summaries key and base URL: OpenAI, or an OpenAI-compatible one like Grok, Groq or Gemini; each translation costs a little"
+                ),
                 PickOption(value: "azure", label: "Azure Translator", subtitle: "Your Azure key; 2 million characters a month free"),
                 PickOption(value: "deepl", label: "DeepL", subtitle: "Your DeepL API key"),
             ],

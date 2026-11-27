@@ -18,6 +18,9 @@ class FabSettingsTest {
         // One button for Home and subreddits: never set, it's New post (subreddits' button until now).
         assertEquals(HomeFab.NEW_POST, d.homeFab)
         assertEquals(ThreadFab.NEW_COMMENT, d.threadFab)
+        // #300 and #301: subreddits keep Home's button and it folds, not hides, until changed.
+        assertEquals(null, d.subredditFab)
+        assertEquals(false, d.fabHideOnScroll)
         assertEquals(null, d.customSeedColor)
         assertEquals(Settings.DEFAULT_SEED, d.seedColor)
         // #91 and #97: today's look until changed.

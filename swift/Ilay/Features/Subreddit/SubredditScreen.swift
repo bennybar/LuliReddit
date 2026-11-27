@@ -178,11 +178,18 @@ struct SubredditScreen: View {
                 }
             }
             .overlay(alignment: .bottomTrailing) {
-                CollapsingFab(systemImage: "square.and.pencil", label: "New post", expanded: fab.expanded) {
-                    nav.push(.submit(subreddit: name))
+                // Its own setting, apart from Home's (#300).
+                let kind = app.settings.value.subredditFab
+                if kind != .off {
+                    CollapsingFab(
+                        systemImage: kind == .newPost ? "square.and.pencil" : "magnifyingglass", label: kind.label,
+                        expanded: fab.expanded, hideOnScroll: app.settings.value.fabHideOnScroll
+                    ) {
+                        nav.push(kind == .newPost ? .submit(subreddit: name) : .search(subreddit: name))
+                    }
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 12) // a little clear of the tab bar, as every floating button over it
                 }
-                .padding(.trailing, 16)
-                .padding(.bottom, 12) // a little clear of the tab bar, as every floating button over it
             }
             // Above the floating button, in the inverse of the page's colours (#277).
             .overlay(alignment: .bottom) {

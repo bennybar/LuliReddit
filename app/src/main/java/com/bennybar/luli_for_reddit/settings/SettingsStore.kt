@@ -127,6 +127,9 @@ class SettingsStore(private val p: Prefs) {
             // Old installs may have stored the removed "compact" (1) or the old
             // expandable index (2); clamping maps both safely.
             homeFab = idx(HomeFab.entries.toTypedArray(), "homeFab", d.homeFab),
+            // -1 (or never set): the same as Home's.
+            subredditFab = p.getInt("subredditFab")?.let { HomeFab.entries.getOrNull(it) },
+            fabHideOnScroll = b("fabHideOnScroll", d.fabHideOnScroll),
             threadFab = idx(ThreadFab.entries.toTypedArray(), "threadFab", d.threadFab),
             threadFabPosition = idx(ThreadFabPosition.entries.toTypedArray(), "threadFabPosition", d.threadFabPosition),
             threadJumpOp = b("threadJumpOp", d.threadJumpOp),
@@ -331,6 +334,8 @@ class SettingsStore(private val p: Prefs) {
     fun setInboxCheckMinutes(v: Int) { p.setInt("inboxCheckMinutes", v); set { it.copy(inboxCheckMinutes = v) } }
     fun setRedditAppNotifications(v: Boolean) { p.setBool("redditAppNotifications", v); set { it.copy(redditAppNotifications = v) } }
     fun setHomeFab(v: HomeFab) { p.setInt("homeFab", v.ordinal); set { it.copy(homeFab = v) } }
+    fun setSubredditFab(v: HomeFab?) { p.setInt("subredditFab", v?.ordinal ?: -1); set { it.copy(subredditFab = v) } }
+    fun setFabHideOnScroll(v: Boolean) { p.setBool("fabHideOnScroll", v); set { it.copy(fabHideOnScroll = v) } }
     fun setThreadFab(v: ThreadFab) { p.setInt("threadFab", v.ordinal); set { it.copy(threadFab = v) } }
     fun setThreadFabPosition(v: ThreadFabPosition) { p.setInt("threadFabPosition", v.ordinal); set { it.copy(threadFabPosition = v) } }
     fun setThreadJumpOp(v: Boolean) { p.setBool("threadJumpOp", v); set { it.copy(threadJumpOp = v) } }

@@ -243,8 +243,9 @@ fun SubredditScreen(name: String) {
     Scaffold(
         floatingActionButton = {
             FeedFab(
-                settings.homeFab,
+                settings.subredditFab ?: settings.homeFab,
                 fab.expanded,
+                settings.fabHideOnScroll,
                 onNewPost = { nav.push(Route.Submit(name)) },
                 onSearch = { nav.push(Route.Search(subreddit = name)) },
                 onTop = { scope.launch { listState.animateScrollToItem(0) } },

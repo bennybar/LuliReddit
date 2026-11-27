@@ -47,6 +47,7 @@ fun FrontpageScreen() {
             FeedFab(
                 settings.homeFab,
                 fab.expanded,
+                settings.fabHideOnScroll,
                 onNewPost = { nav.push(Route.Submit()) },
                 onSearch = { nav.push(Route.Search()) },
                 onTop = { scope.launch { listState.animateScrollToItem(0) } },

@@ -332,6 +332,8 @@ data class Settings(
     val inboxCheckMinutes: Int = 15, // how often (#188): 15 is Android's shortest
     val redditAppNotifications: Boolean = false, // take over the Reddit app's notifications (needs notification access)
     val homeFab: HomeFab = HomeFab.NEW_POST, // floating button on Home and in subreddits (#90)
+    val subredditFab: HomeFab? = null, // subreddits' own floating button; null: the same as Home's (#300)
+    val fabHideOnScroll: Boolean = false, // the feeds' floating button hides as you scroll down, not just folds (#301)
     val threadFab: ThreadFab = ThreadFab.NEW_COMMENT, // floating button in a thread (#90)
     val threadFabPosition: ThreadFabPosition = ThreadFabPosition.RIGHT, // horizontal position of the thread toolbar
     val threadJumpOp: Boolean = true, // show OP comments jump button in thread toolbar

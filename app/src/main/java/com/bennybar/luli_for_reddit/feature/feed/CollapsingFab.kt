@@ -11,6 +11,8 @@ import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
@@ -102,11 +104,15 @@ fun CollapsingFab(icon: ImageVector, label: String, expanded: Boolean, onClick: 
     }
 }
 
-/** A feed's floating button, as Settings has it for Home and subreddits (#90); nothing when it's Off. */
+/**
+ * A feed's floating button, as Settings has it for Home and subreddits (#90, #300); nothing
+ * when it's Off. [hideOnScroll]: it hides while scrolling down instead of folding (#301).
+ */
 @Composable
 fun FeedFab(
     kind: HomeFab,
     expanded: Boolean,
+    hideOnScroll: Boolean,
     onNewPost: () -> Unit,
     onSearch: () -> Unit,
     onTop: () -> Unit,
@@ -122,5 +128,12 @@ fun FeedFab(
         HomeFab.REFRESH -> Icons.Rounded.Refresh to onRefresh
         HomeFab.HIDE_READ -> Icons.Outlined.VisibilityOff to onHideRead
     }
-    CollapsingFab(icon, kind.label, expanded, onClick, modifier)
+    if (hideOnScroll) {
+        // Gone while scrolling down, back whole on the way up (#301), as Material's FABs hide.
+        AnimatedVisibility(expanded, modifier, enter = scaleIn() + fadeIn(), exit = scaleOut() + fadeOut()) {
+            CollapsingFab(icon, kind.label, true, onClick)
+        }
+    } else {
+        CollapsingFab(icon, kind.label, expanded, onClick, modifier)
+    }
 }
