@@ -283,6 +283,8 @@ data class Settings(
     val showRecentlyVisited: Boolean = true, // Explore and the side bar list the subreddits you opened last
     val offlineCache: Boolean = true,
     val checkUpdates: Boolean = true,
+    val updateCheckWeekly: Boolean = false, // the launch check runs at most once a week (#303)
+    val installUpdatesInApp: Boolean = true, // Update downloads the APK and opens Android's installer; off: the browser downloads it
     val analytics: Boolean = true, // anonymous usage stats (Aptabase)
     val forYouFeed: Boolean = false, // frontpage uses the "For You" feed
     val postsTabAll: Boolean = false, // the Posts tab shows r/all instead of the frontpage, which Explore's All button opens then

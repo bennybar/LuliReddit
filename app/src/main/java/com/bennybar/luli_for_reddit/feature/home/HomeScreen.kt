@@ -44,6 +44,8 @@ import androidx.compose.material.icons.outlined.StarBorder
 import com.bennybar.luli_for_reddit.settings.SideBarItem
 import androidx.compose.material3.MotionScheme
 import com.bennybar.luli_for_reddit.feature.about.UpdateNoticeText
+import com.bennybar.luli_for_reddit.feature.about.getUpdate
+import com.bennybar.luli_for_reddit.feature.about.updateButtonLabel
 import com.bennybar.luli_for_reddit.feature.about.maybeShowWhatsNew
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.derivedStateOf
@@ -63,8 +65,6 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.animation.animateContentSize
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
@@ -905,6 +905,10 @@ private fun NavButton(
 
 private suspend fun maybeCheckUpdates(context: android.content.Context) {
     if (!app.settings.value.checkUpdates) return
+    // Once a week at most (#303): counted from the last launch check.
+    val now = System.currentTimeMillis()
+    if (app.settings.value.updateCheckWeekly && now - (app.prefs.getLong(LAST_UPDATE_CHECK) ?: 0) < 7 * 24 * 3_600_000L) return
+    app.prefs.setLong(LAST_UPDATE_CHECK, now)
     val info = UpdateChecker.check() ?: return
     val download = Overlays.show<Boolean> { done ->
         AlertDialog(
@@ -912,17 +916,13 @@ private suspend fun maybeCheckUpdates(context: android.content.Context) {
             title = { Text("Update available — v${info.version}") },
             text = { UpdateNoticeText("A newer version of Ilay is available on GitHub.", info.notes) },
             dismissButton = { TextButton(onClick = { done(false) }) { Text("Later") } },
-            confirmButton = { Button(onClick = { done(true) }) { Text("Download") } },
+            confirmButton = { Button(onClick = { done(true) }) { Text(updateButtonLabel()) } },
         )
     }
-    if (download == true) {
-        runCatching {
-            context.startActivity(
-                Intent(Intent.ACTION_VIEW, Uri.parse(info.apkUrl ?: info.url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            )
-        }
-    }
+    if (download == true) getUpdate(context, info)
 }
+
+private const val LAST_UPDATE_CHECK = "lastUpdateCheck"
 
 /**
  * One-time, opt-in suggestion to enable inbox notifications (shown on an

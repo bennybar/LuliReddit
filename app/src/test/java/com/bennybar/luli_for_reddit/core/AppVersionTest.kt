@@ -47,4 +47,19 @@ class AppVersionTest {
         assertEquals(null, UpdateChecker.releaseNotes("Download `x.apk`"))
         assertEquals(null, UpdateChecker.releaseNotes(null))
     }
+
+    @Test
+    fun updatePicksThePhonesOwnApk() {
+        val apks = listOf(
+            "ilay-for-reddit-2.0.122.apk" to 60_000_000L,
+            "ilay-2.0.122-arm64-v8a.apk" to 30_000_000L,
+            "ilay-2.0.122-armeabi-v7a.apk" to 28_000_000L,
+            "ilay-2.0.122-x86_64.apk" to 31_000_000L,
+        )
+        assertEquals("ilay-2.0.122-arm64-v8a.apk", UpdateChecker.pickApk(apks, listOf("arm64-v8a", "armeabi-v7a", "armeabi")))
+        assertEquals("ilay-2.0.122-x86_64.apk", UpdateChecker.pickApk(apks, listOf("x86_64", "arm64-v8a")))
+        // No build for its ABI, or a release with only the universal APK: the largest.
+        assertEquals("ilay-for-reddit-2.0.122.apk", UpdateChecker.pickApk(apks, listOf("riscv64")))
+        assertEquals("ilay-for-reddit-2.0.122.apk", UpdateChecker.pickApk(apks.take(1), listOf("arm64-v8a")))
+    }
 }

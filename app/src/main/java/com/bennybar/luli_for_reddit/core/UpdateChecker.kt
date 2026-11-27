@@ -38,15 +38,23 @@ object UpdateChecker {
         val tag = best?.let(::tagOf).orEmpty()
         if (best == null || tag.isEmpty() || compareVersions(tag, currentVersion) <= 0) null
         else {
-            // The LARGEST .apk is the universal build; the smaller ones are per-ABI splits.
-            val apk = (best["assets"].arr() ?: emptyList())
+            val assets = (best["assets"].arr() ?: emptyList())
                 .filter { it["name"].str()?.lowercase()?.endsWith(".apk") == true }
-                .maxByOrNull { it["size"].long() ?: 0 }?.get("browser_download_url").str()
+            val name = pickApk(assets.map { it["name"].str().orEmpty() to (it["size"].long() ?: 0) }, android.os.Build.SUPPORTED_ABIS.toList())
+            val apk = assets.firstOrNull { it["name"].str() == name }?.get("browser_download_url").str()
             UpdateInfo(tag, best["html_url"].str() ?: "https://github.com/${RedditConstants.GITHUB_REPO}/releases", apk, releaseNotes(best["body"].str()))
         }
     } catch (_: Exception) {
         null
     }
+
+    /**
+     * The APK for this phone: the build for its first ABI that the release has
+     * (`ilay-2.0.122-arm64-v8a.apk`), else the LARGEST one, the universal build.
+     */
+    fun pickApk(apks: List<Pair<String, Long>>, abis: List<String>): String? =
+        abis.firstNotNullOfOrNull { abi -> apks.firstOrNull { it.first.lowercase().endsWith("-${abi.lowercase()}.apk") } }?.first
+            ?: apks.maxByOrNull { it.second }?.first
 
     /** A release's notes without the "Download `….apk`" footer, which the notice's button replaces. */
     fun releaseNotes(body: String?): String? =

@@ -5,6 +5,8 @@ import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.MailOutline
 import androidx.compose.material.icons.automirrored.rounded.Notes
 import com.bennybar.luli_for_reddit.feature.about.UpdateNoticeText
+import com.bennybar.luli_for_reddit.feature.about.getUpdate
+import com.bennybar.luli_for_reddit.feature.about.updateButtonLabel
 import com.bennybar.luli_for_reddit.feature.inbox.InboxNotifications
 import androidx.compose.material.icons.outlined.DynamicFeed
 import androidx.compose.material.icons.outlined.Palette
@@ -1404,6 +1406,10 @@ fun SettingsList(
         section("About")
         tile("What's new", "Ilay ${BuildConfig.VERSION_NAME} · what changed in each release", Icons.Rounded.NewReleases) { nav.push(Route.WhatsNew) }
         switch("Check for updates", "Check GitHub releases on launch", Icons.Rounded.SystemUpdate, s.checkUpdates, ctrl::setCheckUpdates)
+        if (s.checkUpdates) {
+            switch("Once a week at most", "Check on launch no more than once every 7 days", Icons.Rounded.SystemUpdate, s.updateCheckWeekly, ctrl::setUpdateCheckWeekly)
+        }
+        switch("Install updates in the app", "Ilay downloads the update and Android installs it; off: download it in your browser", Icons.Rounded.SystemUpdate, s.installUpdatesInApp, ctrl::setInstallUpdatesInApp)
         tile("Check now", icon = Icons.Rounded.Update, onClick = launch { checkUpdatesNow() })
         switch(
             "Send anonymous usage stats",
@@ -1776,16 +1782,10 @@ private suspend fun checkUpdatesNow() {
             title = { Text("Update available — v${info.version}") },
             text = { UpdateNoticeText("A newer version is available on GitHub.", info.notes) },
             dismissButton = { TextButton(onClick = { done(false) }) { Text("Later") } },
-            confirmButton = { Button(onClick = { done(true) }) { Text("Download") } },
+            confirmButton = { Button(onClick = { done(true) }) { Text(updateButtonLabel()) } },
         )
     } == true
-    if (download) {
-        runCatching {
-            nav.context.startActivity(
-                Intent(Intent.ACTION_VIEW, Uri.parse(info.apkUrl ?: info.url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            )
-        }
-    }
+    if (download) getUpdate(nav.context, info)
 }
 
 private const val BACKUP_FOLDER = "backupFolderUri"

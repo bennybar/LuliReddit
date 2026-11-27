@@ -80,6 +80,8 @@ class SettingsStore(private val p: Prefs) {
             newPostsPill = b("newPostsPill", d.newPostsPill),
             offlineCache = b("offlineCache", d.offlineCache),
             checkUpdates = b("checkUpdates", d.checkUpdates),
+            updateCheckWeekly = b("updateCheckWeekly", d.updateCheckWeekly),
+            installUpdatesInApp = b("installUpdatesInApp", d.installUpdatesInApp),
             analytics = b("analytics", d.analytics),
             forYouFeed = b("forYouFeed", d.forYouFeed),
             postsTabAll = b("postsTabAll", d.postsTabAll),
@@ -204,6 +206,8 @@ class SettingsStore(private val p: Prefs) {
     fun setShowRecentlyVisited(v: Boolean) { p.setBool("showRecentlyVisited", v); set { it.copy(showRecentlyVisited = v) } }
     fun setOfflineCache(v: Boolean) { p.setBool("offlineCache", v); set { it.copy(offlineCache = v) } }
     fun setCheckUpdates(v: Boolean) { p.setBool("checkUpdates", v); set { it.copy(checkUpdates = v) } }
+    fun setUpdateCheckWeekly(v: Boolean) { p.setBool("updateCheckWeekly", v); set { it.copy(updateCheckWeekly = v) } }
+    fun setInstallUpdatesInApp(v: Boolean) { p.setBool("installUpdatesInApp", v); set { it.copy(installUpdatesInApp = v) } }
     fun setAnalytics(v: Boolean) { p.setBool("analytics", v); set { it.copy(analytics = v) } }
     fun setPostsTabAll(v: Boolean) { p.setBool("postsTabAll", v); set { it.copy(postsTabAll = v) } }
 
