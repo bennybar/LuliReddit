@@ -2,6 +2,7 @@ package com.bennybar.luli_for_reddit.feature.settings
 
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.RestartAlt
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.MailOutline
 import androidx.compose.material.icons.automirrored.rounded.Notes
 import com.bennybar.luli_for_reddit.feature.about.UpdateNoticeText
@@ -518,6 +519,10 @@ fun SettingsList(
             pickOption(listOf(10, 30, 60, 180).map { PickOption(it, keepLabel(it)) }, s.feedKeepMinutes)
                 ?.let(ctrl::setFeedKeepMinutes)
         })
+        switch(
+            "Refresh feed on open", "Home / For You: coming back to Ilay after a minute or more loads new posts, however long the feed is kept",
+            Icons.Rounded.Refresh, s.refreshFeedOnOpen, ctrl::setRefreshFeedOnOpen,
+        )
         switch(
             "\"New posts\" button", "Back on a feed that has newer posts, offer them with a button at the top. Off: pull down to refresh instead",
             Icons.Rounded.ArrowUpward, s.newPostsPill, ctrl::setNewPostsPill,

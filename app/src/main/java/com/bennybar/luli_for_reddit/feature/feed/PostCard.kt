@@ -643,7 +643,7 @@ private fun BannerMedia(p: Post, a: PostActions, s: Settings, height: Dp) {
         if (vurl.isNotEmpty() && !vurl.lowercase().endsWith(".gif")) {
             Box(Modifier.padding(bottom = 4.dp).clip(RoundedCornerShape(corner(16.dp)))) {
                 androidx.compose.runtime.key(p.id) {
-                    InlineVideo(vurl, height = height, onTap = a::openMedia, poster = url)
+                    InlineVideo(vurl, height = height, onTap = a::openMedia, poster = url, page = p.url)
                 }
             }
             return
@@ -957,7 +957,7 @@ private fun MediaPreview(p: Post, a: PostActions, s: Settings, radius: Dp = 16.d
         if (vurl.isNotEmpty() && !vurl.lowercase().endsWith(".gif")) {
             BoxWithConstraints(Modifier.padding(bottom = 4.dp).fillMaxWidth().clip(RoundedCornerShape(corner(radius)))) {
                 androidx.compose.runtime.key(p.id) {
-                    InlineVideo(vurl, height = maxWidth / aspect.coerceIn(0.5f, 2.0f), onTap = a::openMedia, poster = url)
+                    InlineVideo(vurl, height = maxWidth / aspect.coerceIn(0.5f, 2.0f), onTap = a::openMedia, poster = url, page = p.url)
                 }
             }
             return
@@ -1599,7 +1599,7 @@ private fun CalmMedia(p: Post, a: PostActions, s: Settings, shape: androidx.comp
             if (vurl.isNotEmpty() && !vurl.lowercase().endsWith(".gif")) {
                 Box(Modifier.clip(shape)) {
                     androidx.compose.runtime.key(p.id) {
-                        InlineVideo(vurl, height = height, onTap = a::openMedia, poster = url)
+                        InlineVideo(vurl, height = height, onTap = a::openMedia, poster = url, page = p.url)
                     }
                 }
                 return@BoxWithConstraints

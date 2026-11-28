@@ -106,6 +106,7 @@ final class SettingsStore {
         s.imageCacheMb = p.getInt("imageCacheMb") ?? s.imageCacheMb
         s.videoCacheMb = p.getInt("videoCacheMb") ?? s.videoCacheMb
         s.feedKeepMinutes = p.getInt("feedKeepMinutes") ?? s.feedKeepMinutes
+        s.refreshFeedOnOpen = b("refreshFeedOnOpen", s.refreshFeedOnOpen)
         s.hiddenPostDays = p.getInt("hiddenPostDays") ?? s.hiddenPostDays
         s.textScale = p.getDouble("textScale") ?? s.textScale
         s.titleTextScale = min(max(p.getDouble("titleTextScale") ?? s.titleTextScale, 0.8), 1.6)
@@ -301,6 +302,7 @@ final class SettingsStore {
     func setImageCacheMb(_ v: Int) { p.setInt("imageCacheMb", v); set { $0.imageCacheMb = v } }
     func setVideoCacheMb(_ v: Int) { p.setInt("videoCacheMb", v); set { $0.videoCacheMb = v } }
     func setFeedKeepMinutes(_ v: Int) { p.setInt("feedKeepMinutes", v); set { $0.feedKeepMinutes = v } }
+    func setRefreshFeedOnOpen(_ v: Bool) { p.setBool("refreshFeedOnOpen", v); set { $0.refreshFeedOnOpen = v } }
     func setHiddenPostDays(_ v: Int) { p.setInt("hiddenPostDays", v); set { $0.hiddenPostDays = v } }
     func setTextScale(_ v: Double) { p.setDouble("textScale", v); set { $0.textScale = v } }
     func setAutoplayMedia(_ v: Bool) { p.setBool("autoplayMedia", v); set { $0.autoplayMedia = v } }

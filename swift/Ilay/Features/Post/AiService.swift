@@ -83,18 +83,58 @@ enum AiService {
         let system = "Translate each string in the JSON array the user sends into \(language). Keep Markdown, "
             + "links, line breaks, u/ and r/ names as they are. Reply with only a JSON array of the "
             + "translations: the same number of strings, in the same order."
+        return try await translateBatches(texts) { batch in
+            try await chat(baseUrl: baseUrl, apiKey: apiKey, model: model, messages: [("system", system), ("user", JsonElement.strings(batch).encoded())])
+        }
+    }
+
+    /// `texts` in batches, one at a time, through `ask` (one request each). A batch whose
+    /// reply doesn't hold its translations (a small model loses count on a long thread,
+    /// #308) goes again in halves; a single text that still doesn't keeps its original,
+    /// so one odd comment doesn't fail the whole thread.
+    static func translateBatches(_ texts: [String], ask: ([String]) async throws -> String) async throws -> [String] {
+        func one(_ batch: [String]) async throws -> [String] {
+            if let list = parseTranslations(try await ask(batch), count: batch.count) { return list }
+            if batch.count == 1 { return batch }
+            let half = batch.count / 2
+            return try await one(Array(batch[..<half])) + one(Array(batch[half...]))
+        }
         var out: [String] = []
         out.reserveCapacity(texts.count)
-        for batch in Translate.batches(texts, maxChars: 6_000, maxCount: 60) {
-            let reply = try await chat(baseUrl: baseUrl, apiKey: apiKey, model: model, messages: [("system", system), ("user", JsonElement.strings(batch).encoded())])
-            // Some models wrap it in a ```json fence.
-            let json = reply.substringAfter("[", missing: "").substringBeforeLast("]", missing: "")
-            guard let list = parseJsonOrNull("[\(json)]").arr(), list.count == batch.count else {
-                throw AppException("The AI's translation didn't come back whole. Try again.")
-            }
-            out += list.map { $0.content() ?? "" }
-        }
+        for batch in Translate.batches(texts, maxChars: 6_000, maxCount: 60) { out += try await one(batch) }
         return out
+    }
+
+    /// The `count` translations in a reply: its JSON array of strings, even inside a
+    /// ```json fence or after a model's own words; a lone translation may come as plain
+    /// text. Nil when the reply doesn't hold `count` of them.
+    static func parseTranslations(_ reply: String, count n: Int) -> [String]? {
+        let text = Array(reply.trimmed)
+        let ends = text.indices.filter { text[$0] == "]" }.reversed().prefix(8)
+        for start in text.indices where text[start] == "[" {
+            for end in ends {
+                if end <= start { break }
+                guard let arr = parseJsonOrNull(String(text[start...end])).arr(), arr.count == n else { continue }
+                let strings = arr.compactMap { $0.str() }
+                if strings.count == n { return strings }
+            }
+        }
+        if n == 1, !text.contains("[") {
+            var one = String(text)
+            if one.hasPrefix("```") { one.removeFirst(3) }
+            if one.hasSuffix("```") { one.removeLast(3) }
+            return one.trimmed.nilIfEmpty.map { [$0] }
+        }
+        return nil
+    }
+
+    /// How long to wait before trying a rate-limited (429) request again, from its
+    /// Retry-After (seconds); 5 s without one, and nil (give up) past 20 s.
+    static func retryWait(_ retryAfter: String?) -> Double? {
+        var v = retryAfter?.trimmed ?? ""
+        if v.hasSuffix("s") { v.removeLast() }
+        let secs = Double(v) ?? 5
+        return secs > 20 ? nil : max(secs, 0.5)
     }
 
     /// One /v1/chat/completions call; returns the reply text or throws with a readable message.
@@ -116,13 +156,20 @@ enum AiService {
         req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = Data(body.encoded().utf8)
-        let res: (status: Int, body: Data, response: HTTPURLResponse)
-        do {
-            res = try await client.send(req)
-        } catch let e as URLError {
-            if e.code == .cancelled { throw e }
-            if e.code == .timedOut { throw AppException("The AI didn't answer in time. It may be busy: try again in a moment.") }
-            throw AppException("Could not reach the AI endpoint: \(e.localizedDescription)")
+        var res: (status: Int, body: Data, response: HTTPURLResponse)
+        var retries = 0
+        while true {
+            do {
+                res = try await client.send(req)
+            } catch let e as URLError {
+                if e.code == .cancelled { throw e }
+                if e.code == .timedOut { throw AppException("The AI didn't answer in time. It may be busy: try again in a moment.") }
+                throw AppException("Could not reach the AI endpoint: \(e.localizedDescription)")
+            }
+            // Rate-limited (a free plan's requests a minute, #308): wait as asked and go again, twice at most.
+            guard res.status == 429, retries < 2, let wait = retryWait(res.response.value(forHTTPHeaderField: "Retry-After")) else { break }
+            retries += 1
+            try await Task.sleep(for: .seconds(wait))
         }
         let data = try? AppJson.parse(res.body)
         if res.status != 200 { throw AppException(failureMessage(res.status, res.body)) }

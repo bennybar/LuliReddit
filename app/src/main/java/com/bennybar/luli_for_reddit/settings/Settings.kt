@@ -317,6 +317,7 @@ data class Settings(
     val imageCacheMb: Int = 512, // image disk cache (Coil); applies on the next start
     val videoCacheMb: Int = 200, // played-video cache (Media3); applies on the next start
     val feedKeepMinutes: Int = 30, // how long the frontpage keeps its posts before returning to it reloads
+    val refreshFeedOnOpen: Boolean = false, // back in the app after a minute or more, Home / For You load new posts whatever the keep time (#312)
     val hiddenPostDays: Int = 7, // how long Ilay keeps posts you hid out of every feed (Reddit hides them too)
     val textScale: Double = 1.0, // global text size multiplier (0.8–1.4)
     // #234: on top of textScale, for post titles, post text (feed previews and the post's

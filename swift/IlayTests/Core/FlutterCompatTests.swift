@@ -197,6 +197,16 @@ final class FlutterPrefsCompatTests: XCTestCase {
         XCTAssertTrue(back.fabHideOnScroll)
     }
 
+    /// Home keeps its feed on return until "Refresh feed on open" is switched on (#312).
+    @MainActor
+    func testRefreshFeedOnOpenSetting() {
+        XCTAssertFalse(Settings().refreshFeedOnOpen)
+        let p = Prefs(defaults: defaults)
+        SettingsStore(prefs: p).setRefreshFeedOnOpen(true)
+        XCTAssertEqual(p.getBool("refreshFeedOnOpen"), true)
+        XCTAssertTrue(SettingsStore(prefs: p).value.refreshFeedOnOpen)
+    }
+
     /// Search history is kept until switched off (#302).
     @MainActor
     func testSaveSearchHistorySetting() {

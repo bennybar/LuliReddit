@@ -327,6 +327,41 @@ final class AiFailureMessageTests: XCTestCase {
 }
 
 /// #271: a search in someone's posts, split into its "From u/" token and your own words.
+/// Translation through an AI service: replies that small models send (#308).
+final class AiTranslateTests: XCTestCase {
+    func testReadsTheArrayWhereverItIs() {
+        XCTAssertEqual(AiService.parseTranslations(#"["a", "b"]"#, count: 2), ["a", "b"])
+        XCTAssertEqual(AiService.parseTranslations("```json\n[\"a\", \"b\"]\n```", count: 2), ["a", "b"])
+        XCTAssertEqual(AiService.parseTranslations("Here [as asked] are they:\n[\"x [1]\", \"y\"]\nDone [ok].", count: 2), ["x [1]", "y"])
+    }
+
+    func testAWrongCountIsNotAnAnswer() {
+        XCTAssertNil(AiService.parseTranslations(#"["a"]"#, count: 2))
+        XCTAssertNil(AiService.parseTranslations(#"["a", 3]"#, count: 2))
+        XCTAssertNil(AiService.parseTranslations("sorry", count: 2))
+        XCTAssertEqual(AiService.parseTranslations("hola", count: 1), ["hola"])
+    }
+
+    func testABatchThatLosesCountGoesAgainInHalves() async throws {
+        var asked: [Int] = []
+        let out = try await AiService.translateBatches(["1", "2", "3", "4"]) { batch in
+            asked.append(batch.count)
+            if batch.count > 2 { return #"["only one"]"# }
+            if batch.contains("3") { return "[]" }
+            return "[" + batch.map { "\"t\($0)\"" }.joined(separator: ", ") + "]"
+        }
+        XCTAssertEqual(out, ["t1", "t2", "3", "t4"])
+        XCTAssertEqual(asked, [4, 2, 2, 1, 1])
+    }
+
+    func testWaitsAsARateLimitAsks() {
+        XCTAssertEqual(AiService.retryWait("7"), 7)
+        XCTAssertEqual(AiService.retryWait("1.5s"), 1.5)
+        XCTAssertEqual(AiService.retryWait(nil), 5)
+        XCTAssertNil(AiService.retryWait("60"))
+    }
+}
+
 final class SplitAuthorQueryTests: XCTestCase {
     func testAuthorAnywhereInTheQueryIsSplitOut() {
         XCTAssertTrue(splitAuthorQuery("author:spez") == ("spez", ""))
