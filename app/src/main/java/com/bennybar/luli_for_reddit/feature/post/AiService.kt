@@ -10,6 +10,7 @@ import com.bennybar.luli_for_reddit.core.str
 import com.bennybar.luli_for_reddit.model.Comment
 import com.bennybar.luli_for_reddit.model.Post
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -110,16 +111,57 @@ object AiService {
         val system = "Translate each string in the JSON array the user sends into $language. Keep Markdown, " +
             "links, line breaks, u/ and r/ names as they are. Reply with only a JSON array of the " +
             "translations: the same number of strings, in the same order."
-        val out = ArrayList<String>(texts.size)
-        for (batch in Translate.batches(texts, 6_000, 60)) {
-            val reply = chat(baseUrl, apiKey, model, listOf("system" to system, "user" to JsonArray(batch.map(::JsonPrimitive)).toString()))
-            // Some models wrap it in a ```json fence.
-            val json = reply.substringAfter("[", "").substringBeforeLast("]", "")
-            val list = runCatching { AppJson.parseToJsonElement("[$json]") as JsonArray }.getOrNull()
-            if (list == null || list.size != batch.size) throw Exception("The AI's translation didn't come back whole. Try again.")
-            list.mapTo(out) { (it as? JsonPrimitive)?.content ?: "" }
+        return translateBatches(texts) { batch ->
+            chat(baseUrl, apiKey, model, listOf("system" to system, "user" to JsonArray(batch.map(::JsonPrimitive)).toString()))
         }
+    }
+
+    /**
+     * [texts] in batches, one at a time, through [ask] (one request each). A batch
+     * whose reply doesn't hold its translations (a small model loses count on a
+     * long thread, #308) goes again in halves; a single text that still doesn't
+     * keeps its original, so one odd comment doesn't fail the whole thread.
+     */
+    internal suspend fun translateBatches(texts: List<String>, ask: suspend (List<String>) -> String): List<String> {
+        suspend fun one(batch: List<String>): List<String> {
+            parseTranslations(ask(batch), batch.size)?.let { return it }
+            if (batch.size == 1) return batch
+            val half = batch.size / 2
+            return one(batch.subList(0, half)) + one(batch.subList(half, batch.size))
+        }
+        val out = ArrayList<String>(texts.size)
+        for (batch in Translate.batches(texts, 6_000, 60)) out += one(batch)
         return out
+    }
+
+    /**
+     * The [n] translations in a reply: its JSON array of strings, even inside a
+     * ```json fence or after a model's own words; a lone translation may come as
+     * plain text. Null when the reply doesn't hold [n] of them.
+     */
+    internal fun parseTranslations(reply: String, n: Int): List<String>? {
+        val text = reply.trim()
+        val ends = text.indices.filter { text[it] == ']' }.reversed().take(8)
+        var start = text.indexOf('[')
+        while (start >= 0) {
+            for (end in ends) {
+                if (end <= start) break
+                val arr = runCatching { AppJson.parseToJsonElement(text.substring(start, end + 1)) as? JsonArray }.getOrNull() ?: continue
+                if (arr.size == n && arr.all { it is JsonPrimitive && it.isString }) return arr.map { (it as JsonPrimitive).content }
+            }
+            start = text.indexOf('[', start + 1)
+        }
+        if (n == 1 && '[' !in text) return listOf(text.removePrefix("```").removeSuffix("```").trim()).filter { it.isNotEmpty() }.ifEmpty { null }
+        return null
+    }
+
+    /**
+     * How long to wait before trying a rate-limited (429) request again, from its
+     * Retry-After (seconds); 5 s without one, and null (give up) past 20 s.
+     */
+    internal fun retryWait(retryAfter: String?): Long? {
+        val secs = retryAfter?.trim()?.removeSuffix("s")?.toDoubleOrNull() ?: 5.0
+        return if (secs > 20) null else (secs.coerceAtLeast(0.5) * 1000).toLong()
     }
 
     /** The Digest's one request (DigestAiPrompt.kt builds it and parses the reply). */
@@ -142,12 +184,27 @@ object AiService {
         } catch (e: IllegalArgumentException) {
             throw Exception("Could not reach the AI endpoint: ${e.message}")
         }
-        val (code, text) = try {
-            client.await(req).use { r -> r.code to withContext(Dispatchers.IO) { r.body.string() } }
-        } catch (e: InterruptedIOException) {
-            throw Exception("The AI didn't answer in time. It may be busy: try again in a moment.")
-        } catch (e: IOException) {
-            throw Exception("Could not reach the AI endpoint: ${e.message}")
+        var retries = 0
+        var code: Int
+        var text: String
+        while (true) {
+            val retryAfter: String?
+            try {
+                client.await(req).use { r ->
+                    code = r.code
+                    text = withContext(Dispatchers.IO) { r.body.string() }
+                    retryAfter = r.header("retry-after")
+                }
+            } catch (e: InterruptedIOException) {
+                throw Exception("The AI didn't answer in time. It may be busy: try again in a moment.")
+            } catch (e: IOException) {
+                throw Exception("Could not reach the AI endpoint: ${e.message}")
+            }
+            // Rate-limited (a free plan's requests a minute, #308): wait as asked and go again, twice at most.
+            val wait = if (code == 429 && retries < 2) retryWait(retryAfter) else null
+            if (wait == null) break
+            retries++
+            delay(wait)
         }
         val data: JsonElement? = runCatching { AppJson.parseToJsonElement(text) }.getOrNull()
         if (code != 200) throw Exception(failureMessage(code, text))
