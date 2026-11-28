@@ -40,6 +40,9 @@ class RecentSubreddits(private val prefs: Prefs, private val byVisits: () -> Boo
     private val _state = MutableStateFlow<List<RecentSubreddit>>(emptyList())
     /** The ones to list, in the order Settings picked. */
     val state: StateFlow<List<RecentSubreddit>> = _state
+    private val _mostVisited = MutableStateFlow<List<RecentSubreddit>>(emptyList())
+    /** The ones you open most, whatever order Settings picked: the launcher's shortcuts (#317). */
+    val mostVisited: StateFlow<List<RecentSubreddit>> = _mostVisited
 
     override fun onUserChanged(username: String) {
         key = userScopedKey(prefs, username, BASE)
@@ -63,6 +66,7 @@ class RecentSubreddits(private val prefs: Prefs, private val byVisits: () -> Boo
     /** Re-applies the order after Settings changed it. */
     fun refresh() {
         _state.value = shown(all, byVisits())
+        _mostVisited.value = shown(all, true)
     }
 
     fun visit(s: Subreddit) {

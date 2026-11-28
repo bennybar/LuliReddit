@@ -56,6 +56,8 @@ final class RecentSubreddits: UserScoped {
     /// Re-applies the order after Settings changed it.
     func refresh() {
         state = RecentSubreddits.shown(all, byVisits: byVisits())
+        // The Home Screen's long-press menu lists the ones you open most (#317).
+        QuickActions.shared.update(RecentSubreddits.shown(all, byVisits: true))
     }
 
     func visit(_ s: Subreddit) {
