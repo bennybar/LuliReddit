@@ -42,6 +42,8 @@ private let visibleThreshold = 0.6
     var muted = true
 
     @ObservationIgnored fileprivate var url = ""
+    /// The post's link: a RedGifs one plays RedGifs' own file, with sound (#310).
+    @ObservationIgnored fileprivate var page: String?
     @ObservationIgnored fileprivate var fraction = 0.0
     @ObservationIgnored fileprivate weak var surface: UIView?
 }
@@ -114,8 +116,9 @@ private let visibleThreshold = 0.6
 
     // MARK: Cards
 
-    fileprivate func add(_ card: InlineCard, url: String) {
+    fileprivate func add(_ card: InlineCard, url: String, page: String? = nil) {
         card.url = url
+        card.page = page
         card.fraction = 0
         if !cards.contains(where: { $0 === card }) { cards.append(card) }
         guard timer == nil else { return }
@@ -284,8 +287,14 @@ private let visibleThreshold = 0.6
         card.active = true
         player.isMuted = card.muted
         VideoAudio.shared.setAudible(!card.muted)
-        guard let asset = videoAsset(card.url) else { return }
+        let page = card.page.flatMap { Redgifs.id($0) != nil ? $0 : nil }
+        guard page != nil || videoAsset(card.url) != nil else { return }
         loadTask = Task { [weak self] in
+            // A RedGifs clip (#310): Reddit's copy (`card.url`) is silent, so play
+            // RedGifs' own mobile file, which has the sound; Reddit's copy if that fails.
+            var src = card.url
+            if let page, let file = await Redgifs.shared.resolve(page, hd: false) { src = file }
+            guard let asset = videoAsset(src), !Task.isCancelled else { return }
             // Off the main thread: the HLS master playlist is fetched here rather than
             // by the player while the main thread waits. A failure shows in `status`.
             _ = try? await asset.load(.isPlayable)
@@ -379,11 +388,13 @@ struct InlineVideo: View {
     let url: String
     let height: CGFloat
     var poster: String? = nil
+    /// The post's link: a RedGifs one plays RedGifs' own file, with sound (#310).
+    var page: String? = nil
     let onTap: () -> Void
 
     var body: some View {
         // A reused cell keeps a view's state across posts: a new clip must be a new view.
-        InlineVideoImpl(url: url, height: height, poster: poster, onTap: onTap).id(url)
+        InlineVideoImpl(url: url, height: height, poster: poster, page: page, onTap: onTap).id(url)
     }
 }
 
@@ -391,6 +402,7 @@ private struct InlineVideoImpl: View {
     let url: String
     let height: CGFloat
     let poster: String?
+    let page: String?
     let onTap: () -> Void
 
     @Environment(\.mediaCovered) private var covered
@@ -412,7 +424,7 @@ private struct InlineVideoImpl: View {
                     .onAppear {
                         // Muted unless Settings › Autoplay with sound.
                         card.muted = !app.settings.value.autoplaySound
-                        app.media.inlinePlayer.add(card, url: url)
+                        app.media.inlinePlayer.add(card, url: url, page: page)
                     }
                     .onDisappear { app.media.inlinePlayer.remove(card) }
             } else {

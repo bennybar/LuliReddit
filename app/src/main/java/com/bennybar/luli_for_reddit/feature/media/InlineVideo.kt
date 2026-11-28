@@ -56,7 +56,10 @@ import com.bennybar.luli_for_reddit.app
 import com.bennybar.luli_for_reddit.settings.Settings
 import com.bennybar.luli_for_reddit.settings.autoplayAllowed
 import com.bennybar.luli_for_reddit.settings.autoplayMode
+import com.bennybar.luli_for_reddit.core.net.Redgifs
+import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.math.roundToInt
 
@@ -108,7 +111,8 @@ private const val VISIBLE_THRESHOLD = 0.6f
  * scrolled away and back resumes where it was. Main thread only.
  */
 class InlineVideoPool(private val context: Context) {
-    private class Candidate(var url: String, var fraction: Float, var muted: Boolean)
+    private class Candidate(var url: String, var fraction: Float, var muted: Boolean, var page: String?)
+    private val scope = MainScope()
 
     private var player: ExoPlayer? = null
     private val candidates = LinkedHashMap<Any, Candidate>()
@@ -177,10 +181,10 @@ class InlineVideoPool(private val context: Context) {
         player = p
     }
 
-    fun report(key: Any, url: String, fraction: Float, muted: Boolean) {
+    fun report(key: Any, url: String, fraction: Float, muted: Boolean, page: String? = null) {
         val c = candidates[key]
         if (c == null) {
-            candidates[key] = Candidate(url, fraction, muted)
+            candidates[key] = Candidate(url, fraction, muted, page)
         } else {
             if (c.url == url && c.fraction == fraction) return
             c.url = url
@@ -248,7 +252,22 @@ class InlineVideoPool(private val context: Context) {
         activeUrl = c.url
         _active.value = bestKey
         sound(pl, c.muted)
-        pl.setMediaItem(mediaItemFor(c.url), positions[c.url] ?: 0L)
+        val page = c.page
+        if (page != null && Redgifs.id(page) != null) {
+            // A RedGifs clip (#310): Reddit's copy ([Candidate.url]) is silent, so play
+            // RedGifs' own mobile file, which has the sound; Reddit's copy if that fails.
+            val url = c.url
+            scope.launch {
+                val src = Redgifs.resolve(page, hd = false) ?: url
+                if (activeUrl == url && _active.value == bestKey) start(pl, src, url)
+            }
+        } else {
+            start(pl, c.url, c.url)
+        }
+    }
+
+    private fun start(pl: ExoPlayer, src: String, url: String) {
+        pl.setMediaItem(mediaItemFor(src), positions[url] ?: 0L)
         pl.prepare()
         pl.playWhenReady = foreground && !covered
     }
@@ -261,7 +280,7 @@ class InlineVideoPool(private val context: Context) {
  * viewport). Respects Settings › autoplay media.
  */
 @Composable
-internal fun InlineVideoImpl(url: String, height: Dp, onTap: () -> Unit, modifier: Modifier, poster: String?) {
+internal fun InlineVideoImpl(url: String, height: Dp, onTap: () -> Unit, modifier: Modifier, poster: String?, page: String?) {
     val settings by remember { app.settings.state }.collectAsStateWithLifecycle()
     val covered = LocalMediaCovered.current
     val canPlay = autoplayNow(settings) && !covered
@@ -288,7 +307,7 @@ internal fun InlineVideoImpl(url: String, height: Dp, onTap: () -> Unit, modifie
                         val h = coords.size.height
                         val visible = if (h > 0 && coords.isAttached) coords.boundsInWindow().height / h else 0f
                         // Quantized, so scrolling doesn't recompute on every pixel.
-                        pool.report(key, currentUrl, (visible * 20).roundToInt() / 20f, muted)
+                        pool.report(key, currentUrl, (visible * 20).roundToInt() / 20f, muted, page)
                     }
                 } else Modifier,
             ),

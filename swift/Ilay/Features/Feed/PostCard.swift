@@ -939,7 +939,7 @@ private struct CardMedia: View {
                 .buttonStyle(.plain)
             }
         case let .video(url, poster, height):
-            InlineVideo(url: url, height: height, poster: poster, onTap: a.openMedia)
+            InlineVideo(url: url, height: height, poster: poster, page: row.post.url, onTap: a.openMedia)
                 .clipShape(.rect(cornerRadius: radius))
                 .zoomSource()
         case let .gallery(carouselHeight, height):

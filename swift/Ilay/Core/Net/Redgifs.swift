@@ -8,6 +8,8 @@ actor Redgifs {
 
     private let session = URLSession(configuration: Http.configuration(timeout: 8))
     private var token: String?
+    /// Resolved clips by id: (HD, SD), so a feed scrolled back and forth asks once.
+    private var resolved: [String: (hd: String?, sd: String?)] = [:]
 
     /// The clip id in a RedGifs URL (`/watch/<id>`, `/ifr/<id>`, `i.redgifs.com/i/<id>.jpg`).
     nonisolated static func id(_ url: String) -> String? {
@@ -18,8 +20,11 @@ actor Redgifs {
     }
 
     /// The best playable mp4 for a RedGifs URL, or nil if it can't be resolved.
-    func resolve(_ url: String) async -> String? {
+    /// Both files carry the clip's sound; `hd` false picks the smaller mobile one,
+    /// for the feed (#310). Reddit's own copy of the clip is silent.
+    func resolve(_ url: String, hd: Bool = true) async -> String? {
         guard let id = Redgifs.id(url) else { return nil }
+        if let r = resolved[id] { return hd ? r.hd ?? r.sd : r.sd ?? r.hd }
         // One retry with a fresh token: temporary tokens expire (~24h).
         for _ in 0..<2 {
             do {
@@ -39,7 +44,9 @@ actor Redgifs {
                 }
                 guard (200..<300).contains(res.status) else { return nil }
                 let urls = try AppJson.parse(res.body)["gif"]["urls"]
-                return urls["hd"].str() ?? urls["sd"].str()
+                let h = urls["hd"].str(), s = urls["sd"].str()
+                if h != nil || s != nil { resolved[id] = (h, s) }
+                return hd ? h ?? s : s ?? h
             } catch {
                 return nil
             }

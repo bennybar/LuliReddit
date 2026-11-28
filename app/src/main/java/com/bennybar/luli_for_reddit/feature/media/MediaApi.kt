@@ -353,10 +353,13 @@ private fun MediaCover(label: String, labelModifier: Modifier = Modifier, onReve
     }
 }
 
-/** Feed video: autoplays (muted unless Autoplay with sound) + looping while visible, pauses off-screen; tap = viewer. */
+/**
+ * Feed video: autoplays (muted unless Autoplay with sound) + looping while visible, pauses off-screen; tap = viewer.
+ * [page] is the post's link: a RedGifs one plays RedGifs' own file, with sound (#310).
+ */
 @Composable
-fun InlineVideo(url: String, height: Dp, onTap: () -> Unit, modifier: Modifier = Modifier, poster: String? = null) =
-    InlineVideoImpl(url, height, onTap, modifier, poster)
+fun InlineVideo(url: String, height: Dp, onTap: () -> Unit, modifier: Modifier = Modifier, poster: String? = null, page: String? = null) =
+    InlineVideoImpl(url, height, onTap, modifier, poster, page)
 
 /**
  * The open media viewers, drawn over the current screen with a transparent
