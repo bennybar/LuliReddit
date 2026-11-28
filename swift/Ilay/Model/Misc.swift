@@ -9,6 +9,7 @@ struct Multireddit: Equatable, Sendable, Copyable {
     var descriptionMd: String = ""
     var visibility: String = "private"
     var iconUrl: String? = nil
+    var isFavorited = false // starred on Reddit (Favorites on Home, #311)
 
     static func fromData(_ d: JsonElement) -> Multireddit {
         Multireddit(
@@ -18,7 +19,8 @@ struct Multireddit: Equatable, Sendable, Copyable {
             subreddits: d["subreddits"].arr()?.compactMap { $0["name"].str()?.nilIfEmpty } ?? [],
             descriptionMd: d["description_md"].str() ?? "",
             visibility: d["visibility"].str() ?? "private",
-            iconUrl: d["icon_url"].str()?.nilIfEmpty
+            iconUrl: d["icon_url"].str()?.nilIfEmpty,
+            isFavorited: d["is_favorited"].isTrue()
         )
     }
 }

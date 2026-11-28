@@ -1,6 +1,18 @@
 package com.bennybar.luli_for_reddit.feature.home
 
 import androidx.compose.runtime.mutableStateOf
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.runtime.key
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.bennybar.luli_for_reddit.feature.feed.Async
+import com.bennybar.luli_for_reddit.feature.feed.FeedChip
+import com.bennybar.luli_for_reddit.feature.feed.owner
+import com.bennybar.luli_for_reddit.model.Multireddit
+import com.bennybar.luli_for_reddit.model.Subreddit
+import com.bennybar.luli_for_reddit.ui.subredditName
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.bennybar.luli_for_reddit.ui.SearchIcon
 import androidx.compose.material.icons.outlined.VideoLibrary
@@ -112,15 +124,29 @@ internal fun FrontpageTab(selected: Boolean) {
     val settings by app.settings.state.collectAsStateWithLifecycle()
     // Settings → "Posts tab shows r/all": plain r/all here, and Explore's All button opens the frontpage.
     val postsAll = settings.postsTabAll
-    val feedKey = settings.postsTabKey
+    val mainKey = settings.postsTabKey
     val forYou = !postsAll && settings.forYouFeed
     val homeOn = !postsAll && settings.redditHomeAllowed && settings.redditHomeFeed
     val blend = forYou && settings.blendHome && settings.redditHomeAllowed
     val blendState by app.forYou.redditHome.blendState.collectAsStateWithLifecycle()
     val expandable = settings.topBarMode == TopBarMode.EXPANDABLE
 
+    // Settings › Feed › Favorites on Home (#311): your favorite custom feeds and communities
+    // as a second row of chips. One shows here in place of the feed, which keeps its place
+    // for when you come back to it (its own chip, or Back).
+    val signedIn = username.isNotEmpty() && app.session.session?.anonymous == false
+    val favorites = if (settings.favoritesOnHome && signedIn) rememberHomeFavorites() else emptyList()
+    var favKey by rememberSaveable(username) { mutableStateOf<String?>(null) }
+    val fav = favorites.firstOrNull { it.key == favKey }
+    val feedKey = fav?.key ?: mainKey
+    val mainTitle = if (postsAll) "r/all" else if (homeOn) "Home" else if (blend) "Blend" else if (forYou) "For You" else "Frontpage"
+    val title = fav?.let { favoriteLabel(it) } ?: mainTitle
+
     // The top bar floats over the feed and follows the finger, in and out (#55).
-    val listState = rememberFeedListState()
+    val homeListState = rememberFeedListState()
+    // A favorite opens at its top; the feed's own list keeps where you were.
+    val listState = if (fav == null) homeListState else key(fav.key) { rememberFeedListState() }
+    BackHandler(enabled = selected && fav != null) { favKey = null }
     val scope = rememberCoroutineScope()
     val bar = rememberHidingBar(listState)
 
@@ -154,11 +180,11 @@ internal fun FrontpageTab(selected: Boolean) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                if (postsAll) "r/all" else if (homeOn) "Home" else if (blend) "Blend" else if (forYou) "For You" else "Frontpage",
+                title,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.ExtraBold,
             )
-            if (!homeOn && forYou) {
+            if (fav == null && !homeOn && forYou) {
                 Spacer(Modifier.width(8.dp))
                 Text(
                     if (blend) blendSubtitle(blendState) else "On your phone", // short, so it fits beside the title (#176)
@@ -178,7 +204,8 @@ internal fun FrontpageTab(selected: Boolean) {
     // It folds first, then the folded bar slides away as before (#226): the hiding bar
     // inside it only sees the scroll the feed itself takes.
     Box(Modifier.fillMaxSize().clipToBounds().then(if (expandable) Modifier.nestedScroll(collapsing) else Modifier).nestedScroll(bar).nestedScroll(fab)) {
-        PostListView(
+        // Its own list per feed: a favorite's state never mixes with the feed's.
+        key(feedKey) { PostListView(
             feedKey = feedKey,
             postsTab = true,
             header = if (expandable) null else titleRow,
@@ -188,12 +215,15 @@ internal fun FrontpageTab(selected: Boolean) {
             hideReadRequests = hideReadRequests,
             // Right under the bar when it's fully out, off the top when it's gone.
             floatingChipsY = if (!settings.floatingChips) null else bar::chipsY,
-        )
+            feedRow = if (favorites.isEmpty()) null else { outline ->
+                FavoritesRow(mainTitle, favorites, fav?.key, outline) { favKey = it }
+            },
+        ) }
         if (expandable) HidingTopBar(bar, Modifier.statusBarsPadding()) {
             CollapsingTitleBar(
                 collapsing,
-                if (postsAll) "r/all" else if (homeOn) "Home" else if (blend) "Blend" else if (forYou) "For You" else "Frontpage",
-                subtitle = if (!homeOn && forYou) (if (blend) blendSubtitle(blendState) else "On your phone") else null,
+                title,
+                subtitle = if (fav == null && !homeOn && forYou) (if (blend) blendSubtitle(blendState) else "On your phone") else null,
                 hasNavigation = LocalSideBar.current != null,
                 underStatusBar = false,
                 navigation = { SideBarButton() },
@@ -211,7 +241,8 @@ internal fun FrontpageTab(selected: Boolean) {
             if (!expandable && settings.fullBarNewPost && settings.homeFab == HomeFab.NEW_POST) HomeFab.OFF else settings.homeFab,
             fab.expanded,
             settings.fabHideOnScroll,
-            onNewPost = { nav.push(Route.Submit()) },
+            // In a favorite community, a new post goes there.
+            onNewPost = { nav.push(Route.Submit(subreddit = fav?.takeIf { !it.multi }?.name)) },
             onSearch = { nav.push(Route.Search()) },
             onTop = { scope.launch { listState.animateScrollToItem(0) } },
             onRefresh = { refreshRequests++ },
@@ -549,4 +580,48 @@ private fun blendSubtitle(state: com.bennybar.luli_for_reddit.feature.foryou.Red
     is com.bennybar.luli_for_reddit.feature.foryou.RedditHomeEngine.BlendState.Unavailable ->
         if (state.signedOut) "Beta · Reddit Home signed out: showing For You" else "Beta · Reddit Home unavailable: showing For You"
     null -> "Your Reddit Home + For You · Beta"
+}
+
+/** One of Home's favorites (#311): a custom feed or a community, and its feed key. */
+@androidx.compose.runtime.Immutable
+internal data class HomeFavorite(val key: String, val name: String, val multi: Boolean)
+
+/** Your favorite custom feeds, then your favorite communities (not profiles), for Home's row (#311). */
+internal fun homeFavorites(multis: List<Multireddit>, subs: List<Subreddit>, owner: (Multireddit) -> String): List<HomeFavorite> =
+    multis.filter { it.isFavorited }.map { HomeFavorite("m::${owner(it)}::${it.name}", it.displayName, multi = true) } +
+        subs.filter { it.userHasFavorited && !it.name.startsWith("u_") }.map { HomeFavorite(it.name, it.name, multi = false) }
+
+private fun favoriteLabel(f: HomeFavorite): String = if (f.multi) f.name else subredditName("r/${f.name}")
+
+/** Your favorites, from the lists Explore and the side bar already load (no requests of their own). */
+@Composable
+private fun rememberHomeFavorites(): List<HomeFavorite> {
+    val vm = viewModel { SubscriptionsViewModel() }
+    val subs by vm.subs.collectAsStateWithLifecycle()
+    val multis by app.feed.multireddits.collectAsStateWithLifecycle()
+    // After an account switch: that account's, as Explore does.
+    val version by app.feed.version.collectAsStateWithLifecycle()
+    LaunchedEffect(version) {
+        if (vm.loadedFor != version) {
+            vm.loadedFor = version
+            vm.load(force = true)
+        }
+        app.feed.loadMultireddits()
+    }
+    return remember(subs, multis) {
+        homeFavorites((multis as? Async.Data)?.value.orEmpty(), (subs as? Async.Data)?.value.orEmpty()) { it.owner() }
+    }
+}
+
+/** Home's second row (#311): the feed itself, then each favorite. */
+@Composable
+private fun FavoritesRow(mainTitle: String, favorites: List<HomeFavorite>, selected: String?, outline: Float, onPick: (String?) -> Unit) {
+    LazyRow(
+        Modifier.fillMaxWidth().padding(bottom = 8.dp),
+        contentPadding = PaddingValues(horizontal = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        item(key = "") { FeedChip(mainTitle, selected == null, outline) { onPick(null) } }
+        items(favorites, key = { it.key }) { f -> FeedChip(favoriteLabel(f), f.key == selected, outline) { onPick(f.key) } }
+    }
 }

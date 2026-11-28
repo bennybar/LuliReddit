@@ -6,6 +6,8 @@ import SwiftUI
 struct FrontpageTab: View {
     @State private var fab = FabScroll()
     @State private var chips = FeedChipsState()
+    /// The favorite shown in place of the feed (#311); nil: the feed itself.
+    @State private var favKey: String?
     /// Home's namespace: the Search screen grows out of this tab's search button (#271).
     @Environment(\.searchZoom) private var homeZoom
     /// Outside Home (previews): one of its own, matching nothing.
@@ -22,28 +24,43 @@ struct FrontpageTab: View {
         let homeOn = hasEngines && settings.redditHomeAllowed && settings.redditHomeFeed
         let blend = forYou && settings.blendHome && settings.redditHomeAllowed
         let expandable = settings.topBarMode == .expandable
-        let title = postsAll ? "r/all" : homeOn ? "Home" : blend ? "Blend" : forYou ? "For You" : "Frontpage"
+        let mainTitle = postsAll ? "r/all" : homeOn ? "Home" : blend ? "Blend" : forYou ? "For You" : "Frontpage"
+        // Settings › Feed › Favorites on Home (#311): your favorite custom feeds and communities
+        // as a second row of chips. One shows here in place of the feed, which keeps its place.
+        let signedIn = app.session.session?.anonymous == false
+        let favorites = settings.favoritesOnHome && signedIn
+            ? homeFavorites(multis: app.feed.multireddits.value ?? [], subs: SubscriptionsViewModel.shared.subs.value ?? []) { $0.owner() }
+            : []
+        let fav = favorites.first { $0.key == favKey }
+        let feedKey = fav?.key ?? settings.postsTabKey
+        let title = fav.map(favoriteLabel) ?? mainTitle
         // "On your phone": short, so it fits beside the title (#176).
-        let subtitle = !homeOn && forYou ? (blend ? blendSubtitle(engines?.blendState) : "On your phone") : ""
+        let subtitle = fav == nil && !homeOn && forYou ? (blend ? blendSubtitle(engines?.blendState) : "On your phone") : ""
         let nav = app.navigator
+        let row: FeedRow? = favorites.isEmpty ? nil : FeedRow(
+            id: ([mainTitle, fav?.key ?? "", "\(settings.subredditPrefix)"] + favorites.map(\.key)).joined(separator: "|")
+        ) { state in
+            AnyView(FavoritesRow(mainTitle: mainTitle, favorites: favorites, selected: fav?.key, state: state) { favKey = $0 })
+        }
 
         // The title (Full mode) and the Digest's one-time offer, above the chips.
-        let offer = !postsAll && DigestOffer.shared.shown
+        let offer = fav == nil && !postsAll && DigestOffer.shared.shown
         let header: (() -> FrontpageHeader)? = expandable && !offer ? nil : {
             FrontpageHeader(title: expandable ? nil : title, subtitle: subtitle, offer: offer)
         }
         // The Digest's chip (Settings › Digest › Show Digest in › Posts chip): the digest in place of the feed.
         let digestChip = hasEngines && settings.digestEnabled && settings.digestPlace == 0 && app.session.session?.anonymous == false
         Group {
-            if digestChip && app.digest.onPosts {
+            if digestChip && fav == nil && app.digest.onPosts {
                 DigestList {
                     VStack(spacing: 0) {
                         if let header { header() }
                         FeedChips(controller: app.feed.controller(""), state: chips)
+                        if let row { row.make(chips) }
                     }
                 }
             } else {
-                PostListView(feedKey: settings.postsTabKey, postsTab: true, fabScroll: fab, optionalHeader: header)
+                PostListView(feedKey: feedKey, postsTab: true, fabScroll: fab, feedRow: row, optionalHeader: header)
             }
         }
             .navigationTitle(expandable ? title : "")
@@ -96,6 +113,15 @@ struct FrontpageTab: View {
             }
             // The Digest offer needs to know about favourites (Explore's list, usually loaded already).
             .task { if !DigestOffer.shared.done && !settings.digestEnabled { SubscriptionsViewModel.shared.loadIfNeeded() } }
+            // Favorites on Home (#311): the lists Explore and the side bar load anyway, and the
+            // account's own after a switch.
+            .task(id: "\(settings.favoritesOnHome) \(app.feed.version)") {
+                if settings.favoritesOnHome && signedIn {
+                    SubscriptionsViewModel.shared.loadIfNeeded()
+                    app.feed.loadMultireddits()
+                }
+            }
+            .onChange(of: app.feed.version) { favKey = nil }
             .overlay(alignment: .bottomTrailing) {
                 if settings.homeFab != .off {
                     let newPost = settings.homeFab == .newPost
@@ -104,7 +130,10 @@ struct FrontpageTab: View {
                         label: settings.homeFab.label,
                         expanded: fab.expanded,
                         hideOnScroll: settings.fabHideOnScroll
-                    ) { nav.push(newPost ? .submit() : .search()) }
+                    ) {
+                        // In a favorite community, a new post goes there.
+                        nav.push(newPost ? .submit(subreddit: fav.flatMap { $0.multi ? nil : $0.name }) : .search())
+                    }
                     .padding(.trailing, 16)
                     .padding(.bottom, 12) // a little clear of the tab bar, as every floating button over it
                 }
@@ -230,5 +259,62 @@ struct FrontpageScreen: View {
                 .padding(.trailing, 16)
                 .padding(.bottom, 12) // a little clear of the tab bar, as every floating button over it
             }
+    }
+}
+
+/// One of Home's favorites (#311): a custom feed or a community, and its feed key.
+struct HomeFavorite: Equatable {
+    let key: String
+    let name: String
+    let multi: Bool
+}
+
+/// Your favorite custom feeds, then your favorite communities (not profiles), for Home's row (#311).
+func homeFavorites(multis: [Multireddit], subs: [Subreddit], owner: (Multireddit) -> String) -> [HomeFavorite] {
+    multis.filter(\.isFavorited).map { HomeFavorite(key: "m::\(owner($0))::\($0.name)", name: $0.displayName, multi: true) }
+        + subs.filter { $0.userHasFavorited && !$0.name.hasPrefix("u_") }.map { HomeFavorite(key: $0.name, name: $0.name, multi: false) }
+}
+
+@MainActor private func favoriteLabel(_ f: HomeFavorite) -> String { f.multi ? f.name : subredditName(f.name) }
+
+/// Home's second row (#311): the feed itself, then each favorite, as glass capsules like the sort's.
+private struct FavoritesRow: View {
+    let mainTitle: String
+    let favorites: [HomeFavorite]
+    let selected: String?
+    let state: FeedChipsState
+    let pick: (String?) -> Void
+
+    var body: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 8) {
+                chip(mainTitle, on: selected == nil) { pick(nil) }
+                ForEach(favorites, id: \.key) { f in
+                    chip(favoriteLabel(f), on: f.key == selected) { pick(f.key) }
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+        .scrollIndicators(.hidden)
+        // The same 12 as between two cards.
+        .padding(.bottom, 12)
+        .sensoryFeedback(.selection, trigger: selected)
+    }
+
+    private func chip(_ label: String, on: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.subheadline.weight(on ? .semibold : .medium))
+                .lineLimit(1)
+                .fixedSize()
+                .foregroundStyle(on ? Color.white : Color.primary)
+                .padding(.horizontal, 14)
+                .frame(minHeight: 36)
+                .glassEffect(on ? .regular.tint(.accentColor).interactive() : .regular.interactive(), in: .capsule)
+                // Over the list, an outline keeps it apart from what passes beneath (#80).
+                .overlay { Capsule().strokeBorder(Color(.separator), lineWidth: 1).opacity(state.floating && !on ? 1 : 0).allowsHitTesting(false) }
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 }

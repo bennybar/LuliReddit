@@ -344,6 +344,7 @@ struct Settings: Equatable, Sendable {
     var imageCacheMb = 512 // image disk cache; applies on the next start
     var videoCacheMb = 200 // played-video cache; applies on the next start
     var feedKeepMinutes = 30 // how long the frontpage keeps its posts before returning to it reloads
+    var favoritesOnHome = false // Home: a row of your favorite communities and custom feeds under the chips; one shows here (#311)
     var refreshFeedOnOpen = false // back in the app after a minute or more, Home / For You load new posts whatever the keep time (#312)
     var hiddenPostDays = 7 // how long Ilay keeps posts you hid out of every feed (Reddit hides them too)
     var textScale = 1.0 // global text size multiplier (0.8–1.4)

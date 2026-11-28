@@ -269,6 +269,7 @@ struct SettingsCatalog {
             s.refreshFeedOnOpen, set: ctrl.setRefreshFeedOnOpen
         )
         b.toggle("\"New posts\" button", "Back on a feed that has newer posts, offer them with a button at the top. Off: pull down to refresh instead", s.newPostsPill, set: ctrl.setNewPostsPill)
+        b.toggle("Favorites on Home", "Your favorite communities and custom feeds as a row of chips on Home: tap one to show it there", s.favoritesOnHome, set: ctrl.setFavoritesOnHome)
         b.toggle("Hide read posts", "Skip posts you've already read when your front page, For You and custom feeds load or refresh", s.hideReadPosts, set: ctrl.setHideReadPosts)
         if s.hideReadPosts {
             b.toggle("Also in subreddits", "Hide read posts when browsing a single subreddit too", s.hideReadInSubreddits, set: ctrl.setHideReadInSubreddits)

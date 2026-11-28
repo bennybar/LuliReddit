@@ -17,6 +17,7 @@ data class Multireddit(
     val descriptionMd: String = "",
     val visibility: String = "private",
     val iconUrl: String? = null,
+    val isFavorited: Boolean = false, // starred on Reddit (Favorites on Home, #311)
 ) {
     companion object {
         fun fromData(d: JsonElement) = Multireddit(
@@ -27,6 +28,7 @@ data class Multireddit(
             descriptionMd = d["description_md"].str() ?: "",
             visibility = d["visibility"].str() ?: "private",
             iconUrl = d["icon_url"].str()?.ifEmpty { null },
+            isFavorited = d["is_favorited"].isTrue(),
         )
     }
 }
