@@ -52,6 +52,16 @@ struct AppRoot: View {
         }
         .onChange(of: showHome && pendingLink != nil) { if showHome { openPendingLink() } }
         .onOpenURL { handleLink($0) }
+        // A Home Screen quick action (#317): Home, or a subreddit like any reddit link.
+        .onChange(of: QuickActions.shared.pending, initial: true) { _, url in
+            guard let url else { return }
+            QuickActions.shared.pending = nil
+            if url == QuickActions.homeURL {
+                if showHome { nav.resetTo(.home) }
+            } else {
+                handleLink(url)
+            }
+        }
         .onChange(of: scenePhase, initial: true) { _, phase in
             switch phase {
             case .active: onResume()

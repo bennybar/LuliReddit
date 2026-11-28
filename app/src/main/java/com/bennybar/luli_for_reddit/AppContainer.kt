@@ -9,6 +9,7 @@ import com.bennybar.luli_for_reddit.auth.SessionState
 import com.bennybar.luli_for_reddit.core.net.RateLimit
 import com.bennybar.luli_for_reddit.core.net.RedditClient
 import com.bennybar.luli_for_reddit.core.net.ResponseCache
+import com.bennybar.luli_for_reddit.core.LauncherShortcuts
 import com.bennybar.luli_for_reddit.core.storage.Prefs
 import com.bennybar.luli_for_reddit.core.storage.SecureStore
 import com.bennybar.luli_for_reddit.data.RedditRepository
@@ -129,6 +130,8 @@ class AppContainer(val context: Context) {
         scope.launch { settings.state.map { it.hiddenPostDays }.distinctUntilChanged().drop(1).collect { hiddenPosts.refresh() } }
         // Recently visited takes a new order at once.
         scope.launch { settings.state.map { it.recentSubsByVisits }.distinctUntilChanged().drop(1).collect { recentSubreddits.refresh() } }
+        // The launcher's long-press menu: Home and the subreddits you open most (#317).
+        LauncherShortcuts.start(context, scope, recentSubreddits.mostVisited)
                 // On any account change (switch, or logout then login as someone else):
         // re-read auth config and reload everything that belongs to an account.
         scope.launch {

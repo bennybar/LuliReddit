@@ -50,6 +50,7 @@ import com.bennybar.luli_for_reddit.auth.OAuthFlow
 import com.bennybar.luli_for_reddit.auth.SessionState
 import com.bennybar.luli_for_reddit.core.isRedditHost
 import com.bennybar.luli_for_reddit.core.redditUrlInText
+import com.bennybar.luli_for_reddit.core.LauncherShortcuts
 import com.bennybar.luli_for_reddit.core.routeForRedditUrl
 import com.bennybar.luli_for_reddit.core.isShareLink
 import com.bennybar.luli_for_reddit.core.resolveShareLink
@@ -223,6 +224,11 @@ class IlayActivity : ComponentActivity() {
     private fun handleIntent(intent: Intent?) {
         intent ?: return
         if (app.inbox.handleLaunchIntent(intent)) return
+        // The launcher's Home shortcut (#317): back to Home from wherever the app was.
+        if (intent.action == LauncherShortcuts.ACTION_HOME) {
+            pendingLink.value = HOME_SHORTCUT
+            return
+        }
         // "Open in Ilay" in another app's share sheet: the link is in the text.
         val shared = intent.action == Intent.ACTION_SEND
         val uri = (if (shared) redditUrlInText(intent.getStringExtra(Intent.EXTRA_TEXT))?.let(Uri::parse) else intent.data)
@@ -309,6 +315,10 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
         // Clearing the link re-keys this effect, so the work (a share link
         // resolves over the network) runs on the navigator's scope, not here.
         pendingLink.value = null
+        if (uri == HOME_SHORTCUT) {
+            navigator.resetTo(Route.Home)
+            return@LaunchedEffect
+        }
         navigator.scope.launch {
             // Share links (/r/<sub>/s/<code>) redirect to the real post first.
             val target = if (isShareLink(uri)) resolveShareLink(uri) ?: uri else uri
@@ -446,3 +456,6 @@ private inline fun <reified T : Route> NavGraphBuilder.screen(
         }
     }
 }
+
+/** [IlayActivity.pendingLink]'s stand-in for the launcher's Home shortcut. */
+private val HOME_SHORTCUT: Uri = Uri.parse("ilay-shortcut://home")
