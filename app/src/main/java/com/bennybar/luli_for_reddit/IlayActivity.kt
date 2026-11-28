@@ -76,6 +76,7 @@ import com.bennybar.luli_for_reddit.feature.compose.DraftsScreen
 import com.bennybar.luli_for_reddit.feature.inbox.NotificationActivityScreen
 import com.bennybar.luli_for_reddit.feature.inbox.ComposeMessageScreen
 import com.bennybar.luli_for_reddit.feature.inbox.MessageThreadScreen
+import com.bennybar.luli_for_reddit.feature.inbox.ConversationScreen
 import com.bennybar.luli_for_reddit.feature.media.MediaViewerHost
 import com.bennybar.luli_for_reddit.feature.post.PostDetailScreen
 import com.bennybar.luli_for_reddit.feature.settings.ContentFiltersScreen
@@ -396,6 +397,7 @@ private fun AppRoot(pendingLink: MutableStateFlow<Uri?>) {
                 }
                 screen<Route.Submit> { SubmitScreen(it.toRoute<Route.Submit>().subreddit) }
                 screen<Route.MessageThread> { MessageThreadScreen(it.toRoute<Route.MessageThread>().fullname) }
+                screen<Route.Conversation> { ConversationScreen(it.toRoute<Route.Conversation>().key) }
                 screen<Route.ComposeMessage> { ComposeMessageScreen(it.toRoute<Route.ComposeMessage>().to) }
                 screen<Route.Subreddit> { SubredditScreen(it.toRoute<Route.Subreddit>().name) }
                 screen<Route.Frontpage> { FrontpageScreen() }

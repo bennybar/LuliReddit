@@ -121,6 +121,20 @@ import com.bennybar.luli_for_reddit.ui.friendlyError
 import com.bennybar.luli_for_reddit.feature.post.confirmDelete
 import kotlinx.coroutines.launch
 import com.bennybar.luli_for_reddit.ui.userName
+import com.bennybar.luli_for_reddit.ui.subredditName
+import com.bennybar.luli_for_reddit.feature.feed.LetterAvatar
+import com.bennybar.luli_for_reddit.model.SubredditIcons
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 
 /** The Inbox tab. [reselect] bumps when the tab is re-tapped (scroll to top). */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -426,14 +440,29 @@ private fun InboxList(page: InboxPage, listState: LazyListState, top: Dp) {
                         Snapshot.withoutReadObservation { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 }
                     }
                     LaunchedEffect(firstKey) { if (wasAtTop) listState.scrollToItem(0) }
+                    val me = app.session.username
+                    val icons by app.authorAvatars.icons.collectAsStateWithLifecycle()
+                    // Messages: one row per person (#315); the rest under Today and Earlier.
+                    val people = remember(items, me, where) { if (where == "messages") conversations(items, me) else emptyList() }
+                    val days = remember(items, where) { if (where == "messages") emptyList() else byDay(items, System.currentTimeMillis()) }
                     LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = top + 4.dp, bottom = 130.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(top = top + 4.dp, bottom = 130.dp),
                 ) {
-                    items(items, key = { it.fullname }, contentType = { "inbox" }) { item ->
-                        SwipeableInboxCard(item, onOpen = { open(nav, item) })
+                    if (where == "messages") {
+                        item(key = "people_top", contentType = "gap") { Spacer(Modifier.height(8.dp)) }
+                        itemsIndexed(people, key = { _, p -> "with_${p.with.key}" }, contentType = { _, _ -> "person" }) { i, p ->
+                            ConversationRow(p, icons, me, Modifier.inGroup(i, people.size)) {
+                                nav.push(Route.Conversation(p.with.key))
+                            }
+                        }
+                    }
+                    for ((day, rows) in days) {
+                        item(key = "day_${day.name}", contentType = "day") { DayHeader(day, first = day == days.first().first) }
+                        itemsIndexed(rows, key = { _, it -> it.fullname }, contentType = { _, _ -> "inbox" }) { i, item ->
+                            SwipeableInboxRow(item, icons, me, Modifier.inGroup(i, rows.size), onOpen = { open(nav, item) })
+                        }
                     }
                     if (state.loadingMore) {
                         item(key = "loadingMore", contentType = "loading") {
@@ -462,12 +491,30 @@ private fun open(nav: AppNavigator, item: InboxItem) {
     }
 }
 
+/** A row's place in a connected group, as Search's and Settings': round only where the group starts or ends. */
+private fun Modifier.inGroup(i: Int, count: Int): Modifier {
+    val top = if (i == 0) 24.dp else 4.dp
+    val bottom = if (i == count - 1) 24.dp else 4.dp
+    return padding(start = 12.dp, end = 12.dp, bottom = 2.dp).clip(RoundedCornerShape(top, top, bottom, bottom))
+}
+
+@Composable
+private fun DayHeader(day: InboxDay, first: Boolean) {
+    Text(
+        day.label,
+        Modifier.padding(start = 28.dp, top = if (first) 6.dp else 18.dp, bottom = 8.dp),
+        fontSize = 13.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.primary,
+    )
+}
+
 /**
  * Messages: swipe right = read/unread, swipe left = delete.
  * Comment replies/mentions: read/unread only (they can't be deleted).
  */
 @Composable
-private fun SwipeableInboxCard(item: InboxItem, onOpen: () -> Unit) {
+private fun SwipeableInboxRow(item: InboxItem, icons: Map<String, String>, me: String, modifier: Modifier, onOpen: () -> Unit) {
     // The feed's swipe (fires once on release, then springs back). The Material
     // dismiss box left rows stuck half-way and could fire repeatedly.
     val cs = MaterialTheme.colorScheme
@@ -484,42 +531,152 @@ private fun SwipeableInboxCard(item: InboxItem, onOpen: () -> Unit) {
             }
         } else null
     }
-    SwipeActions(start = start, end = end) { InboxCard(item, onOpen) }
+    SwipeActions(start = start, end = end, modifier = modifier) { InboxRow(item, icons, me, onOpen) }
 }
 
+/**
+ * One reply, mention or message (#315): who and where in one line, the title, a line of
+ * the text. A reply or mention shows the subreddit's picture with its author's on the
+ * corner; a message, its sender's. Unread: the row in the selected side-bar entry's
+ * colour (#120), and a dot.
+ */
 @Composable
-private fun InboxCard(item: InboxItem, onTap: () -> Unit) {
+private fun InboxRow(item: InboxItem, icons: Map<String, String>, me: String, onTap: () -> Unit) {
     val cs = MaterialTheme.colorScheme
-    val (icon, label) = when (item.kind) {
-        InboxKind.MESSAGE -> Icons.Outlined.MailOutline to "Message"
-        InboxKind.COMMENT_REPLY -> Icons.AutoMirrored.Rounded.Reply to "Comment reply"
-        InboxKind.POST_REPLY -> Icons.Outlined.Forum to "Post reply"
-        InboxKind.MENTION -> Icons.Rounded.AlternateEmail to "Mention"
+    val bg = if (item.isNew) cs.secondaryContainer else cs.surfaceContainerLow
+    val mine = isMine(item, me)
+    // Yours (Sent): the person or subreddit it went to.
+    val toSub = mine && item.dest?.startsWith("#") == true
+    val who = if (mine) item.dest?.removePrefix("#") ?: item.author else item.author
+    LaunchedEffect(item.fullname) { if (!mine) app.authorAvatars.want(item.author, item.authorFullname) }
+    val action = when {
+        mine -> "You wrote to ${if (toSub) subredditName(who) else userName(who)}"
+        item.kind == InboxKind.COMMENT_REPLY -> "replied" + (item.subreddit?.let { " · ${subredditName(it)}" } ?: "")
+        item.kind == InboxKind.POST_REPLY -> "replied to your post"
+        item.kind == InboxKind.MENTION -> "mentioned you"
+        item.subreddit != null -> "messaged you · ${subredditName(item.subreddit)}"
+        else -> "messaged you"
     }
-    val heading = if (item.isMessage) item.subject.ifEmpty { "(no subject)" } else item.linkTitle ?: label
-    val snippet = remember(item.body) { item.body.replace('\n', ' ') }
-
-    // Unread: the whole card in the selected side-bar entry's colour, not just a dot (#120).
-    BloomCard(Modifier.fillMaxWidth(), onClick = onTap, color = if (item.isNew) cs.secondaryContainer else cs.surfaceContainerLow) {
-        Column(Modifier.padding(14.dp)) {
+    val title = if (item.isMessage) item.subject.ifEmpty { "(no subject)" } else item.linkTitle ?: ""
+    val preview = remember(item.body) { inboxPreview(item.body) }
+    Row(
+        Modifier.fillMaxWidth().background(bg).clickable(onClick = onTap).padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Box(Modifier.size(44.dp)) {
+            val sub = item.subreddit.takeIf { !item.isMessage }
+            if (sub != null) {
+                LetterAvatar(sub, 40.dp, cs.surfaceContainerHighest, cs.onSurfaceVariant, imageUrl = SubredditIcons.icon(sub))
+                LetterAvatar(
+                    item.author, 24.dp, cs.surfaceContainerHighest, cs.onSurfaceVariant,
+                    Modifier.align(Alignment.BottomEnd).offset(2.dp, 2.dp).border(2.dp, bg, CircleShape),
+                    imageUrl = icons[item.author.lowercase()],
+                )
+            } else {
+                LetterAvatar(
+                    who, 40.dp, cs.surfaceContainerHighest, cs.onSurfaceVariant, Modifier.align(Alignment.Center),
+                    imageUrl = if (mine) null else icons[item.author.lowercase()],
+                )
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, null, Modifier.size(16.dp), tint = cs.primary)
-                Spacer(Modifier.width(6.dp))
-                Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = cs.primary)
-                Spacer(Modifier.width(8.dp))
                 Text(
-                    "${userName(item.author)} · ${timeAgo(item.createdUtc)}",
+                    buildAnnotatedString {
+                        if (!mine) {
+                            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = cs.onSurface)) { append(userName(item.author)) }
+                            append(" ")
+                        }
+                        append(action)
+                    },
                     Modifier.weight(1f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    fontSize = 12.sp,
+                    fontSize = 12.5.sp,
                     color = cs.onSurfaceVariant,
                 )
+                Spacer(Modifier.width(8.dp))
+                Text(timeAgo(item.createdUtc), fontSize = 12.5.sp, color = cs.onSurfaceVariant)
             }
-            Spacer(Modifier.height(8.dp))
-            Text(heading, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(4.dp))
-            Text(snippet, maxLines = 2, overflow = TextOverflow.Ellipsis, color = cs.onSurfaceVariant)
+            if (title.isNotEmpty()) {
+                Spacer(Modifier.height(2.dp))
+                Text(title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Spacer(Modifier.height(2.dp))
+            Text(preview, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 14.sp, color = cs.onSurfaceVariant)
+        }
+        if (item.isNew) {
+            Spacer(Modifier.width(10.dp))
+            Box(Modifier.padding(top = 4.dp).size(10.dp).background(cs.primary, CircleShape))
+        }
+    }
+}
+
+/** One person's messages in the Messages list (#315): their newest, and how many are new. */
+@Composable
+private fun ConversationRow(p: Conversation, icons: Map<String, String>, me: String, modifier: Modifier, onTap: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val bg = if (p.unread > 0) cs.secondaryContainer else cs.surfaceContainerLow
+    LaunchedEffect(p.with.key) { if (!p.with.isSubreddit) app.authorAvatars.want(p.with.name, p.accountId) }
+    // Swipe right: their new messages read.
+    val start = remember(p.with.key, p.unread) {
+        if (p.unread > 0) SwipeSpec(Icons.Outlined.MarkEmailRead, Color(0xFF2E7D32)) { app.inbox.markReadMany(unreadIn(p.threads, me)) } else null
+    }
+    val last = p.latest
+    val preview = remember(last.body) { (if (isMine(last, me)) "You: " else "") + inboxPreview(last.body) }
+    SwipeActions(start = start, end = null, modifier = modifier) {
+        Row(
+            Modifier.fillMaxWidth().background(bg).clickable(onClick = onTap).padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (p.with.isSubreddit) {
+                Box(Modifier.size(48.dp).background(cs.tertiaryContainer, CircleShape), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Outlined.Shield, null, tint = cs.onTertiaryContainer)
+                }
+            } else {
+                LetterAvatar(p.with.name, 48.dp, cs.surfaceContainerHighest, cs.onSurfaceVariant, imageUrl = icons[p.with.name.lowercase()])
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        if (p.with.isSubreddit) subredditName(p.with.name) else userName(p.with.name),
+                        Modifier.weight(1f),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        timeAgo(last.createdUtc),
+                        fontSize = 12.5.sp,
+                        fontWeight = if (p.unread > 0) FontWeight.SemiBold else FontWeight.Normal,
+                        color = if (p.unread > 0) cs.primary else cs.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.height(3.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        preview,
+                        Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        fontSize = 14.sp,
+                        color = if (p.unread > 0) cs.onSurface else cs.onSurfaceVariant,
+                    )
+                    if (p.unread > 0) {
+                        Spacer(Modifier.width(8.dp))
+                        Box(
+                            Modifier.heightIn(min = 22.dp).widthIn(min = 22.dp).background(cs.primary, CircleShape).padding(horizontal = 6.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(if (p.unread > 99) "99+" else "${p.unread}", color = cs.onPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
         }
     }
 }

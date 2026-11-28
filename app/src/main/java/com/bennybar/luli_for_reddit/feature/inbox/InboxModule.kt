@@ -206,6 +206,34 @@ class InboxModule(private val c: AppContainer) : UserScoped {
         if (notifications && fullname.startsWith("t1_")) c.redditNotifications.markReadOnReddit(fullname.removePrefix("t1_"))
     }
 
+    /**
+     * A conversation opened (#315): its unread messages, top-level or replies in a
+     * thread, read here and on Reddit in one request.
+     */
+    fun markReadMany(fullnames: List<String>) {
+        if (fullnames.isEmpty()) return
+        val ids = fullnames.toSet()
+        for (flow in tabs.values) {
+            flow.update { s ->
+                s.copy(
+                    items = s.items.map { item ->
+                        if (item.fullname !in ids && item.replies.none { it.fullname in ids }) item
+                        else item.copy(
+                            isNew = item.isNew && item.fullname !in ids,
+                            replies = item.replies.map { if (it.fullname in ids) it.copy(isNew = false) else it },
+                        )
+                    },
+                )
+            }
+        }
+        c.scope.launch {
+            try {
+                c.repository.markRead(fullnames.joinToString(","))
+                refreshUnread()
+            } catch (_: Exception) { /* keep optimistic state */ }
+        }
+    }
+
     /** Optimistically marks one item unread locally and on the server. */
     fun markUnread(fullname: String) {
         if (isNew(fullname) == true) return

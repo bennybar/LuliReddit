@@ -87,6 +87,13 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import com.bennybar.luli_for_reddit.ui.userName
+import com.bennybar.luli_for_reddit.ui.subredditName
+import com.bennybar.luli_for_reddit.feature.feed.LetterAvatar
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.text.style.TextAlign
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 /** A private-message conversation. The root InboxItem is in NavCache under [fullname] (else fetched). */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -132,7 +139,7 @@ fun MessageThreadScreen(fullname: String) {
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
             when {
-                r != null -> Thread(r)
+                r != null -> Thread(listOf(r), conversation = false)
                 loadError != null -> ErrorView(loadError, onRetry = { attempt++ })
                 else -> Loading(Modifier.align(Alignment.Center))
             }
@@ -140,26 +147,100 @@ fun MessageThreadScreen(fullname: String) {
     }
 }
 
+/**
+ * Every loaded message with one person (#315), [key] as [Correspondent.key]: the Messages
+ * list's threads with them, oldest first, as one chat. Their new ones are read on opening.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun Thread(root: InboxItem) {
+fun ConversationScreen(key: String) {
+    val nav = LocalNavigator.current
+    val state by app.inbox.tab("messages").collectAsStateWithLifecycle()
+    val me = app.session.username
+    LaunchedEffect(Unit) { app.inbox.ensureLoaded("messages") }
+    // Taken once, as it opens: new mail or marking read doesn't rebuild the chat under the
+    // reply being typed. The "N new" line keeps showing where the new ones began.
+    var conv by remember { mutableStateOf<Conversation?>(null) }
+    LaunchedEffect(state.items, state.loading) {
+        if (conv != null || state.loading) return@LaunchedEffect
+        val found = conversations(state.items, me).firstOrNull { it.with.key == key }
+        conv = found
+        if (found != null) app.inbox.markReadMany(unreadIn(found.threads, me))
+    }
+    val c = conv
+    val cs = MaterialTheme.colorScheme
+    val icons by app.authorAvatars.icons.collectAsStateWithLifecycle()
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (c != null) {
+                            if (c.with.isSubreddit) {
+                                Box(Modifier.size(36.dp).background(cs.tertiaryContainer, CircleShape), contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Outlined.Shield, null, Modifier.size(20.dp), tint = cs.onTertiaryContainer)
+                                }
+                            } else {
+                                LetterAvatar(c.with.name, 36.dp, cs.surfaceContainerHighest, cs.onSurfaceVariant, imageUrl = icons[c.with.name.lowercase()])
+                            }
+                            Spacer(Modifier.size(10.dp))
+                        }
+                        Text(
+                            c?.let { if (it.with.isSubreddit) subredditName(it.with.name) else userName(it.with.name) } ?: "Messages",
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        )
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = { nav.pop() }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
+                ),
+            )
+        },
+    ) { padding ->
+        Box(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
+            when {
+                c != null -> Thread(c.threads, conversation = true)
+                state.loading -> Loading(Modifier.align(Alignment.Center))
+                state.error != null -> ErrorView(state.error, onRetry = { app.inbox.refresh("messages") })
+                else -> Text("These messages aren't loaded any more.", Modifier.align(Alignment.Center).padding(32.dp))
+            }
+        }
+    }
+}
+
+/**
+ * [threads] as one chat, oldest first. As a [conversation] (#315) each thread starts under
+ * its date and subject, and a line marks where the new ones begin; a reply goes to the
+ * newest thread.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun Thread(threads: List<InboxItem>, conversation: Boolean) {
+    val root = threads.last()
     val nav = LocalNavigator.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val draftKey = "msgreply_${root.fullname}"
-    val messages = remember(root) { mutableStateListOf<InboxItem>().apply { add(root); addAll(root.replies) } }
+    val me = app.session.username
+    val entries = remember(threads) { mutableStateListOf<ChatEntry>().apply { addAll(chatEntries(threads, me, dividers = conversation)) } }
+    val messages = entries.filterIsInstance<ChatEntry.Message>().map { it.message }
     var reply by remember { mutableStateOf(TextFieldValue(app.drafts.get(draftKey) ?: "")) }
     var media by remember { mutableStateOf<MediaAttachment?>(null) }
     var sending by remember { mutableStateOf(false) }
     // A picked file still being read: sending now would go without it.
     var attaching by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
-    val me = app.session.username
     val cs = MaterialTheme.colorScheme
 
     // Chat-style: start at (and follow) the newest message.
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
+    LaunchedEffect(entries.size) {
+        if (entries.isNotEmpty()) listState.animateScrollToItem(entries.size - 1)
     }
 
     fun setReply(v: TextFieldValue) {
@@ -189,15 +270,15 @@ private fun Thread(root: InboxItem) {
                 }
                 app.repository.sendReply(target, text)
                 app.drafts.clear(draftKey)
-                messages.add(
-                    InboxItem(
-                        fullname = "local_${messages.size}",
+                entries.add(
+                    ChatEntry.Message(InboxItem(
+                        fullname = "local_${entries.size}",
                         kind = InboxKind.MESSAGE,
                         author = me.ifEmpty { "you" },
                         subject = root.subject,
                         body = text,
                         createdUtc = System.currentTimeMillis(),
-                    ),
+                    )),
                 )
                 reply = TextFieldValue("")
                 media = null
@@ -265,19 +346,23 @@ private fun Thread(root: InboxItem) {
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(12.dp),
             ) {
-                itemsIndexed(messages, key = { _, m -> m.fullname }, contentType = { _, _ -> "message" }) { _, m ->
-                    val mine = me.isNotEmpty() && m.author.equals(me, ignoreCase = true)
-                    Box(Modifier.fillMaxWidth().padding(bottom = 10.dp), contentAlignment = if (mine) Alignment.CenterEnd else Alignment.CenterStart) {
-                        Column(
-                            Modifier
-                                .widthIn(max = maxBubble)
-                                .background(if (mine) cs.primaryContainer else cs.surfaceContainerHighest, RoundedCornerShape(18.dp))
-                                .padding(12.dp),
-                        ) {
-                            Text("${userName(m.author)} · ${timeAgo(m.createdUtc)}", fontSize = 11.sp, color = cs.onSurfaceVariant)
-                            Spacer(Modifier.height(4.dp))
-                            RedditMarkdown(m.body, fontSize = 14.sp, selectable = true, onLinkClick = nav::openLink)
+                itemsIndexed(entries, key = { _, e -> e.key }, contentType = { _, e -> e::class.simpleName }) { _, e ->
+                    when (e) {
+                        is ChatEntry.ThreadStart -> Text(
+                            "${dayLabel(e.root.createdUtc)} · ${e.root.subject.ifEmpty { "(no subject)" }}",
+                            Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 10.dp),
+                            textAlign = TextAlign.Center,
+                            fontSize = 12.sp,
+                            color = cs.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        is ChatEntry.NewFrom -> Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            HorizontalDivider(Modifier.weight(1f), color = cs.outlineVariant)
+                            Text("${e.count} new", Modifier.padding(horizontal = 10.dp), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = cs.primary)
+                            HorizontalDivider(Modifier.weight(1f), color = cs.outlineVariant)
                         }
+                        is ChatEntry.Message -> MessageBubble(e.message, me, maxBubble)
                     }
                 }
             }
@@ -325,4 +410,32 @@ private fun AttachOption(icon: ImageVector, label: String, onClick: () -> Unit) 
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         modifier = Modifier.clickable(onClick = onClick),
     )
+}
+
+/** A short date for a thread's start in a conversation: "Today", else "Nov 12" (with the year when not this one). */
+private fun dayLabel(at: Long): String {
+    val zone = java.time.ZoneId.systemDefault()
+    val d = java.time.Instant.ofEpochMilli(at).atZone(zone).toLocalDate()
+    val today = java.time.LocalDate.now(zone)
+    val pattern = if (d.year == today.year) "MMM d" else "MMM d, yyyy"
+    return if (d == today) "Today" else d.format(java.time.format.DateTimeFormatter.ofPattern(pattern))
+}
+
+@Composable
+private fun MessageBubble(m: InboxItem, me: String, maxBubble: androidx.compose.ui.unit.Dp) {
+    val nav = LocalNavigator.current
+    val cs = MaterialTheme.colorScheme
+    val mine = isMine(m, me)
+    Box(Modifier.fillMaxWidth().padding(bottom = 10.dp), contentAlignment = if (mine) Alignment.CenterEnd else Alignment.CenterStart) {
+        Column(
+            Modifier
+                .widthIn(max = maxBubble)
+                .background(if (mine) cs.primaryContainer else cs.surfaceContainerHighest, RoundedCornerShape(18.dp))
+                .padding(12.dp),
+        ) {
+            Text("${userName(m.author)} · ${timeAgo(m.createdUtc)}", fontSize = 11.sp, color = cs.onSurfaceVariant)
+            Spacer(Modifier.height(4.dp))
+            RedditMarkdown(m.body, fontSize = 14.sp, selectable = true, onLinkClick = nav::openLink)
+        }
+    }
 }

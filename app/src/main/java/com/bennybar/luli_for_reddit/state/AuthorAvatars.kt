@@ -102,8 +102,15 @@ class AuthorAvatars {
             if (_icons.value[post.author.lowercase()] != icon) add(mapOf(post.author.lowercase() to icon))
             return
         }
-        val id = post.authorFullname
-        if (!id.startsWith("t2_") || post.author.lowercase() in _icons.value || !askedIds.add(id)) return
+        want(post.author, post.authorFullname)
+    }
+
+    /**
+     * [author]'s picture (account id [id]), asked for with the others wanted about now: a
+     * post card's poster, an Inbox row's sender (#315). Not with the website sign-in.
+     */
+    fun want(author: String, id: String?) {
+        if (id == null || !id.startsWith("t2_") || author.lowercase() in _icons.value || !askedIds.add(id)) return
         pending += id
         if (flush?.isActive == true) return
         flush = app.scope.launch {

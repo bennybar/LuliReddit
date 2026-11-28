@@ -16,7 +16,7 @@ struct MessageThreadScreen: View {
     var body: some View {
         Group {
             if let root {
-                MessageThread(root: root)
+                MessageThread(threads: [root], conversation: false)
             } else if let loadError {
                 ErrorView(message: loadError) { attempt += 1 }
             } else {
@@ -41,10 +41,64 @@ struct MessageThreadScreen: View {
     }
 }
 
+/// Every loaded message with one person (#315), `key` as `Correspondent.key`: the Messages
+/// list's threads with them, oldest first, as one chat. Their new ones are read on opening.
+struct ConversationScreen: View {
+    let key: String
+    /// Taken once, as it opens: new mail or marking read doesn't rebuild the chat under the
+    /// reply being typed. The "N new" line keeps showing where the new ones began.
+    @State private var conv: Conversation?
+
+    var body: some View {
+        let state = app.inbox.tab("messages")
+        Group {
+            if let conv {
+                MessageThread(threads: conv.threads, conversation: true)
+            } else if state.loading {
+                Loading().frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let error = state.error {
+                ErrorView(message: "Could not load messages.\n\(friendlyError(error))") { app.inbox.refresh("messages") }
+            } else {
+                ContentUnavailableView("These messages aren't loaded any more.", systemImage: "tray")
+            }
+        }
+        .navigationTitle(conv.map { $0.with.isSubreddit ? subredditName($0.with.name) : userName($0.with.name) } ?? "Messages")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if let conv {
+                ToolbarItem(placement: .principal) {
+                    HStack(spacing: 8) {
+                        if conv.with.isSubreddit {
+                            Image(systemName: "shield").foregroundStyle(.tint)
+                        } else {
+                            LetterAvatar(name: conv.with.name, size: 30, imageUrl: app.authorAvatars.icons[conv.with.name.lowercased()])
+                        }
+                        Text(conv.with.isSubreddit ? subredditName(conv.with.name) : userName(conv.with.name))
+                            .font(.headline)
+                            .lineLimit(1)
+                    }
+                }
+            }
+        }
+        .task { app.inbox.ensureLoaded("messages") }
+        .task(id: state.loading ? -1 : state.items.count) {
+            guard conv == nil, !state.loading else { return }
+            let me = app.session.username
+            guard let found = conversations(state.items, me: me).first(where: { $0.with.key == key }) else { return }
+            conv = found
+            app.inbox.markReadMany(unreadIn(found.threads, me: me))
+        }
+    }
+}
+
+/// `threads` as one chat, oldest first. As a `conversation` (#315) each thread starts under
+/// its date and subject, and a line marks where the new ones begin; a reply goes to the
+/// newest thread.
 private struct MessageThread: View {
     let root: InboxItem
+    let conversation: Bool
     @Environment(AppNavigator.self) private var nav
-    @State private var messages: [InboxItem]
+    @State private var entries: [ChatEntry]
     @State private var reply: String
     @State private var selection: TextSelection?
     @State private var media: MediaAttachment?
@@ -58,9 +112,15 @@ private struct MessageThread: View {
 
     private var draftKey: String { "msgreply_\(root.fullname)" }
 
-    init(root: InboxItem) {
+    private var messages: [InboxItem] {
+        entries.compactMap { if case let .message(m) = $0 { m } else { nil } }
+    }
+
+    init(threads: [InboxItem], conversation: Bool) {
+        let root = threads[threads.count - 1]
         self.root = root
-        _messages = State(initialValue: [root] + root.replies)
+        self.conversation = conversation
+        _entries = State(initialValue: chatEntries(threads, me: app.session.username, dividers: conversation))
         _reply = State(initialValue: app.drafts.get("msgreply_\(root.fullname)") ?? "")
     }
 
@@ -69,9 +129,26 @@ private struct MessageThread: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 10) {
-                    ForEach(messages) { m in
-                        MessageBubble(message: m, mine: !me.isEmpty && m.author.lowercased() == me.lowercased())
-                            .id(m.fullname)
+                    ForEach(entries) { e in
+                        switch e {
+                        case let .threadStart(t):
+                            Text("\(chatDay(t.createdUtc)) · \(t.subject.nilIfEmpty ?? "(no subject)")")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 6)
+                                .id(e.id)
+                        case let .newFrom(count):
+                            HStack(spacing: 10) {
+                                Rectangle().fill(.separator).frame(height: 1)
+                                Text("\(count) new").font(.caption.weight(.semibold)).foregroundStyle(.tint).fixedSize()
+                                Rectangle().fill(.separator).frame(height: 1)
+                            }
+                            .id(e.id)
+                        case let .message(m):
+                            MessageBubble(message: m, mine: isMine(m, me: me)).id(e.id)
+                        }
                     }
                 }
                 .padding(12)
@@ -79,8 +156,8 @@ private struct MessageThread: View {
             // Chat-style: start at (and follow) the newest message.
             .defaultScrollAnchor(.bottom)
             .scrollDismissesKeyboard(.interactively)
-            .onChange(of: messages.count) {
-                withAnimation { proxy.scrollTo(messages.last?.fullname, anchor: .bottom) }
+            .onChange(of: entries.count) {
+                withAnimation { proxy.scrollTo(entries.last?.id, anchor: .bottom) }
             }
         }
         .safeAreaBar(edge: .bottom) { composer }
@@ -187,14 +264,14 @@ private struct MessageThread: View {
                 try await app.repository.sendReply(target, text: text)
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
                 app.drafts.clear(draftKey)
-                messages.append(InboxItem(
-                    fullname: "local_\(messages.count)",
+                entries.append(.message(InboxItem(
+                    fullname: "local_\(entries.count)",
                     kind: .message,
                     author: me.nilIfEmpty ?? "you",
                     subject: root.subject,
                     body: text,
                     createdUtc: nowMillis()
-                ))
+                )))
                 reply = ""
                 media = nil
             } catch {
@@ -226,4 +303,13 @@ private struct MessageBubble: View {
             if !mine { Spacer(minLength: 0) }
         }
     }
+}
+
+/// A short date for a thread's start in a conversation: "Today", else "Nov 12" (with the year when not this one).
+private func chatDay(_ at: Int) -> String {
+    let date = Date(timeIntervalSince1970: TimeInterval(at) / 1000)
+    let cal = Calendar.current
+    if cal.isDateInToday(date) { return "Today" }
+    let sameYear = cal.component(.year, from: date) == cal.component(.year, from: .now)
+    return date.formatted(sameYear ? .dateTime.month(.abbreviated).day() : .dateTime.month(.abbreviated).day().year())
 }

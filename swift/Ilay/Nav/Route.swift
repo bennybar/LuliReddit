@@ -31,6 +31,8 @@ enum Route: Hashable, Codable, Sendable {
     case submit(subreddit: String? = nil)
     /// A private-message thread; the root InboxItem is in [NavCache] under [fullname].
     case messageThread(fullname: String)
+    /// Every loaded message with one person (#315), by their `Correspondent` key.
+    case conversation(key: String)
     case composeMessage(to: String? = nil)
     case subreddit(name: String)
     /// The frontpage as a pushed page (Explore's All button, with the Posts tab on r/all).

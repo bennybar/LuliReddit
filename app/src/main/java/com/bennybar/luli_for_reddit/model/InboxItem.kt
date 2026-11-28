@@ -24,6 +24,8 @@ data class InboxItem(
     val subreddit: String? = null,
     val dest: String? = null,
     val replies: List<InboxItem> = emptyList(),
+    /** The author's account id (t2_…), for their picture (#315). */
+    val authorFullname: String? = null,
 ) {
     val isMessage: Boolean get() = kind == InboxKind.MESSAGE
 
@@ -62,6 +64,7 @@ data class InboxItem(
                     dest = d["dest"].str(),
                     subreddit = d["subreddit"].str(),
                     replies = d["replies"]["data"]["children"].arr()?.map { fromChild(it) } ?: emptyList(),
+                    authorFullname = d["author_fullname"].str(),
                 )
             }
 
@@ -81,6 +84,7 @@ data class InboxItem(
                 context = d["context"].str(),
                 linkTitle = d["link_title"].str()?.trim(),
                 subreddit = d["subreddit"].str(),
+                authorFullname = d["author_fullname"].str(),
             )
         }
     }
