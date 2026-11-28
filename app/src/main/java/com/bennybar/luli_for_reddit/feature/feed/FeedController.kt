@@ -83,6 +83,31 @@ class FeedController(val key: String) {
 
     private val isFrontpage get() = key.isEmpty()
 
+    /**
+     * When Ilay was last sent to the background, for "Refresh feed on open" (#312):
+     * coming back after [AWAY] or more loads a new frontpage. Returning from a post
+     * isn't coming back, and neither is a quick look at another app.
+     */
+    object AppAway {
+        private const val AWAY = 60_000L
+        private var since = 0L
+        private var back = 0L
+
+        init {
+            androidx.lifecycle.ProcessLifecycleOwner.get().lifecycle.addObserver(object : androidx.lifecycle.DefaultLifecycleObserver {
+                override fun onStop(owner: androidx.lifecycle.LifecycleOwner) { since = System.currentTimeMillis() }
+                override fun onStart(owner: androidx.lifecycle.LifecycleOwner) { back = System.currentTimeMillis() }
+            })
+        }
+
+        /** Starts watching (on the main thread, before the app first leaves). */
+        fun watch() = Unit
+
+        /** Back in the app, with the setting on, after leaving it since [loadedAt] for a minute or more. */
+        fun backAfter(loadedAt: Long): Boolean =
+            app.settings.value.refreshFeedOnOpen && since > loadedAt && back - since >= AWAY
+    }
+
     /** How long a loaded frontpage is kept before returning to it loads a new one (Settings → Keep feed for). */
     private val keepMillis get() = app.settings.value.feedKeepMinutes * 60_000L
     // With the Posts tab on r/all (Settings) the frontpage is a plain pushed page.
@@ -114,6 +139,7 @@ class FeedController(val key: String) {
     val deckMode: Boolean get() = redditHome || forYou
 
     init {
+        if (isFrontpage) AppAway.watch()
         // Reddit Home deals its cards straight from the page; the full posts
         // (media, video, NSFW…) arrive moments later and replace them in place.
         if (isFrontpage) scope.launch {
@@ -149,7 +175,9 @@ class FeedController(val key: String) {
             val savedAt = runCatching {
                 if (redditHome) app.forYou.redditHome.cachedFirstPageTime() else app.forYou.engine.cachedFirstPageTime()
             }.getOrNull()
-            val page = if (savedAt != null && System.currentTimeMillis() - savedAt < keepMillis) cachedFirstPage() else null
+            // "Refresh feed on open" (#312): a new feed, painted from the saved page first (build).
+            val keep = !app.settings.value.refreshFeedOnOpen
+            val page = if (keep && savedAt != null && System.currentTimeMillis() - savedAt < keepMillis) cachedFirstPage() else null
             if (page != null) {
                 lastLoaded = savedAt!!
                 if (redditHome) app.forYou.redditHome.status.value = HomeStatus.Saved(savedAt)
@@ -170,7 +198,7 @@ class FeedController(val key: String) {
      */
     fun refreshIfExpired() {
         if (isBuilding || current == null) return
-        if (System.currentTimeMillis() - lastLoaded < keepMillis) return
+        if (System.currentTimeMillis() - lastLoaded < keepMillis && !AppAway.backAfter(lastLoaded)) return
         rebuild(showLoading = deckMode)
     }
 

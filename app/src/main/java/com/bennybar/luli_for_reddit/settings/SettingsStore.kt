@@ -112,6 +112,7 @@ class SettingsStore(private val p: Prefs) {
             imageCacheMb = p.getInt("imageCacheMb") ?: d.imageCacheMb,
             videoCacheMb = p.getInt("videoCacheMb") ?: d.videoCacheMb,
             feedKeepMinutes = p.getInt("feedKeepMinutes") ?: d.feedKeepMinutes,
+            refreshFeedOnOpen = b("refreshFeedOnOpen", d.refreshFeedOnOpen),
             hiddenPostDays = p.getInt("hiddenPostDays") ?: d.hiddenPostDays,
             textScale = p.getDouble("textScale") ?: d.textScale,
             titleTextScale = (p.getDouble("titleTextScale") ?: d.titleTextScale).coerceIn(0.8, 1.6),
@@ -310,6 +311,7 @@ class SettingsStore(private val p: Prefs) {
     fun setImageCacheMb(v: Int) { p.setInt("imageCacheMb", v); set { it.copy(imageCacheMb = v) } }
     fun setVideoCacheMb(v: Int) { p.setInt("videoCacheMb", v); set { it.copy(videoCacheMb = v) } }
     fun setFeedKeepMinutes(v: Int) { p.setInt("feedKeepMinutes", v); set { it.copy(feedKeepMinutes = v) } }
+    fun setRefreshFeedOnOpen(v: Boolean) { p.setBool("refreshFeedOnOpen", v); set { it.copy(refreshFeedOnOpen = v) } }
     fun setHiddenPostDays(v: Int) { p.setInt("hiddenPostDays", v); set { it.copy(hiddenPostDays = v) } }
     fun setTextScale(v: Double) { p.setDouble("textScale", v); set { it.copy(textScale = v) } }
     fun setTitleTextScale(v: Double) { p.setDouble("titleTextScale", v); set { it.copy(titleTextScale = v) } }

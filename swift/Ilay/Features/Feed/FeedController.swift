@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import Observation
 
 struct FeedState: Equatable {
@@ -128,6 +129,7 @@ private let restoredPage = "restored"
         let own = app.settings.value.subredditSorts[key.lowercased()]
         sort = own?.sort ?? app.settings.value.defaultSort
         time = own?.time ?? .day
+        if key.isEmpty { AppAway.watch() }
     }
 
     /// First use: builds the feed (Riverpod builds a provider on first watch).
@@ -163,7 +165,8 @@ private let restoredPage = "restored"
         let token = buildToken
         buildJob = Task { [self] in
             let savedAt = try? await (redditHome ? engines?.homeCachedFirstPageTime() : engines?.forYouCachedFirstPageTime())
-            let fresh = (savedAt ?? nil).map { nowMillis() - $0 < keepMillis } == true
+            // "Refresh feed on open" (#312): a new feed, painted from the saved page first (build).
+            let fresh = !app.settings.value.refreshFeedOnOpen && (savedAt ?? nil).map { nowMillis() - $0 < keepMillis } == true
             let page = fresh ? await cachedFirstPage() : nil
             guard token == buildToken else { return }
             isBuilding = false
@@ -184,7 +187,7 @@ private let restoredPage = "restored"
     /// fresh launch. Pull-to-refresh is the way to replace it sooner.
     func refreshIfExpired() {
         if isBuilding || current == nil { return }
-        if nowMillis() - lastLoaded < keepMillis { return }
+        if nowMillis() - lastLoaded < keepMillis, !AppAway.backAfter(lastLoaded) { return }
         rebuild(showLoading: deckMode)
     }
 
@@ -473,5 +476,32 @@ private let restoredPage = "restored"
                 ui = .data(latest)
             }
         }
+    }
+}
+
+/// When Ilay was last sent to the background, for "Refresh feed on open" (#312): coming
+/// back after a minute or more loads a new frontpage. Returning from a post isn't coming
+/// back, and neither is a quick look at another app.
+@MainActor enum AppAway {
+    private static let away = 60_000
+    private static var since = 0
+    private static var back = 0
+    private static var observers: [NSObjectProtocol] = []
+
+    /// Starts watching (before the app first leaves).
+    static func watch() {
+        guard observers.isEmpty else { return }
+        let center = NotificationCenter.default
+        observers.append(center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { since = nowMillis() }
+        })
+        observers.append(center.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { back = nowMillis() }
+        })
+    }
+
+    /// Back in the app, with the setting on, after leaving it since `loadedAt` for a minute or more.
+    static func backAfter(_ loadedAt: Int) -> Bool {
+        app.settings.value.refreshFeedOnOpen && since > loadedAt && back - since >= away
     }
 }
