@@ -47,6 +47,21 @@ class Release(val version: String, val date: String, val highlights: List<String
  */
 val CHANGELOG = listOf(
     Release(
+        "2.0.124", "Nov 28, 2026",
+        listOf(
+            "Inbox redesign: rows grouped by day with the subreddit's and the replier's pictures; Messages shows one row per person with a count of new ones, and opening a person shows all your messages with them in one chat (#315)",
+            "Favorites on Home: Settings › Feed › Favorites on Home adds a row of your favorite custom feeds and communities under Home's chips; tap one to show it right there, tap your feed (or Back) to return (#311)",
+            "Long-press Ilay's icon: Home and the 3 communities you open most (#317)",
+            "A reply that's just a GIF or a picture shows a GIF or Image icon in the inbox instead of its link (#313), and inbox titles show emoji instead of HTML codes",
+            "Settings › Feed › Refresh feed on open: coming back to Ilay after a minute or more loads new posts (#312)",
+            "Redgifs clips in the feed play with sound (#310)",
+            "AI translation and summaries wait and retry when the service says too many requests, and cope with odd replies, so one comment no longer fails a whole thread (#308)",
+            "Profile banner fills the space under the status bar (#305); plain buttons when there's no banner (#307)",
+            "Profile search: tighter user tag, no \"From\", follows \"r/ and u/ before names\" (#314)",
+            "Inside a post: the poster's picture (with that setting on) and the round join button (#306); custom avatars get a solid background (#316)",
+        ),
+    ),
+    Release(
         "2.0.123", "Nov 27, 2026",
         listOf(
             "Updates install inside the app: Update downloads the release for your phone and Android asks to install it. The first time, Android asks you to allow Ilay to install apps. Settings › About › Install updates in the app; off: download it in your browser as before",
