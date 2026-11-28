@@ -31,6 +31,7 @@ struct RouteView: View {
             SearchScreen(subreddit: subreddit, query: query, sort: sort, time: time).modifier(SearchZoom())
         case let .submit(subreddit): SubmitScreen(subreddit: subreddit)
         case let .messageThread(fullname): MessageThreadScreen(fullname: fullname)
+        case let .conversation(key): ConversationScreen(key: key)
         case let .composeMessage(to): ComposeMessageScreen(to: to)
         case let .subreddit(name): SubredditScreen(name: name)
         case .frontpage: FrontpageScreen()

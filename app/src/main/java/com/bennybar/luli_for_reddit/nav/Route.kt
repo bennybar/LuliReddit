@@ -37,6 +37,8 @@ sealed interface Route {
     @Serializable data class Submit(val subreddit: String? = null) : Route
     /** A private-message thread; the root InboxItem is in [NavCache] under [fullname]. */
     @Serializable data class MessageThread(val fullname: String) : Route
+    /** Every loaded message with one person (#315), by their Correspondent key. */
+    @Serializable data class Conversation(val key: String) : Route
     @Serializable data class ComposeMessage(val to: String? = null) : Route
     @Serializable data class Subreddit(val name: String) : Route
     /** The frontpage as a pushed page (Explore's All button, with the Posts tab on r/all). */

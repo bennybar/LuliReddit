@@ -15,6 +15,8 @@ struct InboxItem: Identifiable, Equatable, Sendable, Copyable {
     var subreddit: String? = nil
     var dest: String? = nil
     var replies: [InboxItem] = []
+    /// The author's account id (t2_…), for their picture (#315).
+    var authorFullname: String? = nil
 
     var id: String { fullname }
     var isMessage: Bool { kind == .message }
@@ -52,7 +54,8 @@ struct InboxItem: Identifiable, Equatable, Sendable, Copyable {
                 isNew: d["new"].isTrue(),
                 subreddit: d["subreddit"].str(),
                 dest: d["dest"].str(),
-                replies: d["replies"]["data"]["children"].arr()?.map { fromChild($0) } ?? []
+                replies: d["replies"]["data"]["children"].arr()?.map { fromChild($0) } ?? [],
+                authorFullname: d["author_fullname"].str()
             )
         }
 
@@ -72,7 +75,8 @@ struct InboxItem: Identifiable, Equatable, Sendable, Copyable {
             isNew: d["new"].isTrue(),
             context: d["context"].str(),
             linkTitle: d["link_title"].str()?.trimmed,
-            subreddit: d["subreddit"].str()
+            subreddit: d["subreddit"].str(),
+            authorFullname: d["author_fullname"].str()
         )
     }
 }

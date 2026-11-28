@@ -217,57 +217,60 @@ private struct InboxList: View {
     var body: some View {
         let state = app.inbox.tab(place)
         let items = items
+        let me = app.session.username
+        // Messages: one row per person (#315); the rest under Today and Earlier.
+        let people = place == "messages" ? conversations(items, me: me) : []
+        let days = place == "messages" ? [] : byDay(items, now: nowMillis())
+        let ids = place == "messages" ? people.map { "with_\($0.with.key)" } : items.map(\.fullname)
         ScrollViewReader { proxy in
         List {
             if state.loading && state.items.isEmpty {
-                Loading().frame(maxWidth: .infinity).listRowSeparator(.hidden)
+                Loading().frame(maxWidth: .infinity).listRowBackground(Color.clear)
             } else if let error = state.error {
                 // A failed (re)load shows the error even over loaded items, as in
                 // Flutter (its AsyncError replaced the list); pull or Retry.
                 ErrorView(message: "Could not load inbox.\n\(friendlyError(error))", onRetry: { app.inbox.refresh(place) })
-                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
             } else if items.isEmpty {
                 ContentUnavailableView("Nothing here", systemImage: "tray")
-                    .listRowSeparator(.hidden)
-            } else {
-                ForEach(items) { item in
-                    Button { open(item) } label: { InboxRow(item: item) }
-                        .buttonStyle(.plain)
-                        // Unread: the row tinted too, not just its dot (#120).
-                        .listRowBackground(item.isNew ? Color.accentColor.opacity(0.12) : nil)
-                        // Messages: swipe right = read/unread, swipe left = delete.
-                        // Comment replies/mentions: read/unread only (they can't be deleted).
-                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                            Button(item.isNew ? "Mark read" : "Mark unread", systemImage: item.isNew ? "envelope.open" : "envelope.badge") {
-                                if item.isNew { app.inbox.markRead(item.fullname) } else { app.inbox.markUnread(item.fullname) }
-                            }
-                            .tint(.green)
-                        }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            if item.isMessage {
-                                // Deleting can't be undone, so the swipe asks first. (Not
-                                // role: .destructive, which slides the row away before the answer.)
-                                Button("Delete", systemImage: "trash") {
-                                    Task { if await confirmDelete("message") { app.inbox.deleteMessage(item.fullname) } }
+                    .listRowBackground(Color.clear)
+            } else if place == "messages" {
+                Section {
+                    ForEach(people, id: \.with.key) { p in
+                        Button { nav.push(.conversation(key: p.with.key)) } label: { ConversationRow(p: p, me: me) }
+                            .buttonStyle(.plain)
+                            .listRowBackground(p.unread > 0 ? Color.accentColor.opacity(0.12) : nil)
+                            // Swipe right: their new messages read.
+                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                if p.unread > 0 {
+                                    Button("Mark read", systemImage: "envelope.open") { app.inbox.markReadMany(unreadIn(p.threads, me: me)) }
+                                        .tint(.green)
                                 }
-                                .tint(.red)
                             }
-                        }
-                        // Load the next page as the end comes into view.
-                        .onAppear {
-                            visible.ids.insert(item.fullname)
-                            if items.suffix(4).contains(where: { $0.fullname == item.fullname }) { app.inbox.loadMore(place) }
-                        }
-                        .onDisappear { visible.ids.remove(item.fullname) }
+                            .id("with_\(p.with.key)")
+                            .onAppear {
+                                visible.ids.insert("with_\(p.with.key)")
+                                if people.suffix(4).contains(where: { $0.with.key == p.with.key }) { app.inbox.loadMore(place) }
+                            }
+                            .onDisappear { visible.ids.remove("with_\(p.with.key)") }
+                    }
                 }
-                if state.loadingMore {
-                    Loading().frame(maxWidth: .infinity).listRowSeparator(.hidden)
+            } else {
+                ForEach(days, id: \.day) { group in
+                    Section(group.day.label) {
+                        ForEach(group.items) { item in
+                            row(item, me: me, all: items)
+                        }
+                    }
                 }
             }
+            if state.loadingMore {
+                Loading().frame(maxWidth: .infinity).listRowBackground(Color.clear)
+            }
         }
-        .listStyle(.plain)
+        .listStyle(.insetGrouped)
         .contentMargins(.bottom, 80, for: .scrollContent)
-        .modifier(InboxScrolling(topId: $topId, ids: items.map(\.fullname), visible: visible, proxy: proxy, fab: fab))
+        .modifier(InboxScrolling(topId: $topId, ids: ids, visible: visible, proxy: proxy, fab: fab))
         }
         .refreshable { await app.inbox.refreshAndWait(place) }
         .task(id: place) { app.inbox.ensureLoaded(place) }
@@ -278,6 +281,38 @@ private struct InboxList: View {
                 app.inbox.loadMore(place)
             }
         }
+    }
+
+    private func row(_ item: InboxItem, me: String, all items: [InboxItem]) -> some View {
+        Button { open(item) } label: { InboxRow(item: item, me: me) }
+            .buttonStyle(.plain)
+            // Unread: the row tinted too, not just its dot (#120).
+            .listRowBackground(item.isNew ? Color.accentColor.opacity(0.12) : nil)
+            // Messages: swipe right = read/unread, swipe left = delete.
+            // Comment replies/mentions: read/unread only (they can't be deleted).
+            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                Button(item.isNew ? "Mark read" : "Mark unread", systemImage: item.isNew ? "envelope.open" : "envelope.badge") {
+                    if item.isNew { app.inbox.markRead(item.fullname) } else { app.inbox.markUnread(item.fullname) }
+                }
+                .tint(.green)
+            }
+            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                if item.isMessage {
+                    // Deleting can't be undone, so the swipe asks first. (Not
+                    // role: .destructive, which slides the row away before the answer.)
+                    Button("Delete", systemImage: "trash") {
+                        Task { if await confirmDelete("message") { app.inbox.deleteMessage(item.fullname) } }
+                    }
+                    .tint(.red)
+                }
+            }
+            .id(item.fullname)
+            // Load the next page as the end comes into view.
+            .onAppear {
+                visible.ids.insert(item.fullname)
+                if items.suffix(4).contains(where: { $0.fullname == item.fullname }) { app.inbox.loadMore(place) }
+            }
+            .onDisappear { visible.ids.remove(item.fullname) }
     }
 
     private func open(_ item: InboxItem) {
@@ -351,47 +386,120 @@ struct InboxSnippet: Equatable {
     }
 }
 
+/// One reply, mention or message (#315): who and where in one line, the title, a line of
+/// the text. A reply or mention shows the subreddit's picture with its author's on the
+/// corner; a message, its sender's.
 private struct InboxRow: View {
     let item: InboxItem
+    let me: String
 
     var body: some View {
-        let (icon, label) = switch item.kind {
-        case .message: ("envelope", "Message")
-        case .commentReply: ("arrowshape.turn.up.left", "Comment reply")
-        case .postReply: ("bubble.left.and.bubble.right", "Post reply")
-        case .mention: ("at", "Mention")
-        }
-        let heading = item.isMessage ? item.subject.nilIfEmpty ?? "(no subject)" : item.linkTitle ?? label
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Image(systemName: icon).font(.caption.weight(.semibold)).foregroundStyle(.tint)
-                Text(label).font(.caption.weight(.semibold)).foregroundStyle(.tint)
-                Text("\(userName(item.author)) · \(timeAgo(item.createdUtc))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-                if item.isNew {
-                    Circle().fill(.tint).frame(width: 9, height: 9).accessibilityLabel("Unread")
+        let mine = isMine(item, me: me)
+        // Yours (Sent): the person or subreddit it went to.
+        let toSub = mine && item.dest?.hasPrefix("#") == true
+        let who = mine ? (item.dest?.removePrefix("#") ?? item.author) : item.author
+        let action: String =
+            mine ? "You wrote to \(toSub ? subredditName(who) : userName(who))"
+            : item.kind == .commentReply ? "replied" + (item.subreddit.map { " · \(subredditName($0))" } ?? "")
+            : item.kind == .postReply ? "replied to your post"
+            : item.kind == .mention ? "mentioned you"
+            : item.subreddit.map { "messaged you · \(subredditName($0))" } ?? "messaged you"
+        let title = item.isMessage ? (item.subject.nilIfEmpty ?? "(no subject)") : (item.linkTitle ?? "")
+        let icons = app.authorAvatars.icons
+        HStack(alignment: .top, spacing: 12) {
+            ZStack(alignment: .bottomTrailing) {
+                if let sub = item.subreddit, !item.isMessage {
+                    LetterAvatar(name: sub, size: 40, imageUrl: SubredditIcons.shared.icon(sub))
+                        .frame(width: 44, height: 44, alignment: .topLeading)
+                    LetterAvatar(name: item.author, size: 22, imageUrl: icons[item.author.lowercased()])
+                        .overlay(Circle().stroke(Color(.secondarySystemGroupedBackground), lineWidth: 2))
+                } else {
+                    LetterAvatar(name: who, size: 40, imageUrl: mine ? nil : icons[item.author.lowercased()])
+                        .frame(width: 44, height: 44)
                 }
             }
-            Text(heading).font(.body.weight(.semibold)).lineLimit(1)
-            let snippet = InboxSnippet(item.body)
-            if let media = snippet.media {
-                // A reply that's only a GIF or a picture: its icon and the word, not the link (#313).
-                Label(media.label, systemImage: media == .gif ? "play.square" : "photo")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            } else {
-                Text(snippet.text)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+            .frame(width: 44, height: 44)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    (mine ? Text(action) : Text(userName(item.author)).fontWeight(.semibold).foregroundStyle(.primary) + Text(" \(action)"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    Text(timeAgo(item.createdUtc)).font(.caption).foregroundStyle(.secondary)
+                }
+                if !title.isEmpty {
+                    Text(title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                }
+                let snippet = InboxSnippet(item.body)
+                if let media = snippet.media {
+                    // A reply that's only a GIF or a picture: its icon and the word, not the link (#313).
+                    Label(media.label, systemImage: media == .gif ? "play.square" : "photo")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text(snippet.text).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            if item.isNew {
+                Circle().fill(.tint).frame(width: 9, height: 9).padding(.top, 4).accessibilityLabel("Unread")
             }
         }
         .padding(.vertical, 2)
         .contentShape(.rect)
-        .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+        .task(id: item.fullname) { if !mine { app.authorAvatars.want(item.author, id: item.authorFullname) } }
+    }
+}
+
+/// One person's messages in the Messages list (#315): their newest, and how many are new.
+private struct ConversationRow: View {
+    let p: Conversation
+    let me: String
+
+    var body: some View {
+        let last = p.latest
+        let preview = (isMine(last, me: me) ? "You: " : "") + inboxPreview(last.body)
+        HStack(spacing: 12) {
+            if p.with.isSubreddit {
+                Image(systemName: "shield")
+                    .font(.title3)
+                    .foregroundStyle(.tint)
+                    .frame(width: 48, height: 48)
+                    .background(Color.accentColor.opacity(0.15), in: .circle)
+            } else {
+                LetterAvatar(name: p.with.name, size: 48, imageUrl: app.authorAvatars.icons[p.with.name.lowercased()])
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                HStack {
+                    Text(p.with.isSubreddit ? subredditName(p.with.name) : userName(p.with.name))
+                        .font(.body.weight(.bold))
+                        .lineLimit(1)
+                    Spacer(minLength: 8)
+                    Text(timeAgo(last.createdUtc))
+                        .font(.caption.weight(p.unread > 0 ? .semibold : .regular))
+                        .foregroundStyle(p.unread > 0 ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                }
+                HStack {
+                    Text(preview)
+                        .font(.subheadline)
+                        .foregroundStyle(p.unread > 0 ? .primary : .secondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 8)
+                    if p.unread > 0 {
+                        Text(p.unread > 99 ? "99+" : "\(p.unread)")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .frame(minWidth: 22, minHeight: 22)
+                            .background(.tint, in: .capsule)
+                            .accessibilityLabel("\(p.unread) new")
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 2)
+        .contentShape(.rect)
+        .task(id: p.with.key) { if !p.with.isSubreddit { app.authorAvatars.want(p.with.name, id: p.accountId) } }
     }
 }
 

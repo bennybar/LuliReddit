@@ -200,6 +200,31 @@ final class InboxModule: UserScoped {
         if notifications, fullname.hasPrefix("t1_") { c.redditNotifications.markReadOnReddit(fullname.removePrefix("t1_")) }
     }
 
+    /// A conversation opened (#315): its unread messages, top-level or replies in a
+    /// thread, read here and on Reddit in one request.
+    func markReadMany(_ fullnames: [String]) {
+        if fullnames.isEmpty { return }
+        let ids = Set(fullnames)
+        for key in Array(states.keys) {
+            guard let items = states[key]?.items else { continue }
+            let changed = items.map { item -> InboxItem in
+                guard ids.contains(item.fullname) || item.replies.contains(where: { ids.contains($0.fullname) }) else { return item }
+                var copy = item
+                if ids.contains(item.fullname) { copy.isNew = false }
+                copy.replies = item.replies.map { r in
+                    var r = r
+                    if ids.contains(r.fullname) { r.isNew = false }
+                    return r
+                }
+                return copy
+            }
+            states[key]?.items = changed
+        }
+        Task {
+            if (try? await c.repository.markRead(fullnames.joined(separator: ","))) != nil { refreshUnread() }
+        }
+    }
+
     /// Optimistically marks one item unread locally and on the server.
     func markUnread(_ fullname: String) {
         if isNew(fullname) == true { return }

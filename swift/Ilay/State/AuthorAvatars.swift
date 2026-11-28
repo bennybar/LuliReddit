@@ -81,8 +81,13 @@ import Foundation
             if icons[post.author.lowercased()] != icon { add([post.author.lowercased(): icon]) }
             return
         }
-        let id = post.authorFullname
-        guard id.hasPrefix("t2_"), icons[post.author.lowercased()] == nil, askedIds.insert(id).inserted else { return }
+        want(post.author, id: post.authorFullname)
+    }
+
+    /// `author`'s picture (account id `id`), asked for with the others wanted about now: a
+    /// post card's poster, an Inbox row's sender (#315). Not with the website sign-in.
+    func want(_ author: String, id: String?) {
+        guard let id, id.hasPrefix("t2_"), icons[author.lowercased()] == nil, askedIds.insert(id).inserted else { return }
         pending.append(id)
         guard !flushing else { return }
         flushing = true
