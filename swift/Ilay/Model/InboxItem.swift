@@ -74,9 +74,38 @@ struct InboxItem: Identifiable, Equatable, Sendable, Copyable {
             createdUtc: created,
             isNew: d["new"].isTrue(),
             context: d["context"].str(),
-            linkTitle: d["link_title"].str()?.trimmed,
+            linkTitle: d["link_title"].str().map(decodeEntities)?.trimmed,
             subreddit: d["subreddit"].str(),
             authorFullname: d["author_fullname"].str()
         )
     }
 }
+
+/// Reddit sends an inbox item's `link_title` HTML-escaped even with raw_json, sometimes
+/// twice ("&amp;#128075;" for 👋), so it's decoded until nothing changes (at most 3 times).
+func decodeEntities(_ s: String) -> String {
+    var out = s
+    for _ in 0..<3 {
+        guard out.contains("&") else { return out }
+        let ns = out as NSString
+        var next = ""
+        var last = 0
+        for m in entityPattern.matches(in: out, range: NSRange(location: 0, length: ns.length)) {
+            next += ns.substring(with: NSRange(location: last, length: m.range.location - last))
+            let e = ns.substring(with: m.range(at: 1))
+            var rep: String?
+            if e.lowercased().hasPrefix("#x") { rep = UInt32(e.dropFirst(2), radix: 16).flatMap(Unicode.Scalar.init).map { String(Character($0)) } }
+            else if e.hasPrefix("#") { rep = UInt32(e.dropFirst()).flatMap(Unicode.Scalar.init).map { String(Character($0)) } }
+            else { rep = namedEntities[e] }
+            next += rep ?? ns.substring(with: m.range)
+            last = m.range.location + m.range.length
+        }
+        next += ns.substring(from: last)
+        if next == out { return out }
+        out = next
+    }
+    return out
+}
+
+private let entityPattern = try! NSRegularExpression(pattern: "&(#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|amp|lt|gt|quot|apos|nbsp);")
+private let namedEntities = ["amp": "&", "lt": "<", "gt": ">", "quot": "\"", "apos": "'", "nbsp": "\u{00A0}"]

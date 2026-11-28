@@ -82,10 +82,35 @@ data class InboxItem(
                 createdUtc = created,
                 isNew = d["new"].isTrue(),
                 context = d["context"].str(),
-                linkTitle = d["link_title"].str()?.trim(),
+                linkTitle = d["link_title"].str()?.let(::decodeEntities)?.trim(),
                 subreddit = d["subreddit"].str(),
                 authorFullname = d["author_fullname"].str(),
             )
         }
     }
 }
+
+/**
+ * Reddit sends an inbox item's `link_title` HTML-escaped even with raw_json, sometimes
+ * twice ("&amp;#128075;" for 👋), so it's decoded until nothing changes (at most 3 times).
+ */
+internal fun decodeEntities(s: String): String {
+    var out = s
+    repeat(3) {
+        if (!out.contains('&')) return out
+        val next = ENTITY.replace(out) { m ->
+            val e = m.groupValues[1]
+            when {
+                e.startsWith("#x", ignoreCase = true) -> e.drop(2).toIntOrNull(16)?.let { String(Character.toChars(it)) }
+                e.startsWith("#") -> e.drop(1).toIntOrNull()?.let { String(Character.toChars(it)) }
+                else -> NAMED[e]
+            } ?: m.value
+        }
+        if (next == out) return out
+        out = next
+    }
+    return out
+}
+
+private val ENTITY = Regex("&(#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|amp|lt|gt|quot|apos|nbsp);")
+private val NAMED = mapOf("amp" to "&", "lt" to "<", "gt" to ">", "quot" to "\"", "apos" to "'", "nbsp" to "\u00A0")

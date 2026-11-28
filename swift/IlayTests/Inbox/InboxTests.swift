@@ -225,3 +225,14 @@ final class InboxSnippetTests: XCTestCase {
         XCTAssertNil(plain.media)
     }
 }
+
+/// Reddit sends inbox `link_title`s HTML-escaped, sometimes twice.
+final class InboxEntitiesTests: XCTestCase {
+    func testInboxTitlesAreDecoded() {
+        XCTAssertEqual(decodeEntities("Hi &amp;#128075;"), "Hi 👋")
+        XCTAssertEqual(decodeEntities("Tom &amp; Jerry &lt;3"), "Tom & Jerry <3")
+        XCTAssertEqual(decodeEntities("it&#39;s &quot;x&quot;"), "it's \"x\"")
+        XCTAssertEqual(decodeEntities("&#x1F600;"), "😀")
+        XCTAssertEqual(decodeEntities("R&D &copy &bogus;"), "R&D &copy &bogus;")
+    }
+}
