@@ -711,7 +711,7 @@ private struct FeedAvatar: View {
 /// The poster's profile picture on the community's icon, by the username line (#270).
 /// Asked for in one request with the other cards on screen; nothing until it's in, or
 /// when they have none. A ring in the card's colour sets it off the icon.
-private struct PosterBadge: View {
+struct PosterBadge: View {
     let post: Post
     let size: CGFloat
     let pixels: Int

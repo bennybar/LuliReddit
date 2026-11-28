@@ -31,4 +31,14 @@ class BannerSampleTest {
         assertEquals(800f, r.right, 0.01f)
         assertEquals(200f, r.bottom, 0.01f)
     }
+
+    @Test
+    fun aBannerNearTheBoxsShapeFillsItEvenWhenSmall() {
+        // 1080×420 px box (status bar and all). A small banner of about its shape fills it (#305).
+        assertEquals(false, needsWash(540, 200, 1080, 420))
+        // Reddit's desktop sliver: far from the box's shape and tiny, a wash with it sharp across.
+        assertEquals(true, needsWash(4000, 128, 1080, 420))
+        // Big enough to fill without blowing up: never a wash.
+        assertEquals(false, needsWash(1920, 640, 1080, 420))
+    }
 }

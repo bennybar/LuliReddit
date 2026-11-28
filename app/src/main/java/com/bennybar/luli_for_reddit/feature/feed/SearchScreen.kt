@@ -832,16 +832,18 @@ fun splitAuthorQuery(q: String): Pair<String?, String> {
     return m.groupValues[1] to rest
 }
 
-/** The "From u/name" tag at the start of the search field, × to search everyone again (#271). */
+/**
+ * The "u/name" tag at the start of the search field, × to search everyone again (#271):
+ * right after ←, its name as the "r/ and u/" setting shows names (#314).
+ */
 @Composable
 private fun AuthorChip(name: String, onRemove: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Spacer(Modifier.width(14.dp))
         Surface(shape = CircleShape, color = cs.primaryContainer) {
             Row(Modifier.padding(start = 12.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "From u/$name", Modifier.widthIn(max = 160.dp), style = MaterialTheme.typography.labelLarge,
+                    subredditName("u/$name"), Modifier.widthIn(max = 160.dp), style = MaterialTheme.typography.labelLarge,
                     color = cs.onPrimaryContainer, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 IconButton(onClick = onRemove, Modifier.size(32.dp)) {

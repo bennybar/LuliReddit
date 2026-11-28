@@ -548,3 +548,14 @@ final class AvatarColorTests: XCTestCase {
         XCTAssertNotEqual(avatarColor("pics"), avatarColor("spez"))
     }
 }
+
+/// A small banner near its box's shape fills it, status bar and all (#305); Reddit's desktop
+/// sliver still becomes a wash with it sharp across (#294).
+final class BannerWashTests: XCTestCase {
+    func testABannerNearTheBoxsShapeFillsIt() {
+        let box = CGSize(width: 402, height: 196)
+        XCTAssertFalse(needsWash(image: CGSize(width: 540, height: 250), box: box, upscale: 2.4))
+        XCTAssertTrue(needsWash(image: CGSize(width: 4000, height: 128), box: box, upscale: 4.6))
+        XCTAssertFalse(needsWash(image: CGSize(width: 1920, height: 640), box: box, upscale: 0.9))
+    }
+}

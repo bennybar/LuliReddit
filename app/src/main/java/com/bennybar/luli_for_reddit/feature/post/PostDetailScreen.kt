@@ -1,5 +1,16 @@
 package com.bennybar.luli_for_reddit.feature.post
 
+import androidx.compose.material3.FilledTonalIconToggleButton
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.material.icons.rounded.Add
+import com.bennybar.luli_for_reddit.feature.feed.JOIN
+import com.bennybar.luli_for_reddit.feature.feed.PosterBadge
+import androidx.compose.foundation.layout.offset
 import com.bennybar.luli_for_reddit.ui.theme.corner
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.graphics.CompositingStrategy
@@ -1389,14 +1400,20 @@ private fun CalmPostHeader(
 
     Column(Modifier.fillMaxWidth().then(glow).padding(start = 20.dp, top = 4.dp, end = 20.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            LetterAvatar(
-                p.subreddit,
-                size = 40.dp,
-                container = cs.secondaryContainer,
-                content = cs.onSecondaryContainer,
-                imageUrl = about?.iconUrl,
-                modifier = Modifier.clickable { nav.openSubreddit(p.subreddit) },
-            )
+            Box {
+                LetterAvatar(
+                    p.subreddit,
+                    size = 40.dp,
+                    container = cs.secondaryContainer,
+                    content = cs.onSecondaryContainer,
+                    imageUrl = about?.iconUrl,
+                    modifier = Modifier.clickable { nav.openSubreddit(p.subreddit) },
+                )
+                // The poster's picture on the community's, as on the cards (#306).
+                if (app.settings.value.postAvatars) {
+                    PosterBadge(p, 18.dp, cs.surface, Modifier.align(Alignment.BottomEnd).offset(3.dp, 3.dp))
+                }
+            }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
@@ -1424,27 +1441,28 @@ private fun CalmPostHeader(
             }
             if (signedIn && joined != null) {
                 Spacer(Modifier.width(8.dp))
-                Box(
-                    Modifier
-                        .height(32.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(cs.secondaryContainer)
-                        .clickable {
-                            val next = !joined
-                            joinedOverride = next
-                            app.scope.launch {
-                                try {
-                                    app.repository.setSubscribed(p.subreddit, next)
-                                } catch (e: Exception) {
-                                    joinedOverride = !next
-                                    nav.showActionError(if (next) "join" else "leave", e)
-                                }
+                // + to join, ✓ to leave, as on the community page (#277, #306).
+                val label = subredditName(p.subredditPrefixed.ifEmpty { "r/${p.subreddit}" })
+                FilledTonalIconToggleButton(
+                    checked = joined,
+                    onCheckedChange = { next ->
+                        joinedOverride = next
+                        app.scope.launch {
+                            try {
+                                app.repository.setSubscribed(p.subreddit, next)
+                            } catch (e: Exception) {
+                                joinedOverride = !next
+                                nav.showActionError(if (next) "join" else "leave", e)
                             }
                         }
-                        .padding(horizontal = 14.dp),
-                    contentAlignment = Alignment.Center,
+                    },
+                    modifier = Modifier.size(JOIN).semantics { contentDescription = if (joined) "Leave $label" else "Join $label" },
                 ) {
-                    Text(if (joined) "Joined" else "Join", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = cs.onSecondaryContainer)
+                    AnimatedContent(
+                        joined,
+                        transitionSpec = { (scaleIn(initialScale = 0.5f) + fadeIn()) togetherWith (scaleOut(targetScale = 0.5f) + fadeOut()) },
+                        label = "join",
+                    ) { j -> Icon(if (j) Icons.Rounded.Check else Icons.Rounded.Add, null) }
                 }
             }
         }

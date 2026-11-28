@@ -39,6 +39,7 @@ struct PostHeaderView: View {
 
     @Environment(\.voteColors) private var votes
     @Environment(\.layoutDirection) private var direction
+    @Environment(\.displayScale) private var displayScale
     private var nav: AppNavigator { app.navigator }
 
     var body: some View {
@@ -133,6 +134,13 @@ struct PostHeaderView: View {
                 nav.openSubreddit(post.subreddit)
             } label: {
                 LetterAvatar(name: post.subreddit, size: 40, imageUrl: model.about?.iconUrl ?? post.subredditIcon)
+                    // The poster's picture on the community's, as on the cards (#306).
+                    .overlay(alignment: .bottomTrailing) {
+                        if app.settings.value.postAvatars {
+                            PosterBadge(post: post, size: 18, pixels: Int(18 * displayScale), ring: Color(.systemBackground))
+                                .offset(x: 3, y: 3)
+                        }
+                    }
             }
             .buttonStyle(.plain)
             .accessibilityLabel(post.subredditPrefixed)
@@ -166,7 +174,9 @@ struct PostHeaderView: View {
     @ViewBuilder private var joinButton: some View {
         let joined = model.joinedOverride ?? model.about?.userIsSubscriber
         if !app.session.username.isEmpty, let joined {
-            Button(joined ? "Joined" : "Join") {
+            // + to join, ✓ to leave, as on the community page (#277, #306).
+            let label = subredditName(post.subredditPrefixed.nilIfEmpty ?? "r/\(post.subreddit)")
+            Button {
                 let next = !joined
                 model.joinedOverride = next
                 Task {
@@ -177,12 +187,17 @@ struct PostHeaderView: View {
                         nav.showActionError(next ? "join" : "leave", error)
                     }
                 }
+            } label: {
+                Image(systemName: joined ? "checkmark" : "plus")
+                    .font(.body.weight(.semibold))
+                    .contentTransition(.symbolEffect(.replace))
+                    .frame(width: 40, height: 40)
+                    .foregroundStyle(joined ? Color.secondary : Color.white)
+                    .background(joined ? AnyShapeStyle(Color(.tertiarySystemFill)) : AnyShapeStyle(IlayTheme.accent), in: .circle)
             }
-            .font(.footnote.weight(.medium))
-            .buttonStyle(.bordered)
-            .buttonBorderShape(.capsule)
-            .controlSize(.small)
-            .tint(joined ? .secondary : .accentColor)
+            .buttonStyle(.plain)
+            .accessibilityLabel(joined ? "Leave \(label)" : "Join \(label)")
+            .accessibilityAddTraits(joined ? .isSelected : [])
         }
     }
 

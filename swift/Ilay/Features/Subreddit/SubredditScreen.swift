@@ -671,7 +671,7 @@ struct BannerImage: View {
     var body: some View {
         GeometryReader { geo in
             if let image {
-                let soft = geo.size.height * displayScale > image.size.height * image.scale * 1.5
+                let soft = needsWash(image: image.size, box: geo.size, upscale: geo.size.height * displayScale / (image.size.height * image.scale))
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
@@ -701,6 +701,17 @@ struct BannerImage: View {
             withAnimation(.easeOut(duration: 0.25)) { image = loaded }
         }
     }
+}
+
+/// Whether a banner shows as a soft wash with it sharp across (#294) rather than filling its
+/// box: only when filling would blow it up more than 1.5× ([upscale]) AND its shape is far
+/// from the box's. One near the box's shape fills it, status bar and all (#305): fitted,
+/// it left the wash showing under the status bar.
+func needsWash(image: CGSize, box: CGSize, upscale: CGFloat) -> Bool {
+    guard image.width > 0, image.height > 0 else { return false }
+    let fill = max(box.width / image.width, box.height / image.height)
+    let fit = min(box.width / image.width, box.height / image.height)
+    return upscale > 1.5 && fill / fit > 1.35
 }
 
 extension View {

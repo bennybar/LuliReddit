@@ -1436,10 +1436,11 @@ private fun CalmButtonGroup(buttons: List<CalmButton>) {
 /**
  * The poster's profile picture on the community's icon, by the username line (#270).
  * Asked for in one request with the other cards on screen; nothing until it's in, or
- * when they have none. A ring in the card's colour sets it off the icon.
+ * when they have none. A ring in the card's colour sets it off the icon, and fills it: a
+ * custom avatar's transparent background let the community's icon show through (#316).
  */
 @Composable
-private fun PosterBadge(p: Post, size: androidx.compose.ui.unit.Dp, ring: Color, modifier: Modifier) {
+internal fun PosterBadge(p: Post, size: androidx.compose.ui.unit.Dp, ring: Color, modifier: Modifier) {
     LaunchedEffect(p.authorFullname, p.authorIcon) { app.authorAvatars.wantPoster(p) }
     val icons by app.authorAvatars.icons.collectAsState()
     val url = icons[p.author.lowercase()] ?: return
@@ -1448,6 +1449,7 @@ private fun PosterBadge(p: Post, size: androidx.compose.ui.unit.Dp, ring: Color,
         null,
         modifier
             .size(size)
+            .background(ring, CircleShape)
             .border(1.5.dp, ring, CircleShape)
             .padding(1.5.dp)
             .clip(CircleShape),

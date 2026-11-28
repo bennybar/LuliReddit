@@ -491,7 +491,7 @@ internal fun BannerHeaderBar(
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize().then(if (soft) Modifier.blur(30.dp) else Modifier),
                         onSuccess = { s ->
-                            soft = bannerPx > s.result.image.height * 1.5f
+                            soft = needsWash(s.result.image.width, s.result.image.height, boxW, bannerPx)
                             scope.launch { imageLight = isLight(s.result.image.toBitmap(), boxW, bannerPx, barPx / bannerPx) }
                         },
                     )
@@ -613,9 +613,10 @@ internal fun BannerHeaderBar(
             }
         }
         // The bar's row, over the banner: blurred, lightly tinted circles keep the buttons readable on any picture.
+        // Without a banner they're plain buttons, as on every other page (#307).
         CompositionLocalProvider(LocalContentColor provides onBanner) {
             Row(Modifier.padding(start = 4.dp, top = top + BAR_ROW_TOP, end = 4.dp).height(48.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                val tint = if (centered) cs.surfaceContainerHigh.copy(alpha = 1f - p)
+                val tint = if (centered) Color.Transparent
                 else (if (light) Color.White.copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.25f)).let { it.copy(alpha = it.alpha * (1f - p)) }
                 fun back(i: Int) = Modifier
                     .onGloballyPositioned { c -> root?.takeIf { it.isAttached }?.let { r -> holes[i] = r.localBoundingBoxOf(c) } }
@@ -626,6 +627,19 @@ internal fun BannerHeaderBar(
             }
         }
     }
+}
+
+/**
+ * Whether a [w]×[h] banner shows as a soft wash with the picture sharp across it (#294)
+ * rather than filling its [boxW]×[boxH] box: only when filling would blow it up more than
+ * 1.5× AND its shape is far from the box's. One near the box's shape fills it, status bar
+ * and all, as a community's does (#305): fitted, it left the wash showing under the status bar.
+ */
+internal fun needsWash(w: Int, h: Int, boxW: Int, boxH: Int): Boolean {
+    if (w <= 0 || h <= 0) return false
+    val fill = maxOf(boxW.toFloat() / w, boxH.toFloat() / h)
+    val fit = minOf(boxW.toFloat() / w, boxH.toFloat() / h)
+    return boxH > h * 1.5f && fill / fit > 1.35f
 }
 
 /**

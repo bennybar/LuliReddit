@@ -285,7 +285,7 @@ struct SearchScreen: View {
         }
     }
 
-    /// The bar's field: ←, the "From u/" tag (tap to remove), your words, ✕ and, once
+    /// The bar's field: ←, the "u/name" tag (tap to remove), your words, ✕ and, once
     /// searched, the bookmark to save the search.
     private func field(isSaved: Bool, current: SavedSearch) -> some View {
         HStack(spacing: 4) {
@@ -300,10 +300,9 @@ struct SearchScreen: View {
                 .opacity(grown ? 1 : 0)
             if let token = authorTokens.first {
                 Button { authorTokens = [] } label: {
-                    Label("From u/\(token.name)", systemImage: "person")
+                    // Just the name, as the "r/ and u/" setting shows names (#314).
+                    Text(subredditName("u/\(token.name)"))
                         .font(.subheadline)
-                        // Its words too (a bar shows a label's icon alone).
-                        .labelStyle(.titleAndIcon)
                         .lineLimit(1)
                         .fixedSize()
                         .padding(.horizontal, 8)
