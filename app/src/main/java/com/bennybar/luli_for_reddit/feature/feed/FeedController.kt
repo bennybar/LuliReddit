@@ -447,6 +447,16 @@ class FeedController(val key: String) {
         rebuild(showLoading = false)
     }
 
+    /**
+     * "Refresh feed on open" (#312) for a favorite shown on Home (#311): back in the app
+     * after a minute or more, it loads anew as Home would. True when it did.
+     */
+    fun reloadIfBack(): Boolean {
+        if (isBuilding || current == null || !AppAway.backAfter(lastLoaded)) return false
+        rebuild(showLoading = false)
+        return true
+    }
+
     fun refreshIfStale(maxAgeMillis: Long = 5 * 60_000L) {
         if (isBuilding) return
         val cur = current ?: return

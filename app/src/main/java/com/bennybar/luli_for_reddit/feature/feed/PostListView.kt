@@ -180,6 +180,8 @@ fun PostListView(
     postsTab: Boolean = false,
     /** Bumped to take the posts you've read off the list, with Undo (the Hide read posts floating button, #99). */
     hideReadRequests: Int = 0,
+    /** A second row under the chips, in the list and floating (Home's favorites, #311); given the chips' outline. */
+    feedRow: (@Composable (Float) -> Unit)? = null,
 ) {
     val controller = rememberFeedController(feedKey)
     val ui by controller.ui.collectAsStateWithLifecycle()
@@ -203,7 +205,7 @@ fun PostListView(
     var digestView: DigestView? = null
     val chipsState = rememberLazyListState()
     val floatingChipsState = rememberLazyListState()
-    val chipsIn: @Composable (LazyListState, Float) -> Unit = { state, outline ->
+    val chipsIn: @Composable (LazyListState, Float) -> Unit = { state, outline -> Column {
         FeedChips(
             outline = outline,
             sort = controller.sort,
@@ -220,7 +222,8 @@ fun PostListView(
             digest = showDigest,
             onDigest = if (digestChip) ({ on: Boolean -> app.digest.onPosts.value = on }) else null,
         )
-    }
+        feedRow?.invoke(outline)
+    } }
     // Under a fixed top bar (subreddits, custom feeds, #86) the floating row
     // follows the finger on its own, as Home's does with its bar: out as you
     // scroll down, back in as you scroll up. Home passes its own place for it.
@@ -349,6 +352,8 @@ fun PostListView(
                 if (!isFrontpage) controller.reloadIfOld()
             }
             isFrontpage -> controller.refreshIfExpired()
+            // A favorite shown on Home (#311) follows Home's "Refresh feed on open".
+            postsTab && controller.reloadIfBack() -> Unit
             else -> controller.refreshIfStale()
         }
     }
@@ -528,8 +533,10 @@ private fun FeedList(
 ) {
     val homeStatus = if (homeMode) app.forYou.redditHome.status.collectAsStateWithLifecycle().value else null
     val dismissible = feedKey.isEmpty() && deckMode
-    // Home's hidden subreddits apply on the front page, and on the Posts tab when it shows r/all.
-    val frontpage = feedKey.isEmpty() || postsTab
+    // Home's hidden subreddits apply on the front page, and on the Posts tab when it shows r/all
+    // (not to a favorite shown there, #311).
+    val mainFeed = feedKey.isEmpty() || feedKey == app.settings.value.postsTabKey
+    val frontpage = feedKey.isEmpty() || (postsTab && mainFeed)
     val posts = rememberShownPosts(feedKey, state.posts)
     val hidden = state.posts.size - posts.size
 
@@ -560,7 +567,7 @@ private fun FeedList(
     val prefetched = remember { HashSet<String>() }
     val latestPosts by rememberUpdatedState(posts)
     // Posts only: the one-time Digest offer under the chips.
-    val offer = postsTab && com.bennybar.luli_for_reddit.feature.digest.rememberDigestOffer()
+    val offer = postsTab && mainFeed && com.bennybar.luli_for_reddit.feature.digest.rememberDigestOffer()
     val headerCount = (if (header != null) 2 else 1) + (if (offer) 1 else 0) // header + sort bar (+ the offer)
     // Back from Browse media (#103): the post it was on comes to the top.
     val firstPostRow by rememberUpdatedState(headerCount + if (homeStatus is HomeStatus.Saved || homeStatus is HomeStatus.FellBack) 1 else 0)

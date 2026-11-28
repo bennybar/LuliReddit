@@ -11,6 +11,8 @@ struct PostListView<Header: View>: View {
     var fabScroll: FabScroll? = nil
     /// Hosted by the Posts tab: its re-tap signal and Home's hidden subreddits apply.
     var postsTab = false
+    /// A second row under the chips (Home's favorites, #311).
+    var feedRow: FeedRow? = nil
 
     @Environment(\.scenePhase) private var scenePhase
     @State private var resumedOnce = false
@@ -22,10 +24,11 @@ struct PostListView<Header: View>: View {
         self.header = header
     }
 
-    init(feedKey: String, postsTab: Bool = false, fabScroll: FabScroll? = nil, optionalHeader: (() -> Header)?) {
+    init(feedKey: String, postsTab: Bool = false, fabScroll: FabScroll? = nil, feedRow: FeedRow? = nil, optionalHeader: (() -> Header)?) {
         self.feedKey = feedKey
         self.postsTab = postsTab
         self.fabScroll = fabScroll
+        self.feedRow = feedRow
         header = optionalHeader
     }
 
@@ -37,6 +40,8 @@ struct PostListView<Header: View>: View {
         let _ = controller.start()
         let s = app.settings.value
         let isFrontpage = feedKey.isEmpty
+        // The Posts tab's own feed (not a favorite shown there, #311): Home's hidden subreddits apply.
+        let homeFeed = isFrontpage || (postsTab && feedKey == s.postsTabKey)
         // With the Posts tab on r/all (Settings) the frontpage is a pushed page: plain, no For You / Blend / Home.
         let engines = s.postsTabAll ? nil : app.feed.engines
         let homeMode = isFrontpage && engines != nil && s.redditHomeAllowed && s.redditHomeFeed
@@ -49,7 +54,7 @@ struct PostListView<Header: View>: View {
             seen: s.autoHideReadForYou && !homeMode ? app.history.ids : nil,
             hiddenIds: app.hiddenPosts.ids,
             dismissedIds: dismissible ? app.dismissedPosts.ids : [],
-            hiddenSubs: isFrontpage || postsTab ? app.hiddenHomeSubs.ids : [],
+            hiddenSubs: homeFeed ? app.hiddenHomeSubs.ids : [],
             filters: app.contentFilters.value,
             viewing: feedKey.isEmpty || feedKey.hasPrefix("m::") ? nil : feedKey,
             crossposts: app.repository.crossposts.posts
@@ -60,7 +65,7 @@ struct PostListView<Header: View>: View {
             visibility: visibility,
             config: .current(),
             swipes: s.swipeActions ? (s.swipePostStart, s.swipePostEnd) : (.none, .none),
-            frontpage: isFrontpage || postsTab,
+            frontpage: homeFeed,
             dismissible: dismissible,
             deckMode: deckMode,
             homeMode: homeMode,
@@ -70,7 +75,8 @@ struct PostListView<Header: View>: View {
             markReadOnScroll: s.markReadOnScroll && s.trackHistory,
             scrollSignal: postsTab ? app.navigator.frontpageScrollSignal : 0,
             header: header.map { make in AnyView(make()) },
-            fabScroll: fabScroll
+            fabScroll: fabScroll,
+            feedRow: feedRow
         ))
         .ignoresSafeArea()
         .overlay(alignment: .top) {
@@ -100,7 +106,12 @@ struct PostListView<Header: View>: View {
     }
 
     private func resume(_ controller: FeedController) {
-        if feedKey.isEmpty { controller.refreshIfExpired() } else { controller.refreshIfStale() }
+        if feedKey.isEmpty {
+            controller.refreshIfExpired()
+        } else if !(postsTab && controller.reloadIfBack()) {
+            // (A favorite shown on Home, #311, follows Home's "Refresh feed on open".)
+            controller.refreshIfStale()
+        }
     }
 }
 
@@ -123,6 +134,13 @@ private struct NewPostsPill: View {
     }
 }
 
+/// A row under the chips (Home's favorites, #311): `id` changes whenever it must be laid
+/// out again (it's hosted with the chips, measured once).
+struct FeedRow {
+    let id: String
+    let make: (FeedChipsState) -> AnyView
+}
+
 /// Everything the collection needs from SwiftUI, for one update.
 struct PostListModel {
     let controller: FeedController
@@ -141,6 +159,7 @@ struct PostListModel {
     let scrollSignal: Int
     let header: AnyView?
     let fabScroll: FabScroll?
+    let feedRow: FeedRow?
 }
 
 private struct PostCollection: UIViewRepresentable {
@@ -236,6 +255,8 @@ private enum FeedItem: Hashable {
     private var chipsView: (UIView & UIContentView)?
     private let chipsState = FeedChipsState()
     private var chipsTracker = FloatingChipsTracker()
+    /// Where each feed shown here was left (Home's, and its favorites', #311).
+    private var offsets: [ObjectIdentifier: CGFloat] = [:]
     private let chipsEdge = UIScrollEdgeElementContainerInteraction()
     /// The loading deck was showing: the first cards of the next list are dealt in.
     private var dealArmed = false
@@ -392,6 +413,9 @@ private enum FeedItem: Hashable {
 
     func update(_ new: PostListModel) {
         let replacedController = model.controller !== new.controller
+        // Home's feed and a favorite shown in its place (#311) each keep their place.
+        if replacedController { offsets[ObjectIdentifier(model.controller)] = collectionView.contentOffset.y }
+        let rowChanged = new.feedRow?.id != model.feedRow?.id
         model = new
         let width = collectionView.bounds.width
         var config = new.config
@@ -434,7 +458,7 @@ private enum FeedItem: Hashable {
             accent = IlayTheme.accent
         }
         collectionView.backgroundColor = config.isCarded ? .systemGroupedBackground : .systemBackground
-        if styleChanged || replacedController || chipsView == nil { makeChips() }
+        if styleChanged || replacedController || rowChanged || chipsView == nil { makeChips() }
 
         if collectionView.window != nil || new.controller.browseMedia == nil {
             new.controller.browseMedia = { [weak self] in self?.openMediaBrowser() }
@@ -469,6 +493,14 @@ private enum FeedItem: Hashable {
 
         applySnapshot(reconfigure: reconfigure, reload: reload, wholesale: styleChanged || replacedController)
         if styleChanged { collectionView.collectionViewLayout.invalidateLayout() }
+        if replacedController {
+            let c = collectionView
+            let inset = c.adjustedContentInset
+            c.layoutIfNeeded()
+            let maxY = max(-inset.top, c.contentSize.height + inset.bottom - c.bounds.height)
+            c.contentOffset.y = min(max(offsets[ObjectIdentifier(new.controller)] ?? -inset.top, -inset.top), maxY)
+        }
+        if rowChanged { positionChips() }
 
         if new.scrollSignal != lastSignal {
             lastSignal = new.scrollSignal
@@ -577,12 +609,15 @@ private enum FeedItem: Hashable {
     // MARK: Chips
 
     private func makeChips() {
-        let (controller, state) = (model.controller, chipsState)
+        let (controller, state, row) = (model.controller, chipsState, model.feedRow)
         let typeRange = IlayTheme.typeRange(app.settings.value.textScale)
         let configuration = UIHostingConfiguration {
-            FeedChips(controller: controller, state: state)
-                .tint(accent)
-                .dynamicTypeSize(typeRange)
+            VStack(spacing: 0) {
+                FeedChips(controller: controller, state: state)
+                if let row { row.make(state) }
+            }
+            .tint(accent)
+            .dynamicTypeSize(typeRange)
         }
         .margins(.all, 0)
         .minSize(height: 0)

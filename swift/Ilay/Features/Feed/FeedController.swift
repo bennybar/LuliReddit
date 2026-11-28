@@ -402,6 +402,14 @@ private let restoredPage = "restored"
         rebuild(showLoading: false)
     }
 
+    /// "Refresh feed on open" (#312) for a favorite shown on Home (#311): back in the app
+    /// after a minute or more, it loads anew as Home would. True when it did.
+    @discardableResult func reloadIfBack() -> Bool {
+        if isBuilding || current == nil || !AppAway.backAfter(lastLoaded) { return false }
+        rebuild(showLoading: false)
+        return true
+    }
+
     /// When returning to a stale feed, quietly fetch the first page. If it has posts
     /// we're not already showing, stage them behind a "New posts" pill instead of
     /// yanking the list out from under the user.

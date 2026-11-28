@@ -1,6 +1,7 @@
 package com.bennybar.luli_for_reddit.feature.settings
 
 import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.MailOutline
@@ -526,6 +527,10 @@ fun SettingsList(
         switch(
             "\"New posts\" button", "Back on a feed that has newer posts, offer them with a button at the top. Off: pull down to refresh instead",
             Icons.Rounded.ArrowUpward, s.newPostsPill, ctrl::setNewPostsPill,
+        )
+        switch(
+            "Favorites on Home", "Your favorite communities and custom feeds as a row of chips on Home: tap one to show it there",
+            Icons.Rounded.Star, s.favoritesOnHome, ctrl::setFavoritesOnHome,
         )
         divider("feed")
 
