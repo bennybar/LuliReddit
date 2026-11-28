@@ -192,3 +192,36 @@ final class ShareLinkTests: XCTestCase {
         XCTAssertEqual(sharedLink(ShareViewController.shareUrl(link, summarize: false, scheme: "luli")!)?.summarize, false)
     }
 }
+
+/// A reply that's a GIF or a picture reads "GIF" / "Image" in the inbox, not its link (#313).
+final class InboxSnippetTests: XCTestCase {
+    func testAGifReplyReadsGif() {
+        let s = InboxSnippet("![gif](giphy|i5xAvrneZZRX5satOp)")
+        XCTAssertEqual(s.media, .gif)
+        XCTAssertEqual(s.text, "GIF")
+        XCTAssertEqual(InboxSnippet(" ![gif](giphy|abc|downsized)\n").media, .gif)
+        XCTAssertEqual(InboxSnippet("https://media.giphy.com/media/abc/giphy.gif").media, .gif)
+        XCTAssertEqual(InboxSnippet("https://i.redd.it/abc123.gif").media, .gif)
+    }
+
+    func testAPictureReplyReadsImage() {
+        XCTAssertEqual(InboxSnippet("![img](abc123xyz)").media, .image)
+        XCTAssertEqual(InboxSnippet("https://preview.redd.it/abc.jpeg?width=640&auto=webp&s=1").media, .image)
+        XCTAssertEqual(InboxSnippet("https://i.imgur.com/AbCd.png").media, .image)
+    }
+
+    func testTextAroundMediaKeepsTheTextWithAWord() {
+        let s = InboxSnippet("haha this\n![gif](giphy|xyz)")
+        XCTAssertNil(s.media)
+        XCTAssertEqual(s.text, "haha this GIF")
+        XCTAssertEqual(InboxSnippet("look ![img](a1) and ![gif](giphy|b2)").text, "look Image and GIF")
+        XCTAssertNil(InboxSnippet("![img](a1) ![gif](giphy|b2)").media)
+    }
+
+    func testEmotesAndPlainTextStayAsTheyAre() {
+        XCTAssertEqual(InboxSnippet("nice ![img](emote|t5_2qh1i|1234) one").text, "nice one")
+        let plain = InboxSnippet("Thanks!\nSee https://example.com/page")
+        XCTAssertEqual(plain.text, "Thanks! See https://example.com/page")
+        XCTAssertNil(plain.media)
+    }
+}

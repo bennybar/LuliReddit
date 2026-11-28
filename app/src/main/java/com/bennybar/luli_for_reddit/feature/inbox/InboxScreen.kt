@@ -66,6 +66,8 @@ import androidx.compose.material.icons.automirrored.rounded.Login
 import androidx.compose.material.icons.automirrored.rounded.Reply
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Forum
+import androidx.compose.material.icons.outlined.GifBox
+import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.MailOutline
 import androidx.compose.material.icons.outlined.MarkEmailRead
 import androidx.compose.material.icons.outlined.MarkEmailUnread
@@ -497,7 +499,7 @@ private fun InboxCard(item: InboxItem, onTap: () -> Unit) {
         InboxKind.MENTION -> Icons.Rounded.AlternateEmail to "Mention"
     }
     val heading = if (item.isMessage) item.subject.ifEmpty { "(no subject)" } else item.linkTitle ?: label
-    val snippet = remember(item.body) { item.body.replace('\n', ' ') }
+    val snippet = remember(item.body) { InboxSnippet.of(item.body) }
 
     // Unread: the whole card in the selected side-bar entry's colour, not just a dot (#120).
     BloomCard(Modifier.fillMaxWidth(), onClick = onTap, color = if (item.isNew) cs.secondaryContainer else cs.surfaceContainerLow) {
@@ -519,7 +521,17 @@ private fun InboxCard(item: InboxItem, onTap: () -> Unit) {
             Spacer(Modifier.height(8.dp))
             Text(heading, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(4.dp))
-            Text(snippet, maxLines = 2, overflow = TextOverflow.Ellipsis, color = cs.onSurfaceVariant)
+            val media = snippet.media
+            if (media != null) {
+                // A reply that's only a GIF or a picture: its icon and the word, not the link (#313).
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(if (media == InboxMedia.GIF) Icons.Outlined.GifBox else Icons.Outlined.Image, null, Modifier.size(18.dp), tint = cs.onSurfaceVariant)
+                    Spacer(Modifier.width(6.dp))
+                    Text(media.label, color = cs.onSurfaceVariant)
+                }
+            } else {
+                Text(snippet.text, maxLines = 2, overflow = TextOverflow.Ellipsis, color = cs.onSurfaceVariant)
+            }
         }
     }
 }

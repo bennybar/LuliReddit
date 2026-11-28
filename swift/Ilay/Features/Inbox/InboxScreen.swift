@@ -293,6 +293,64 @@ private struct InboxList: View {
     }
 }
 
+/// A GIF or a picture someone replied with, as the inbox shows it instead of its link (#313).
+enum InboxMedia: String {
+    case gif = "GIF", image = "Image"
+    var label: String { rawValue }
+}
+
+/// An inbox item's one-line preview: Reddit's media markdown (`![gif](giphy|…)`, `![img](…)`)
+/// and bare GIF or picture links read "GIF" / "Image" instead of the raw link (#313).
+/// `media` is set when that's all the reply is, so the row shows the icon with the word.
+struct InboxSnippet: Equatable {
+    let text: String
+    let media: InboxMedia?
+
+    private static let markdownMedia = try! NSRegularExpression(pattern: #"!\[(gif|img)\]\(([^)\s]*)\)"#, options: .caseInsensitive)
+    private static let gifLink = try! NSRegularExpression(
+        pattern: #"https?://(?:[a-z0-9]+\.)?giphy\.com/\S+|https?://(?:i|preview)\.redd\.it/\S+\.gif\S*|https?://i\.imgur\.com/\S+\.gifv?\b\S*"#,
+        options: .caseInsensitive
+    )
+    private static let imageLink = try! NSRegularExpression(
+        pattern: #"https?://(?:i|preview)\.redd\.it/\S+|https?://i\.imgur\.com/\S+\.(?:png|jpe?g|webp)\b\S*"#,
+        options: .caseInsensitive
+    )
+
+    init(_ body: String) {
+        var found: [InboxMedia] = []
+        var text = Self.replace(Self.markdownMedia, in: body) { groups in
+            let gif = groups[1].lowercased() == "gif"
+            // `![img](emote|…)` is a community emoji inside text, not a picture.
+            if !gif && groups[2].hasPrefix("emote|") { return "" }
+            let m: InboxMedia = gif ? .gif : .image
+            found.append(m)
+            return m.label
+        }
+        text = Self.replace(Self.gifLink, in: text) { _ in found.append(.gif); return InboxMedia.gif.label }
+        text = Self.replace(Self.imageLink, in: text) { _ in found.append(.image); return InboxMedia.image.label }
+        text = text.replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: " {2,}", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespaces)
+        self.text = text
+        media = found.count == 1 && text == found[0].label ? found[0] : nil
+    }
+
+    private static func replace(_ re: NSRegularExpression, in s: String, with f: ([String]) -> String) -> String {
+        let ns = s as NSString
+        var out = ""
+        var last = 0
+        for m in re.matches(in: s, range: NSRange(location: 0, length: ns.length)) {
+            out += ns.substring(with: NSRange(location: last, length: m.range.location - last))
+            let groups = (0..<m.numberOfRanges).map { i in
+                m.range(at: i).location == NSNotFound ? "" : ns.substring(with: m.range(at: i))
+            }
+            out += f(groups)
+            last = m.range.location + m.range.length
+        }
+        return out + ns.substring(from: last)
+    }
+}
+
 private struct InboxRow: View {
     let item: InboxItem
 
@@ -318,10 +376,18 @@ private struct InboxRow: View {
                 }
             }
             Text(heading).font(.body.weight(.semibold)).lineLimit(1)
-            Text(item.body.replacingOccurrences(of: "\n", with: " "))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+            let snippet = InboxSnippet(item.body)
+            if let media = snippet.media {
+                // A reply that's only a GIF or a picture: its icon and the word, not the link (#313).
+                Label(media.label, systemImage: media == .gif ? "play.square" : "photo")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text(snippet.text)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
         }
         .padding(.vertical, 2)
         .contentShape(.rect)
